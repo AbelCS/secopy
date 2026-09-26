@@ -88,3 +88,59 @@ pub fn open_uncached(path: &Path) -> io::Result<(File, bool)> {
 pub fn open_uncached(path: &Path) -> io::Result<(File, bool)> {
     Ok((File::open(path)?, false))
 }
+
+/// Renames `from` to `to` without replacing an existing `to`, in one system call.
+/// Errors: `AlreadyExists` if the name is taken (as the file system judges names:
+/// case, Unicode normalization), `Unsupported` if this OS or file system can't do it.
+#[cfg(target_os = "macos")]
+pub fn rename_noreplace(from: &Path, to: &Path) -> io::Result<()> {
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    // SAFETY: both pointers are valid NUL-terminated strings for the call's duration.
+    let rc = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(unsupported_or(io::Error::last_os_error()))
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn rename_noreplace(from: &Path, to: &Path) -> io::Result<()> {
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    // SAFETY: both pointers are valid NUL-terminated strings for the call's duration.
+    let rc = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(unsupported_or(io::Error::last_os_error()))
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub fn rename_noreplace(_from: &Path, _to: &Path) -> io::Result<()> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn c_path(path: &Path) -> io::Result<std::ffi::CString> {
+    use std::os::unix::ffi::OsStrExt;
+    std::ffi::CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
+}
+
+/// File systems without the flag report ENOTSUP (macOS) or EINVAL (Linux).
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn unsupported_or(e: io::Error) -> io::Error {
+    match e.raw_os_error() {
+        Some(libc::ENOTSUP | libc::EINVAL | libc::ENOSYS) => io::ErrorKind::Unsupported.into(),
+        _ => e,
+    }
+}

@@ -150,3 +150,41 @@ fn sizes_around_the_buffer_size_copy_exactly() {
         assert_eq!(fs::read(&pc.partial).unwrap(), data, "size {size}");
     }
 }
+
+#[test]
+fn another_writers_partial_file_is_never_truncated() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dst) = (dir.path().join("a.bin"), dir.path().join("b.bin"));
+    fs::write(&src, b"mine").unwrap();
+    fs::write(partial_path(&dst), b"other writer").unwrap();
+
+    let err = copy_to_partial(
+        &src,
+        &dst,
+        &CopyConfig::default(),
+        &|_| {},
+        &AtomicBool::new(false),
+    )
+    .unwrap_err();
+    assert_eq!(err, FileError::NameClash);
+    assert_eq!(fs::read(partial_path(&dst)).unwrap(), b"other writer");
+}
+
+#[test]
+fn commit_never_replaces_an_existing_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dst) = (dir.path().join("a.bin"), dir.path().join("b.bin"));
+    fs::write(&src, b"new").unwrap();
+    let pc = copy_to_partial(
+        &src,
+        &dst,
+        &CopyConfig::default(),
+        &|_| {},
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    fs::write(&dst, b"mine").unwrap();
+
+    assert_eq!(commit(&pc.partial, &dst), Err(FileError::AlreadyExists));
+    assert_eq!(fs::read(&dst).unwrap(), b"mine");
+}

@@ -395,3 +395,144 @@ fn cancelling_mid_job_keeps_finished_files_and_removes_partials() {
     let sums = fs::read_to_string(report.checksum_file.unwrap()).unwrap();
     assert_eq!(sums.lines().count(), ok.len());
 }
+
+/// Two jobs copying the same names into one destination (two card readers, one
+/// "Day01" folder) must never report a file whose bytes on disk are the other job's.
+#[test]
+fn concurrent_jobs_into_one_destination_never_report_foreign_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    let (card_a, card_b) = (dir.path().join("a/DCIM"), dir.path().join("b/DCIM"));
+    for i in 0..200 {
+        let name = format!("IMG_{i:04}.JPG");
+        write_files(&card_a, &[(&name, &[b'A'; 3000])]);
+        write_files(&card_b, &[(&name, &[b'B'; 1000])]);
+    }
+    let contents = |p: &Path| {
+        let source = Source::Directory {
+            path: p.to_path_buf(),
+            mode: DirMode::ContentsOnly,
+        };
+        scan(&source, &ScanOptions::default())
+            .unwrap()
+            .select(&ExtensionFilter::All)
+    };
+    let (sel_a, sel_b) = (contents(&card_a), contents(&card_b));
+    for verify in [false, true] {
+        let dest = dest.join(if verify { "verify" } else { "copy" });
+        fs::create_dir_all(&dest).unwrap();
+        let o = opts(verify);
+        let (ra, rb) = std::thread::scope(|s| {
+            let a = s.spawn(|| run_job(&sel_a, &dest, &o, &JobControl::new(), &|_| {}));
+            let b = s.spawn(|| run_job(&sel_b, &dest, &o, &JobControl::new(), &|_| {}));
+            (a.join().unwrap(), b.join().unwrap())
+        });
+        let mut claimed = std::collections::HashSet::new();
+        for o in ra.outcomes.iter().chain(&rb.outcomes) {
+            if matches!(o.status, FileStatus::Copied | FileStatus::Verified) {
+                let on_disk = fs::read(dest.join(&o.rel)).unwrap();
+                assert_eq!(
+                    Some(hash_bytes(&on_disk)),
+                    o.hash,
+                    "{} reported ok but holds other bytes (verify={verify})",
+                    o.rel.display()
+                );
+                assert!(
+                    claimed.insert(o.rel.clone()),
+                    "{} claimed twice",
+                    o.rel.display()
+                );
+            }
+        }
+        assert_eq!(claimed.len(), 200, "each name is copied exactly once");
+    }
+}
+
+/// macOS treats `café` in NFC and NFD as the same name, although the bytes differ.
+#[cfg(target_os = "macos")]
+#[test]
+fn names_equal_after_unicode_normalization_never_mix() {
+    let dir = tempfile::tempdir().unwrap();
+    let (nfc, nfd) = ("caf\u{e9}.bin", "cafe\u{301}.bin");
+    write_files(
+        dir.path(),
+        &[
+            (&format!("x/{nfc}"), &[b'A'; 3000]),
+            (&format!("y/{nfd}"), &[b'B'; 1000]),
+        ],
+    );
+    let source = Source::Files(vec![
+        dir.path().join("x").join(nfc),
+        dir.path().join("y").join(nfd),
+    ]);
+    let sel = scan(&source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    for verify in [false, true] {
+        for round in 0..5 {
+            let dest = dir.path().join(format!("dest-{verify}-{round}"));
+            fs::create_dir_all(&dest).unwrap();
+            let (report, _) = run(&sel, &dest, &opts(verify));
+            let ok: Vec<_> = report
+                .outcomes
+                .iter()
+                .filter(|o| matches!(o.status, FileStatus::Copied | FileStatus::Verified))
+                .collect();
+            assert_eq!(ok.len(), 1, "{report:?}");
+            let on_disk = fs::read(dest.join(&ok[0].rel)).unwrap();
+            assert_eq!(Some(hash_bytes(&on_disk)), ok[0].hash, "verify={verify}");
+        }
+    }
+}
+
+#[test]
+fn a_panicking_event_handler_ends_the_job_instead_of_hanging() {
+    let f = fixture();
+    let sel = select(&f.src);
+    let dest = f.dest.clone();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            run_job(&sel, &dest, &opts(false), &JobControl::new(), &|e| {
+                if let Event::FileFinished(_) = e {
+                    panic!("event handler failed");
+                }
+            })
+        }));
+        let _ = tx.send(result.is_err());
+    });
+    let panicked = rx
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("run_job hung after a worker panicked");
+    assert!(panicked);
+}
+
+#[test]
+fn copying_never_runs_far_ahead_of_verification() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    for i in 0..3000 {
+        write_files(&src, &[(&format!("d{}/f{i}.bin", i % 30), &pattern(100))]);
+    }
+    let o = JobOptions {
+        verify: true,
+        small_file_lanes: 8,
+        large_file_lanes: 1,
+        verify_lanes: 1,
+        progress_interval: std::time::Duration::from_millis(1),
+        ..JobOptions::default()
+    };
+    let max_active = std::sync::atomic::AtomicUsize::new(0);
+    let report = run_job(&select(&src), &dest, &o, &JobControl::new(), &|e| {
+        if let Event::Progress(p) = e {
+            max_active.fetch_max(p.active.len(), std::sync::atomic::Ordering::Relaxed);
+        }
+    });
+    assert!(report.is_success(), "{report:?}");
+    // 9 copy lanes + a small verify queue + 1 verify lane; never thousands.
+    let max = max_active.into_inner();
+    assert!(max <= 20, "{max} files in flight");
+}

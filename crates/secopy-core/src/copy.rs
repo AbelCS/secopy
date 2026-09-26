@@ -1,7 +1,7 @@
 //! Copies one file to a temporary "partial" file while hashing it (FR-18, FR-20, RFD §7.2).
 
 use std::ffi::OsString;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -55,6 +55,10 @@ pub fn partial_path(final_path: &Path) -> PathBuf {
 /// Copies `src` to the partial path of `final_path`, hashing the bytes as they are read,
 /// then fsyncs it. On error or cancel the partial file is removed.
 /// `progress` receives the number of bytes written so far.
+///
+/// The partial file is created with `create_new`: if it already exists, another writer
+/// (a clashing name in this job, or another job) owns it, and this file fails with
+/// `NameClash` instead of truncating the other writer's data.
 pub fn copy_to_partial(
     src: &Path,
     final_path: &Path,
@@ -63,7 +67,20 @@ pub fn copy_to_partial(
     cancel: &AtomicBool,
 ) -> Result<PartialCopy, FileError> {
     let partial = partial_path(final_path);
-    match copy_inner(src, &partial, cfg, progress, cancel) {
+    let reader = File::open(src).map_err(FileError::read_source)?;
+    let mut writer = match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&partial)
+    {
+        Ok(file) => file,
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => return Err(FileError::NameClash),
+        Err(e) => return Err(FileError::write_dest(e)),
+    };
+    let result = copy_inner(reader, &mut writer, cfg, progress, cancel);
+    // Close before removing: Windows cannot delete an open file.
+    drop(writer);
+    match result {
         Ok((hash, bytes)) => Ok(PartialCopy {
             partial,
             hash,
@@ -76,30 +93,51 @@ pub fn copy_to_partial(
     }
 }
 
-/// Gives a finished partial file its final name (FR-18).
+/// Gives a finished partial file its final name without ever replacing an existing file
+/// (FR-18). The file system itself decides whether the name is taken (case, Unicode
+/// normalization). Uses a no-replace rename where the OS has one (macOS, Linux), else a
+/// hard link (Windows); file systems with neither (FAT, exFAT) fall back to
+/// check-then-rename.
 pub fn commit(partial: &Path, final_path: &Path) -> Result<(), FileError> {
-    fs::rename(partial, final_path).map_err(FileError::write_dest)
+    match os::rename_noreplace(partial, final_path) {
+        Ok(()) => return Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => return Err(FileError::AlreadyExists),
+        Err(e) if e.kind() != io::ErrorKind::Unsupported => return Err(FileError::write_dest(e)),
+        Err(_) => {}
+    }
+    match fs::hard_link(partial, final_path) {
+        Ok(()) => {
+            // The copy is complete under its final name; a leftover partial is only clutter.
+            let _ = fs::remove_file(partial);
+            Ok(())
+        }
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Err(FileError::AlreadyExists),
+        Err(_) => {
+            if fs::symlink_metadata(final_path).is_ok() {
+                return Err(FileError::AlreadyExists);
+            }
+            fs::rename(partial, final_path).map_err(FileError::write_dest)
+        }
+    }
 }
 
 fn copy_inner(
-    src: &Path,
-    partial: &Path,
+    mut reader: File,
+    writer: &mut File,
     cfg: &CopyConfig,
     progress: &dyn Fn(u64),
     cancel: &AtomicBool,
 ) -> Result<(u64, u64), FileError> {
-    let mut reader = File::open(src).map_err(FileError::read_source)?;
     let len = reader.metadata().map_err(FileError::read_source)?.len();
-    let mut writer = File::create(partial).map_err(FileError::write_dest)?;
     if cfg.uncached_write {
-        os::set_nocache(&writer);
+        os::set_nocache(writer);
     }
     let result = if len <= cfg.buffer_size as u64 {
-        copy_small(&mut reader, &mut writer, len, progress, cancel)?
+        copy_small(&mut reader, writer, len, progress, cancel)?
     } else {
-        copy_pipelined(reader, &mut writer, cfg, progress, cancel)?
+        copy_pipelined(reader, writer, cfg, progress, cancel)?
     };
-    os::sync_file(&writer).map_err(FileError::write_dest)?;
+    os::sync_file(writer).map_err(FileError::write_dest)?;
     Ok(result)
 }
 

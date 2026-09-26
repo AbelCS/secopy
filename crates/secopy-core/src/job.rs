@@ -183,8 +183,6 @@ pub fn run_job(
     let small = Queue::new(small);
     let large = Queue::new(large);
     let finished = AtomicBool::new(false);
-    let (verify_tx, verify_rx) = mpsc::channel::<VerifyTask>();
-    let verify_rx = Mutex::new(verify_rx);
 
     std::thread::scope(|s| {
         let ticker = s.spawn(|| {
@@ -193,6 +191,14 @@ pub fn run_job(
                 runner.emit_progress();
             }
         });
+        // Stops the ticker even when joining a worker panics below; otherwise the scope
+        // would wait for the ticker forever and the panic would become a hang.
+        let stop_ticker = SetOnDrop(&finished);
+        // Bounded, so copying can't run thousands of files ahead of verification.
+        let (verify_tx, verify_rx) =
+            mpsc::sync_channel::<VerifyTask>(VERIFY_QUEUE_PER_LANE * opts.verify_lanes.max(1));
+        // Owned by the verify lanes only: if they all die, sends fail instead of blocking.
+        let verify_rx = Arc::new(Mutex::new(verify_rx));
         let mut workers = Vec::new();
         for (queue, lanes) in [
             (&small, opts.small_file_lanes),
@@ -207,14 +213,15 @@ pub fn run_job(
         drop(verify_tx);
         if opts.verify {
             for _ in 0..opts.verify_lanes.max(1) {
-                let (runner, verify_rx) = (&runner, &verify_rx);
-                workers.push(s.spawn(move || runner.verify_lane(verify_rx)));
+                let (runner, verify_rx) = (&runner, verify_rx.clone());
+                workers.push(s.spawn(move || runner.verify_lane(&verify_rx)));
             }
         }
+        drop(verify_rx);
         for worker in workers {
             worker.join().expect("worker thread panicked");
         }
-        finished.store(true, Relaxed);
+        drop(stop_ticker);
         ticker.join().expect("progress thread panicked");
         runner.emit_progress();
     });
@@ -289,6 +296,18 @@ fn make_durable(dest: &Path, dirs: &[PathBuf]) {
     #[cfg(not(unix))]
     let _ = dirs;
     let _ = os::full_barrier(dest);
+}
+
+/// Verify tasks that may wait per verify lane before copy lanes block (RFD §7.3).
+const VERIFY_QUEUE_PER_LANE: usize = 4;
+
+/// Sets the flag when dropped, including during a panic.
+struct SetOnDrop<'a>(&'a AtomicBool);
+
+impl Drop for SetOnDrop<'_> {
+    fn drop(&mut self) {
+        self.0.store(true, Relaxed);
+    }
 }
 
 /// Lock-free work list shared by the lanes of one kind.
@@ -392,14 +411,14 @@ impl<'a> Runner<'a> {
         }
     }
 
-    fn copy_lane(&self, queue: &Queue, verify_tx: &mpsc::Sender<VerifyTask>) {
+    fn copy_lane(&self, queue: &Queue, verify_tx: &mpsc::SyncSender<VerifyTask>) {
         while !self.control.is_stopped() {
             let Some(idx) = queue.pop() else { break };
             self.copy_one(idx, verify_tx);
         }
     }
 
-    fn copy_one(&self, idx: usize, verify_tx: &mpsc::Sender<VerifyTask>) {
+    fn copy_one(&self, idx: usize, verify_tx: &mpsc::SyncSender<VerifyTask>) {
         let entry = &self.sel.files[idx];
         let final_path = self.dest.join(&entry.rel);
         let started = Instant::now();
@@ -427,7 +446,8 @@ impl<'a> Runner<'a> {
                 partial,
                 started,
             };
-            // Verify lanes live until every sender is dropped, so this cannot fail.
+            // Blocks while the verify queue is full. Fails only if every verify lane died,
+            // and then the panic propagates out of `run_job`.
             verify_tx.send(task).expect("verify lanes are running");
             return;
         }
@@ -473,6 +493,8 @@ impl<'a> Runner<'a> {
     }
 
     /// Verifies the partial file, re-copying once on mismatch (FR-27), then commits it.
+    /// Removes only partial files this lane created: a failed re-copy may have hit a
+    /// partial file that belongs to another writer.
     fn verify_one(&self, task: VerifyTask) {
         let VerifyTask {
             slot,
@@ -492,13 +514,20 @@ impl<'a> Runner<'a> {
                 &self.control.stop,
             ) {
                 Ok(v) => v,
-                Err(e) => break Err(e),
+                Err(e) => {
+                    let _ = fs::remove_file(&partial.partial);
+                    break Err(e);
+                }
             };
             if bypass == CacheBypass::Unavailable {
                 self.bypass_unavailable.store(true, Relaxed);
             }
             if actual == partial.hash {
-                break copy::commit(&partial.partial, &final_path).map(|()| partial.hash);
+                let committed = copy::commit(&partial.partial, &final_path);
+                if committed.is_err() {
+                    let _ = fs::remove_file(&partial.partial);
+                }
+                break committed.map(|()| partial.hash);
             }
             let _ = fs::remove_file(&partial.partial);
             if attempt == 1 {
@@ -515,10 +544,7 @@ impl<'a> Runner<'a> {
         };
         match result {
             Ok(hash) => self.finish(&slot, entry, Some(hash), FileStatus::Verified, started),
-            Err(e) => {
-                let _ = fs::remove_file(&partial.partial);
-                self.finish(&slot, entry, None, FileStatus::Failed(e), started)
-            }
+            Err(e) => self.finish(&slot, entry, None, FileStatus::Failed(e), started),
         }
     }
 
