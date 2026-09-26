@@ -1,6 +1,9 @@
 //! Per-file errors (FR-21).
 
+use std::path::PathBuf;
 use std::{fmt, io};
+
+use crate::names::NameProblem;
 
 /// An I/O error reduced to plain data, so outcomes can be cloned, compared and sent to the UI.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +44,12 @@ pub enum FileError {
     NameClash,
     #[error("another copy is writing this file")]
     PartialInUse,
+    #[error("{0}")]
+    InvalidName(NameProblem),
+    #[error("the file is larger than the destination drive allows ({limit} bytes)")]
+    TooLarge { limit: u64 },
+    #[error("something is in the way at {}", path.display())]
+    InTheWay { path: PathBuf },
     #[error("cancelled")]
     Cancelled,
 }

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use crate::copy::partial_path;
-use crate::error::IoFailure;
+use crate::error::{FileError, IoFailure};
 use crate::fsinfo::{self, FsInfo};
 use crate::names::{self, NameProblem};
 use crate::scan::{ScanEntry, Selection};
@@ -60,6 +60,18 @@ pub enum ProblemKind {
     InTheWay {
         path: PathBuf,
     },
+}
+
+impl ProblemKind {
+    /// How the file fails if the job starts anyway.
+    pub fn to_error(&self) -> FileError {
+        match self {
+            ProblemKind::InvalidName(p) => FileError::InvalidName(p.clone()),
+            ProblemKind::TooLarge { limit } => FileError::TooLarge { limit: *limit },
+            ProblemKind::NameClash => FileError::NameClash,
+            ProblemKind::InTheWay { path } => FileError::InTheWay { path: path.clone() },
+        }
+    }
 }
 
 /// A file that already exists at the destination (FR-17).
@@ -228,7 +240,7 @@ fn conflict_kind(entry: &ScanEntry, existing: &Metadata) -> ConflictKind {
 /// Paths that land on the same destination file. Compared on raw bytes, not lossy UTF-8,
 /// and ignoring case only where the file system does. Unicode normalization (NFC vs NFD
 /// on APFS) isn't predicted; the no-replace commit catches it.
-fn clash_key(rel: &Path, case_sensitive: bool) -> Vec<u8> {
+pub(crate) fn clash_key(rel: &Path, case_sensitive: bool) -> Vec<u8> {
     let bytes = rel.as_os_str().as_encoded_bytes();
     if case_sensitive {
         return bytes.to_vec();
