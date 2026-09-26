@@ -1,9 +1,10 @@
 //! Walks the source and builds the list of files to copy (FR-1..FR-14).
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use walkdir::WalkDir;
 
@@ -25,6 +26,16 @@ pub struct ScanEntry {
     pub rel: PathBuf,
     pub size: u64,
     pub ext: ExtKey,
+    /// Source modification time, kept on the copy (FR-19) and used to spot identical files (FR-17).
+    pub mtime: Option<SystemTime>,
+}
+
+/// A directory the job creates, relative to the destination.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirEntry {
+    pub rel: PathBuf,
+    /// Source directory's modification time, restored after its contents are written (FR-19).
+    pub mtime: Option<SystemTime>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -54,6 +65,8 @@ pub struct Scan {
     /// Symlinks are never followed or copied (FR-24).
     pub skipped_symlinks: Vec<PathBuf>,
     pub problems: Vec<ScanProblem>,
+    /// Modification time of every source directory, by path relative to the destination.
+    pub dir_mtimes: HashMap<PathBuf, SystemTime>,
 }
 
 /// The files and directories a job will create.
@@ -61,8 +74,27 @@ pub struct Scan {
 pub struct Selection {
     pub files: Vec<ScanEntry>,
     /// Directories to create, relative to the destination, parents first.
-    pub dirs: Vec<PathBuf>,
+    pub dirs: Vec<DirEntry>,
     pub total_bytes: u64,
+}
+
+impl Selection {
+    /// Only the files at `ids` (indexes into `files`), e.g. to retry failed files.
+    /// Keeps the directories that contain them; empty directories are dropped.
+    pub fn subset(&self, ids: &[usize]) -> Selection {
+        let files: Vec<ScanEntry> = ids.iter().map(|&i| self.files[i].clone()).collect();
+        let dirs = self
+            .dirs
+            .iter()
+            .filter(|d| files.iter().any(|f| f.rel.starts_with(&d.rel)))
+            .cloned()
+            .collect();
+        Selection {
+            total_bytes: files.iter().map(|f| f.size).sum(),
+            files,
+            dirs,
+        }
+    }
 }
 
 pub fn scan(source: &Source, opts: &ScanOptions) -> io::Result<Scan> {
@@ -91,14 +123,22 @@ impl Scan {
             }
         }
         let total_bytes = files.iter().map(|f| f.size).sum();
+        let dirs = dirs
+            .into_iter()
+            .map(|rel| DirEntry {
+                mtime: self.dir_mtimes.get(&rel).copied(),
+                rel,
+            })
+            .collect();
         Selection {
             files,
-            dirs: dirs.into_iter().collect(),
+            dirs,
             total_bytes,
         }
     }
 
-    fn push_file(&mut self, source: PathBuf, rel: PathBuf, size: u64) {
+    fn push_file(&mut self, source: PathBuf, rel: PathBuf, meta: &fs::Metadata) {
+        let (size, mtime) = (meta.len(), meta.modified().ok());
         let ext = ext_key(&rel);
         let stat = self.ext_stats.entry(ext.clone()).or_default();
         stat.files += 1;
@@ -108,6 +148,7 @@ impl Scan {
             rel,
             size,
             ext,
+            mtime,
         });
     }
 
@@ -128,7 +169,7 @@ fn scan_files(paths: &[PathBuf]) -> Scan {
             Ok(meta) if meta.file_type().is_symlink() => scan.skipped_symlinks.push(path.clone()),
             Ok(meta) if meta.is_file() => {
                 let name = path.file_name().expect("a regular file has a file name");
-                scan.push_file(path.clone(), PathBuf::from(name), meta.len());
+                scan.push_file(path.clone(), PathBuf::from(name), &meta);
             }
             Ok(_) => scan.problem(path, "not a regular file"),
             Err(e) => scan.problem(path, e),
@@ -138,20 +179,21 @@ fn scan_files(paths: &[PathBuf]) -> Scan {
 }
 
 fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> {
-    let root = fs::canonicalize(root)?;
+    // Not `canonicalize`: a symlinked source folder keeps its own name, and some Windows
+    // volumes (RAM disks, VeraCrypt, network drives) can't be canonicalized.
+    let root = std::path::absolute(root)?;
+    let root_meta = fs::metadata(&root)?;
     let prefix = match mode {
         DirMode::ContentsOnly => PathBuf::new(),
-        DirMode::FolderItself => PathBuf::from(root.file_name().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "a drive root has no folder name; copy only its contents instead",
-            )
-        })?),
+        DirMode::FolderItself => PathBuf::from(folder_name(&root)?),
     };
     let mut scan = Scan {
         root_dir: (!prefix.as_os_str().is_empty()).then(|| prefix.clone()),
         ..Scan::default()
     };
+    if let Ok(mtime) = root_meta.modified() {
+        scan.dir_mtimes.insert(prefix.clone(), mtime);
+    }
     let mut dirs = BTreeSet::new();
     let mut non_empty = HashSet::new();
     let mut skipped_hidden = 0u64;
@@ -196,13 +238,16 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
         if file_type.is_symlink() {
             scan.skipped_symlinks.push(entry.into_path());
         } else if file_type.is_dir() {
+            if let Some(mtime) = entry.metadata().ok().and_then(|m| m.modified().ok()) {
+                scan.dir_mtimes.insert(rel.clone(), mtime);
+            }
             dirs.insert(rel);
             non_empty.insert(parent);
         } else if file_type.is_file() {
             match entry.metadata() {
                 Ok(meta) => {
                     non_empty.insert(parent);
-                    scan.push_file(entry.into_path(), rel, meta.len());
+                    scan.push_file(entry.into_path(), rel, &meta);
                 }
                 Err(e) => scan.problem(entry.path(), e),
             }
@@ -216,4 +261,22 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
         .filter(|d| !non_empty.contains(d))
         .collect();
     Ok(scan)
+}
+
+/// The folder's own name for "copy the folder itself" (FR-4a). A path ending in `..`
+/// has no name of its own, so it is resolved first.
+fn folder_name(root: &Path) -> io::Result<std::ffi::OsString> {
+    let resolved;
+    let named = if root.file_name().is_some() {
+        root
+    } else {
+        resolved = fs::canonicalize(root)?;
+        &resolved
+    };
+    named.file_name().map(ToOwned::to_owned).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "a drive root has no folder name; copy only its contents instead",
+        )
+    })
 }

@@ -16,7 +16,7 @@ use crate::checksum_file;
 use crate::copy::CopyConfig;
 use crate::error::FileError;
 use crate::os;
-use crate::scan::Selection;
+use crate::scan::{DirEntry, Selection};
 use crate::verify::CacheBypass;
 
 pub use crate::control::JobControl;
@@ -130,7 +130,7 @@ pub fn run_job(
     let started = Instant::now();
     for dir in &sel.dirs {
         // A failure here surfaces as a per-file write error.
-        let _ = fs::create_dir_all(dest.join(dir));
+        let _ = fs::create_dir_all(dest.join(&dir.rel));
     }
     let clashes = find_name_clashes(sel);
     let runner = Runner::new(sel, dest, opts, control, on_event, clashes);
@@ -238,11 +238,11 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
 
 /// Makes the job durable: one fsync per directory for the renames, then one
 /// drive-cache flush for the whole volume (RFD §7.4).
-fn make_durable(dest: &Path, dirs: &[PathBuf]) {
+fn make_durable(dest: &Path, dirs: &[DirEntry]) {
     #[cfg(unix)]
     for dir in dirs
         .iter()
-        .map(|d| dest.join(d))
+        .map(|d| dest.join(&d.rel))
         .chain([dest.to_path_buf()])
     {
         if let Ok(f) = fs::File::open(&dir) {

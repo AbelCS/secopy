@@ -3,6 +3,7 @@ mod common;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use common::write_files;
 use secopy_core::filter::ExtensionFilter;
@@ -142,7 +143,7 @@ fn selecting_without_filter_keeps_every_file_and_empty_dirs() {
     assert_eq!(sel.files.len(), 4);
     assert_eq!(sel.total_bytes, 14);
     assert_eq!(
-        rels(sel.dirs),
+        rels(sel.dirs.iter().map(|d| d.rel.clone())),
         rels(["CARD", "CARD/clips", "CARD/clips/empty"].map(PathBuf::from))
     );
 }
@@ -158,7 +159,7 @@ fn selecting_with_filter_drops_other_files_and_empty_dirs() {
     );
     assert_eq!(sel.total_bytes, 10);
     assert_eq!(
-        rels(sel.dirs),
+        rels(sel.dirs.iter().map(|d| d.rel.clone())),
         rels(["CARD", "CARD/clips"].map(PathBuf::from))
     );
 }
@@ -196,4 +197,84 @@ fn missing_file_source_is_reported_as_a_problem() {
     let scan = scan(&source, &ScanOptions::default()).unwrap();
     assert!(scan.files.is_empty());
     assert_eq!(scan.problems.len(), 1);
+}
+
+#[test]
+fn file_and_folder_mtimes_are_recorded() {
+    let (_dir, card) = card();
+    let t = SystemTime::UNIX_EPOCH + Duration::from_secs(1_600_000_000);
+    let file = fs::File::options()
+        .write(true)
+        .open(card.join("clips/B002.mov"))
+        .unwrap();
+    file.set_times(fs::FileTimes::new().set_modified(t))
+        .unwrap();
+    drop(file);
+    let clips = fs::File::open(card.join("clips")).unwrap();
+    // Directories can't be opened for writing on every OS; skip where setting fails.
+    let dir_set = clips
+        .set_times(fs::FileTimes::new().set_modified(t))
+        .is_ok();
+
+    let sel = scan_card(&card, DirMode::FolderItself, false).select(&ExtensionFilter::All);
+    let b002 = sel
+        .files
+        .iter()
+        .find(|f| f.rel.ends_with("B002.mov"))
+        .unwrap();
+    assert_eq!(b002.mtime, Some(t));
+    let clips = sel
+        .dirs
+        .iter()
+        .find(|d| d.rel == Path::new("CARD").join("clips"))
+        .unwrap();
+    assert!(clips.mtime.is_some());
+    if dir_set {
+        assert_eq!(clips.mtime, Some(t));
+    }
+    let root = sel
+        .dirs
+        .iter()
+        .find(|d| d.rel == Path::new("CARD"))
+        .unwrap();
+    assert!(
+        root.mtime.is_some(),
+        "the copied folder itself has an mtime"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_source_folder_keeps_its_own_name() {
+    let (dir, card) = card();
+    let link = dir.path().join("TODAY");
+    std::os::unix::fs::symlink(&card, &link).unwrap();
+    let scan = scan_card(&link, DirMode::FolderItself, false);
+    assert_eq!(scan.root_dir, Some(PathBuf::from("TODAY")));
+    assert!(scan.files.iter().all(|f| f.rel.starts_with("TODAY")));
+}
+
+#[test]
+fn a_path_ending_in_dotdot_uses_the_resolved_folder_name() {
+    let (_dir, card) = card();
+    let scan = scan_card(&card.join("clips/.."), DirMode::FolderItself, false);
+    assert_eq!(scan.root_dir, Some(PathBuf::from("CARD")));
+}
+
+#[test]
+fn subset_keeps_only_the_given_files_and_their_folders() {
+    let (_dir, card) = card();
+    let sel = scan_card(&card, DirMode::FolderItself, false).select(&ExtensionFilter::All);
+    let b002 = sel
+        .files
+        .iter()
+        .position(|f| f.rel.ends_with("B002.mov"))
+        .unwrap();
+    let sub = sel.subset(&[b002]);
+    assert_eq!(sub.files.len(), 1);
+    assert_eq!(sub.total_bytes, 5);
+    assert_eq!(
+        rels(sub.dirs.iter().map(|d| d.rel.clone())),
+        rels(["CARD", "CARD/clips"].map(PathBuf::from))
+    );
 }
