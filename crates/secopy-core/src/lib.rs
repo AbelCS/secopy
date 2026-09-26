@@ -10,3 +10,4 @@ pub mod hidden;
 mod os;
 pub mod scan;
 pub mod source;
+pub mod verify;
