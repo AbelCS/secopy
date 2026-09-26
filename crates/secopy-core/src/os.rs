@@ -265,3 +265,78 @@ fn lock(file: &File, wait: bool) -> io::Result<bool> {
         Err(e)
     }
 }
+
+#[cfg(all(test, any(target_os = "macos", target_os = "linux")))]
+mod tests {
+    use super::*;
+    use std::os::fd::AsRawFd;
+
+    /// Pages of `path` that are in the OS page cache, via `mincore` on a mapping.
+    fn resident_pages(path: &Path) -> usize {
+        let file = File::open(path).unwrap();
+        let len = file.metadata().unwrap().len() as usize;
+        // SAFETY: `sysconf` has no preconditions.
+        let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as usize;
+        let mut vec = vec![0u8; len.div_ceil(page)];
+        // SAFETY: a read-only shared mapping of a file we own, unmapped below; `vec` has
+        // one byte per page, as `mincore` requires.
+        unsafe {
+            let addr = libc::mmap(
+                std::ptr::null_mut(),
+                len,
+                libc::PROT_READ,
+                libc::MAP_SHARED,
+                file.as_raw_fd(),
+                0,
+            );
+            assert_ne!(addr, libc::MAP_FAILED);
+            assert_eq!(libc::mincore(addr, len, vec.as_mut_ptr().cast()), 0);
+            libc::munmap(addr, len);
+        }
+        vec.iter().filter(|&&b| b & 1 != 0).count()
+    }
+
+    /// FR-26: after an uncached copy, no page of the file (including a partial last
+    /// page) is left in RAM for the verify read to hit.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn uncached_copies_leave_nothing_in_the_page_cache() {
+        use crate::control::JobControl;
+        use crate::copy::{CopyConfig, copy_to_partial};
+        let dir = tempfile::tempdir().unwrap();
+        // One file for the single-read path, one for the pipeline; both end mid-page.
+        for (name, len, buffer_size) in [("small", 50_000, 1 << 20), ("large", 300_123, 65_536)] {
+            let src = dir.path().join(name);
+            std::fs::write(&src, vec![7u8; len]).unwrap();
+            let cfg = CopyConfig {
+                buffer_size,
+                buffers: 3,
+                uncached_write: true,
+            };
+            let dst = dir.path().join(format!("{name}.copy"));
+            let pc = copy_to_partial(&src, &dst, &cfg, &|_| {}, &JobControl::new()).unwrap();
+            assert_eq!(resident_pages(&pc.partial), 0, "{name}");
+        }
+    }
+
+    /// FR-26: `open_uncached` evicts the fsynced file's pages before the verify read.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn opening_for_verify_evicts_the_page_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        if crate::fsinfo::fs_info(dir.path()).unwrap().kind
+            == crate::fsinfo::FsKind::Other("0x1021994".into())
+        {
+            return; // tmpfs: the page cache is the storage
+        }
+        let path = dir.path().join("a.bin");
+        let mut f = File::create(&path).unwrap();
+        std::io::Write::write_all(&mut f, &vec![7u8; 300_123]).unwrap();
+        f.sync_all().unwrap();
+        drop(f);
+        assert!(resident_pages(&path) > 0, "a normal write is cached");
+        let (_file, bypassed) = open_uncached(&path).unwrap();
+        assert!(bypassed);
+        assert_eq!(resident_pages(&path), 0);
+    }
+}
