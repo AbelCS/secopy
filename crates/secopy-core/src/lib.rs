@@ -10,6 +10,7 @@ pub mod fsinfo;
 pub mod hash;
 pub mod hidden;
 pub mod job;
+pub mod names;
 mod os;
 pub mod scan;
 pub mod source;
