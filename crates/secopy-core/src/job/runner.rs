@@ -102,7 +102,8 @@ impl<'a> Runner<'a> {
     }
 
     pub(super) fn copy_lane(&self, queue: &Queue, verify_tx: &mpsc::SyncSender<VerifyTask>) {
-        while !self.control.is_stopped() {
+        // Blocks while paused, so no new file starts during a pause (FR-22).
+        while self.control.checkpoint().is_ok() {
             let Some(idx) = queue.pop() else { break };
             self.copy_one(idx, verify_tx);
         }

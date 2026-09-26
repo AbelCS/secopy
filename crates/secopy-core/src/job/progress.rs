@@ -34,6 +34,8 @@ pub struct Progress {
     pub copied_bytes: u64,
     pub verified_bytes: u64,
     pub active: Vec<ActiveFile>,
+    /// The job is paused (FR-22); snapshots keep coming so the UI stays live.
+    pub paused: bool,
 }
 
 /// Live state of one in-flight file.
@@ -98,6 +100,7 @@ impl Runner<'_> {
             copied_bytes: copied.min(total_bytes),
             verified_bytes: verified.min(total_bytes),
             active: files,
+            paused: self.control.is_paused(),
         }
     }
 }

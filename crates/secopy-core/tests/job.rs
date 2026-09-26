@@ -247,6 +247,7 @@ fn final_progress_event_is_complete() {
             copied_bytes: sel.total_bytes,
             verified_bytes: sel.total_bytes,
             active: vec![],
+            paused: false,
         }
     );
     let finished = events
@@ -535,4 +536,54 @@ fn copying_never_runs_far_ahead_of_verification() {
     // 9 copy lanes + a small verify queue + 1 verify lane; never thousands.
     let max = max_active.into_inner();
     assert!(max <= 20, "{max} files in flight");
+}
+
+#[test]
+fn a_paused_job_does_no_io_until_resumed() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    for i in 0..40 {
+        write_files(&src, &[(&format!("f{i:02}.bin"), &pattern(2000))]);
+    }
+    let sel = select(&src);
+    let control = JobControl::new();
+    let finished = std::sync::atomic::AtomicUsize::new(0);
+    let saw_paused = std::sync::atomic::AtomicBool::new(false);
+    let report = std::thread::scope(|s| {
+        let job = s.spawn(|| {
+            run_job(&sel, &dest, &opts(true), &control, &|e| match e {
+                Event::FileFinished(_) => {
+                    if finished.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                        control.pause();
+                    }
+                }
+                Event::Progress(p) if p.paused => {
+                    saw_paused.store(true, std::sync::atomic::Ordering::SeqCst)
+                }
+                _ => {}
+            })
+        });
+        // Wait until the pause has taken hold, then check that nothing moves.
+        while !saw_paused.load(std::sync::atomic::Ordering::SeqCst) {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let before = (
+            finished.load(std::sync::atomic::Ordering::SeqCst),
+            read_tree(&dest),
+        );
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let after = (
+            finished.load(std::sync::atomic::Ordering::SeqCst),
+            read_tree(&dest),
+        );
+        assert_eq!(before, after, "files changed while paused");
+        assert!(before.0 < 40, "the job finished before the pause");
+        control.resume();
+        job.join().unwrap()
+    });
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(read_tree(&dest.join("src")), read_tree(&src));
 }
