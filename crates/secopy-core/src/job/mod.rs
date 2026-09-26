@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use chrono::Local;
 
+use crate::awake::KeepAwake;
 use crate::checksum_file;
 use crate::copy::CopyConfig;
 use crate::error::{FatalError, FileError};
@@ -36,6 +37,8 @@ pub struct JobOptions {
     pub small_file_lanes: usize,
     pub large_file_lanes: usize,
     pub verify_lanes: usize,
+    /// Keep the system from sleeping while the job runs, pauses included.
+    pub keep_awake: bool,
     /// How often `Event::Progress` is emitted.
     pub progress_interval: Duration,
     #[doc(hidden)]
@@ -54,6 +57,7 @@ impl Default for JobOptions {
             small_file_lanes: 8,
             large_file_lanes: 1,
             verify_lanes: 2,
+            keep_awake: true,
             progress_interval: Duration::from_millis(50),
             hooks: Hooks::default(),
         }
@@ -157,6 +161,7 @@ pub fn run_job(
     on_event: &(dyn Fn(Event) + Sync),
 ) -> JobReport {
     let started = Instant::now();
+    let _awake = opts.keep_awake.then(KeepAwake::new);
     let dest = plan.dest.as_path();
     let runner = Runner::new(plan, opts, control, on_event);
     let (write, unwritten): (Vec<usize>, Vec<usize>) =

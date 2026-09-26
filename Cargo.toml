@@ -17,5 +17,5 @@ libc = "0.2"
 tempfile = "3.27.0"
 thiserror = "2.0.21"
 walkdir = "2.5.0"
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Power"] }
 xxhash-rust = { version = "0.8.18", features = ["xxh64"] }
