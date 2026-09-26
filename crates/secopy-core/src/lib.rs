@@ -2,8 +2,11 @@
 //! UI-independent; used by the desktop app, the CLI, tests and benchmarks.
 
 pub mod checksum_file;
+pub mod copy;
+pub mod error;
 pub mod filter;
 pub mod hash;
 pub mod hidden;
+mod os;
 pub mod scan;
 pub mod source;
