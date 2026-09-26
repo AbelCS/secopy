@@ -13,12 +13,12 @@ xxHash64 verification and a checksum file written to the destination.
 
 ## Git workflow
 
-- Single contributor: work directly on **`main`**. No feature branches or pull requests
-  unless the user asks for them.
-- Remote: GitHub.
+- Work on the branch you are on. Don't create, switch or rename branches unless the user
+  asks.
+- Remote: GitHub. Releases are cut from `main` (see Releases below).
 - Commit and push only when the user asks.
-- Never rewrite published history on `main`: no force-push, and no amending or rebasing
-  commits that are already pushed.
+- Never rewrite published history: no force-push, and no amending or rebasing commits that
+  are already pushed.
 
 ## Commit messages: Conventional Commits 1.0
 
@@ -88,7 +88,8 @@ format exactly.
   `.release-please-manifest.json` (last released version; `0.0.0` means nothing has been
   released yet, so the first `feat` releases `0.1.0`).
 - Every manifest that carries a version must be listed under `extra-files` in
-  `release-please-config.json` when the manifest is created, so all versions stay identical:
+  `release-please-config.json` when the manifest is created, so all versions stay identical.
+  Today that is only the root `Cargo.toml`; the UI and Tauri manifests join in plan 3:
 
   ```json
   "extra-files": [
@@ -98,16 +99,19 @@ format exactly.
   ]
   ```
 
-  Adjust the paths to the real layout.
+  Use the real paths when the files are created.
 - To force a specific version (e.g. `1.0.0`), add a commit with the footer
   `Release-As: 1.0.0`.
 
 ## Development
 
 - Layout: `crates/secopy-core` (engine library, no UI dependencies) and `crates/secopy-cli`
-  (developer CLI and benchmark driver). The Tauri app and Svelte UI come in a later plan.
+  (developer CLI and benchmark driver). The Tauri app and Svelte UI come in plan 3.
 - Before every commit: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`
-  and `cargo test --workspace`. All must pass.
+  and `cargo test --workspace`. All must pass. When a change touches Linux- or Windows-only
+  `cfg` code, also run clippy with `--target x86_64-unknown-linux-gnu` and
+  `--target x86_64-pc-windows-msvc` (add them once with `rustup target add`).
 - `xxhsum` must be installed locally (`brew install xxhash`). CI runs its compatibility
   test with `SECOPY_REQUIRE_XXHSUM=1` so it can't silently skip.
-- Plans live in `docs/superpowers/plans/`, benchmark results in `docs/benchmarks/`.
+- Plans live in `docs/superpowers/plans/`, designs in `docs/superpowers/specs/`, benchmark
+  results in `docs/benchmarks/`.
