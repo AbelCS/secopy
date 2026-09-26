@@ -281,10 +281,10 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-18 | Every file is written to a temporary name in the same directory (`.<name>.secopy-partial`, or `.secopy-<hash>.partial` when that would be too long), flushed to disk (`fsync`), then renamed atomically to its final name. A file with its final name is always complete. Partial files left by an interrupted job are deleted by the next job that writes the same files, unless another running job is still writing them. | M |
+| FR-18 | Every file is written to a temporary name in the same directory (`.<name>.secopy-partial`, or `.secopy-<hash>.partial` when that would be too long), flushed to disk (`fsync`), then renamed atomically to its final name. A file with its final name is always complete. Partial files left by an interrupted job are deleted by the next job that copies the same files, unless another running job is still writing them; that file then fails with "another copy is writing this file". | M |
 | FR-19 | Modification time is preserved on files. Creation time is preserved where the OS allows it (macOS, Windows). POSIX permission bits are preserved on macOS/Linux. Directory mtimes are restored after their contents are written. | M |
 | FR-20 | When a hash is needed (checksum file on, or Copy & Verify), the source xxHash64 is computed **during** the copy from the same bytes being written. The source is read only once. | M |
-| FR-21 | Per-file errors (unreadable file, permission denied, name too long…) are recorded and the job continues. Fatal errors stop the job with a clear message: destination disconnected, disk full, source volume gone. | M |
+| FR-21 | Per-file errors (unreadable file, permission denied, name too long, the source file changed while it was copied…) are recorded and the job continues. Fatal errors stop the job with a clear message: destination disconnected, disk full, source volume gone. | M |
 | FR-22 | Pause stops I/O at the next buffer boundary. Resume continues from where it stopped. | S |
 | FR-23 | Cancel stops within ~1 s. The in-flight partial file is deleted. Completed files stay and are listed in the checksum file and report. | M |
 | FR-24 | Symlinks are **not followed** and are **skipped**, and each one is reported. This avoids loops and surprises. (Open question Q4.) | M |
@@ -481,6 +481,8 @@ The stack meets these constraints:
 | 2026-09-27 | Conflicts (Q3, FR-17): identical files (same size, mtimes < 2 s apart) are always skipped. For files that differ the user chooses once: Keep both (default) / Overwrite / Skip. Overwrite only replaces after the new copy is complete and verified. |
 | 2026-09-27 | Pre-flight (FR-16): job-level problems block Start; per-file problems are listed and those files fail, so the rest can still be copied. Invalid names are never renamed automatically, because sidecars and edit projects refer to clips by name. |
 | 2026-09-27 | Skipped identical files are not re-read: they are not in the job's checksum file, and the summary says "not checked". "Verify existing copy" (FR-34) covers checking them later. |
-| 2026-09-27 | Leftover partial files are locked while written and deleted by the next job when no writer holds the lock (FR-18). |
+| 2026-09-27 | Leftover partial files are locked while written and deleted by the next job when no writer holds the lock, the file wasn't modified in the last 2 s, and it still has that name (FR-18). On Windows the commit is a no-replace `MoveFileExW`, which also refuses another writer's open file. |
+| 2026-09-27 | A file whose size changes while it is copied fails with "the source file changed while it was copied" (FR-21). |
+| 2026-09-27 | Keep-awake uses the OS directly (`caffeinate`, `systemd-inhibit`, `SetThreadExecutionState`) instead of a crate that would add D-Bus to every Linux build. |
 | 2026-09-27 | Fatal errors are detected by re-checking the source and destination roots (existence and device id) after any per-file I/O error (FR-21). |
 | 2026-09-27 | Engine M1 design: [2026-09-27-engine-complete-design.md](../superpowers/specs/2026-09-27-engine-complete-design.md). |
