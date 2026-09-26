@@ -224,7 +224,10 @@ pub fn run_job(
         .into_inner()
         .expect("outcomes lock poisoned");
     let fatal = runner.fatal.into_inner().expect("fatal lock poisoned");
+    let mut removed_partials = runner.removed_partials.load(Relaxed);
     if !control.is_stopped() {
+        // Before the folder times: removing a file changes its folder's time.
+        removed_partials += remove_leftover_partials(plan);
         create_empty_dirs(plan);
         restore_dir_mtimes(plan);
     }
@@ -244,11 +247,20 @@ pub fn run_job(
         } else {
             CacheBypass::Active
         }),
-        removed_partials: runner.removed_partials.load(Relaxed),
+        removed_partials,
         cancelled: control.is_stopped() && fatal.is_none(),
         fatal,
         elapsed: started.elapsed(),
     }
+}
+
+/// Partial files left by an interrupted job next to files this job didn't write (skipped
+/// or failed); the ones for written files were replaced when those were copied (FR-18).
+fn remove_leftover_partials(plan: &Plan) -> u64 {
+    plan.stale_partials
+        .iter()
+        .filter(|p| fs::symlink_metadata(p).is_ok() && matches!(os::remove_stale(p), Ok(true)))
+        .count() as u64
 }
 
 /// Source folders with no files in the plan are created at the end (FR-6). Folders with

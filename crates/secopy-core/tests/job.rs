@@ -1001,3 +1001,28 @@ fn pathdiff(to: &Path, from: &Path) -> PathBuf {
     }
     rel
 }
+
+/// Pre-flight lists every leftover partial file; ones next to files that are skipped
+/// (already copied before the crash) are removed at the end too.
+#[test]
+fn leftover_partial_files_of_skipped_files_are_removed() {
+    let f = fixture();
+    copy_like(f.src.parent().unwrap(), &f.dest, "CARD/A001.mov");
+    let leftover = f.dest.join("CARD/.A001.mov.secopy-partial");
+    write_files(&f.dest, &[("CARD/.A001.mov.secopy-partial", b"half")]);
+    let old = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+    fs::File::options()
+        .write(true)
+        .open(&leftover)
+        .unwrap()
+        .set_modified(old)
+        .unwrap();
+    let plan = plan(&f.src, &f.dest);
+    assert_eq!(plan.stale_partials, vec![leftover.clone()]);
+
+    let (report, _) = run(&plan, &opts(false));
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(report.skipped().count(), 1);
+    assert!(!leftover.exists());
+    assert_eq!(report.removed_partials, 1);
+}
