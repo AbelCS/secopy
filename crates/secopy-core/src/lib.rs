@@ -4,4 +4,5 @@
 pub mod filter;
 pub mod hash;
 pub mod hidden;
+pub mod scan;
 pub mod source;
