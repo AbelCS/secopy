@@ -4,8 +4,8 @@ use std::alloc::{self, Layout};
 use std::io::{self, Read};
 use std::path::Path;
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::control::JobControl;
 use crate::error::FileError;
 use crate::{hash, os};
 
@@ -21,7 +21,7 @@ pub fn hash_from_device(
     path: &Path,
     buffer_size: usize,
     progress: &dyn Fn(u64),
-    cancel: &AtomicBool,
+    control: &JobControl,
 ) -> Result<(u64, CacheBypass), FileError> {
     let (mut file, bypassed) = os::open_uncached(path).map_err(FileError::read_back)?;
     let size = file.metadata().map_err(FileError::read_back)?.len();
@@ -31,9 +31,7 @@ pub fn hash_from_device(
     // Driven by the file size: with unbuffered I/O on Windows a read after a short
     // (unaligned) read fails, and on Unix a short read before EOF must not end the hash.
     while done < size {
-        if cancel.load(Ordering::Relaxed) {
-            return Err(FileError::Cancelled);
-        }
+        control.checkpoint()?;
         let chunk = buf.as_mut_slice();
         let n = read_once(&mut file, chunk).map_err(FileError::read_back)?;
         if n == 0 {

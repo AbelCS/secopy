@@ -4,9 +4,9 @@ use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 
+use crate::control::JobControl;
 use crate::error::FileError;
 use crate::{hash, os};
 
@@ -64,7 +64,7 @@ pub fn copy_to_partial(
     final_path: &Path,
     cfg: &CopyConfig,
     progress: &dyn Fn(u64),
-    cancel: &AtomicBool,
+    control: &JobControl,
 ) -> Result<PartialCopy, FileError> {
     let partial = partial_path(final_path);
     let reader = File::open(src).map_err(FileError::read_source)?;
@@ -77,7 +77,7 @@ pub fn copy_to_partial(
         Err(e) if e.kind() == io::ErrorKind::AlreadyExists => return Err(FileError::NameClash),
         Err(e) => return Err(FileError::write_dest(e)),
     };
-    let result = copy_inner(reader, &mut writer, cfg, progress, cancel);
+    let result = copy_inner(reader, &mut writer, cfg, progress, control);
     // Close before removing: Windows cannot delete an open file.
     drop(writer);
     match result {
@@ -126,16 +126,16 @@ fn copy_inner(
     writer: &mut File,
     cfg: &CopyConfig,
     progress: &dyn Fn(u64),
-    cancel: &AtomicBool,
+    control: &JobControl,
 ) -> Result<(u64, u64), FileError> {
     let len = reader.metadata().map_err(FileError::read_source)?.len();
     if cfg.uncached_write {
         os::set_nocache(writer);
     }
     let result = if len <= cfg.buffer_size as u64 {
-        copy_small(&mut reader, writer, len, progress, cancel)?
+        copy_small(&mut reader, writer, len, progress, control)?
     } else {
-        copy_pipelined(reader, writer, cfg, progress, cancel)?
+        copy_pipelined(reader, writer, cfg, progress, control)?
     };
     os::sync_file(writer).map_err(FileError::write_dest)?;
     Ok(result)
@@ -147,11 +147,9 @@ fn copy_small(
     writer: &mut File,
     len: u64,
     progress: &dyn Fn(u64),
-    cancel: &AtomicBool,
+    control: &JobControl,
 ) -> Result<(u64, u64), FileError> {
-    if cancel.load(Ordering::Relaxed) {
-        return Err(FileError::Cancelled);
-    }
+    control.checkpoint()?;
     let mut buf = Vec::with_capacity(len as usize);
     reader
         .read_to_end(&mut buf)
@@ -168,7 +166,7 @@ fn copy_pipelined(
     writer: &mut File,
     cfg: &CopyConfig,
     progress: &dyn Fn(u64),
-    cancel: &AtomicBool,
+    control: &JobControl,
 ) -> Result<(u64, u64), FileError> {
     let buffers = cfg.buffers.max(2);
     let (full_tx, full_rx) = mpsc::sync_channel::<(Vec<u8>, usize)>(buffers);
@@ -193,7 +191,7 @@ fn copy_pipelined(
             }
             Ok(hasher.digest())
         });
-        let written = write_chunks(&full_rx, &empty_tx, writer, progress, cancel);
+        let written = write_chunks(&full_rx, &empty_tx, writer, progress, control);
         // Unblock the reader if the writer stopped early.
         drop(full_rx);
         drop(empty_tx);
@@ -209,13 +207,11 @@ fn write_chunks(
     empty_tx: &mpsc::SyncSender<Vec<u8>>,
     writer: &mut File,
     progress: &dyn Fn(u64),
-    cancel: &AtomicBool,
+    control: &JobControl,
 ) -> Result<u64, FileError> {
     let mut written = 0u64;
     for (buf, n) in full_rx.iter() {
-        if cancel.load(Ordering::Relaxed) {
-            return Err(FileError::Cancelled);
-        }
+        control.checkpoint()?;
         writer.write_all(&buf[..n]).map_err(FileError::write_dest)?;
         written += n as u64;
         progress(written);

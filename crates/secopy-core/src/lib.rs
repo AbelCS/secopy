@@ -2,6 +2,7 @@
 //! UI-independent; used by the desktop app, the CLI, tests and benchmarks.
 
 pub mod checksum_file;
+pub mod control;
 pub mod copy;
 pub mod error;
 pub mod filter;

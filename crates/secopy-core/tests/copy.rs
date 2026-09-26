@@ -2,9 +2,9 @@ mod common;
 
 use std::cell::Cell;
 use std::fs;
-use std::sync::atomic::AtomicBool;
 
 use common::pattern;
+use secopy_core::control::JobControl;
 use secopy_core::copy::{CopyConfig, commit, copy_to_partial, partial_path};
 use secopy_core::error::FileError;
 use secopy_core::hash::hash_bytes;
@@ -34,7 +34,7 @@ fn small_file_is_copied_hashed_and_committed() {
         &dst,
         &CopyConfig::default(),
         &|_| {},
-        &AtomicBool::new(false),
+        &JobControl::new(),
     )
     .unwrap();
     assert_eq!(pc.hash, hash_bytes(b"hello secopy"));
@@ -59,7 +59,7 @@ fn large_file_goes_through_the_pipeline_in_chunks() {
         &dst,
         &small_buffers(),
         &|b| last.set(b),
-        &AtomicBool::new(false),
+        &JobControl::new(),
     )
     .unwrap();
     assert_eq!(pc.hash, hash_bytes(&data));
@@ -77,7 +77,7 @@ fn empty_file_has_the_empty_hash() {
         &dst,
         &CopyConfig::default(),
         &|_| {},
-        &AtomicBool::new(false),
+        &JobControl::new(),
     )
     .unwrap();
     assert_eq!(pc.hash, 0xef46_db37_51d8_e999);
@@ -90,14 +90,7 @@ fn cancel_removes_the_partial_file() {
     let (src, dst) = (dir.path().join("a.bin"), dir.path().join("b.bin"));
     fs::write(&src, pattern(1000)).unwrap();
 
-    let err = copy_to_partial(
-        &src,
-        &dst,
-        &small_buffers(),
-        &|_| {},
-        &AtomicBool::new(true),
-    )
-    .unwrap_err();
+    let err = copy_to_partial(&src, &dst, &small_buffers(), &|_| {}, &cancelled()).unwrap_err();
     assert_eq!(err, FileError::Cancelled);
     assert!(!partial_path(&dst).exists());
 }
@@ -111,7 +104,7 @@ fn missing_source_is_a_read_error_and_leaves_nothing() {
         &dst,
         &CopyConfig::default(),
         &|_| {},
-        &AtomicBool::new(false),
+        &JobControl::new(),
     )
     .unwrap_err();
     assert!(matches!(err, FileError::ReadSource(_)));
@@ -128,7 +121,7 @@ fn missing_destination_folder_is_a_write_error() {
         &dir.path().join("no/such/b.bin"),
         &CopyConfig::default(),
         &|_| {},
-        &AtomicBool::new(false),
+        &JobControl::new(),
     )
     .unwrap_err();
     assert!(matches!(err, FileError::WriteDest(_)));
@@ -145,7 +138,7 @@ fn sizes_around_the_buffer_size_copy_exactly() {
         );
         let data = pattern(size);
         fs::write(&src, &data).unwrap();
-        let pc = copy_to_partial(&src, &dst, &cfg, &|_| {}, &AtomicBool::new(false)).unwrap();
+        let pc = copy_to_partial(&src, &dst, &cfg, &|_| {}, &JobControl::new()).unwrap();
         assert_eq!(pc.hash, hash_bytes(&data), "size {size}");
         assert_eq!(fs::read(&pc.partial).unwrap(), data, "size {size}");
     }
@@ -163,7 +156,7 @@ fn another_writers_partial_file_is_never_truncated() {
         &dst,
         &CopyConfig::default(),
         &|_| {},
-        &AtomicBool::new(false),
+        &JobControl::new(),
     )
     .unwrap_err();
     assert_eq!(err, FileError::NameClash);
@@ -180,11 +173,17 @@ fn commit_never_replaces_an_existing_file() {
         &dst,
         &CopyConfig::default(),
         &|_| {},
-        &AtomicBool::new(false),
+        &JobControl::new(),
     )
     .unwrap();
     fs::write(&dst, b"mine").unwrap();
 
     assert_eq!(commit(&pc.partial, &dst), Err(FileError::AlreadyExists));
     assert_eq!(fs::read(&dst).unwrap(), b"mine");
+}
+
+fn cancelled() -> JobControl {
+    let control = JobControl::new();
+    control.cancel();
+    control
 }
