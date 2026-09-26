@@ -16,7 +16,7 @@ pub enum Phase {
 /// A file currently being copied or verified (RFD §5.3, "Active files").
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActiveFile {
-    /// Index in `Selection::files`; stable for the whole job.
+    /// Index in `Plan::files`; stable for the whole job.
     pub id: usize,
     pub rel: PathBuf,
     pub size: u64,
@@ -29,8 +29,12 @@ pub struct ActiveFile {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Progress {
     pub total_files: u64,
+    /// Bytes the job writes; skipped files are not included.
     pub total_bytes: u64,
+    /// Finished files, including skipped and failed ones.
     pub files_done: u64,
+    /// Files skipped because they were already at the destination (FR-17).
+    pub files_skipped: u64,
     pub copied_bytes: u64,
     pub verified_bytes: u64,
     pub active: Vec<ActiveFile>,
@@ -92,11 +96,12 @@ impl Runner<'_> {
                 }
             })
             .collect();
-        let total_bytes = self.sel.total_bytes;
+        let total_bytes = self.bytes_to_write;
         Progress {
-            total_files: self.sel.files.len() as u64,
+            total_files: self.plan.files.len() as u64,
             total_bytes,
             files_done: self.files_done.load(Relaxed),
+            files_skipped: self.files_skipped.load(Relaxed),
             copied_bytes: copied.min(total_bytes),
             verified_bytes: verified.min(total_bytes),
             active: files,

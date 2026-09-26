@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 use clap::Parser;
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::job::{self, Event, FileStatus, JobControl, JobOptions, JobReport, Progress};
+use secopy_core::plan::{DiffersPolicy, Plan};
+use secopy_core::preflight::preflight;
 use secopy_core::scan::{self, ScanOptions};
 use secopy_core::source::{DirMode, Source};
 
@@ -84,6 +86,11 @@ fn run(args: Args) -> Result<ExitCode, String> {
         fmt_bytes(selection.total_bytes),
         scan.skipped_hidden
     );
+    let pf = preflight(&source, &selection, &args.to).map_err(|e| e.to_string())?;
+    let plan = Plan::resolve(&selection, &pf, DiffersPolicy::KeepBoth);
+    if let Some(blocker) = plan.blockers().first() {
+        return Err(blocker.to_string());
+    }
 
     let opts = JobOptions {
         verify: args.verify,
@@ -96,28 +103,22 @@ fn run(args: Args) -> Result<ExitCode, String> {
 
     let started = Instant::now();
     let last_print = Mutex::new(Instant::now());
-    let report = job::run_job(
-        &selection,
-        &args.to,
-        &opts,
-        &control,
-        &|event| match event {
-            Event::Progress(p) => {
-                let mut last = last_print.lock().unwrap();
-                if last.elapsed() >= Duration::from_millis(500) {
-                    *last = Instant::now();
-                    eprint!("\r{}", progress_line(&p, started.elapsed()));
-                }
+    let report = job::run_job(&plan, &opts, &control, &|event| match event {
+        Event::Progress(p) => {
+            let mut last = last_print.lock().unwrap();
+            if last.elapsed() >= Duration::from_millis(500) {
+                *last = Instant::now();
+                eprint!("\r{}", progress_line(&p, started.elapsed()));
             }
-            Event::FileFinished(o) => {
-                if let FileStatus::Failed(e) = &o.status {
-                    eprintln!("\rFAILED {}: {e}", o.rel.display());
-                }
+        }
+        Event::FileFinished(o) => {
+            if let FileStatus::Failed(e) = &o.status {
+                eprintln!("\rFAILED {}: {e}", o.rel.display());
             }
-        },
-    );
+        }
+    });
     eprintln!();
-    print_summary(&report, selection.total_bytes);
+    print_summary(&report, plan.bytes_to_write());
     Ok(if report.is_success() {
         ExitCode::SUCCESS
     } else {
