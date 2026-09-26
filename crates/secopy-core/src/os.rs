@@ -130,7 +130,7 @@ pub fn rename_noreplace(_from: &Path, _to: &Path) -> io::Result<()> {
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-fn c_path(path: &Path) -> io::Result<std::ffi::CString> {
+pub(crate) fn c_path(path: &Path) -> io::Result<std::ffi::CString> {
     use std::os::unix::ffi::OsStrExt;
     std::ffi::CString::new(path.as_os_str().as_bytes())
         .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))

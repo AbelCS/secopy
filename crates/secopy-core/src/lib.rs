@@ -6,6 +6,7 @@ pub mod control;
 pub mod copy;
 pub mod error;
 pub mod filter;
+pub mod fsinfo;
 pub mod hash;
 pub mod hidden;
 pub mod job;
