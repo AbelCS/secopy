@@ -68,6 +68,8 @@ pub(super) struct Runner<'a> {
     pub(super) outcomes: Mutex<Vec<FileOutcome>>,
     pub(super) fatal: Mutex<Option<FileError>>,
     pub(super) bypass_unavailable: AtomicBool,
+    /// Partial files left by interrupted jobs that were removed (FR-18).
+    pub(super) removed_partials: AtomicU64,
 }
 
 impl<'a> Runner<'a> {
@@ -98,6 +100,7 @@ impl<'a> Runner<'a> {
             outcomes: Mutex::new(Vec::new()),
             fatal: Mutex::new(None),
             bypass_unavailable: AtomicBool::new(false),
+            removed_partials: AtomicU64::new(0),
         }
     }
 
@@ -143,12 +146,9 @@ impl<'a> Runner<'a> {
             return;
         }
         let hash = partial.hash;
-        match copy::commit(&partial.partial, &final_path) {
+        match partial.commit(&final_path) {
             Ok(()) => self.finish(&slot, entry, Some(hash), FileStatus::Copied, started),
-            Err(e) => {
-                let _ = fs::remove_file(&partial.partial);
-                self.finish(&slot, entry, Some(hash), FileStatus::Failed(e), started)
-            }
+            Err(e) => self.finish(&slot, entry, Some(hash), FileStatus::Failed(e), started),
         }
     }
 
@@ -167,6 +167,9 @@ impl<'a> Runner<'a> {
             &|b| slot.bytes.store(b, Relaxed),
             self.control,
         )?;
+        if partial.removed_stale {
+            self.removed_partials.fetch_add(1, Relaxed);
+        }
         if let Some(hook) = self.opts.hooks.after_copy {
             hook(&partial.partial, attempt);
         }
@@ -184,8 +187,6 @@ impl<'a> Runner<'a> {
     }
 
     /// Verifies the partial file, re-copying once on mismatch (FR-27), then commits it.
-    /// Removes only partial files this lane created: a failed re-copy may have hit a
-    /// partial file that belongs to another writer.
     fn verify_one(&self, task: VerifyTask) {
         let VerifyTask {
             slot,
@@ -206,24 +207,21 @@ impl<'a> Runner<'a> {
             ) {
                 Ok(v) => v,
                 Err(e) => {
-                    let _ = fs::remove_file(&partial.partial);
+                    partial.discard();
                     break Err(e);
                 }
             };
             if bypass == CacheBypass::Unavailable {
                 self.bypass_unavailable.store(true, Relaxed);
             }
-            if actual == partial.hash {
-                let committed = copy::commit(&partial.partial, &final_path);
-                if committed.is_err() {
-                    let _ = fs::remove_file(&partial.partial);
-                }
-                break committed.map(|()| partial.hash);
+            let expected = partial.hash;
+            if actual == expected {
+                break partial.commit(&final_path).map(|()| expected);
             }
-            let _ = fs::remove_file(&partial.partial);
+            partial.discard();
             if attempt == 1 {
                 break Err(FileError::HashMismatch {
-                    expected: hash::to_hex(partial.hash),
+                    expected: hash::to_hex(expected),
                     actual: hash::to_hex(actual),
                 });
             }

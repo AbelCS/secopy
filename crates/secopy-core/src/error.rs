@@ -39,6 +39,8 @@ pub enum FileError {
     AlreadyExists,
     #[error("another file in this copy has the same name (names are compared ignoring case)")]
     NameClash,
+    #[error("another copy is writing this file")]
+    PartialInUse,
     #[error("cancelled")]
     Cancelled,
 }

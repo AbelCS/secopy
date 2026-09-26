@@ -98,6 +98,8 @@ pub struct JobReport {
     pub checksum_error: Option<String>,
     /// `None` when not verifying.
     pub cache_bypass: Option<CacheBypass>,
+    /// Partial files left by interrupted jobs that were removed (FR-18).
+    pub removed_partials: u64,
     pub fatal: Option<FileError>,
     pub cancelled: bool,
     pub elapsed: Duration,
@@ -204,6 +206,7 @@ pub fn run_job(
         } else {
             CacheBypass::Active
         }),
+        removed_partials: runner.removed_partials.load(Relaxed),
         cancelled: control.is_stopped() && fatal.is_none(),
         fatal,
         elapsed: started.elapsed(),
