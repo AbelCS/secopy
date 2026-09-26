@@ -259,7 +259,11 @@ impl Report {
             .file_stem()
             .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?
             .to_string_lossy();
-        let dir = checksum_file.parent().unwrap_or(Path::new("."));
+        self.write(checksum_file.parent().unwrap_or(Path::new(".")), &stem)
+    }
+
+    /// Saves `<dir>/<stem>_report.txt` and `.json`. Never overwrites.
+    pub fn write(&self, dir: &Path, stem: &str) -> io::Result<(PathBuf, PathBuf)> {
         let text = dir.join(format!("{stem}_report.txt"));
         let json = dir.join(format!("{stem}_report.json"));
         write_new(&text, &self.to_text())?;
