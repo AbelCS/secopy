@@ -26,12 +26,16 @@ the simplest correct option is taken and plan 4 revisits it.
 | D6 | **Leftover partial files** are deleted at job start when no live writer holds their lock. |
 | D7 | **Fatal errors** are detected by re-checking the source and destination roots after any per-file I/O error. |
 
+The implementation plan was checked by building it in a throwaway prototype first. That
+changed some details below from the first draft of this design; the changes are marked
+*(prototype)*.
+
 ## Pipeline
 
 ```
 scan(&Source, &ScanOptions)                 -> Scan
 scan.select(&ExtensionFilter)               -> Selection
-preflight(&Source, &Selection, dest)        -> io::Result<Preflight>
+preflight(&Source, &Selection, dest)        -> Result<Preflight, Blocker>
 Plan::resolve(&Selection, &Preflight, DiffersPolicy) -> Plan
 plan.blockers()                             -> Vec<Blocker>   // empty = Start enabled
 run_job(&Plan, &JobOptions, &JobControl, on_event) -> JobReport
@@ -58,19 +62,24 @@ New in `secopy-core`:
 | `control` | `JobControl`: pause, resume, cancel, checkpoint |
 | `report` | The job report as text and JSON (FR-35) |
 | `awake` | Keeps the system awake during a job |
+| `metadata` (private) | Copies file times and permission bits; restores folder mtimes |
 
-Changed: `job.rs` becomes `job/{mod.rs, runner.rs, progress.rs}`. `scan` records directory
-mtimes and resolves paths with `std::path::absolute`. Public types derive
-`serde::Serialize`, for the JSON report now and Tauri events in plan 3.
+Changed: `job.rs` becomes `job/{mod.rs, runner.rs, progress.rs}`. `scan` records file and
+directory mtimes (`ScanEntry::mtime`, `Selection::dirs: Vec<DirEntry { rel, mtime }>`) and
+resolves paths with `std::path::absolute`.
+
+*(prototype)* Engine types do not derive `serde::Serialize`: serde's `PathBuf` fails on
+names that aren't UTF-8. The report has its own string-based types instead, which also
+keeps its JSON schema stable for tools. Plan 3 decides the Tauri event types.
 
 ### `fsinfo`
 
 ```rust
 pub struct FsInfo {
-    pub kind: FsKind,              // Apfs, HfsPlus, Ext4, Btrfs, Xfs, Ntfs, ReFs, ExFat, Fat32, Smb, Nfs, Other(String)
+    pub kind: FsKind,              // Apfs, HfsPlus, Ext4, Btrfs, Xfs, Ntfs, ReFs, ExFat, Fat (12/16/32), Smb, Nfs, Other(String)
     pub case_sensitive: bool,      // probed, not guessed
     pub free_bytes: u64,
-    pub max_file_size: Option<u64>,// Some(4 GiB - 1) on FAT32
+    pub max_file_size: Option<u64>,// Some(4 GiB - 1) on FAT
     pub name_limit: NameLimit,     // Bytes(255) or Utf16Units(255)
     pub device: u64,               // st_dev / volume serial, for fatal-error detection
 }
@@ -101,18 +110,17 @@ pub fn fs_info(dir: &Path) -> io::Result<FsInfo>;
 pub struct Preflight {
     pub dest: PathBuf,
     pub fs: FsInfo,
-    pub blockers: Vec<Blocker>,
     pub file_problems: Vec<FileProblem>,   // { id, kind }
     pub conflicts: Vec<Conflict>,          // { id, kind: Identical | Differs { size, mtime } }
     pub stale_partials: Vec<PathBuf>,
     pub checksum_omissions: Vec<usize>,    // ids whose names aren't valid UTF-8
-    pub source_roots: Vec<(PathBuf, u64)>, // with device ids, for fatal-error detection
+    pub source_roots: Vec<SourceRoot>,     // { path, device }, for fatal-error detection
 }
 pub enum Blocker {
     DestMissing,
     DestNotWritable(IoFailure),
     DestInsideSource,
-    NotEnoughSpace { needed: u64, free: u64 }, // added by Plan::blockers
+    NotEnoughSpace { needed: u64, free: u64 }, // only from Plan::blockers
 }
 pub enum ProblemKind {
     InvalidName(NameProblem),
@@ -121,6 +129,9 @@ pub enum ProblemKind {
     InTheWay { path: PathBuf },             // a folder where a file goes, or a file where a folder goes
 }
 ```
+
+`preflight` returns the first three blockers as its error: when the destination is
+missing, unwritable or inside the source, nothing else is worth listing. *(prototype)*
 
 Rules:
 
@@ -141,7 +152,7 @@ pub enum DiffersPolicy { KeepBoth, Overwrite, Skip }   // default KeepBoth
 pub enum Action {
     Copy,
     Overwrite,
-    KeepBoth { rel: PathBuf },   // "name (1).ext", unique on disk and within the plan
+    KeepBoth { rel: PathBuf, n: u32 }, // "name (n).ext", unique on disk and within the plan
     SkipIdentical,
     SkipDiffers,
     Fail(FileError),             // from a file problem
@@ -149,7 +160,7 @@ pub enum Action {
 pub struct Plan {
     pub dest: PathBuf,
     pub files: Vec<PlannedFile>,       // { entry: ScanEntry, action: Action }
-    pub dirs: Vec<PlannedDir>,         // { rel, source_mtime }, parents first
+    pub dirs: Vec<DirEntry>,           // { rel, mtime }, parents first
     pub bytes_to_write: u64,
     pub fs: FsInfo,
     // + stale partials, checksum omissions, source roots from the pre-flight
@@ -158,7 +169,7 @@ pub struct Plan {
 
 - `Plan` owns a copy of the planned entries, so the app can keep it in state without
   lifetimes. Memory at 1M files is checked in plan 4 (NFR-4).
-- `blockers()` = pre-flight blockers + free space: `bytes_to_write + max(1 %, 64 MiB)` must
+- `blockers()` = free space: `bytes_to_write + max(1 %, 64 MiB)` must
   fit. Overwrite counts the full new size, because the old file stays until the commit.
 
 ### `control`
@@ -173,21 +184,30 @@ boundary instead of reading an `AtomicBool`; lanes call it before starting a fil
 Per file:
 
 1. Create missing parent folders (on demand; a concurrent set remembers created folders).
-2. Delete a stale partial for this file if its lock can be taken; if not, fail with
-   `PartialInUse` ("another copy is writing this file").
-3. Write the partial file with `create_new`, and hold a lock on it while writing: `flock` on
-   macOS/Linux, a share mode without `FILE_SHARE_DELETE` on Windows.
-4. Set modified, accessed and (macOS, Windows) creation time with `File::set_times` on the
-   open file, then `fsync`, so the times are durable with the data (FR-19).
+2. Create the partial file with `create_new` and lock it: `flock` on macOS/Linux (not
+   `fcntl` locks, which are per process and can't separate two jobs in one app), a share
+   mode without `FILE_SHARE_DELETE` on Windows. The lock is held until the file is renamed
+   or removed.
+3. If a partial file is already there, it is replaced only if it is stale: no one holds
+   its lock, it is at least 2 s old, and it is still the file at that name. Otherwise this
+   file fails with `PartialInUse` ("another copy is writing this file"). *(prototype)*
+   Creating and locking are two steps on Unix; without the age rule, two jobs' cleanups
+   could delete each other's brand-new files and both give up, and a writer could end up
+   renaming another writer's file. The prototype's concurrency test caught both.
+4. Copy, then set modified, accessed and (macOS, Windows) creation time and the POSIX
+   permission bits (macOS, Linux; `mode & 0o777`) on the open file, then `fsync`, so the
+   metadata is durable with the data (FR-19).
 5. Verify, in Copy & Verify.
-6. Set POSIX permission bits (macOS, Linux).
-7. Commit by action:
-   - `Copy`: no-replace rename (as in plan 1).
+6. Commit by action (`copy::Commit`):
+   - `Copy`: no-replace rename. On Unix the partial file stays open and locked through the
+     rename. On Windows it is closed first, then renamed with `MoveFileExW` without
+     `MOVEFILE_REPLACE_EXISTING`, which also fails on another writer's open file; this
+     replaces plan 1's hard-link commit there. *(prototype)*
    - `Overwrite`: atomic replacing rename, only once the copy is complete (and, in Copy &
-     Verify, step 5 passed). On Windows a read-only
-     target has its read-only attribute cleared first.
-   - `KeepBoth`: no-replace rename to the planned name; if it was taken since pre-flight,
-     try `(2)`, `(3)`, ….
+     Verify, step 5 passed). On Windows a read-only target has its read-only attribute
+     cleared first.
+   - `KeepBoth`: no-replace rename to the planned name `(n)`; if it was taken since
+     pre-flight, try `(n+1)`, `(n+2)`, ….
    - `Skip*` and `Fail`: nothing is written; the outcome is recorded straight away.
 
 **Partial names:** `.<name>.secopy-partial` when that fits the name limit, else
@@ -195,6 +215,9 @@ Per file:
 rule that one name (ignoring case) maps to one partial file, so two writers can never
 share one. With partial files locked by name, two Secopy jobs can't race on FAT/exFAT; only
 a window of microseconds against other programs creating the same name remains, accepted.
+
+**Changed source files:** a copy whose byte count differs from the scanned size fails
+with `SourceChanged` (the file grew or shrank while it was read). *(prototype)*
 
 **After the last file:**
 
@@ -214,11 +237,12 @@ device id changed (unmounted, or remounted elsewhere), the job stops with
 (`FatalError::DiskFull`). Anything else fails only that file. `FatalError` is separate from
 `FileError`; `JobReport::fatal` becomes `Option<FatalError>`.
 
-**Keep awake:** `JobOptions::keep_awake` (default on) holds a system-sleep assertion for the
-whole job, including pauses; the display may sleep. Use the `keepawake` crate unless its
-Linux dependencies are too heavy, in which case call the OS APIs directly
-(`IOPMAssertionCreateWithName`, `SetThreadExecutionState`, logind `Inhibit`). Decided while
-writing the plan.
+**Keep awake:** `JobOptions::keep_awake` (default on) blocks idle sleep for the whole job,
+including pauses; the display may sleep. The `keepawake` crate pulls `zbus` into every
+Linux build, so the engine does it directly: `caffeinate -i -w <pid>` on macOS,
+`systemd-inhibit --what=idle … tail --pid=<pid>` on Linux (both helpers end if the app
+crashes), and `SetThreadExecutionState` on Windows. Best effort: without the helper the
+job still runs. *(prototype)*
 
 **Memory:** `small_file_threshold` defaults to the buffer size (4 MiB), so small-file lanes
 never take the pipelined path. Buffer memory is then about 8 × 4 MiB + 1 × 16 MiB.
@@ -226,8 +250,11 @@ never take the pipelined path. Buffer memory is then about 8 × 4 MiB + 1 × 16 
 **Events and outcomes:**
 
 - `FileStatus` gains `Skipped(SkipReason::{Identical, Differs})`.
-- `FileOutcome` gains `final_rel` (differs from `rel` for Keep both) and `in_checksum_file`.
-- `Progress` gains `paused` and `files_skipped`.
+- `FileOutcome` gains `id` (index in `Plan::files`, for Retry failed), `final_rel`
+  (differs from `rel` for Keep both) and `in_checksum_file`.
+- `Progress` gains `paused` and `files_skipped`; `total_bytes` counts only the bytes the
+  job writes.
+- `Hooks` gains `before_copy` (called with the source path) for fault-injection tests.
 - `JobReport` gains `removed_partials`.
 
 ## Report (FR-35)
@@ -240,7 +267,8 @@ destination, and start and end times.
   the checksum file with the reason, and one row per file.
 - `to_text()` for people, `to_json()` (serde_json) for tools.
 - `write_next_to(checksum_path)` writes `secopy_…_report.txt` and `.json` next to the
-  checksum file, for the Settings option. The app's own copy in its data folder is plan 3.
+  checksum file, for the Settings option; `write(dir, stem)` writes them anywhere. Both
+  never overwrite. The app's own copy in its data folder is plan 3.
 
 ## Plan 1 carry-overs
 
@@ -254,7 +282,7 @@ destination, and start and end times.
 | Long names | Hashed partial-name fallback |
 | Empty folders after a cancel | Folders created on demand |
 | CI gaps | Clippy on all three OSes. A PAT for release-PR CI is the user's call |
-| Unverified macOS cache bypass | Spike + residency test (below) |
+| Unverified macOS cache bypass | Checked: no page is left cached (below) |
 | Windows small-file speed, `bench.ps1` | Moved to plan 4 |
 
 ## Testing
@@ -262,10 +290,11 @@ destination, and start and end times.
 - **Unit tests:** `names` (a table per file system), identical check, clash keys, partial
   names, Keep-both numbering, `Plan::resolve` (a table of conflict, clash and problem cases),
   report text and JSON.
-- **Cache bypass (FR-26), spike first:** after a copy, a test maps the file and asks
-  `mincore` which pages are still resident (macOS, Linux). If the last page is cached after
-  an `F_NOCACHE` write, evict it before the verify read (`mmap` + `msync(MS_INVALIDATE)` on
-  macOS; `fadvise(DONTNEED)` after `fsync` on Linux). The test stays as a regression guard.
+- **Cache bypass (FR-26):** after a copy, a test maps the file and asks `mincore` which
+  pages are still resident. *(prototype)* The spike answered the open question: after an
+  `F_NOCACHE` copy on macOS no page is resident, including a partial last page, so no
+  eviction code is needed. On Linux, `open_uncached`'s `fadvise(DONTNEED)` empties the
+  cache. Both tests stay as regression guards.
 - **Fault injection, every OS:** I/O errors injected through `Hooks`; the destination
   folder renamed away mid-job → `DestinationGone`; a source file removed or truncated
   mid-copy; a flipped byte caught by verify (exists).
