@@ -16,6 +16,7 @@ pub mod names;
 mod os;
 pub mod plan;
 pub mod preflight;
+pub mod report;
 pub mod scan;
 pub mod source;
 pub mod verify;
