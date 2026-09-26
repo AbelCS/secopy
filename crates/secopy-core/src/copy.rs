@@ -1,7 +1,7 @@
 //! Copies one file to a temporary "partial" file while hashing it (FR-18, FR-20, RFD §7.2).
 
 use std::ffi::OsString;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -31,34 +31,84 @@ impl Default for CopyConfig {
     }
 }
 
-/// A fully written and flushed copy that still has its temporary name.
+/// A fully written and flushed copy that still has its temporary name. It stays open, and
+/// so locked, until it is committed or discarded: no other job can mistake it for a
+/// partial file left by an interrupted job (FR-18).
 #[derive(Debug)]
 pub struct PartialCopy {
     pub partial: PathBuf,
     /// xxHash64 of the bytes read from the source.
     pub hash: u64,
     pub bytes: u64,
+    /// A partial file left by an interrupted job was removed to make room for this one.
+    pub removed_stale: bool,
+    file: File,
 }
 
-/// Temporary name used while a file is written: `.<name>.secopy-partial`, same directory.
+impl PartialCopy {
+    /// Gives the file its final name without ever replacing an existing file (FR-18). The
+    /// file system itself decides whether the name is taken (case, Unicode normalization).
+    /// On failure the partial file is removed.
+    pub fn commit(self, final_path: &Path) -> Result<(), FileError> {
+        self.release(|partial| {
+            let result = commit_noreplace(partial, final_path);
+            if result.is_err() {
+                let _ = fs::remove_file(partial);
+            }
+            result
+        })
+    }
+
+    /// Deletes the partial file.
+    pub fn discard(self) {
+        self.release(|partial| {
+            let _ = fs::remove_file(partial);
+        });
+    }
+
+    /// Runs `op` on the partial path. On Unix the file stays open, and locked, until `op`
+    /// has renamed or removed it, so no other job can take the name in between. Windows
+    /// can't rename or delete a file that is open without delete sharing, so there it is
+    /// closed first; another writer's file can't be renamed or deleted in that gap either.
+    fn release<T>(self, op: impl FnOnce(&Path) -> T) -> T {
+        let PartialCopy { partial, file, .. } = self;
+        #[cfg(windows)]
+        drop(file);
+        let out = op(&partial);
+        #[cfg(not(windows))]
+        drop(file);
+        out
+    }
+}
+
+/// Longest file name every supported file system accepts, in bytes and in UTF-16 units.
+const MAX_NAME: usize = 255;
+
+/// Temporary name used while a file is written, in the same directory:
+/// `.<name>.secopy-partial`, or `.secopy-<hash>.partial` if that would be too long.
+/// The hash ignores case, so two names a case-insensitive drive treats as one file
+/// still map to one partial file.
 pub fn partial_path(final_path: &Path) -> PathBuf {
-    let mut name = OsString::from(".");
-    name.push(
-        final_path
-            .file_name()
-            .expect("destination path has a file name"),
-    );
-    name.push(".secopy-partial");
-    final_path.with_file_name(name)
+    let name = final_path
+        .file_name()
+        .expect("destination path has a file name");
+    let mut partial = OsString::from(".");
+    partial.push(name);
+    partial.push(".secopy-partial");
+    if partial.len() <= MAX_NAME && partial.to_string_lossy().encode_utf16().count() <= MAX_NAME {
+        return final_path.with_file_name(partial);
+    }
+    let key = hash::hash_bytes(name.to_string_lossy().to_lowercase().as_bytes());
+    final_path.with_file_name(format!(".secopy-{}.partial", hash::to_hex(key)))
 }
 
 /// Copies `src` to the partial path of `final_path`, hashing the bytes as they are read,
 /// then fsyncs it. On error or cancel the partial file is removed.
 /// `progress` receives the number of bytes written so far.
 ///
-/// The partial file is created with `create_new`: if it already exists, another writer
-/// (a clashing name in this job, or another job) owns it, and this file fails with
-/// `NameClash` instead of truncating the other writer's data.
+/// A partial file that is already there is replaced if it was left by an interrupted job.
+/// If a live writer holds it (another job, or a clashing name), this file fails with
+/// `PartialInUse` and the other writer's data is left alone.
 pub fn copy_to_partial(
     src: &Path,
     final_path: &Path,
@@ -68,37 +118,47 @@ pub fn copy_to_partial(
 ) -> Result<PartialCopy, FileError> {
     let partial = partial_path(final_path);
     let reader = File::open(src).map_err(FileError::read_source)?;
-    let mut writer = match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&partial)
-    {
-        Ok(file) => file,
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => return Err(FileError::NameClash),
-        Err(e) => return Err(FileError::write_dest(e)),
-    };
-    let result = copy_inner(reader, &mut writer, cfg, progress, control);
-    // Close before removing: Windows cannot delete an open file.
-    drop(writer);
-    match result {
+    let (mut writer, removed_stale) = create_partial(&partial)?;
+    match copy_inner(reader, &mut writer, cfg, progress, control) {
         Ok((hash, bytes)) => Ok(PartialCopy {
             partial,
             hash,
             bytes,
+            removed_stale,
+            file: writer,
         }),
         Err(e) => {
+            // Close before removing: Windows cannot delete an open file.
+            drop(writer);
             let _ = fs::remove_file(&partial);
             Err(e)
         }
     }
 }
 
-/// Gives a finished partial file its final name without ever replacing an existing file
-/// (FR-18). The file system itself decides whether the name is taken (case, Unicode
-/// normalization). Uses a no-replace rename where the OS has one (macOS, Linux), else a
-/// hard link (Windows); file systems with neither (FAT, exFAT) fall back to
-/// check-then-rename.
-pub fn commit(partial: &Path, final_path: &Path) -> Result<(), FileError> {
+/// Creates the partial file, replacing one left by an interrupted job. Returns whether a
+/// stale file was removed.
+fn create_partial(partial: &Path) -> Result<(File, bool), FileError> {
+    let mut removed = false;
+    // A few rounds: another job's cleanup can race with ours.
+    for _ in 0..3 {
+        match os::create_locked(partial) {
+            Ok(file) => return Ok((file, removed)),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                if !os::remove_stale(partial).map_err(FileError::write_dest)? {
+                    return Err(FileError::PartialInUse);
+                }
+                removed = true;
+            }
+            Err(e) => return Err(FileError::write_dest(e)),
+        }
+    }
+    Err(FileError::PartialInUse)
+}
+
+/// Uses the OS's no-replace rename. File systems without one (FAT and exFAT on macOS and
+/// Linux) fall back to a hard link, and then to check-then-rename.
+fn commit_noreplace(partial: &Path, final_path: &Path) -> Result<(), FileError> {
     match os::rename_noreplace(partial, final_path) {
         Ok(()) => return Ok(()),
         Err(e) if e.kind() == io::ErrorKind::AlreadyExists => return Err(FileError::AlreadyExists),

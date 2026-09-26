@@ -587,3 +587,23 @@ fn a_paused_job_does_no_io_until_resumed() {
     assert!(report.is_success(), "{report:?}");
     assert_eq!(read_tree(&dest.join("src")), read_tree(&src));
 }
+
+#[test]
+fn partial_files_left_by_an_interrupted_job_are_replaced() {
+    let f = fixture();
+    let leftover = f.dest.join("CARD/.notes.txt.secopy-partial");
+    write_files(&f.dest, &[("CARD/.notes.txt.secopy-partial", b"half")]);
+    let old = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+    fs::File::options()
+        .write(true)
+        .open(&leftover)
+        .unwrap()
+        .set_modified(old)
+        .unwrap();
+
+    let (report, _) = run(&select(&f.src), &f.dest, &opts(true));
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(report.removed_partials, 1);
+    assert!(!leftover.exists());
+    assert_eq!(read_tree(&f.dest), expected_tree(&f.src));
+}

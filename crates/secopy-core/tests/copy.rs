@@ -5,7 +5,7 @@ use std::fs;
 
 use common::pattern;
 use secopy_core::control::JobControl;
-use secopy_core::copy::{CopyConfig, commit, copy_to_partial, partial_path};
+use secopy_core::copy::{CopyConfig, copy_to_partial, partial_path};
 use secopy_core::error::FileError;
 use secopy_core::hash::hash_bytes;
 
@@ -41,9 +41,10 @@ fn small_file_is_copied_hashed_and_committed() {
     assert_eq!(pc.bytes, 12);
     assert!(!dst.exists(), "final name only appears on commit");
 
-    commit(&pc.partial, &dst).unwrap();
+    let partial = pc.partial.clone();
+    pc.commit(&dst).unwrap();
     assert_eq!(fs::read(&dst).unwrap(), b"hello secopy");
-    assert!(!pc.partial.exists());
+    assert!(!partial.exists());
 }
 
 #[test]
@@ -145,22 +146,86 @@ fn sizes_around_the_buffer_size_copy_exactly() {
 }
 
 #[test]
-fn another_writers_partial_file_is_never_truncated() {
+fn a_live_writers_partial_file_is_never_touched() {
     let dir = tempfile::tempdir().unwrap();
     let (src, dst) = (dir.path().join("a.bin"), dir.path().join("b.bin"));
     fs::write(&src, b"mine").unwrap();
-    fs::write(partial_path(&dst), b"other writer").unwrap();
+    // The first writer creates and locks its partial file, then waits at the pause.
+    let paused = JobControl::new();
+    paused.pause();
+    std::thread::scope(|s| {
+        let first =
+            s.spawn(|| copy_to_partial(&src, &dst, &CopyConfig::default(), &|_| {}, &paused));
+        while !partial_path(&dst).exists() {
+            std::thread::yield_now();
+        }
+        let err = copy_to_partial(
+            &src,
+            &dst,
+            &CopyConfig::default(),
+            &|_| {},
+            &JobControl::new(),
+        )
+        .unwrap_err();
+        assert_eq!(err, FileError::PartialInUse);
+        assert!(
+            partial_path(&dst).exists(),
+            "the live partial file is left alone"
+        );
+        paused.resume();
+        let pc = first.join().unwrap().unwrap();
+        pc.commit(&dst).unwrap();
+    });
+    assert_eq!(fs::read(&dst).unwrap(), b"mine");
+}
 
-    let err = copy_to_partial(
+#[test]
+fn a_stale_partial_file_is_replaced() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dst) = (dir.path().join("a.bin"), dir.path().join("b.bin"));
+    fs::write(&src, b"mine").unwrap();
+    fs::write(partial_path(&dst), b"left by a crashed job").unwrap();
+    age(&partial_path(&dst));
+    let pc = copy_to_partial(
         &src,
         &dst,
         &CopyConfig::default(),
         &|_| {},
         &JobControl::new(),
     )
-    .unwrap_err();
-    assert_eq!(err, FileError::NameClash);
-    assert_eq!(fs::read(partial_path(&dst)).unwrap(), b"other writer");
+    .unwrap();
+    assert!(pc.removed_stale);
+    assert_eq!(fs::read(&pc.partial).unwrap(), b"mine");
+}
+
+#[test]
+fn long_names_get_a_short_partial_name() {
+    let dir = tempfile::tempdir().unwrap();
+    // 250 bytes: the name fits, but `.<name>.secopy-partial` would not.
+    let long = format!("{}.mov", "a".repeat(246));
+    let (src, dst) = (dir.path().join("a.bin"), dir.path().join(&long));
+    fs::write(&src, b"clip").unwrap();
+    let partial = partial_path(&dst);
+    let name = partial.file_name().unwrap().to_str().unwrap();
+    assert!(
+        name.starts_with(".secopy-") && name.ends_with(".partial"),
+        "{name}"
+    );
+    assert_eq!(
+        partial,
+        partial_path(&dir.path().join(long.to_uppercase())),
+        "the short name ignores case"
+    );
+    let pc = copy_to_partial(
+        &src,
+        &dst,
+        &CopyConfig::default(),
+        &|_| {},
+        &JobControl::new(),
+    )
+    .unwrap();
+    pc.commit(&dst).unwrap();
+    assert_eq!(fs::read(&dst).unwrap(), b"clip");
 }
 
 #[test]
@@ -178,8 +243,24 @@ fn commit_never_replaces_an_existing_file() {
     .unwrap();
     fs::write(&dst, b"mine").unwrap();
 
-    assert_eq!(commit(&pc.partial, &dst), Err(FileError::AlreadyExists));
+    let partial = pc.partial.clone();
+    assert_eq!(pc.commit(&dst), Err(FileError::AlreadyExists));
     assert_eq!(fs::read(&dst).unwrap(), b"mine");
+    assert!(
+        !partial.exists(),
+        "a failed commit removes the partial file"
+    );
+}
+
+/// Makes a file look as if it was written a minute ago.
+fn age(path: &std::path::Path) {
+    let old = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+    fs::File::options()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_modified(old)
+        .unwrap();
 }
 
 fn cancelled() -> JobControl {

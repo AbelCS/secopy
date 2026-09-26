@@ -1,6 +1,6 @@
 //! Platform-specific flushing and cache control (FR-18, FR-26, RFD §7.4).
 
-use std::fs::File;
+use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::Path;
 
@@ -124,7 +124,23 @@ pub fn rename_noreplace(from: &Path, to: &Path) -> io::Result<()> {
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+/// Windows: `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` fails if the name is taken.
+/// It also fails on a file another writer has open without delete sharing.
+#[cfg(windows)]
+pub fn rename_noreplace(from: &Path, to: &Path) -> io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::MoveFileExW;
+    let wide = |p: &Path| -> Vec<u16> { p.as_os_str().encode_wide().chain([0]).collect() };
+    let (from, to) = (wide(from), wide(to));
+    // SAFETY: both pointers are valid NUL-terminated wide strings for the call's duration.
+    if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), 0) } != 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 pub fn rename_noreplace(_from: &Path, _to: &Path) -> io::Result<()> {
     Err(io::ErrorKind::Unsupported.into())
 }
@@ -142,5 +158,110 @@ fn unsupported_or(e: io::Error) -> io::Error {
     match e.raw_os_error() {
         Some(libc::ENOTSUP | libc::EINVAL | libc::ENOSYS) => io::ErrorKind::Unsupported.into(),
         _ => e,
+    }
+}
+
+/// Creates a new partial file that stays locked while it is open, so another job can tell
+/// a live partial file from one left by an interrupted job (FR-18). On Unix this is an
+/// advisory `flock`; on Windows the file is opened without delete sharing, so nobody can
+/// delete or rename it while it is open.
+pub fn create_locked(path: &Path) -> io::Result<File> {
+    let mut opts = OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::{FILE_SHARE_READ, FILE_SHARE_WRITE};
+        opts.share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE);
+    }
+    let file = opts.open(path)?;
+    // Only another job's cleanup can hold a brand-new file's lock, and only for a moment,
+    // so wait for it. That cleanup may have removed the new file: then the name is no
+    // longer ours. Lock errors (file systems without locks) leave the file unlocked.
+    #[cfg(unix)]
+    {
+        let _ = lock(&file, true);
+        if !is_at(&file, path)? {
+            return Err(io::ErrorKind::AlreadyExists.into());
+        }
+    }
+    Ok(file)
+}
+
+/// Removes a partial file left by an interrupted job. Returns `false`, and leaves the file
+/// alone, if a live writer still holds it.
+#[cfg(unix)]
+pub fn remove_stale(path: &Path) -> io::Result<bool> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(true),
+        Err(e) => return Err(e),
+    };
+    if let Ok(false) = lock(&file, false) {
+        return Ok(false);
+    }
+    // Creating and locking a file are two steps on Unix: a file this young may be one
+    // another writer has just created and not locked yet.
+    let age = file.metadata()?.modified()?.elapsed().unwrap_or_default();
+    if age < STALE_AFTER {
+        return Ok(false);
+    }
+    // The name may belong to another writer's new file by now.
+    if !is_at(&file, path)? {
+        return Ok(!path.exists());
+    }
+    match fs::remove_file(path) {
+        Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
+        _ => Ok(true),
+    }
+}
+
+#[cfg(windows)]
+pub fn remove_stale(path: &Path) -> io::Result<bool> {
+    use windows_sys::Win32::Foundation::ERROR_SHARING_VIOLATION;
+    match fs::remove_file(path) {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(true),
+        Err(e) if e.raw_os_error() == Some(ERROR_SHARING_VIOLATION as i32) => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
+/// A partial file younger than this is never treated as left by an interrupted job.
+#[cfg(unix)]
+const STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Whether `path` still names the open `file`.
+#[cfg(unix)]
+fn is_at(file: &File, path: &Path) -> io::Result<bool> {
+    use std::os::unix::fs::MetadataExt;
+    let held = file.metadata()?;
+    match fs::symlink_metadata(path) {
+        Ok(now) => Ok((now.dev(), now.ino()) == (held.dev(), held.ino())),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
+/// Takes the exclusive advisory lock; without `wait`, `Ok(false)` if someone holds it.
+/// `flock`, not `fcntl` locks: those are per process, and two jobs in one app must see
+/// each other's locks.
+#[cfg(unix)]
+fn lock(file: &File, wait: bool) -> io::Result<bool> {
+    use std::os::fd::AsRawFd;
+    let op = if wait {
+        libc::LOCK_EX
+    } else {
+        libc::LOCK_EX | libc::LOCK_NB
+    };
+    // SAFETY: `flock` on a valid descriptor owned by `file`.
+    if unsafe { libc::flock(file.as_raw_fd(), op) } == 0 {
+        return Ok(true);
+    }
+    let e = io::Error::last_os_error();
+    if e.raw_os_error() == Some(libc::EWOULDBLOCK) {
+        Ok(false)
+    } else {
+        Err(e)
     }
 }
