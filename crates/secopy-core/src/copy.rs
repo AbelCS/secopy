@@ -177,10 +177,12 @@ fn copy_pipelined(
             .expect("channel has room for every buffer");
     }
     std::thread::scope(|s| {
-        let reader_thread = s.spawn(move || -> io::Result<u64> {
+        let reader_thread = s.spawn(move || -> Result<u64, FileError> {
             let mut hasher = hash::hasher();
             while let Ok(mut buf) = empty_rx.recv() {
-                let n = read_full(&mut reader, &mut buf)?;
+                // Pausing stops the reader too, not only the writer (FR-22).
+                control.checkpoint()?;
+                let n = read_full(&mut reader, &mut buf).map_err(FileError::read_source)?;
                 if n == 0 {
                     break;
                 }
@@ -197,7 +199,7 @@ fn copy_pipelined(
         drop(empty_tx);
         let read = reader_thread.join().expect("reader thread panicked");
         let written = written?;
-        let hash = read.map_err(FileError::read_source)?;
+        let hash = read?;
         Ok((hash, written))
     })
 }
