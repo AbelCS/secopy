@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[workspace.dependencies]
+secopy-core = { path = "crates/secopy-core" }
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+clap = { version = "4.6.7", features = ["derive"] }
+ctrlc = "3.5.2"
+libc = "0.2"
+tempfile = "3.27.0"
+thiserror = "2.0.21"
+walkdir = "2.5.0"
+xxhash-rust = { version = "0.8.18", features = ["xxh64"] }
