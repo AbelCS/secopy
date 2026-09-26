@@ -8,7 +8,12 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    # Every OS, so macOS- and Windows-only `cfg` code is linted too.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
