@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use super::progress::{Phase, Slot};
 use super::{Event, FileOutcome, FileStatus, JobControl, JobOptions};
-use crate::copy::{self, CopyConfig, PartialCopy};
+use crate::copy::{self, Commit, CopyConfig, PartialCopy};
 use crate::error::FileError;
 use crate::hash;
 use crate::scan::{ScanEntry, Selection};
@@ -146,8 +146,8 @@ impl<'a> Runner<'a> {
             return;
         }
         let hash = partial.hash;
-        match partial.commit(&final_path) {
-            Ok(()) => self.finish(&slot, entry, Some(hash), FileStatus::Copied, started),
+        match partial.commit(&final_path, Commit::NoReplace) {
+            Ok(_) => self.finish(&slot, entry, Some(hash), FileStatus::Copied, started),
             Err(e) => self.finish(&slot, entry, Some(hash), FileStatus::Failed(e), started),
         }
     }
@@ -216,7 +216,9 @@ impl<'a> Runner<'a> {
             }
             let expected = partial.hash;
             if actual == expected {
-                break partial.commit(&final_path).map(|()| expected);
+                break partial
+                    .commit(&final_path, Commit::NoReplace)
+                    .map(|_| expected);
             }
             partial.discard();
             if attempt == 1 {
