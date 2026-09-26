@@ -1,0 +1,14 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Rust
+target/
+
+# Node / UI
+node_modules/
+dist/
+
+# Editors
+.idea/
+*.swp
