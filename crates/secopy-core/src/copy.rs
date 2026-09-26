@@ -8,7 +8,7 @@ use std::sync::mpsc;
 
 use crate::control::JobControl;
 use crate::error::FileError;
-use crate::{hash, os};
+use crate::{hash, metadata, os};
 
 /// Tuning for the copy pipeline.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -242,7 +242,8 @@ fn copy_inner(
     progress: &dyn Fn(u64),
     control: &JobControl,
 ) -> Result<(u64, u64), FileError> {
-    let len = reader.metadata().map_err(FileError::read_source)?.len();
+    let src_meta = reader.metadata().map_err(FileError::read_source)?;
+    let len = src_meta.len();
     if cfg.uncached_write {
         os::set_nocache(writer);
     }
@@ -251,6 +252,7 @@ fn copy_inner(
     } else {
         copy_pipelined(reader, writer, cfg, progress, control)?
     };
+    metadata::copy_to(&src_meta, writer).map_err(FileError::write_dest)?;
     os::sync_file(writer).map_err(FileError::write_dest)?;
     Ok(result)
 }

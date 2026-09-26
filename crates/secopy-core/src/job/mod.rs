@@ -15,10 +15,10 @@ use chrono::Local;
 use crate::checksum_file;
 use crate::copy::CopyConfig;
 use crate::error::FileError;
-use crate::os;
 use crate::plan::Plan;
 use crate::scan::DirEntry;
 use crate::verify::CacheBypass;
+use crate::{metadata, os};
 
 pub use crate::control::JobControl;
 pub use progress::{ActiveFile, Phase, Progress};
@@ -219,6 +219,7 @@ pub fn run_job(
     let fatal = runner.fatal.into_inner().expect("fatal lock poisoned");
     if !control.is_stopped() {
         create_empty_dirs(plan);
+        restore_dir_mtimes(plan);
     }
     let (checksum_file, checksum_error) = if opts.write_checksum_file {
         write_checksum(dest, &outcomes)
@@ -260,6 +261,17 @@ fn create_empty_dirs(plan: &Plan) {
         .filter(|d| !with_files.contains(d.rel.as_path()))
     {
         let _ = fs::create_dir_all(plan.dest.join(&dir.rel));
+    }
+}
+
+/// Deepest folders first: setting a folder's time doesn't change its parent's (FR-19).
+fn restore_dir_mtimes(plan: &Plan) {
+    let mut dirs: Vec<&DirEntry> = plan.dirs.iter().collect();
+    dirs.sort_by_key(|d| std::cmp::Reverse(d.rel.components().count()));
+    for dir in dirs {
+        if let Some(mtime) = dir.mtime {
+            let _ = metadata::set_dir_mtime(&plan.dest.join(&dir.rel), mtime);
+        }
     }
 }
 

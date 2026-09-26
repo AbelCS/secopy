@@ -793,3 +793,56 @@ fn small_files_never_take_the_pipelined_path_by_default() {
     let o = JobOptions::default();
     assert_eq!(o.small_file_threshold, o.copy.buffer_size as u64);
 }
+
+#[test]
+fn file_and_folder_metadata_is_kept() {
+    let f = fixture();
+    let t = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_000);
+    let file = f.src.join("clips/B002.mov");
+    #[allow(unused_mut)]
+    let mut times = fs::FileTimes::new().set_modified(t).set_accessed(t);
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::macos::fs::FileTimesExt;
+        times = times.set_created(t);
+    }
+    fs::File::options()
+        .write(true)
+        .open(&file)
+        .unwrap()
+        .set_times(times)
+        .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o640)).unwrap();
+    }
+    let dir_t = t + std::time::Duration::from_secs(3600);
+    let clips_set = fs::File::open(f.src.join("clips"))
+        .and_then(|d| d.set_modified(dir_t))
+        .is_ok();
+
+    for verify in [false, true] {
+        let dest = f.dest.join(if verify { "verify" } else { "copy" });
+        fs::create_dir_all(&dest).unwrap();
+        let (report, _) = run(&plan(&f.src, &dest), &opts(verify));
+        assert!(report.is_success(), "{report:?}");
+        let copy = fs::metadata(dest.join("CARD/clips/B002.mov")).unwrap();
+        assert_eq!(copy.modified().unwrap(), t, "verify={verify}");
+        #[cfg(target_os = "macos")]
+        assert_eq!(copy.created().unwrap(), t);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(copy.permissions().mode() & 0o777, 0o640);
+        }
+        if clips_set {
+            let clips = fs::metadata(dest.join("CARD/clips")).unwrap();
+            assert_eq!(
+                clips.modified().unwrap(),
+                dir_t,
+                "folder mtime (verify={verify})"
+            );
+        }
+    }
+}
