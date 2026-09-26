@@ -238,7 +238,7 @@ const STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Whether `path` still names the open `file`.
 #[cfg(unix)]
-fn is_at(file: &File, path: &Path) -> io::Result<bool> {
+pub fn is_at(file: &File, path: &Path) -> io::Result<bool> {
     use std::os::unix::fs::MetadataExt;
     let held = file.metadata()?;
     match fs::symlink_metadata(path) {
