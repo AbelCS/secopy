@@ -952,3 +952,52 @@ fn a_source_file_that_changes_while_copied_fails_alone() {
     assert!(!f.dest.join("CARD/A001.mov").exists());
     assert_eq!(report.outcomes.len(), 4);
 }
+
+/// The CLI passes paths as typed, so a relative source must be watched too (FR-21).
+#[cfg(unix)]
+#[test]
+fn a_relative_source_that_disappears_stops_the_job() {
+    let f = long_fixture();
+    let cwd = std::env::current_dir().unwrap();
+    let relative = pathdiff(&f.src, &cwd);
+    let source = Source::Directory {
+        path: relative,
+        mode: DirMode::FolderItself,
+    };
+    let mut o = one_lane(false);
+    o.hooks = Hooks {
+        before_copy: Some(|source| {
+            if source.to_string_lossy().contains("f05") {
+                let card = source.parent().unwrap();
+                fs::rename(card, card.with_extension("gone")).unwrap();
+            }
+        }),
+        after_copy: None,
+    };
+    let (report, _) = run(&plan_of(&source, &f.dest), &o);
+
+    assert_eq!(report.fatal, Some(FatalError::SourceGone), "{report:?}");
+    assert!(report.not_started > 0);
+}
+
+/// `to` relative to `from`, both absolute (`../..` steps up as needed).
+#[cfg(unix)]
+fn pathdiff(to: &Path, from: &Path) -> PathBuf {
+    let (to, from) = (
+        fs::canonicalize(to).unwrap(),
+        fs::canonicalize(from).unwrap(),
+    );
+    let common = to
+        .components()
+        .zip(from.components())
+        .take_while(|(a, b)| a == b)
+        .count();
+    let mut rel = PathBuf::new();
+    for _ in from.components().skip(common) {
+        rel.push("..");
+    }
+    for c in to.components().skip(common) {
+        rel.push(c);
+    }
+    rel
+}

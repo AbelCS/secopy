@@ -165,6 +165,8 @@ fn source_roots(source: &Source) -> Vec<SourceRoot> {
     paths
         .into_iter()
         .filter_map(|path| {
+            // Absolute, like the scanned file paths it is compared with.
+            let path = std::path::absolute(&path).ok()?;
             let device = fsinfo::device_id(&path).ok()?;
             Some(SourceRoot { path, device })
         })
