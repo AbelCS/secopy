@@ -101,3 +101,13 @@ format exactly.
   Adjust the paths to the real layout.
 - To force a specific version (e.g. `1.0.0`), add a commit with the footer
   `Release-As: 1.0.0`.
+
+## Development
+
+- Layout: `crates/secopy-core` (engine library, no UI dependencies) and `crates/secopy-cli`
+  (developer CLI and benchmark driver). The Tauri app and Svelte UI come in a later plan.
+- Before every commit: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`
+  and `cargo test --workspace`. All must pass.
+- `xxhsum` must be installed locally (`brew install xxhash`). CI runs its compatibility
+  test with `SECOPY_REQUIRE_XXHSUM=1` so it can't silently skip.
+- Plans live in `docs/superpowers/plans/`, benchmark results in `docs/benchmarks/`.
