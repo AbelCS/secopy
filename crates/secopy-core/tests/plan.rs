@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 
 use secopy_core::error::FileError;
 use secopy_core::fsinfo::{FsInfo, FsKind, NameLimit};
-use secopy_core::plan::{Action, DiffersPolicy, Plan, numbered, space_margin};
+use secopy_core::names::numbered;
+use secopy_core::plan::{Action, DiffersPolicy, Plan, space_margin};
 use secopy_core::preflight::{
     Blocker, Conflict, ConflictKind, FileProblem, Preflight, ProblemKind,
 };
@@ -84,6 +85,7 @@ fn each_policy_only_changes_files_that_differ() {
             DiffersPolicy::KeepBoth,
             Action::KeepBoth {
                 rel: PathBuf::from("clip (1).mov"),
+                n: 1,
             },
         ),
         (DiffersPolicy::Overwrite, Action::Overwrite),
@@ -115,7 +117,8 @@ fn keep_both_skips_names_taken_on_disk_and_in_the_plan() {
     assert_eq!(
         plan.files[2].action,
         Action::KeepBoth {
-            rel: PathBuf::from("clip (3).mov")
+            rel: PathBuf::from("clip (3).mov"),
+            n: 3,
         }
     );
     assert_eq!(plan.files[2].final_rel(), Path::new("clip (3).mov"));
@@ -126,7 +129,8 @@ fn keep_both_skips_names_taken_on_disk_and_in_the_plan() {
     assert_eq!(
         plan.files[2].action,
         Action::KeepBoth {
-            rel: PathBuf::from("clip (4).mov")
+            rel: PathBuf::from("clip (4).mov"),
+            n: 4,
         }
     );
 }

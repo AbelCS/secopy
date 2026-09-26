@@ -45,13 +45,36 @@ pub struct PartialCopy {
     file: File,
 }
 
+/// How a finished copy takes its final name (FR-17, FR-18).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Commit<'a> {
+    /// Never replace an existing file.
+    NoReplace,
+    /// Replace an existing file, atomically.
+    Replace,
+    /// Like `NoReplace`; if the name was taken since pre-flight, try `original (n+1)`,
+    /// `original (n+2)`, … instead.
+    KeepBoth { original: &'a Path, n: u32 },
+}
+
+/// Names tried when a Keep-both name is taken at commit time.
+const KEEP_BOTH_TRIES: u32 = 100;
+
 impl PartialCopy {
-    /// Gives the file its final name without ever replacing an existing file (FR-18). The
-    /// file system itself decides whether the name is taken (case, Unicode normalization).
-    /// On failure the partial file is removed.
-    pub fn commit(self, final_path: &Path) -> Result<(), FileError> {
+    /// Gives the file its final name and returns the path it got. The file system itself
+    /// decides whether a name is taken (case, Unicode normalization). On failure the
+    /// partial file is removed.
+    pub fn commit(self, final_path: &Path, how: Commit) -> Result<PathBuf, FileError> {
         self.release(|partial| {
-            let result = commit_noreplace(partial, final_path);
+            let result = match how {
+                Commit::NoReplace => {
+                    commit_noreplace(partial, final_path).map(|()| final_path.to_path_buf())
+                }
+                Commit::Replace => commit_replace(partial, final_path),
+                Commit::KeepBoth { original, n } => {
+                    commit_keep_both(partial, final_path, original, n)
+                }
+            };
             if result.is_err() {
                 let _ = fs::remove_file(partial);
             }
@@ -154,6 +177,37 @@ fn create_partial(partial: &Path) -> Result<(File, bool), FileError> {
         }
     }
     Err(FileError::PartialInUse)
+}
+
+fn commit_replace(partial: &Path, final_path: &Path) -> Result<PathBuf, FileError> {
+    // Windows refuses to replace a read-only file.
+    #[cfg(windows)]
+    if let Ok(meta) = fs::metadata(final_path)
+        && meta.permissions().readonly()
+    {
+        let mut perms = meta.permissions();
+        #[allow(clippy::permissions_set_readonly_false)] // clears the Windows attribute only
+        perms.set_readonly(false);
+        fs::set_permissions(final_path, perms).map_err(FileError::write_dest)?;
+    }
+    fs::rename(partial, final_path).map_err(FileError::write_dest)?;
+    Ok(final_path.to_path_buf())
+}
+
+fn commit_keep_both(
+    partial: &Path,
+    planned: &Path,
+    original: &Path,
+    n: u32,
+) -> Result<PathBuf, FileError> {
+    let later = (n + 1..n + KEEP_BOTH_TRIES).map(|m| crate::names::numbered(original, m));
+    for candidate in std::iter::once(planned.to_path_buf()).chain(later) {
+        match commit_noreplace(partial, &candidate) {
+            Err(FileError::AlreadyExists) => continue,
+            other => return other.map(|()| candidate),
+        }
+    }
+    Err(FileError::AlreadyExists)
 }
 
 /// Uses the OS's no-replace rename. File systems without one (FAT and exFAT on macOS and

@@ -2,12 +2,12 @@
 //! differ (FR-16, FR-17).
 
 use std::collections::{HashMap, HashSet};
-use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::FileError;
 use crate::fsinfo::FsInfo;
+use crate::names::numbered;
 use crate::preflight::{Blocker, ConflictKind, Preflight, SourceRoot, clash_key};
 use crate::scan::{DirEntry, ScanEntry, Selection};
 
@@ -26,9 +26,11 @@ pub enum DiffersPolicy {
 pub enum Action {
     Copy,
     Overwrite,
-    /// Copy to this path instead, relative to the destination.
+    /// Copy to this path instead, relative to the destination: the original name
+    /// numbered `n`, as in `clip (n).mov`.
     KeepBoth {
         rel: PathBuf,
+        n: u32,
     },
     /// Already at the destination: same size and modification time. Not read.
     SkipIdentical,
@@ -59,7 +61,7 @@ impl PlannedFile {
     /// Where the copy lands, relative to the destination.
     pub fn final_rel(&self) -> &Path {
         match &self.action {
-            Action::KeepBoth { rel } => rel,
+            Action::KeepBoth { rel, .. } => rel,
             _ => &self.entry.rel,
         }
     }
@@ -116,9 +118,9 @@ impl Plan {
                             Action::Overwrite
                         }
                         (Some(ConflictKind::Differs { .. }), DiffersPolicy::KeepBoth) => {
-                            Action::KeepBoth {
-                                rel: free_name(&pf.dest, &entry.rel, &mut taken, case_sensitive),
-                            }
+                            let (rel, n) =
+                                free_name(&pf.dest, &entry.rel, &mut taken, case_sensitive);
+                            Action::KeepBoth { rel, n }
                         }
                     }
                 };
@@ -175,10 +177,10 @@ fn free_name(
     rel: &Path,
     taken: &mut HashSet<Vec<u8>>,
     case_sensitive: bool,
-) -> PathBuf {
+) -> (PathBuf, u32) {
     (1u32..)
-        .map(|n| numbered(rel, n))
-        .find(|candidate| {
+        .map(|n| (numbered(rel, n), n))
+        .find(|(candidate, _)| {
             let key = clash_key(candidate, case_sensitive);
             let free = !taken.contains(&key) && fs::symlink_metadata(dest.join(candidate)).is_err();
             if free {
@@ -187,16 +189,4 @@ fn free_name(
             free
         })
         .expect("some numbered name is free")
-}
-
-/// `clips/A001.mov` → `clips/A001 (n).mov`
-pub fn numbered(rel: &Path, n: u32) -> PathBuf {
-    let stem = rel.file_stem().unwrap_or_default();
-    let mut name = OsString::from(stem);
-    name.push(format!(" ({n})"));
-    if let Some(ext) = rel.extension() {
-        name.push(".");
-        name.push(ext);
-    }
-    rel.with_file_name(name)
 }

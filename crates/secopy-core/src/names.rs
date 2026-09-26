@@ -1,8 +1,8 @@
 //! File names the destination file system can't store (FR-16).
 
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fmt;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 use crate::fsinfo::{FsInfo, NameLimit};
 
@@ -102,6 +102,18 @@ fn too_long(name: &OsStr, text: &str, limit: NameLimit) -> bool {
         NameLimit::Bytes(n) => name.as_encoded_bytes().len() > n,
         NameLimit::Utf16Units(n) => text.encode_utf16().count() > n,
     }
+}
+
+/// `clips/A001.mov` → `clips/A001 (n).mov`
+pub fn numbered(rel: &Path, n: u32) -> PathBuf {
+    let stem = rel.file_stem().unwrap_or_default();
+    let mut name = OsString::from(stem);
+    name.push(format!(" ({n})"));
+    if let Some(ext) = rel.extension() {
+        name.push(".");
+        name.push(ext);
+    }
+    rel.with_file_name(name)
 }
 
 #[cfg(test)]

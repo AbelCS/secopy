@@ -5,7 +5,7 @@ use std::fs;
 
 use common::pattern;
 use secopy_core::control::JobControl;
-use secopy_core::copy::{CopyConfig, copy_to_partial, partial_path};
+use secopy_core::copy::{Commit, CopyConfig, copy_to_partial, partial_path};
 use secopy_core::error::FileError;
 use secopy_core::hash::hash_bytes;
 
@@ -42,7 +42,7 @@ fn small_file_is_copied_hashed_and_committed() {
     assert!(!dst.exists(), "final name only appears on commit");
 
     let partial = pc.partial.clone();
-    pc.commit(&dst).unwrap();
+    pc.commit(&dst, Commit::NoReplace).unwrap();
     assert_eq!(fs::read(&dst).unwrap(), b"hello secopy");
     assert!(!partial.exists());
 }
@@ -174,7 +174,7 @@ fn a_live_writers_partial_file_is_never_touched() {
         );
         paused.resume();
         let pc = first.join().unwrap().unwrap();
-        pc.commit(&dst).unwrap();
+        pc.commit(&dst, Commit::NoReplace).unwrap();
     });
     assert_eq!(fs::read(&dst).unwrap(), b"mine");
 }
@@ -224,8 +224,61 @@ fn long_names_get_a_short_partial_name() {
         &JobControl::new(),
     )
     .unwrap();
-    pc.commit(&dst).unwrap();
+    pc.commit(&dst, Commit::NoReplace).unwrap();
     assert_eq!(fs::read(&dst).unwrap(), b"clip");
+}
+
+#[test]
+fn replace_swaps_in_the_new_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dst) = (dir.path().join("a.bin"), dir.path().join("b.bin"));
+    fs::write(&src, b"new").unwrap();
+    fs::write(&dst, b"old").unwrap();
+    let mut perms = fs::metadata(&dst).unwrap().permissions();
+    perms.set_readonly(true);
+    fs::set_permissions(&dst, perms).unwrap();
+    let pc = copy_to_partial(
+        &src,
+        &dst,
+        &CopyConfig::default(),
+        &|_| {},
+        &JobControl::new(),
+    )
+    .unwrap();
+    assert_eq!(pc.commit(&dst, Commit::Replace), Ok(dst.clone()));
+    assert_eq!(fs::read(&dst).unwrap(), b"new");
+}
+
+#[test]
+fn keep_both_moves_on_to_the_next_free_number() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("a.bin");
+    let original = dir.path().join("clip.mov");
+    let planned = dir.path().join("clip (1).mov");
+    fs::write(&src, b"new").unwrap();
+    // Someone took the planned name, and the next one, after pre-flight.
+    fs::write(&planned, b"theirs").unwrap();
+    fs::write(dir.path().join("clip (2).mov"), b"theirs too").unwrap();
+    let pc = copy_to_partial(
+        &src,
+        &planned,
+        &CopyConfig::default(),
+        &|_| {},
+        &JobControl::new(),
+    )
+    .unwrap();
+    let got = pc
+        .commit(
+            &planned,
+            Commit::KeepBoth {
+                original: &original,
+                n: 1,
+            },
+        )
+        .unwrap();
+    assert_eq!(got, dir.path().join("clip (3).mov"));
+    assert_eq!(fs::read(&got).unwrap(), b"new");
+    assert_eq!(fs::read(&planned).unwrap(), b"theirs");
 }
 
 #[test]
@@ -244,7 +297,10 @@ fn commit_never_replaces_an_existing_file() {
     fs::write(&dst, b"mine").unwrap();
 
     let partial = pc.partial.clone();
-    assert_eq!(pc.commit(&dst), Err(FileError::AlreadyExists));
+    assert_eq!(
+        pc.commit(&dst, Commit::NoReplace),
+        Err(FileError::AlreadyExists)
+    );
     assert_eq!(fs::read(&dst).unwrap(), b"mine");
     assert!(
         !partial.exists(),
