@@ -411,14 +411,15 @@ derives speeds, ETAs and smoothing from them (§5.3).
 
 ## 10. Milestones
 
-1. **M0 — Engine spike (CLI only):** copy + hash + verify + checksum file, benchmarks vs.
-   native tools on real hardware (SSD→SSD, card reader→SSD, SSD→USB HDD). Proves the
-   performance targets before any UI work.
+1. **M0 — Engine spike (CLI only):** copy + hash + verify + checksum file, and the
+   benchmark scripts.
 2. **M1 — Engine complete:** filters, conflicts, atomic writes, metadata, pause/cancel,
-   error model, report, full test suite.
+   error model, report, full test suite including fault injection.
 3. **M2 — UI:** main window, progress, summary, drag and drop, pre-flight messages.
-4. **M3 — Packaging:** signing, notarization, installers, CI release pipeline.
-5. **M4 — Beta** with real users and real media. Fix what they find.
+4. **M3 — Performance:** benchmarks vs. native tools on real hardware (SSD→SSD, card
+   reader→SSD, SSD→USB HDD, Windows), then tuning until NFR-1..NFR-4 pass.
+5. **M4 — Packaging:** signing, notarization, installers, CI release pipeline.
+6. **M5 — Beta** with real users and real media. Fix what they find.
 
 ## 11. Future work
 
@@ -476,3 +477,4 @@ The stack meets these constraints:
 | 2026-09-26 | Per-file progress (size, bytes done, %, speed, ETA) for both the copy and the verify phase. |
 | 2026-09-26 | Same-name files in one job (compared ignoring case) fail with a clear error instead of overwriting each other (FR-17a). |
 | 2026-09-26 | Durability: plain `fsync` per file, one drive-cache flush per job (§7.4). |
+| 2026-09-26 | Performance benchmarks and tuning move after the UI, to a new M3 (§10). Tuning is internal to the engine and doesn't change the API the UI uses. Correctness work (fault injection, cache-bypass checks) stays in M1. |
