@@ -200,10 +200,14 @@ pub fn remove_stale(path: &Path) -> io::Result<bool> {
     if let Ok(false) = lock(&file, false) {
         return Ok(false);
     }
-    // Creating and locking a file are two steps on Unix: a file this young may be one
-    // another writer has just created and not locked yet.
-    let age = file.metadata()?.modified()?.elapsed().unwrap_or_default();
-    if age < STALE_AFTER {
+    // Creating and locking a file are two steps on Unix: a file modified within the last
+    // moment may be one another writer has just created and not locked yet. A time in the
+    // future (FAT's local time after a zone or clock change) is not that.
+    let modified = file.metadata()?.modified()?;
+    let distance = std::time::SystemTime::now()
+        .duration_since(modified)
+        .unwrap_or_else(|e| e.duration());
+    if distance < STALE_AFTER {
         return Ok(false);
     }
     // The name may belong to another writer's new file by now.
@@ -227,7 +231,8 @@ pub fn remove_stale(path: &Path) -> io::Result<bool> {
     }
 }
 
-/// A partial file younger than this is never treated as left by an interrupted job.
+/// A partial file modified less than this long ago (or ahead) is never treated as left by
+/// an interrupted job.
 #[cfg(unix)]
 const STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(2);
 

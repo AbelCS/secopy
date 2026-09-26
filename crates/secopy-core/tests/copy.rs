@@ -324,3 +324,30 @@ fn cancelled() -> JobControl {
     control.cancel();
     control
 }
+
+/// FAT stores local time: a partial file left in another time zone, or before a clock
+/// change, can look hours in the future. It is still stale.
+#[test]
+fn a_stale_partial_file_dated_in_the_future_is_replaced() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dst) = (dir.path().join("a.bin"), dir.path().join("b.bin"));
+    fs::write(&src, b"mine").unwrap();
+    fs::write(partial_path(&dst), b"left by a crashed job").unwrap();
+    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
+    fs::File::options()
+        .write(true)
+        .open(partial_path(&dst))
+        .unwrap()
+        .set_modified(future)
+        .unwrap();
+    let pc = copy_to_partial(
+        &src,
+        &dst,
+        &CopyConfig::default(),
+        &|_| {},
+        &JobControl::new(),
+    )
+    .unwrap();
+    assert!(pc.removed_stale);
+    assert_eq!(fs::read(&pc.partial).unwrap(), b"mine");
+}
