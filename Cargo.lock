@@ -440,6 +440,7 @@ dependencies = [
 name = "secopy-cli"
 version = "0.0.0"
 dependencies = [
+ "chrono",
  "clap",
  "ctrlc",
  "secopy-core",

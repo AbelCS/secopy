@@ -5,11 +5,14 @@ use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use clap::Parser;
+use chrono::Local;
+use clap::{Parser, ValueEnum};
+use secopy_core::checksum_file;
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::job::{self, Event, FileStatus, JobControl, JobOptions, JobReport, Progress};
 use secopy_core::plan::{DiffersPolicy, Plan};
-use secopy_core::preflight::preflight;
+use secopy_core::preflight::{ConflictKind, Preflight, preflight};
+use secopy_core::report::{JobMeta, Report};
 use secopy_core::scan::{self, ScanOptions};
 use secopy_core::source::{DirMode, Source};
 
@@ -41,6 +44,30 @@ struct Args {
     /// Include hidden files and folders.
     #[arg(long)]
     include_hidden: bool,
+    /// What to do with files that already exist at the destination but differ.
+    /// Identical files (same size and date) are always skipped.
+    #[arg(long, value_enum, default_value_t = OnConflict::KeepBoth)]
+    on_conflict: OnConflict,
+    /// Also write the job report (text and JSON) into this folder.
+    #[arg(long, value_name = "DIR")]
+    report: Option<PathBuf>,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum OnConflict {
+    KeepBoth,
+    Overwrite,
+    Skip,
+}
+
+impl From<OnConflict> for DiffersPolicy {
+    fn from(c: OnConflict) -> Self {
+        match c {
+            OnConflict::KeepBoth => DiffersPolicy::KeepBoth,
+            OnConflict::Overwrite => DiffersPolicy::Overwrite,
+            OnConflict::Skip => DiffersPolicy::Skip,
+        }
+    }
 }
 
 fn main() -> ExitCode {
@@ -87,7 +114,8 @@ fn run(args: Args) -> Result<ExitCode, String> {
         scan.skipped_hidden
     );
     let pf = preflight(&source, &selection, &args.to).map_err(|e| e.to_string())?;
-    let plan = Plan::resolve(&selection, &pf, DiffersPolicy::KeepBoth);
+    let plan = Plan::resolve(&selection, &pf, args.on_conflict.into());
+    print_preflight(&pf, &plan);
     if let Some(blocker) = plan.blockers().first() {
         return Err(blocker.to_string());
     }
@@ -102,6 +130,7 @@ fn run(args: Args) -> Result<ExitCode, String> {
     ctrlc::set_handler(move || handler_control.cancel()).map_err(|e| e.to_string())?;
 
     let started = Instant::now();
+    let started_at = Local::now();
     let last_print = Mutex::new(Instant::now());
     let report = job::run_job(&plan, &opts, &control, &|event| match event {
         Event::Progress(p) => {
@@ -119,6 +148,33 @@ fn run(args: Args) -> Result<ExitCode, String> {
     });
     eprintln!();
     print_summary(&report, plan.bytes_to_write());
+    if let Some(dir) = &args.report {
+        let meta = JobMeta {
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            source: args
+                .sources
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+            verify: args.verify,
+            started: started_at,
+            finished: Local::now(),
+        };
+        // Named like the checksum file, so the two are easy to pair up.
+        let stem = match &report.checksum_file {
+            Some(path) => path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned(),
+            None => checksum_file::file_name(started_at).replace(".xxh64", ""),
+        };
+        let (text, _) = Report::new(&plan, &report, &meta)
+            .write(dir, &stem)
+            .map_err(|e| format!("report not written: {e}"))?;
+        println!("report: {}", text.display());
+    }
     Ok(if report.is_success() {
         ExitCode::SUCCESS
     } else {
@@ -150,6 +206,36 @@ fn source_from(args: &Args) -> Result<Source, String> {
     Ok(Source::Files(args.sources.clone()))
 }
 
+/// Lists what pre-flight found, so nothing is decided silently (FR-16, FR-17).
+fn print_preflight(pf: &Preflight, plan: &Plan) {
+    for problem in &pf.file_problems {
+        let file = &plan.files[problem.id];
+        eprintln!(
+            "will fail: {}: {}",
+            file.entry.rel.display(),
+            problem.kind.to_error()
+        );
+    }
+    let identical = pf
+        .conflicts
+        .iter()
+        .filter(|c| c.kind == ConflictKind::Identical)
+        .count();
+    let differ = pf.conflicts.len() - identical;
+    if identical > 0 {
+        eprintln!("{identical} files already at the destination will be skipped (not checked)");
+    }
+    if differ > 0 {
+        eprintln!("{differ} different files have the same name at the destination");
+    }
+    if !pf.stale_partials.is_empty() {
+        eprintln!(
+            "{} partial files left by an interrupted copy will be replaced",
+            pf.stale_partials.len()
+        );
+    }
+}
+
 fn progress_line(p: &Progress, elapsed: Duration) -> String {
     let speed = p.copied_bytes as f64 / elapsed.as_secs_f64().max(0.001);
     format!(
@@ -167,9 +253,11 @@ fn progress_line(p: &Progress, elapsed: Duration) -> String {
 fn print_summary(report: &JobReport, total_bytes: u64) {
     let secs = report.elapsed.as_secs_f64().max(0.001);
     let failed = report.failed().count();
+    let skipped = report.skipped().count();
     println!(
-        "{} files ok, {} failed, {} not started",
-        report.outcomes.len() - failed,
+        "{} files ok, {} skipped, {} failed, {} not started",
+        report.outcomes.len() - failed - skipped,
+        skipped,
         failed,
         report.not_started
     );

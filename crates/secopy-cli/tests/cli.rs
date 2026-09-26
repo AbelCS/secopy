@@ -32,7 +32,10 @@ fn copies_a_folder_with_verify_and_exits_zero() {
         b"movie"
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("1 files ok, 0 failed"), "{stdout}");
+    assert!(
+        stdout.contains("1 files ok, 0 skipped, 0 failed"),
+        "{stdout}"
+    );
     assert!(stdout.contains("checksum file:"), "{stdout}");
 }
 
@@ -100,4 +103,81 @@ fn a_missing_destination_is_a_usage_error() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(2));
+}
+
+fn copy_one_file(dir: &std::path::Path, extra: &[&str]) -> std::process::Output {
+    let dest = dir.join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    cli()
+        .arg(dir.join("a.wav"))
+        .arg("--to")
+        .arg(&dest)
+        .args(extra)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn conflicts_keep_both_by_default() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.wav"), b"new").unwrap();
+    fs::create_dir_all(dir.path().join("dest")).unwrap();
+    fs::write(dir.path().join("dest/a.wav"), b"old one").unwrap();
+    let out = copy_one_file(dir.path(), &[]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(fs::read(dir.path().join("dest/a.wav")).unwrap(), b"old one");
+    assert_eq!(fs::read(dir.path().join("dest/a (1).wav")).unwrap(), b"new");
+}
+
+#[test]
+fn on_conflict_skip_and_overwrite() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.wav"), b"new").unwrap();
+    fs::create_dir_all(dir.path().join("dest")).unwrap();
+    fs::write(dir.path().join("dest/a.wav"), b"old one").unwrap();
+
+    let out = copy_one_file(dir.path(), &["--on-conflict", "skip"]);
+    assert!(out.status.success());
+    assert_eq!(fs::read(dir.path().join("dest/a.wav")).unwrap(), b"old one");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("0 files ok, 1 skipped"), "{stdout}");
+
+    let out = copy_one_file(dir.path(), &["--on-conflict", "overwrite", "--verify"]);
+    assert!(out.status.success());
+    assert_eq!(fs::read(dir.path().join("dest/a.wav")).unwrap(), b"new");
+}
+
+#[test]
+fn a_second_run_skips_what_the_first_copied() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.wav"), b"new").unwrap();
+    assert!(copy_one_file(dir.path(), &[]).status.success());
+    let out = copy_one_file(dir.path(), &[]);
+    assert!(out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("1 files already at the destination will be skipped"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn report_flag_writes_text_and_json() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.wav"), b"new").unwrap();
+    let reports = dir.path().join("reports");
+    fs::create_dir_all(&reports).unwrap();
+    let out = copy_one_file(dir.path(), &["--report", reports.to_str().unwrap()]);
+    assert!(out.status.success());
+    let names: Vec<String> = fs::read_dir(&reports)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names.len(), 2, "{names:?}");
+    assert!(names.iter().any(|n| n.ends_with("_report.txt")));
+    assert!(names.iter().any(|n| n.ends_with("_report.json")));
 }
