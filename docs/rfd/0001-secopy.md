@@ -274,6 +274,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-15 | The user picks one existing destination directory via native picker or drag and drop. A "New folder" action is available in the picker. | M |
 | FR-16 | Pre-flight checks run before Start is enabled. Each failure shows a clear, actionable message: destination writable; enough free space (with margin); destination is not the source or inside it; the file system supports the largest file (e.g. FAT32 4 GiB limit); file names are valid on the destination file system (e.g. `: * ? " < > |` and reserved names like `CON` on Windows/exFAT). | M |
 | FR-17 | **Conflicts:** if files already exist at the target paths, pre-flight lists them and asks once: **Skip** / **Overwrite** / **Keep both** (rename to `name (1).ext`). "Skip" treats a file as identical if size and mtime match. | M |
+| FR-17a | Files whose destination paths are equal when compared **ignoring case** (e.g. `x/a.txt` and `y/A.TXT` picked as loose files) are never copied over each other: the first one is copied, the others fail with "another file in this copy has the same name". | M |
 
 ### 6.5 Copy
 
@@ -371,8 +372,12 @@ derives speeds, ETAs and smoothing from them (§5.3).
 
 ### 7.4 Durability
 
-- `fsync` per file before rename (FR-18), directory fsync after rename on POSIX.
-- At the end of the job: if the destination is removable, show "Safe to eject".
+- Each file is flushed to the device (`fsync`) before its rename (FR-18). On macOS this is
+  plain `fsync`, not `F_FULLFSYNC`: flushing the drive's cache per file made 20,000 small
+  files take 80 s instead of 2.6 s in the M0 prototype.
+- At the end of the job: one `fsync` per created directory (makes the renames durable), then
+  one drive-cache flush for the whole volume (`F_FULLFSYNC` on macOS).
+- If the destination is removable, show "Safe to eject".
 
 ## 8. Non-functional requirements
 
@@ -469,3 +474,5 @@ The stack meets these constraints:
 | 2026-09-26 | Dark theme only in v1. |
 | 2026-09-26 | The skipped-hidden-items count can be turned off in Settings (default on). |
 | 2026-09-26 | Per-file progress (size, bytes done, %, speed, ETA) for both the copy and the verify phase. |
+| 2026-09-26 | Same-name files in one job (compared ignoring case) fail with a clear error instead of overwriting each other (FR-17a). |
+| 2026-09-26 | Durability: plain `fsync` per file, one drive-cache flush per job (§7.4). |
