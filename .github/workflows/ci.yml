@@ -39,3 +39,5 @@ jobs:
         env:
           # The xxhsum compatibility test must not skip where xxhsum is installed.
           SECOPY_REQUIRE_XXHSUM: ${{ runner.os != 'Windows' && '1' || '0' }}
+          # RAM-disk fault tests (disk full, unplugging, FAT/exFAT) run on macOS only.
+          SECOPY_DEVICE_TESTS: ${{ runner.os == 'macOS' && '1' || '0' }}
