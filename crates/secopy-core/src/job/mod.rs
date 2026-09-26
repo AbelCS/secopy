@@ -14,7 +14,7 @@ use chrono::Local;
 
 use crate::checksum_file;
 use crate::copy::CopyConfig;
-use crate::error::FileError;
+use crate::error::{FatalError, FileError};
 use crate::plan::Plan;
 use crate::scan::DirEntry;
 use crate::verify::CacheBypass;
@@ -64,6 +64,8 @@ impl Default for JobOptions {
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Hooks {
+    /// Called with the source file before each copy attempt.
+    pub before_copy: Option<fn(&Path)>,
     /// Called with the partial file after each copy attempt (0 = first), before verifying.
     pub after_copy: Option<fn(&Path, u32)>,
 }
@@ -120,7 +122,7 @@ pub struct JobReport {
     pub cache_bypass: Option<CacheBypass>,
     /// Partial files left by interrupted jobs that were removed (FR-18).
     pub removed_partials: u64,
-    pub fatal: Option<FileError>,
+    pub fatal: Option<FatalError>,
     pub cancelled: bool,
     pub elapsed: Duration,
 }

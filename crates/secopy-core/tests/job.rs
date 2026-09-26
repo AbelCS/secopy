@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use common::{pattern, read_tree, write_files};
 use secopy_core::copy::CopyConfig;
-use secopy_core::error::FileError;
+use secopy_core::error::{FatalError, FileError};
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::hash::{hash_bytes, to_hex};
 use secopy_core::job::{
@@ -151,6 +151,7 @@ fn a_corrupted_copy_is_recopied_once_and_then_verifies() {
     let f = fixture();
     let mut o = opts(true);
     o.hooks = Hooks {
+        before_copy: None,
         after_copy: Some(|p, attempt| {
             if attempt == 0 && p.to_string_lossy().contains("A001") {
                 flip_first_byte(p);
@@ -167,6 +168,7 @@ fn a_copy_that_stays_corrupted_fails_and_leaves_no_file() {
     let f = fixture();
     let mut o = opts(true);
     o.hooks = Hooks {
+        before_copy: None,
         after_copy: Some(|p, _| {
             if p.to_string_lossy().contains("A001") {
                 flip_first_byte(p);
@@ -339,7 +341,7 @@ fn files_that_map_to_the_same_name_never_mix() {
 }
 
 #[test]
-fn an_unwritable_destination_fails_every_file_without_hanging() {
+fn a_destination_that_turns_into_a_file_stops_the_job() {
     let f = fixture();
     let plan = plan(&f.src, &f.dest);
     // The destination turns into a file after pre-flight.
@@ -347,11 +349,11 @@ fn an_unwritable_destination_fails_every_file_without_hanging() {
     fs::write(&f.dest, b"x").unwrap();
     let (report, _) = run(&plan, &opts(true));
 
-    assert_eq!(report.outcomes.len(), 4);
+    assert_eq!(report.fatal, Some(FatalError::DestinationGone));
+    assert!(!report.cancelled, "a fatal error is not a cancel");
     assert!(
         report
-            .outcomes
-            .iter()
+            .failed()
             .all(|o| matches!(o.status, FileStatus::Failed(FileError::WriteDest(_))))
     );
     assert_eq!(report.checksum_file, None);
@@ -725,6 +727,7 @@ fn a_copy_that_fails_verification_never_replaces_the_old_file() {
     let plan = plan_with(&source, &f.dest, DiffersPolicy::Overwrite);
     let mut o = opts(true);
     o.hooks = Hooks {
+        before_copy: None,
         after_copy: Some(|p, _| {
             if p.to_string_lossy().contains("A001") {
                 flip_first_byte(p);
@@ -768,6 +771,7 @@ fn failed_files_can_be_retried() {
     let first = Plan::resolve(&sel, &pf, DiffersPolicy::KeepBoth);
     let mut o = opts(true);
     o.hooks = Hooks {
+        before_copy: None,
         after_copy: Some(|p, _| {
             if p.to_string_lossy().contains("A001") {
                 flip_first_byte(p);
@@ -845,4 +849,106 @@ fn file_and_folder_metadata_is_kept() {
             );
         }
     }
+}
+
+/// Many files, one lane each, so a fault in the middle leaves files not started.
+#[cfg(unix)]
+fn long_fixture() -> Fixture {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src/CARD");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    for i in 0..30 {
+        write_files(&src, &[(&format!("f{i:02}.bin"), &pattern(2000))]);
+    }
+    Fixture {
+        _dir: dir,
+        src,
+        dest,
+    }
+}
+
+#[cfg(unix)]
+fn one_lane(verify: bool) -> JobOptions {
+    JobOptions {
+        small_file_lanes: 1,
+        large_file_lanes: 1,
+        verify_lanes: 1,
+        ..opts(verify)
+    }
+}
+
+/// Unplugging the destination: its folder disappears mid-job.
+#[cfg(unix)]
+#[test]
+fn a_destination_that_disappears_stops_the_job() {
+    let f = long_fixture();
+    let mut o = one_lane(false);
+    o.hooks = Hooks {
+        before_copy: None,
+        after_copy: Some(|partial, _| {
+            if partial.to_string_lossy().contains("f05") {
+                // <dest>/CARD/.f05.bin.secopy-partial → move <dest> away
+                let dest = partial.parent().unwrap().parent().unwrap();
+                fs::rename(dest, dest.with_extension("gone")).unwrap();
+            }
+        }),
+    };
+    let (report, _) = run(&plan(&f.src, &f.dest), &o);
+
+    assert_eq!(report.fatal, Some(FatalError::DestinationGone));
+    assert!(report.not_started > 0, "{report:?}");
+    assert!(!report.is_success());
+}
+
+/// Unplugging the card: the source folder disappears mid-job.
+#[cfg(unix)]
+#[test]
+fn a_source_that_disappears_stops_the_job() {
+    let f = long_fixture();
+    let mut o = one_lane(true);
+    o.hooks = Hooks {
+        before_copy: Some(|source| {
+            if source.to_string_lossy().contains("f05") {
+                let card = source.parent().unwrap();
+                fs::rename(card, card.with_extension("gone")).unwrap();
+            }
+        }),
+        after_copy: None,
+    };
+    let (report, _) = run(&plan(&f.src, &f.dest), &o);
+
+    assert_eq!(report.fatal, Some(FatalError::SourceGone));
+    assert!(report.not_started > 0, "{report:?}");
+    let sums = fs::read_to_string(report.checksum_file.unwrap()).unwrap();
+    assert_eq!(
+        sums.lines().count(),
+        5,
+        "files before the fault are kept and listed"
+    );
+}
+
+#[test]
+fn a_source_file_that_changes_while_copied_fails_alone() {
+    let f = fixture();
+    let mut o = opts(true);
+    o.hooks = Hooks {
+        before_copy: Some(|source| {
+            if source.to_string_lossy().contains("A001") {
+                fs::write(source, b"shorter now").unwrap();
+            }
+        }),
+        after_copy: None,
+    };
+    let (report, _) = run(&plan(&f.src, &f.dest), &o);
+
+    let failed: Vec<_> = report.failed().collect();
+    assert_eq!(failed.len(), 1);
+    assert_eq!(
+        failed[0].status,
+        FileStatus::Failed(FileError::SourceChanged)
+    );
+    assert_eq!(report.fatal, None);
+    assert!(!f.dest.join("CARD/A001.mov").exists());
+    assert_eq!(report.outcomes.len(), 4);
 }

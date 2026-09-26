@@ -10,7 +10,8 @@ use std::time::Instant;
 use super::progress::{Phase, Slot};
 use super::{Event, FileOutcome, FileStatus, JobControl, JobOptions, SkipReason};
 use crate::copy::{self, Commit, CopyConfig, PartialCopy};
-use crate::error::FileError;
+use crate::error::{FatalError, FileError};
+use crate::fsinfo;
 use crate::hash;
 use crate::plan::{Action, Plan, PlannedFile};
 use crate::verify::{self, CacheBypass};
@@ -66,7 +67,7 @@ pub(super) struct Runner<'a> {
     pub(super) files_skipped: AtomicU64,
     pub(super) active: Mutex<Vec<Arc<Slot>>>,
     pub(super) outcomes: Mutex<Vec<FileOutcome>>,
-    pub(super) fatal: Mutex<Option<FileError>>,
+    pub(super) fatal: Mutex<Option<FatalError>>,
     pub(super) bypass_unavailable: AtomicBool,
     /// Partial files left by interrupted jobs that were removed (FR-18).
     pub(super) removed_partials: AtomicU64,
@@ -176,6 +177,9 @@ impl<'a> Runner<'a> {
     ) -> Result<PartialCopy, FileError> {
         slot.set_phase(Phase::Copying);
         self.create_parent(final_path)?;
+        if let Some(hook) = self.opts.hooks.before_copy {
+            hook(&file.entry.source);
+        }
         let partial = copy::copy_to_partial(
             &file.entry.source,
             final_path,
@@ -185,6 +189,11 @@ impl<'a> Runner<'a> {
         )?;
         if partial.removed_stale {
             self.removed_partials.fetch_add(1, Relaxed);
+        }
+        // Growing or shrinking while it was read: the copy matches no version of the file.
+        if partial.bytes != file.entry.size {
+            partial.discard();
+            return Err(FileError::SourceChanged);
         }
         if let Some(hook) = self.opts.hooks.after_copy {
             hook(&partial.partial, attempt);
@@ -342,6 +351,30 @@ impl<'a> Runner<'a> {
         }
     }
 
+    /// After an I/O error, checks whether the whole source or destination went away
+    /// (FR-21): the folder is gone, or its volume changed (unplugged or remounted).
+    fn fatal_cause(&self, idx: usize, e: &FileError) -> Option<FatalError> {
+        let plan = self.plan;
+        if e.is_disk_full() {
+            return Some(FatalError::DiskFull);
+        }
+        match e {
+            FileError::WriteDest(_) | FileError::ReadBack(_)
+                if !root_is_there(&plan.dest, plan.fs.device) =>
+            {
+                Some(FatalError::DestinationGone)
+            }
+            FileError::ReadSource(_) => {
+                let source = &plan.files[idx].entry.source;
+                plan.source_roots
+                    .iter()
+                    .any(|r| source.starts_with(&r.path) && !root_is_there(&r.path, r.device))
+                    .then_some(FatalError::SourceGone)
+            }
+            _ => None,
+        }
+    }
+
     fn finish(&self, slot: Option<&Arc<Slot>>, outcome: FileOutcome) {
         if let Some(slot) = slot {
             self.active
@@ -357,12 +390,12 @@ impl<'a> Runner<'a> {
         }
         self.files_done.fetch_add(1, Relaxed);
         if let FileStatus::Failed(e) = &outcome.status
-            && e.is_fatal()
+            && let Some(fatal) = self.fatal_cause(outcome.id, e)
         {
             self.fatal
                 .lock()
                 .expect("fatal lock poisoned")
-                .get_or_insert(e.clone());
+                .get_or_insert(fatal);
             self.control.cancel();
         }
         self.outcomes
@@ -371,4 +404,10 @@ impl<'a> Runner<'a> {
             .push(outcome.clone());
         (self.on_event)(Event::FileFinished(outcome));
     }
+}
+
+/// The folder still exists, as a folder, on the same volume.
+fn root_is_there(path: &Path, device: u64) -> bool {
+    fs::metadata(path).is_ok_and(|m| m.is_dir())
+        && fsinfo::device_id(path).is_ok_and(|d| d == device)
 }

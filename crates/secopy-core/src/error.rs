@@ -50,6 +50,8 @@ pub enum FileError {
     TooLarge { limit: u64 },
     #[error("something is in the way at {}", path.display())]
     InTheWay { path: PathBuf },
+    #[error("the source file changed while it was copied")]
+    SourceChanged,
     #[error("cancelled")]
     Cancelled,
 }
@@ -67,10 +69,20 @@ impl FileError {
         FileError::ReadBack(e.into())
     }
 
-    /// Errors that stop the whole job instead of just this file (FR-21).
-    pub fn is_fatal(&self) -> bool {
+    pub fn is_disk_full(&self) -> bool {
         matches!(self, FileError::WriteDest(f) if f.kind == io::ErrorKind::StorageFull)
     }
+}
+
+/// Errors that stop the whole job instead of just one file (FR-21).
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum FatalError {
+    #[error("the destination drive is full")]
+    DiskFull,
+    #[error("the destination is no longer available; was it disconnected?")]
+    DestinationGone,
+    #[error("the source is no longer available; was it disconnected?")]
+    SourceGone,
 }
 
 #[cfg(test)]
@@ -78,15 +90,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn disk_full_is_fatal() {
+    fn disk_full_is_recognised() {
         let e = FileError::write_dest(io::Error::from(io::ErrorKind::StorageFull));
-        assert!(e.is_fatal());
+        assert!(e.is_disk_full());
     }
 
     #[test]
-    fn other_errors_are_not_fatal() {
-        let e = FileError::read_source(io::Error::from(io::ErrorKind::PermissionDenied));
-        assert!(!e.is_fatal());
-        assert!(!FileError::AlreadyExists.is_fatal());
+    fn other_errors_are_not_disk_full() {
+        let e = FileError::read_source(io::Error::from(io::ErrorKind::StorageFull));
+        assert!(!e.is_disk_full(), "only writes can fill the destination");
+        assert!(!FileError::AlreadyExists.is_disk_full());
     }
 }
