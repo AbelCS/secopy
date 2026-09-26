@@ -4,7 +4,7 @@
 |---|---|
 | **State** | Discussion |
 | **Created** | 2026-09-26 |
-| **Updated** | 2026-09-26 (decisions in §14) |
+| **Updated** | 2026-09-27 (decisions in §14) |
 | **Author** | abelcsz@gmail.com |
 | **Stack** | Tauri 2 · Rust engine · Svelte UI |
 
@@ -175,7 +175,8 @@ to files already copied). The OS is kept awake while the job runs.
 ### 5.4 Summary view
 
 - Big, unambiguous status: **All 1,284 files copied and verified** / **3 files failed**.
-- Stats: file count, total size, duration, average speed.
+- Stats: file count, total size, duration, average speed. Files skipped because they were
+  already at the destination are counted separately and marked as not checked (FR-17).
 - Failure list with the reason for each file (permission denied, hash mismatch, disk full…).
 - Actions: **Reveal in Finder/Explorer/Files**, **Open checksum file**, **Save report…**,
   **Retry failed**, **New copy**.
@@ -272,15 +273,15 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-15 | The user picks one existing destination directory via native picker or drag and drop. A "New folder" action is available in the picker. | M |
-| FR-16 | Pre-flight checks run before Start is enabled. Each failure shows a clear, actionable message: destination writable; enough free space (with margin); destination is not the source or inside it; the file system supports the largest file (e.g. FAT32 4 GiB limit); file names are valid on the destination file system (e.g. `: * ? " < > |` and reserved names like `CON` on Windows/exFAT). | M |
-| FR-17 | **Conflicts:** if files already exist at the target paths, pre-flight lists them and asks once: **Skip** / **Overwrite** / **Keep both** (rename to `name (1).ext`). "Skip" treats a file as identical if size and mtime match. | M |
-| FR-17a | Files whose destination paths are equal when compared **ignoring case** (e.g. `x/a.txt` and `y/A.TXT` picked as loose files) are never copied over each other: the first one is copied, the others fail with "another file in this copy has the same name". | M |
+| FR-16 | Pre-flight checks run before Start is enabled, and each problem shows a clear, actionable message. **Job-level problems block Start:** the destination is missing or not writable; not enough free space for the files that will be written, plus a margin of max(1 %, 64 MiB); the destination is the source or inside it. **Per-file problems are listed, and the user may start anyway;** those files fail with the listed reason: the name is not valid on the destination file system (e.g. `: * ? " < > |`, reserved names like `CON`, a trailing dot or space on NTFS/exFAT/FAT32), the file is larger than the file system allows (FAT32 4 GiB limit), the name is too long, or a file or folder is in the way. Names are never changed automatically. | M |
+| FR-17 | **Conflicts:** if files already exist at the target paths, pre-flight lists them in two groups. **Identical** files (same size, mtimes less than 2 s apart) are always skipped. They are not re-read, so they are not in this job's checksum file, and the summary and report count them as "already at the destination, not checked". For files that **differ**, the user chooses once: **Keep both** (default; the copy is named `name (1).ext`) / **Overwrite** / **Skip**. Overwrite replaces the old file only once the new copy is complete, and verified in Copy & Verify. | M |
+| FR-17a | Files whose destination paths are equal (e.g. `x/a.txt` and `y/A.TXT` picked as loose files, on a case-insensitive destination) are never copied over each other: the first one is copied, the others fail with "another file in this copy has the same name". Names are compared ignoring case only when the destination file system is case-insensitive. | M |
 
 ### 6.5 Copy
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-18 | Every file is written to a temporary name in the same directory (`.<name>.secopy-partial`), flushed to disk (`fsync`), then renamed atomically to its final name. A file with its final name is always complete. | M |
+| FR-18 | Every file is written to a temporary name in the same directory (`.<name>.secopy-partial`, or `.secopy-<hash>.partial` when that would be too long), flushed to disk (`fsync`), then renamed atomically to its final name. A file with its final name is always complete. Partial files left by an interrupted job are deleted by the next job that writes the same files, unless another running job is still writing them. | M |
 | FR-19 | Modification time is preserved on files. Creation time is preserved where the OS allows it (macOS, Windows). POSIX permission bits are preserved on macOS/Linux. Directory mtimes are restored after their contents are written. | M |
 | FR-20 | When a hash is needed (checksum file on, or Copy & Verify), the source xxHash64 is computed **during** the copy from the same bytes being written. The source is read only once. | M |
 | FR-21 | Per-file errors (unreadable file, permission denied, name too long…) are recorded and the job continues. Fatal errors stop the job with a clear message: destination disconnected, disk full, source volume gone. | M |
@@ -303,7 +304,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 |---|---|---|
 | FR-29 | When **Write checksum file** is on (the default; Settings §5.5), every job writes a checksum file to the **destination directory** (not the copy root), named `secopy_YYYY-MM-DD_HHMMSS.xxh64`. A new file per job, so nothing is ever overwritten. | M |
 | FR-30 | Format: `xxhsum`/GNU-coreutils compatible, one line per file: `<16 lowercase hex chars><two spaces><relative path>`. Paths are relative to the destination directory and use `/` as separator on every OS. `cd DEST && xxhsum -c secopy_….xxh64` must pass. | M |
-| FR-31 | The file is UTF-8 without BOM, with LF line endings. It is sorted by path for stable diffs. Paths containing `\` or newline use the coreutils escaping convention (line prefixed with `\`). | M |
+| FR-31 | The file is UTF-8 without BOM, with LF line endings. It is sorted by path for stable diffs. Paths containing `\` or newline use the coreutils escaping convention (line prefixed with `\`). Files whose names are not valid UTF-8 (possible on Linux) are copied but not listed; pre-flight warns about them and the report says why. | M |
 | FR-32 | The checksum file contains only hash lines, no comments, so strict parsers accept it. Job metadata (mode, date, app version, counts, failures) lives in the report (FR-35). | M |
 | FR-33 | The checksum file is written in **both** modes. In plain Copy it uses the source hashes from FR-20, so no extra read is needed. | M |
 | FR-34 | **Verify existing copy:** point Secopy at a folder with a `.xxh64` file and re-check it. | C |
@@ -312,7 +313,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-35 | Each job produces a human-readable report (plain text, JSON optional): settings, start/end, per-file result, failures with reasons, whether cache bypass was active. It is kept in the app's data folder, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
+| FR-35 | Each job produces a report as plain text and as JSON: settings, start/end, counts, per-file result (including skipped files), failures with reasons, whether cache bypass was active, leftover partial files removed, and files left out of the checksum file. It is kept in the app's data folder, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
 | FR-36 | The app remembers the last source/destination folders, mode and window size. | S |
 | FR-37 | Keyboard: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `Esc` cancel dialog. | S |
 
@@ -436,12 +437,11 @@ attributes / Finder tags / ACLs · presets (saved source-destination-filter comb
 
 ## 12. Open questions
 
-Q1, Q5, Q7 and Q8 are resolved (§14). Numbers are kept for traceability.
+Q1, Q3, Q5, Q7 and Q8 are resolved (§14). Numbers are kept for traceability.
 
 | # | Question | Proposal |
 |---|---|---|
 | Q2 | Checksum file per job, or one file per destination that is updated? | Per job (FR-29). It never rewrites history and is simpler to reason about. |
-| Q3 | Default conflict behaviour? | Ask once in pre-flight, with Skip preselected. |
 | Q4 | Symlinks: skip, copy the link, or copy the target? | Skip and report in v1. |
 | Q6 | Allow mixing folders and files, or several folders, in one source? | Not in v1. It keeps FR-4 unambiguous. |
 
@@ -478,3 +478,9 @@ The stack meets these constraints:
 | 2026-09-26 | Same-name files in one job (compared ignoring case) fail with a clear error instead of overwriting each other (FR-17a). |
 | 2026-09-26 | Durability: plain `fsync` per file, one drive-cache flush per job (§7.4). |
 | 2026-09-26 | Performance benchmarks and tuning move after the UI, to a new M3 (§10). Tuning is internal to the engine and doesn't change the API the UI uses. Correctness work (fault injection, cache-bypass checks) stays in M1. |
+| 2026-09-27 | Conflicts (Q3, FR-17): identical files (same size, mtimes < 2 s apart) are always skipped. For files that differ the user chooses once: Keep both (default) / Overwrite / Skip. Overwrite only replaces after the new copy is complete and verified. |
+| 2026-09-27 | Pre-flight (FR-16): job-level problems block Start; per-file problems are listed and those files fail, so the rest can still be copied. Invalid names are never renamed automatically, because sidecars and edit projects refer to clips by name. |
+| 2026-09-27 | Skipped identical files are not re-read: they are not in the job's checksum file, and the summary says "not checked". "Verify existing copy" (FR-34) covers checking them later. |
+| 2026-09-27 | Leftover partial files are locked while written and deleted by the next job when no writer holds the lock (FR-18). |
+| 2026-09-27 | Fatal errors are detected by re-checking the source and destination roots (existence and device id) after any per-file I/O error (FR-21). |
+| 2026-09-27 | Engine M1 design: [2026-09-27-engine-complete-design.md](../superpowers/specs/2026-09-27-engine-complete-design.md). |
