@@ -107,11 +107,16 @@ format exactly.
 
 - Layout: `crates/secopy-core` (engine library, no UI dependencies) and `crates/secopy-cli`
   (developer CLI and benchmark driver). The Tauri app and Svelte UI come in plan 3.
+- Engine flow: `scan → select → preflight → Plan::resolve → run_job`, then `Report` for
+  the job report. Design notes per plan are in `docs/superpowers/specs/`.
 - Before every commit: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`
   and `cargo test --workspace`. All must pass. When a change touches Linux- or Windows-only
   `cfg` code, also run clippy with `--target x86_64-unknown-linux-gnu` and
   `--target x86_64-pc-windows-msvc` (add them once with `rustup target add`).
 - `xxhsum` must be installed locally (`brew install xxhash`). CI runs its compatibility
   test with `SECOPY_REQUIRE_XXHSUM=1` so it can't silently skip.
+- Fault tests on real volumes (disk full, unplugging, FAT32/exFAT, case-sensitive APFS) use
+  macOS RAM disks and run only with `SECOPY_DEVICE_TESTS=1`; CI's macOS job sets it. Run
+  them locally before changing `copy`, `os`, `preflight` or the job runner.
 - Plans live in `docs/superpowers/plans/`, designs in `docs/superpowers/specs/`, benchmark
   results in `docs/benchmarks/`.

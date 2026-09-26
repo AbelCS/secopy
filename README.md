@@ -23,4 +23,8 @@ Try the CLI:
 
 ```sh
 cargo run --release -p secopy-cli -- /path/to/CARD --to /path/to/backup --verify
+# files that already exist but differ: keep both (default), overwrite or skip
+cargo run --release -p secopy-cli -- /path/to/CARD --to /path/to/backup --on-conflict skip
+# also write the job report (text and JSON)
+cargo run --release -p secopy-cli -- /path/to/CARD --to /path/to/backup --report /tmp
 ```
