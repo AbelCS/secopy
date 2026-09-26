@@ -11,6 +11,8 @@ param(
     [int] $SmallCount = 20000
 )
 $ErrorActionPreference = 'Stop'
+# Native commands write progress to stderr; leave it unredirected so Windows PowerShell 5.1
+# does not turn it into terminating errors under "Stop".
 $repo = (Resolve-Path "$PSScriptRoot\..").Path
 cargo build --release -p secopy-cli --manifest-path "$repo\Cargo.toml"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
@@ -60,8 +62,8 @@ foreach ($set in 'large', 'small') {
     if (-not (Test-Path "$Source\$set")) { continue }
     $results = [ordered]@{
         'robocopy /E /MT:8'  = Measure-Median { param($t) robocopy "$Source\$set" "$t\$set" /E /MT:8 /NFL /NDL /NJH /NJS /NP | Out-Null }
-        'secopy copy'        = Measure-Median { param($t) & $secopy "$Source\$set" --to $t 2>&1 | Out-Null }
-        'secopy copy+verify' = Measure-Median { param($t) & $secopy "$Source\$set" --to $t --verify 2>&1 | Out-Null }
+        'secopy copy'        = Measure-Median { param($t) & $secopy "$Source\$set" --to $t | Out-Null }
+        'secopy copy+verify' = Measure-Median { param($t) & $secopy "$Source\$set" --to $t --verify | Out-Null }
     }
     $lines += @('', "## $set/", '', '| Command | Median [s] |', '|:---|---:|')
     foreach ($k in $results.Keys) { $lines += ('| `{0}` | {1:N2} |' -f $k, $results[$k]) }
