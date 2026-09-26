@@ -1,17 +1,18 @@
 //! Copy and verify lanes (RFD §7.2, §7.3).
 
+use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering::Relaxed};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Instant;
 
 use super::progress::{Phase, Slot};
-use super::{Event, FileOutcome, FileStatus, JobControl, JobOptions};
+use super::{Event, FileOutcome, FileStatus, JobControl, JobOptions, SkipReason};
 use crate::copy::{self, Commit, CopyConfig, PartialCopy};
 use crate::error::FileError;
 use crate::hash;
-use crate::scan::{ScanEntry, Selection};
+use crate::plan::{Action, Plan, PlannedFile};
 use crate::verify::{self, CacheBypass};
 
 /// Verify tasks that may wait per verify lane before copy lanes block (RFD §7.3).
@@ -53,55 +54,70 @@ pub(super) struct VerifyTask {
 }
 
 pub(super) struct Runner<'a> {
-    pub(super) sel: &'a Selection,
-    pub(super) dest: &'a Path,
+    pub(super) plan: &'a Plan,
     pub(super) opts: &'a JobOptions,
     pub(super) copy_cfg: CopyConfig,
     pub(super) control: &'a JobControl,
     pub(super) on_event: &'a (dyn Fn(Event) + Sync),
-    /// Indexed like `Selection::files`; true = skip with `FileError::NameClash`.
-    pub(super) clashes: Vec<bool>,
+    pub(super) bytes_to_write: u64,
     pub(super) copied_done: AtomicU64,
     pub(super) verified_done: AtomicU64,
     pub(super) files_done: AtomicU64,
+    pub(super) files_skipped: AtomicU64,
     pub(super) active: Mutex<Vec<Arc<Slot>>>,
     pub(super) outcomes: Mutex<Vec<FileOutcome>>,
     pub(super) fatal: Mutex<Option<FileError>>,
     pub(super) bypass_unavailable: AtomicBool,
     /// Partial files left by interrupted jobs that were removed (FR-18).
     pub(super) removed_partials: AtomicU64,
+    /// Folders already created, so each one costs one system call (FR-10).
+    created_dirs: Mutex<HashSet<PathBuf>>,
 }
 
 impl<'a> Runner<'a> {
     pub(super) fn new(
-        sel: &'a Selection,
-        dest: &'a Path,
+        plan: &'a Plan,
         opts: &'a JobOptions,
         control: &'a JobControl,
         on_event: &'a (dyn Fn(Event) + Sync),
-        clashes: Vec<bool>,
     ) -> Self {
         let copy_cfg = CopyConfig {
             uncached_write: opts.verify,
             ..opts.copy.clone()
         };
         Self {
-            sel,
-            dest,
+            plan,
             opts,
             copy_cfg,
             control,
             on_event,
-            clashes,
+            bytes_to_write: plan.bytes_to_write(),
             copied_done: AtomicU64::new(0),
             verified_done: AtomicU64::new(0),
             files_done: AtomicU64::new(0),
+            files_skipped: AtomicU64::new(0),
             active: Mutex::new(Vec::new()),
             outcomes: Mutex::new(Vec::new()),
             fatal: Mutex::new(None),
             bypass_unavailable: AtomicBool::new(false),
             removed_partials: AtomicU64::new(0),
+            created_dirs: Mutex::new(HashSet::new()),
         }
+    }
+
+    /// Records files the plan doesn't write: skipped ones and pre-flight failures.
+    pub(super) fn finish_unwritten(&self, idx: usize) {
+        let file = &self.plan.files[idx];
+        let status = match &file.action {
+            Action::SkipIdentical => FileStatus::Skipped(SkipReason::Identical),
+            Action::SkipDiffers => FileStatus::Skipped(SkipReason::Differs),
+            Action::Fail(e) => FileStatus::Failed(e.clone()),
+            _ => unreachable!("only unwritten files"),
+        };
+        if matches!(status, FileStatus::Skipped(_)) {
+            self.files_skipped.fetch_add(1, Relaxed);
+        }
+        self.finish(None, self.outcome(idx, None, status, None, Instant::now()));
     }
 
     pub(super) fn copy_lane(&self, queue: &Queue, verify_tx: &mpsc::SyncSender<VerifyTask>) {
@@ -113,23 +129,21 @@ impl<'a> Runner<'a> {
     }
 
     fn copy_one(&self, idx: usize, verify_tx: &mpsc::SyncSender<VerifyTask>) {
-        let entry = &self.sel.files[idx];
-        let final_path = self.dest.join(&entry.rel);
+        let file = &self.plan.files[idx];
+        let final_path = self.plan.dest.join(file.final_rel());
         let started = Instant::now();
-        let slot = self.begin(idx, entry);
-        let blocked = if self.clashes[idx] {
-            Some(FileError::NameClash)
-        } else if fs::symlink_metadata(&final_path).is_ok() {
-            Some(FileError::AlreadyExists)
-        } else {
-            None
-        };
-        if let Some(e) = blocked {
-            return self.finish(&slot, entry, None, FileStatus::Failed(e), started);
+        let slot = self.begin(idx, file);
+        // A file that appeared since pre-flight is never replaced.
+        if file.action == Action::Copy && fs::symlink_metadata(&final_path).is_ok() {
+            let status = FileStatus::Failed(FileError::AlreadyExists);
+            return self.finish(Some(&slot), self.outcome(idx, None, status, None, started));
         }
-        let partial = match self.copy_attempt(entry, &final_path, &slot, 0) {
+        let partial = match self.copy_attempt(file, &final_path, &slot, 0) {
             Ok(partial) => partial,
-            Err(e) => return self.finish(&slot, entry, None, FileStatus::Failed(e), started),
+            Err(e) => {
+                let status = FileStatus::Failed(e);
+                return self.finish(Some(&slot), self.outcome(idx, None, status, None, started));
+            }
         };
         self.count_copied(&slot);
         if self.opts.verify {
@@ -146,22 +160,24 @@ impl<'a> Runner<'a> {
             return;
         }
         let hash = partial.hash;
-        match partial.commit(&final_path, Commit::NoReplace) {
-            Ok(_) => self.finish(&slot, entry, Some(hash), FileStatus::Copied, started),
-            Err(e) => self.finish(&slot, entry, Some(hash), FileStatus::Failed(e), started),
-        }
+        let outcome = match self.commit(file, partial) {
+            Ok(landed) => self.outcome(idx, Some(hash), FileStatus::Copied, Some(landed), started),
+            Err(e) => self.outcome(idx, Some(hash), FileStatus::Failed(e), None, started),
+        };
+        self.finish(Some(&slot), outcome);
     }
 
     fn copy_attempt(
         &self,
-        entry: &ScanEntry,
+        file: &PlannedFile,
         final_path: &Path,
         slot: &Slot,
         attempt: u32,
     ) -> Result<PartialCopy, FileError> {
         slot.set_phase(Phase::Copying);
+        self.create_parent(final_path)?;
         let partial = copy::copy_to_partial(
-            &entry.source,
+            &file.entry.source,
             final_path,
             &self.copy_cfg,
             &|b| slot.bytes.store(b, Relaxed),
@@ -174,6 +190,48 @@ impl<'a> Runner<'a> {
             hook(&partial.partial, attempt);
         }
         Ok(partial)
+    }
+
+    /// Folders are created when their first file starts, so a cancelled or failed job
+    /// leaves no empty folders behind (FR-10).
+    fn create_parent(&self, final_path: &Path) -> Result<(), FileError> {
+        let Some(parent) = final_path.parent() else {
+            return Ok(());
+        };
+        if self
+            .created_dirs
+            .lock()
+            .expect("dirs lock poisoned")
+            .contains(parent)
+        {
+            return Ok(());
+        }
+        fs::create_dir_all(parent).map_err(FileError::write_dest)?;
+        self.created_dirs
+            .lock()
+            .expect("dirs lock poisoned")
+            .insert(parent.to_path_buf());
+        Ok(())
+    }
+
+    /// Gives the copy its final name as the plan says; returns where it landed,
+    /// relative to the destination.
+    fn commit(&self, file: &PlannedFile, partial: PartialCopy) -> Result<PathBuf, FileError> {
+        let dest = &self.plan.dest;
+        let original = dest.join(&file.entry.rel);
+        let how = match &file.action {
+            Action::Overwrite => Commit::Replace,
+            Action::KeepBoth { n, .. } => Commit::KeepBoth {
+                original: &original,
+                n: *n,
+            },
+            _ => Commit::NoReplace,
+        };
+        let landed = partial.commit(&dest.join(file.final_rel()), how)?;
+        Ok(landed
+            .strip_prefix(dest)
+            .map(Path::to_path_buf)
+            .unwrap_or(landed))
     }
 
     pub(super) fn verify_lane(&self, rx: &Mutex<mpsc::Receiver<VerifyTask>>) {
@@ -194,8 +252,8 @@ impl<'a> Runner<'a> {
             mut partial,
             started,
         } = task;
-        let entry = &self.sel.files[idx];
-        let final_path = self.dest.join(&entry.rel);
+        let file = &self.plan.files[idx];
+        let final_path = self.plan.dest.join(file.final_rel());
         let mut attempt = 0;
         let result = loop {
             slot.set_phase(Phase::Verifying);
@@ -216,9 +274,7 @@ impl<'a> Runner<'a> {
             }
             let expected = partial.hash;
             if actual == expected {
-                break partial
-                    .commit(&final_path, Commit::NoReplace)
-                    .map(|_| expected);
+                break self.commit(file, partial).map(|landed| (expected, landed));
             }
             partial.discard();
             if attempt == 1 {
@@ -228,22 +284,25 @@ impl<'a> Runner<'a> {
                 });
             }
             attempt += 1;
-            partial = match self.copy_attempt(entry, &final_path, &slot, attempt) {
+            partial = match self.copy_attempt(file, &final_path, &slot, attempt) {
                 Ok(p) => p,
                 Err(e) => break Err(e),
             };
         };
-        match result {
-            Ok(hash) => self.finish(&slot, entry, Some(hash), FileStatus::Verified, started),
-            Err(e) => self.finish(&slot, entry, None, FileStatus::Failed(e), started),
-        }
+        let outcome = match result {
+            Ok((hash, landed)) => {
+                self.outcome(idx, Some(hash), FileStatus::Verified, Some(landed), started)
+            }
+            Err(e) => self.outcome(idx, None, FileStatus::Failed(e), None, started),
+        };
+        self.finish(Some(&slot), outcome);
     }
 
-    fn begin(&self, idx: usize, entry: &ScanEntry) -> Arc<Slot> {
+    fn begin(&self, idx: usize, file: &PlannedFile) -> Arc<Slot> {
         let slot = Arc::new(Slot {
             id: idx,
-            rel: entry.rel.clone(),
-            size: entry.size,
+            rel: file.final_rel().to_path_buf(),
+            size: file.entry.size,
             phase: AtomicU8::new(Phase::Copying as u8),
             bytes: AtomicU64::new(0),
             copy_counted: AtomicBool::new(false),
@@ -261,25 +320,43 @@ impl<'a> Runner<'a> {
         }
     }
 
-    fn finish(
+    fn outcome(
         &self,
-        slot: &Arc<Slot>,
-        entry: &ScanEntry,
+        idx: usize,
         hash: Option<u64>,
         status: FileStatus,
+        landed: Option<PathBuf>,
         started: Instant,
-    ) {
-        self.active
-            .lock()
-            .expect("active lock poisoned")
-            .retain(|s| !Arc::ptr_eq(s, slot));
-        // A finished file counts as fully processed, so the bars reach 100 % even with failures.
-        self.count_copied(slot);
-        if self.opts.verify {
-            self.verified_done.fetch_add(slot.size, Relaxed);
+    ) -> FileOutcome {
+        let file = &self.plan.files[idx];
+        let ok = matches!(status, FileStatus::Copied | FileStatus::Verified);
+        FileOutcome {
+            id: idx,
+            rel: file.entry.rel.clone(),
+            final_rel: landed.unwrap_or_else(|| file.final_rel().to_path_buf()),
+            size: file.entry.size,
+            hash,
+            in_checksum_file: ok && hash.is_some() && file.in_checksum_file,
+            status,
+            elapsed: started.elapsed(),
+        }
+    }
+
+    fn finish(&self, slot: Option<&Arc<Slot>>, outcome: FileOutcome) {
+        if let Some(slot) = slot {
+            self.active
+                .lock()
+                .expect("active lock poisoned")
+                .retain(|s| !Arc::ptr_eq(s, slot));
+            // A finished file counts as fully processed, so the bars reach 100 % even
+            // with failures.
+            self.count_copied(slot);
+            if self.opts.verify {
+                self.verified_done.fetch_add(slot.size, Relaxed);
+            }
         }
         self.files_done.fetch_add(1, Relaxed);
-        if let FileStatus::Failed(e) = &status
+        if let FileStatus::Failed(e) = &outcome.status
             && e.is_fatal()
         {
             self.fatal
@@ -288,13 +365,6 @@ impl<'a> Runner<'a> {
                 .get_or_insert(e.clone());
             self.control.cancel();
         }
-        let outcome = FileOutcome {
-            rel: entry.rel.clone(),
-            size: entry.size,
-            hash,
-            status,
-            elapsed: started.elapsed(),
-        };
         self.outcomes
             .lock()
             .expect("outcomes lock poisoned")

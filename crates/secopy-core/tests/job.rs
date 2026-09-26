@@ -10,9 +10,11 @@ use secopy_core::error::FileError;
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::hash::{hash_bytes, to_hex};
 use secopy_core::job::{
-    Event, FileStatus, Hooks, JobControl, JobOptions, JobReport, Progress, run_job,
+    Event, FileStatus, Hooks, JobControl, JobOptions, JobReport, Progress, SkipReason, run_job,
 };
-use secopy_core::scan::{ScanOptions, Selection, scan};
+use secopy_core::plan::{Action, DiffersPolicy, Plan};
+use secopy_core::preflight::preflight;
+use secopy_core::scan::{ScanOptions, scan};
 use secopy_core::source::{DirMode, Source};
 
 struct Fixture {
@@ -44,14 +46,26 @@ fn fixture() -> Fixture {
     }
 }
 
-fn select(src: &Path) -> Selection {
+/// Scan, pre-flight and resolve with `policy` for files that differ.
+fn plan_with(source: &Source, dest: &Path, policy: DiffersPolicy) -> Plan {
+    let sel = scan(source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    let pf = preflight(source, &sel, dest).unwrap();
+    Plan::resolve(&sel, &pf, policy)
+}
+
+fn plan_of(source: &Source, dest: &Path) -> Plan {
+    plan_with(source, dest, DiffersPolicy::KeepBoth)
+}
+
+/// Copies the folder `src` itself into `dest`.
+fn plan(src: &Path, dest: &Path) -> Plan {
     let source = Source::Directory {
         path: src.to_path_buf(),
         mode: DirMode::FolderItself,
     };
-    scan(&source, &ScanOptions::default())
-        .unwrap()
-        .select(&ExtensionFilter::All)
+    plan_of(&source, dest)
 }
 
 /// Small buffers and a low threshold so both lanes and the pipeline are exercised.
@@ -70,9 +84,9 @@ fn opts(verify: bool) -> JobOptions {
     }
 }
 
-fn run(sel: &Selection, dest: &Path, opts: &JobOptions) -> (JobReport, Vec<Event>) {
+fn run(plan: &Plan, opts: &JobOptions) -> (JobReport, Vec<Event>) {
     let events = Mutex::new(Vec::new());
-    let report = run_job(sel, dest, opts, &JobControl::new(), &|e| {
+    let report = run_job(plan, opts, &JobControl::new(), &|e| {
         events.lock().unwrap().push(e)
     });
     (report, events.into_inner().unwrap())
@@ -85,8 +99,7 @@ fn expected_tree(src: &Path) -> std::collections::BTreeMap<String, Vec<u8>> {
 #[test]
 fn copy_mode_copies_everything_and_writes_the_checksum_file() {
     let f = fixture();
-    let sel = select(&f.src);
-    let (report, _) = run(&sel, &f.dest, &opts(false));
+    let (report, _) = run(&plan(&f.src, &f.dest), &opts(false));
 
     assert!(report.is_success(), "{report:?}");
     assert!(
@@ -107,7 +120,7 @@ fn copy_mode_copies_everything_and_writes_the_checksum_file() {
 #[test]
 fn verify_mode_marks_files_verified() {
     let f = fixture();
-    let (report, _) = run(&select(&f.src), &f.dest, &opts(true));
+    let (report, _) = run(&plan(&f.src, &f.dest), &opts(true));
     assert!(report.is_success(), "{report:?}");
     assert!(
         report
@@ -123,7 +136,7 @@ fn verify_mode_marks_files_verified() {
 fn empty_source_folders_are_recreated() {
     let f = fixture();
     fs::create_dir_all(f.src.join("EMPTY")).unwrap();
-    run(&select(&f.src), &f.dest, &opts(false));
+    run(&plan(&f.src, &f.dest), &opts(false));
     assert!(f.dest.join("CARD/EMPTY").is_dir());
 }
 
@@ -144,7 +157,7 @@ fn a_corrupted_copy_is_recopied_once_and_then_verifies() {
             }
         }),
     };
-    let (report, _) = run(&select(&f.src), &f.dest, &o);
+    let (report, _) = run(&plan(&f.src, &f.dest), &o);
     assert!(report.is_success(), "{report:?}");
     assert_eq!(read_tree(&f.dest), expected_tree(&f.src));
 }
@@ -160,7 +173,7 @@ fn a_copy_that_stays_corrupted_fails_and_leaves_no_file() {
             }
         }),
     };
-    let (report, _) = run(&select(&f.src), &f.dest, &o);
+    let (report, _) = run(&plan(&f.src, &f.dest), &o);
 
     let failed: Vec<_> = report.failed().collect();
     assert_eq!(failed.len(), 1);
@@ -182,10 +195,11 @@ fn a_copy_that_stays_corrupted_fails_and_leaves_no_file() {
 }
 
 #[test]
-fn an_existing_destination_file_is_never_overwritten() {
+fn a_file_that_appears_after_preflight_is_never_overwritten() {
     let f = fixture();
+    let plan = plan(&f.src, &f.dest);
     write_files(&f.dest, &[("CARD/notes.txt", b"mine")]);
-    let (report, _) = run(&select(&f.src), &f.dest, &opts(false));
+    let (report, _) = run(&plan, &opts(false));
 
     let failed: Vec<_> = report.failed().collect();
     assert_eq!(failed.len(), 1);
@@ -199,14 +213,18 @@ fn an_existing_destination_file_is_never_overwritten() {
 #[test]
 fn cancelling_before_start_copies_nothing() {
     let f = fixture();
-    let sel = select(&f.src);
+    let plan = plan(&f.src, &f.dest);
     let control = JobControl::new();
     control.cancel();
-    let report = run_job(&sel, &f.dest, &opts(true), &control, &|_| {});
+    let report = run_job(&plan, &opts(true), &control, &|_| {});
 
     assert!(report.cancelled);
-    assert_eq!(report.not_started, sel.files.len() as u64);
-    assert!(read_tree(&f.dest).is_empty());
+    assert_eq!(report.not_started, plan.files.len() as u64);
+    assert_eq!(
+        fs::read_dir(&f.dest).unwrap().count(),
+        0,
+        "not even empty folders are left (FR-10)"
+    );
     assert_eq!(report.checksum_file, None);
 }
 
@@ -215,7 +233,7 @@ fn checksum_file_can_be_turned_off() {
     let f = fixture();
     let mut o = opts(false);
     o.write_checksum_file = false;
-    let (report, _) = run(&select(&f.src), &f.dest, &o);
+    let (report, _) = run(&plan(&f.src, &f.dest), &o);
     assert_eq!(report.checksum_file, None);
     assert!(
         fs::read_dir(&f.dest)
@@ -227,8 +245,9 @@ fn checksum_file_can_be_turned_off() {
 #[test]
 fn final_progress_event_is_complete() {
     let f = fixture();
-    let sel = select(&f.src);
-    let (_, events) = run(&sel, &f.dest, &opts(true));
+    let plan = plan(&f.src, &f.dest);
+    let total = plan.total_bytes();
+    let (_, events) = run(&plan, &opts(true));
 
     let last = events
         .iter()
@@ -242,10 +261,11 @@ fn final_progress_event_is_complete() {
         last,
         Progress {
             total_files: 4,
-            total_bytes: sel.total_bytes,
+            total_bytes: total,
             files_done: 4,
-            copied_bytes: sel.total_bytes,
-            verified_bytes: sel.total_bytes,
+            files_skipped: 0,
+            copied_bytes: total,
+            verified_bytes: total,
             active: vec![],
             paused: false,
         }
@@ -266,7 +286,7 @@ fn many_small_files_are_all_copied() {
     for i in 0..300 {
         write_files(&src, &[(&format!("d{}/f{i}.bin", i % 7), &pattern(i))]);
     }
-    let (report, _) = run(&select(&src), &dest, &opts(true));
+    let (report, _) = run(&plan(&src, &dest), &opts(true));
     assert!(report.is_success(), "{report:?}");
     assert_eq!(read_tree(&dest.join("src")), read_tree(&src));
 }
@@ -281,7 +301,7 @@ fn an_unreadable_file_fails_alone() {
     if fs::read(&locked).is_ok() {
         return; // running as root: permissions are not enforced
     }
-    let (report, _) = run(&select(&f.src), &f.dest, &opts(true));
+    let (report, _) = run(&plan(&f.src, &f.dest), &opts(true));
 
     let failed: Vec<_> = report.failed().collect();
     assert_eq!(failed.len(), 1);
@@ -302,24 +322,30 @@ fn files_that_map_to_the_same_name_never_mix() {
         &[("x/a.txt", &pattern(500)), ("y/A.TXT", &pattern(900))],
     );
     let source = Source::Files(vec![dir.path().join("x/a.txt"), dir.path().join("y/A.TXT")]);
-    let sel = scan(&source, &ScanOptions::default())
-        .unwrap()
-        .select(&ExtensionFilter::All);
-    let (report, _) = run(&sel, &dest, &opts(false));
+    let plan = plan_of(&source, &dest);
+    let (report, _) = run(&plan, &opts(false));
 
-    let failed: Vec<_> = report.failed().collect();
-    assert_eq!(failed.len(), 1);
-    assert_eq!(failed[0].rel, Path::new("A.TXT"));
-    assert_eq!(failed[0].status, FileStatus::Failed(FileError::NameClash));
     assert_eq!(fs::read(dest.join("a.txt")).unwrap(), pattern(500));
+    if plan.fs.case_sensitive {
+        // Linux: two different files (FR-17a applies to case-insensitive drives only).
+        assert!(report.is_success(), "{report:?}");
+        assert_eq!(fs::read(dest.join("A.TXT")).unwrap(), pattern(900));
+    } else {
+        let failed: Vec<_> = report.failed().collect();
+        assert_eq!(failed.len(), 1);
+        assert_eq!(failed[0].rel, Path::new("A.TXT"));
+        assert_eq!(failed[0].status, FileStatus::Failed(FileError::NameClash));
+    }
 }
 
 #[test]
 fn an_unwritable_destination_fails_every_file_without_hanging() {
     let f = fixture();
-    let not_a_dir = f.dest.join("file");
-    fs::write(&not_a_dir, b"x").unwrap();
-    let (report, _) = run(&select(&f.src), &not_a_dir, &opts(true));
+    let plan = plan(&f.src, &f.dest);
+    // The destination turns into a file after pre-flight.
+    fs::remove_dir(&f.dest).unwrap();
+    fs::write(&f.dest, b"x").unwrap();
+    let (report, _) = run(&plan, &opts(true));
 
     assert_eq!(report.outcomes.len(), 4);
     assert!(
@@ -346,7 +372,7 @@ fn unicode_names_round_trip() {
     for n in names {
         write_files(&src, &[(n, n.as_bytes())]);
     }
-    let (report, _) = run(&select(&src), &dest, &opts(true));
+    let (report, _) = run(&plan(&src, &dest), &opts(true));
 
     assert!(report.is_success(), "{report:?}");
     assert_eq!(read_tree(&dest.join("Tomas")), read_tree(&src));
@@ -372,7 +398,7 @@ fn cancelling_mid_job_keeps_finished_files_and_removes_partials() {
     o.small_file_lanes = 1;
     o.large_file_lanes = 1;
     let control = JobControl::new();
-    let report = run_job(&select(&src), &dest, &o, &control, &|e| {
+    let report = run_job(&plan(&src, &dest), &o, &control, &|e| {
         if let Event::FileFinished(_) = e {
             control.cancel();
         }
@@ -410,23 +436,22 @@ fn concurrent_jobs_into_one_destination_never_report_foreign_bytes() {
         write_files(&card_a, &[(&name, &[b'A'; 3000])]);
         write_files(&card_b, &[(&name, &[b'B'; 1000])]);
     }
-    let contents = |p: &Path| {
+    let contents = |p: &Path, dest: &Path| {
         let source = Source::Directory {
             path: p.to_path_buf(),
             mode: DirMode::ContentsOnly,
         };
-        scan(&source, &ScanOptions::default())
-            .unwrap()
-            .select(&ExtensionFilter::All)
+        plan_of(&source, dest)
     };
-    let (sel_a, sel_b) = (contents(&card_a), contents(&card_b));
     for verify in [false, true] {
         let dest = dest.join(if verify { "verify" } else { "copy" });
         fs::create_dir_all(&dest).unwrap();
+        // Both plans see an empty destination, so both try every name.
+        let (plan_a, plan_b) = (contents(&card_a, &dest), contents(&card_b, &dest));
         let o = opts(verify);
         let (ra, rb) = std::thread::scope(|s| {
-            let a = s.spawn(|| run_job(&sel_a, &dest, &o, &JobControl::new(), &|_| {}));
-            let b = s.spawn(|| run_job(&sel_b, &dest, &o, &JobControl::new(), &|_| {}));
+            let a = s.spawn(|| run_job(&plan_a, &o, &JobControl::new(), &|_| {}));
+            let b = s.spawn(|| run_job(&plan_b, &o, &JobControl::new(), &|_| {}));
             (a.join().unwrap(), b.join().unwrap())
         });
         let mut claimed = std::collections::HashSet::new();
@@ -467,14 +492,11 @@ fn names_equal_after_unicode_normalization_never_mix() {
         dir.path().join("x").join(nfc),
         dir.path().join("y").join(nfd),
     ]);
-    let sel = scan(&source, &ScanOptions::default())
-        .unwrap()
-        .select(&ExtensionFilter::All);
     for verify in [false, true] {
         for round in 0..5 {
             let dest = dir.path().join(format!("dest-{verify}-{round}"));
             fs::create_dir_all(&dest).unwrap();
-            let (report, _) = run(&sel, &dest, &opts(verify));
+            let (report, _) = run(&plan_of(&source, &dest), &opts(verify));
             let ok: Vec<_> = report
                 .outcomes
                 .iter()
@@ -490,12 +512,11 @@ fn names_equal_after_unicode_normalization_never_mix() {
 #[test]
 fn a_panicking_event_handler_ends_the_job_instead_of_hanging() {
     let f = fixture();
-    let sel = select(&f.src);
-    let dest = f.dest.clone();
+    let plan = plan(&f.src, &f.dest);
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            run_job(&sel, &dest, &opts(false), &JobControl::new(), &|e| {
+            run_job(&plan, &opts(false), &JobControl::new(), &|e| {
                 if let Event::FileFinished(_) = e {
                     panic!("event handler failed");
                 }
@@ -527,7 +548,7 @@ fn copying_never_runs_far_ahead_of_verification() {
         ..JobOptions::default()
     };
     let max_active = std::sync::atomic::AtomicUsize::new(0);
-    let report = run_job(&select(&src), &dest, &o, &JobControl::new(), &|e| {
+    let report = run_job(&plan(&src, &dest), &o, &JobControl::new(), &|e| {
         if let Event::Progress(p) = e {
             max_active.fetch_max(p.active.len(), std::sync::atomic::Ordering::Relaxed);
         }
@@ -547,13 +568,13 @@ fn a_paused_job_does_no_io_until_resumed() {
     for i in 0..40 {
         write_files(&src, &[(&format!("f{i:02}.bin"), &pattern(2000))]);
     }
-    let sel = select(&src);
+    let plan = plan(&src, &dest);
     let control = JobControl::new();
     let finished = std::sync::atomic::AtomicUsize::new(0);
     let saw_paused = std::sync::atomic::AtomicBool::new(false);
     let report = std::thread::scope(|s| {
         let job = s.spawn(|| {
-            run_job(&sel, &dest, &opts(true), &control, &|e| match e {
+            run_job(&plan, &opts(true), &control, &|e| match e {
                 Event::FileFinished(_) => {
                     if finished.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
                         control.pause();
@@ -601,9 +622,174 @@ fn partial_files_left_by_an_interrupted_job_are_replaced() {
         .set_modified(old)
         .unwrap();
 
-    let (report, _) = run(&select(&f.src), &f.dest, &opts(true));
+    let (report, _) = run(&plan(&f.src, &f.dest), &opts(true));
     assert!(report.is_success(), "{report:?}");
     assert_eq!(report.removed_partials, 1);
     assert!(!leftover.exists());
     assert_eq!(read_tree(&f.dest), expected_tree(&f.src));
+}
+
+/// Gives `rel` under `dest` the same contents and modification time as under `src`.
+fn copy_like(src: &Path, dest: &Path, rel: &str) {
+    let (from, to) = (src.join(rel), dest.join(rel));
+    fs::create_dir_all(to.parent().unwrap()).unwrap();
+    fs::copy(&from, &to).unwrap();
+    let mtime = fs::metadata(&from).unwrap().modified().unwrap();
+    fs::File::options()
+        .write(true)
+        .open(&to)
+        .unwrap()
+        .set_modified(mtime)
+        .unwrap();
+}
+
+#[test]
+fn identical_files_are_skipped_and_left_out_of_the_checksum_file() {
+    let f = fixture();
+    copy_like(f.src.parent().unwrap(), &f.dest, "CARD/A001.mov");
+    let plan = plan(&f.src, &f.dest);
+    let (report, events) = run(&plan, &opts(true));
+
+    assert!(report.is_success(), "{report:?}");
+    let skipped: Vec<_> = report.skipped().collect();
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(
+        skipped[0].status,
+        FileStatus::Skipped(SkipReason::Identical)
+    );
+    assert_eq!(skipped[0].hash, None, "a skipped file is not read");
+    assert!(!skipped[0].in_checksum_file);
+    let sums = fs::read_to_string(report.checksum_file.unwrap()).unwrap();
+    assert!(!sums.contains("A001"), "{sums}");
+    assert_eq!(sums.lines().count(), 3);
+    let last = events
+        .iter()
+        .rev()
+        .find_map(|e| match e {
+            Event::Progress(p) => Some(p.clone()),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(last.files_skipped, 1);
+    assert_eq!(last.total_bytes, plan.bytes_to_write());
+}
+
+#[test]
+fn keep_both_copies_under_a_new_name_and_lists_it() {
+    let f = fixture();
+    write_files(&f.dest, &[("CARD/notes.txt", b"mine, and different")]);
+    let (report, _) = run(&plan(&f.src, &f.dest), &opts(true));
+
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(
+        fs::read(f.dest.join("CARD/notes.txt")).unwrap(),
+        b"mine, and different"
+    );
+    assert_eq!(
+        fs::read(f.dest.join("CARD/notes (1).txt")).unwrap(),
+        b"hello"
+    );
+    let notes = report
+        .outcomes
+        .iter()
+        .find(|o| o.rel.ends_with("notes.txt"))
+        .unwrap();
+    assert_eq!(notes.final_rel, Path::new("CARD").join("notes (1).txt"));
+    let sums = fs::read_to_string(report.checksum_file.unwrap()).unwrap();
+    assert!(sums.contains("  CARD/notes (1).txt\n"), "{sums}");
+}
+
+#[test]
+fn overwrite_replaces_a_different_file_after_verifying() {
+    let f = fixture();
+    write_files(&f.dest, &[("CARD/notes.txt", b"old")]);
+    let source = Source::Directory {
+        path: f.src.clone(),
+        mode: DirMode::FolderItself,
+    };
+    let plan = plan_with(&source, &f.dest, DiffersPolicy::Overwrite);
+    let (report, _) = run(&plan, &opts(true));
+
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(read_tree(&f.dest), expected_tree(&f.src));
+}
+
+#[test]
+fn a_copy_that_fails_verification_never_replaces_the_old_file() {
+    let f = fixture();
+    write_files(&f.dest, &[("CARD/A001.mov", b"old")]);
+    let source = Source::Directory {
+        path: f.src.clone(),
+        mode: DirMode::FolderItself,
+    };
+    let plan = plan_with(&source, &f.dest, DiffersPolicy::Overwrite);
+    let mut o = opts(true);
+    o.hooks = Hooks {
+        after_copy: Some(|p, _| {
+            if p.to_string_lossy().contains("A001") {
+                flip_first_byte(p);
+            }
+        }),
+    };
+    let (report, _) = run(&plan, &o);
+
+    assert_eq!(report.failed().count(), 1);
+    assert_eq!(fs::read(f.dest.join("CARD/A001.mov")).unwrap(), b"old");
+}
+
+#[test]
+fn skip_leaves_a_different_file_alone() {
+    let f = fixture();
+    write_files(&f.dest, &[("CARD/notes.txt", b"old")]);
+    let source = Source::Directory {
+        path: f.src.clone(),
+        mode: DirMode::FolderItself,
+    };
+    let plan = plan_with(&source, &f.dest, DiffersPolicy::Skip);
+    let (report, _) = run(&plan, &opts(false));
+
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(fs::read(f.dest.join("CARD/notes.txt")).unwrap(), b"old");
+    let skipped: Vec<_> = report.skipped().collect();
+    assert_eq!(skipped[0].status, FileStatus::Skipped(SkipReason::Differs));
+}
+
+#[test]
+fn failed_files_can_be_retried() {
+    let f = fixture();
+    let source = Source::Directory {
+        path: f.src.clone(),
+        mode: DirMode::FolderItself,
+    };
+    let sel = scan(&source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    let pf = preflight(&source, &sel, &f.dest).unwrap();
+    let first = Plan::resolve(&sel, &pf, DiffersPolicy::KeepBoth);
+    let mut o = opts(true);
+    o.hooks = Hooks {
+        after_copy: Some(|p, _| {
+            if p.to_string_lossy().contains("A001") {
+                flip_first_byte(p);
+            }
+        }),
+    };
+    let (report, _) = run(&first, &o);
+    let failed: Vec<usize> = report.failed().map(|o| o.id).collect();
+    assert_eq!(failed.len(), 1);
+
+    // "Retry failed": the same selection, only the failed files, checked again.
+    let retry = sel.subset(&failed);
+    let pf = preflight(&source, &retry, &f.dest).unwrap();
+    let second = Plan::resolve(&retry, &pf, DiffersPolicy::KeepBoth);
+    assert_eq!(second.files[0].action, Action::Copy);
+    let (report, _) = run(&second, &opts(true));
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(read_tree(&f.dest), expected_tree(&f.src));
+}
+
+#[test]
+fn small_files_never_take_the_pipelined_path_by_default() {
+    let o = JobOptions::default();
+    assert_eq!(o.small_file_threshold, o.copy.buffer_size as u64);
 }

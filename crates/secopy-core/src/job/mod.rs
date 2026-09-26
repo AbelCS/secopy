@@ -16,7 +16,8 @@ use crate::checksum_file;
 use crate::copy::CopyConfig;
 use crate::error::FileError;
 use crate::os;
-use crate::scan::{DirEntry, Selection};
+use crate::plan::Plan;
+use crate::scan::DirEntry;
 use crate::verify::CacheBypass;
 
 pub use crate::control::JobControl;
@@ -47,7 +48,9 @@ impl Default for JobOptions {
             verify: true,
             write_checksum_file: true,
             copy: CopyConfig::default(),
-            small_file_threshold: 8 << 20,
+            // Equal to the buffer size, so small-file lanes never take the pipelined path
+            // and buffer memory stays bounded (NFR-4).
+            small_file_threshold: 4 << 20,
             small_file_lanes: 8,
             large_file_lanes: 1,
             verify_lanes: 2,
@@ -69,16 +72,33 @@ pub struct Hooks {
 pub enum FileStatus {
     Copied,
     Verified,
+    /// Not read or written (FR-17).
+    Skipped(SkipReason),
     Failed(FileError),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkipReason {
+    /// Already at the destination with the same size and modification time. Not checked.
+    Identical,
+    /// A different file has this name, and the user chose Skip.
+    Differs,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileOutcome {
+    /// Index in `Plan::files`.
+    pub id: usize,
+    /// Path relative to the destination, as selected.
     pub rel: PathBuf,
+    /// Where the copy landed; differs from `rel` for Keep both.
+    pub final_rel: PathBuf,
     pub size: u64,
-    /// Source hash; `None` if the file failed before it was hashed.
+    /// Source hash; `None` if the file wasn't read or failed before it was hashed.
     pub hash: Option<u64>,
     pub status: FileStatus,
+    /// Listed in this job's checksum file.
+    pub in_checksum_file: bool,
     pub elapsed: Duration,
 }
 
@@ -112,6 +132,12 @@ impl JobReport {
             .filter(|o| matches!(o.status, FileStatus::Failed(_)))
     }
 
+    pub fn skipped(&self) -> impl Iterator<Item = &FileOutcome> {
+        self.outcomes
+            .iter()
+            .filter(|o| matches!(o.status, FileStatus::Skipped(_)))
+    }
+
     pub fn is_success(&self) -> bool {
         self.fatal.is_none()
             && !self.cancelled
@@ -120,24 +146,25 @@ impl JobReport {
     }
 }
 
-/// Copies every file in `sel` into `dest`. Blocks until done; call from a worker thread.
+/// Carries out `plan`. Blocks until done; call from a worker thread.
 /// `on_event` is called from several threads.
 pub fn run_job(
-    sel: &Selection,
-    dest: &Path,
+    plan: &Plan,
     opts: &JobOptions,
     control: &JobControl,
     on_event: &(dyn Fn(Event) + Sync),
 ) -> JobReport {
     let started = Instant::now();
-    for dir in &sel.dirs {
-        // A failure here surfaces as a per-file write error.
-        let _ = fs::create_dir_all(dest.join(&dir.rel));
+    let dest = plan.dest.as_path();
+    let runner = Runner::new(plan, opts, control, on_event);
+    let (write, unwritten): (Vec<usize>, Vec<usize>) =
+        (0..plan.files.len()).partition(|&i| plan.files[i].action.writes());
+    for idx in unwritten {
+        runner.finish_unwritten(idx);
     }
-    let clashes = find_name_clashes(sel);
-    let runner = Runner::new(sel, dest, opts, control, on_event, clashes);
-    let (small, large): (Vec<usize>, Vec<usize>) =
-        (0..sel.files.len()).partition(|&i| sel.files[i].size <= opts.small_file_threshold);
+    let (small, large): (Vec<usize>, Vec<usize>) = write
+        .into_iter()
+        .partition(|&i| plan.files[i].entry.size <= opts.small_file_threshold);
     let small = Queue::new(small);
     let large = Queue::new(large);
     let finished = AtomicBool::new(false);
@@ -190,14 +217,17 @@ pub fn run_job(
         .into_inner()
         .expect("outcomes lock poisoned");
     let fatal = runner.fatal.into_inner().expect("fatal lock poisoned");
+    if !control.is_stopped() {
+        create_empty_dirs(plan);
+    }
     let (checksum_file, checksum_error) = if opts.write_checksum_file {
         write_checksum(dest, &outcomes)
     } else {
         (None, None)
     };
-    make_durable(dest, &sel.dirs);
+    make_durable(dest, &plan.dirs);
     JobReport {
-        not_started: (sel.files.len() - outcomes.len()) as u64,
+        not_started: (plan.files.len() - outcomes.len()) as u64,
         outcomes,
         checksum_file,
         checksum_error,
@@ -213,22 +243,31 @@ pub fn run_job(
     }
 }
 
-/// Marks every file whose destination path repeats an earlier one, ignoring case:
-/// two lanes writing the same name would corrupt each other, and case-insensitive
-/// destinations (macOS, Windows, exFAT) treat `a.txt` and `A.TXT` as one file.
-fn find_name_clashes(sel: &Selection) -> Vec<bool> {
-    let mut seen = HashSet::new();
-    sel.files
+/// Source folders with no files in the plan are created at the end (FR-6). Folders with
+/// files were created when their first file started.
+fn create_empty_dirs(plan: &Plan) {
+    let mut with_files = HashSet::new();
+    for file in &plan.files {
+        for dir in file.entry.rel.ancestors().skip(1) {
+            if !with_files.insert(dir) {
+                break;
+            }
+        }
+    }
+    for dir in plan
+        .dirs
         .iter()
-        .map(|f| !seen.insert(checksum_file::slash_path(&f.rel).to_lowercase()))
-        .collect()
+        .filter(|d| !with_files.contains(d.rel.as_path()))
+    {
+        let _ = fs::create_dir_all(plan.dest.join(&dir.rel));
+    }
 }
 
 fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Option<String>) {
     let entries: Vec<(PathBuf, u64)> = outcomes
         .iter()
-        .filter(|o| matches!(o.status, FileStatus::Copied | FileStatus::Verified))
-        .filter_map(|o| o.hash.map(|h| (o.rel.clone(), h)))
+        .filter(|o| o.in_checksum_file)
+        .filter_map(|o| o.hash.map(|h| (o.final_rel.clone(), h)))
         .collect();
     if entries.is_empty() {
         return (None, None);
@@ -242,6 +281,7 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
 /// Makes the job durable: one fsync per directory for the renames, then one
 /// drive-cache flush for the whole volume (RFD §7.4).
 fn make_durable(dest: &Path, dirs: &[DirEntry]) {
+    // Folders that were never created fail to open and are skipped.
     #[cfg(unix)]
     for dir in dirs
         .iter()

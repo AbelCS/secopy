@@ -72,20 +72,32 @@ fn mixing_a_folder_and_files_is_a_usage_error() {
     assert_eq!(out.status.code(), Some(2));
 }
 
+#[cfg(unix)]
 #[test]
 fn a_failed_file_gives_exit_code_one() {
+    use std::os::unix::fs::PermissionsExt;
     let dir = tempfile::tempdir().unwrap();
     let dest = dir.path().join("dest");
     fs::create_dir_all(&dest).unwrap();
-    fs::write(dir.path().join("a.wav"), b"new").unwrap();
-    fs::write(dest.join("a.wav"), b"old").unwrap();
+    let locked = dir.path().join("a.wav");
+    fs::write(&locked, b"new").unwrap();
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read(&locked).is_ok() {
+        return; // running as root: permissions are not enforced
+    }
+    let out = cli().arg(&locked).arg("--to").arg(&dest).output().unwrap();
+    assert_eq!(out.status.code(), Some(1));
+}
 
+#[test]
+fn a_missing_destination_is_a_usage_error() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.wav"), b"a").unwrap();
     let out = cli()
         .arg(dir.path().join("a.wav"))
         .arg("--to")
-        .arg(&dest)
+        .arg(dir.path().join("nope"))
         .output()
         .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert_eq!(fs::read(dest.join("a.wav")).unwrap(), b"old");
+    assert_eq!(out.status.code(), Some(2));
 }
