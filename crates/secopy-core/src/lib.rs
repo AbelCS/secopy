@@ -7,6 +7,7 @@ pub mod error;
 pub mod filter;
 pub mod hash;
 pub mod hidden;
+pub mod job;
 mod os;
 pub mod scan;
 pub mod source;

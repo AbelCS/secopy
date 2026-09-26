@@ -23,6 +23,18 @@ pub fn sync_file(file: &File) -> io::Result<()> {
     file.sync_all()
 }
 
+/// Makes everything written to the volume holding `dir` durable, including the
+/// drive's own cache. Called once at the end of a job.
+#[cfg(target_os = "macos")]
+pub fn full_barrier(dir: &Path) -> io::Result<()> {
+    File::open(dir)?.sync_all()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn full_barrier(_dir: &Path) -> io::Result<()> {
+    Ok(())
+}
+
 /// Asks the OS not to keep this file's pages in cache. Only macOS supports this per
 /// file descriptor; elsewhere it is a no-op. Returns true if the request was accepted.
 #[cfg(target_os = "macos")]
