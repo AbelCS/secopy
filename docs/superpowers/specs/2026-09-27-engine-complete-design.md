@@ -23,7 +23,7 @@ the simplest correct option is taken and plan 4 revisits it.
 | D3 | **Pre-flight:** job-level problems block Start. Per-file problems are listed; the user may start anyway and those files fail with a clear reason. Invalid names are never renamed automatically. |
 | D4 | **Skipped identical files** are not read or hashed. They are not in this job's checksum file, and the summary and report say "skipped, not checked". |
 | D5 | **Architecture:** a resolved plan. `scan → select → preflight → Plan::resolve → run_job`. |
-| D6 | **Leftover partial files** are deleted at job start when no live writer holds their lock. |
+| D6 | **Leftover partial files** are replaced when their file is copied, and the rest (next to skipped or failed files) are deleted at the end of the job, whenever no live writer holds them. *(review)* |
 | D7 | **Fatal errors** are detected by re-checking the source and destination roots after any per-file I/O error. |
 
 The implementation plan was checked by building it in a throwaway prototype first. That
@@ -189,7 +189,9 @@ Per file:
    mode without `FILE_SHARE_DELETE` on Windows. The lock is held until the file is renamed
    or removed.
 3. If a partial file is already there, it is replaced only if it is stale: no one holds
-   its lock, it is at least 2 s old, and it is still the file at that name. Otherwise this
+   its lock, it wasn't modified within 2 s of now (a future time, as FAT's local time can
+   show after a zone change, counts as stale *(review)*), and it is still the file at that
+   name. Otherwise this
    file fails with `PartialInUse` ("another copy is writing this file"). *(prototype)*
    Creating and locking are two steps on Unix; without the age rule, two jobs' cleanups
    could delete each other's brand-new files and both give up, and a writer could end up
@@ -209,6 +211,15 @@ Per file:
    - `KeepBoth`: no-replace rename to the planned name `(n)`; if it was taken since
      pre-flight, try `(n+1)`, `(n+2)`, ….
    - `Skip*` and `Fail`: nothing is written; the outcome is recorded straight away.
+
+**Name ownership at commit** *(review)*: before renaming or deleting its partial file,
+a writer checks that the name still points at the file it holds open. Where locks don't
+separate writers (some network file systems), another job may have replaced it; the file
+then fails with `PartialInUse` and the other writer's file is left alone.
+
+**Source roots** are stored as absolute paths, like the scanned files they are compared
+with, so a relative source (as typed on the CLI) is still watched for `SourceGone`.
+*(review)*
 
 **Partial names:** `.<name>.secopy-partial` when that fits the name limit, else
 `.secopy-<xxh64 of the lowercased name>.partial`. Hashing the lowercased name keeps the
@@ -274,7 +285,7 @@ destination, and start and end times.
 
 | Carry-over | Resolution |
 |---|---|
-| Stale partial files | Locked partials, cleanup at job start (D6) |
+| Stale partial files | Locked partials, replaced per file and swept at the end (D6) |
 | FAT/exFAT commit race | Partial locks close it between Secopy jobs; the rest is accepted |
 | Non-UTF-8 names | Raw-byte clash keys; copied but left out of the checksum file, with a reason |
 | Scan path resolution | `std::path::absolute`, symlinks resolved in parents only |
