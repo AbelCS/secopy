@@ -443,6 +443,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "walkdir",
+ "windows-sys",
  "xxhash-rust",
 ]
 
