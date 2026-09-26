@@ -1,0 +1,186 @@
+mod common;
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
+
+use common::write_files;
+use secopy_core::filter::ExtensionFilter;
+use secopy_core::preflight::{Blocker, ConflictKind, ProblemKind, preflight};
+use secopy_core::scan::{ScanOptions, Selection, scan};
+use secopy_core::source::{DirMode, Source};
+
+fn card(root: &Path) -> (Source, Selection) {
+    let src = root.join("CARD");
+    write_files(&src, &[("A001.mov", b"clip-a"), ("B002.mov", b"clip-b")]);
+    let source = Source::Directory {
+        path: src,
+        mode: DirMode::FolderItself,
+    };
+    let sel = scan(&source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    (source, sel)
+}
+
+fn set_mtime(path: &Path, t: SystemTime) {
+    fs::File::options()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_modified(t)
+        .unwrap();
+}
+
+fn id_of(sel: &Selection, name: &str) -> usize {
+    sel.files
+        .iter()
+        .position(|f| f.rel.ends_with(name))
+        .unwrap()
+}
+
+#[test]
+fn a_missing_destination_blocks() {
+    let dir = tempfile::tempdir().unwrap();
+    let (source, sel) = card(dir.path());
+    let err = preflight(&source, &sel, &dir.path().join("nope")).unwrap_err();
+    assert_eq!(err, Blocker::DestMissing);
+}
+
+#[test]
+fn a_destination_inside_the_source_blocks() {
+    let dir = tempfile::tempdir().unwrap();
+    let (source, sel) = card(dir.path());
+    let inside = dir.path().join("CARD/backup");
+    fs::create_dir_all(&inside).unwrap();
+    assert_eq!(
+        preflight(&source, &sel, &inside).unwrap_err(),
+        Blocker::DestInsideSource
+    );
+    assert_eq!(
+        preflight(&source, &sel, &dir.path().join("CARD")).unwrap_err(),
+        Blocker::DestInsideSource
+    );
+}
+
+#[test]
+fn a_clean_destination_has_nothing_to_report() {
+    let dir = tempfile::tempdir().unwrap();
+    let (source, sel) = card(dir.path());
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    let pf = preflight(&source, &sel, &dest).unwrap();
+    assert!(pf.file_problems.is_empty());
+    assert!(pf.conflicts.is_empty());
+    assert!(pf.stale_partials.is_empty());
+    assert_eq!(pf.source_roots.len(), 1);
+    assert!(pf.fs.free_bytes > 0);
+}
+
+#[test]
+fn existing_files_are_identical_or_different() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("dest");
+    write_files(
+        &dest,
+        &[
+            ("CARD/A001.mov", b"clip-a"),
+            ("CARD/B002.mov", b"another clip"),
+        ],
+    );
+    let (source, _) = card(dir.path());
+    let t = SystemTime::now() - Duration::from_secs(3600);
+    for name in ["A001.mov", "B002.mov"] {
+        set_mtime(&dir.path().join("CARD").join(name), t);
+        set_mtime(&dest.join("CARD").join(name), t);
+    }
+    // Scan after setting the source mtimes.
+    let sel = scan(&source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    let pf = preflight(&source, &sel, &dest).unwrap();
+    let kind = |name| {
+        pf.conflicts
+            .iter()
+            .find(|c| c.id == id_of(&sel, name))
+            .map(|c| c.kind.clone())
+    };
+    assert_eq!(kind("A001.mov"), Some(ConflictKind::Identical));
+    assert!(matches!(
+        kind("B002.mov"),
+        Some(ConflictKind::Differs { size: 12, .. })
+    ));
+}
+
+#[test]
+fn a_folder_where_a_file_goes_is_in_the_way() {
+    let dir = tempfile::tempdir().unwrap();
+    let (source, sel) = card(dir.path());
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(dest.join("CARD/A001.mov")).unwrap();
+    let pf = preflight(&source, &sel, &dest).unwrap();
+    assert_eq!(pf.file_problems.len(), 1);
+    assert_eq!(pf.file_problems[0].id, id_of(&sel, "A001.mov"));
+    assert!(matches!(
+        pf.file_problems[0].kind,
+        ProblemKind::InTheWay { .. }
+    ));
+}
+
+#[test]
+fn leftover_partial_files_are_listed() {
+    let dir = tempfile::tempdir().unwrap();
+    let (source, sel) = card(dir.path());
+    let dest = dir.path().join("dest");
+    write_files(&dest, &[("CARD/.A001.mov.secopy-partial", b"half")]);
+    let pf = preflight(&source, &sel, &dest).unwrap();
+    assert_eq!(
+        pf.stale_partials,
+        vec![dest.join("CARD").join(".A001.mov.secopy-partial")]
+    );
+}
+
+#[test]
+fn loose_files_report_each_parent_folder_once() {
+    let dir = tempfile::tempdir().unwrap();
+    write_files(
+        dir.path(),
+        &[("x/a.wav", b"a"), ("x/b.wav", b"b"), ("y/c.wav", b"c")],
+    );
+    let source = Source::Files(
+        ["x/a.wav", "x/b.wav", "y/c.wav"]
+            .map(|p| dir.path().join(p))
+            .to_vec(),
+    );
+    let sel = scan(&source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    let pf = preflight(&source, &sel, &dest).unwrap();
+    let roots: Vec<PathBuf> = pf.source_roots.into_iter().map(|r| r.path).collect();
+    assert_eq!(roots, vec![dir.path().join("x"), dir.path().join("y")]);
+}
+
+/// Linux file names are bytes; the checksum file can only hold UTF-8 (FR-31).
+#[cfg(target_os = "linux")]
+#[test]
+fn non_utf8_names_are_left_out_of_the_checksum_file() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    fs::create_dir_all(&src).unwrap();
+    fs::write(src.join(OsStr::from_bytes(b"caf\xe9.wav")), b"x").unwrap();
+    let source = Source::Directory {
+        path: src,
+        mode: DirMode::FolderItself,
+    };
+    let sel = scan(&source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    let pf = preflight(&source, &sel, &dest).unwrap();
+    assert_eq!(pf.checksum_omissions, vec![0]);
+}

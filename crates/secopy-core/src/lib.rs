@@ -12,6 +12,7 @@ pub mod hidden;
 pub mod job;
 pub mod names;
 mod os;
+pub mod preflight;
 pub mod scan;
 pub mod source;
 pub mod verify;
