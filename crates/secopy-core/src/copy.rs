@@ -80,6 +80,7 @@ impl PartialCopy {
             }
             result
         })
+        .unwrap_or(Err(FileError::PartialInUse))
     }
 
     /// Deletes the partial file.
@@ -89,18 +90,26 @@ impl PartialCopy {
         });
     }
 
-    /// Runs `op` on the partial path. On Unix the file stays open, and locked, until `op`
-    /// has renamed or removed it, so no other job can take the name in between. Windows
-    /// can't rename or delete a file that is open without delete sharing, so there it is
-    /// closed first; another writer's file can't be renamed or deleted in that gap either.
-    fn release<T>(self, op: impl FnOnce(&Path) -> T) -> T {
+    /// Runs `op` on the partial path; `None` if the name no longer belongs to this file.
+    /// On Unix the file stays open, and locked, until `op` has renamed or removed it, so no
+    /// other job can take the name in between. Where locks don't separate writers (some
+    /// network file systems), another job may already have replaced it by name; then the
+    /// name is not ours to rename or delete. Windows can't rename or delete a file that is
+    /// open without delete sharing, so there it is closed first; another writer's file
+    /// can't be renamed or deleted in that gap either.
+    fn release<T>(self, op: impl FnOnce(&Path) -> T) -> Option<T> {
         let PartialCopy { partial, file, .. } = self;
+        // An error here (e.g. the drive is gone) is left to `op` to report.
+        #[cfg(unix)]
+        if let Ok(false) = os::is_at(&file, &partial) {
+            return None;
+        }
         #[cfg(windows)]
         drop(file);
         let out = op(&partial);
         #[cfg(not(windows))]
         drop(file);
-        out
+        Some(out)
     }
 }
 

@@ -351,3 +351,39 @@ fn a_stale_partial_file_dated_in_the_future_is_replaced() {
     assert!(pc.removed_stale);
     assert_eq!(fs::read(&pc.partial).unwrap(), b"mine");
 }
+
+/// Where locks don't separate writers (network file systems), another job may have
+/// replaced this job's partial file by name. Committing or discarding must then leave the
+/// other writer's file alone, and never report its bytes as ours.
+#[cfg(unix)]
+#[test]
+fn a_partial_file_replaced_by_another_writer_is_never_committed_or_deleted() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dst) = (dir.path().join("a.bin"), dir.path().join("b.bin"));
+    fs::write(&src, b"mine").unwrap();
+    for discard in [false, true] {
+        let pc = copy_to_partial(
+            &src,
+            &dst,
+            &CopyConfig::default(),
+            &|_| {},
+            &JobControl::new(),
+        )
+        .unwrap();
+        // Another writer took the name: ours is gone, theirs is in its place.
+        fs::remove_file(&pc.partial).unwrap();
+        fs::write(&pc.partial, b"theirs").unwrap();
+        let partial = pc.partial.clone();
+        if discard {
+            pc.discard();
+        } else {
+            assert_eq!(
+                pc.commit(&dst, Commit::NoReplace),
+                Err(FileError::PartialInUse)
+            );
+            assert!(!dst.exists(), "their file must not become ours");
+        }
+        assert_eq!(fs::read(&partial).unwrap(), b"theirs", "discard={discard}");
+        fs::remove_file(&partial).unwrap();
+    }
+}
