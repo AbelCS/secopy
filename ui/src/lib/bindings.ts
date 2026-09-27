@@ -15,6 +15,20 @@ export const commands = {
 	scanSource: (paths: string[]) => typedError<SessionView, string>(__TAURI_INVOKE("scan_source", { paths })),
 	/**  The "Include the folder" checkbox (FR-4); this run's file types stay. */
 	setIncludeFolder: (include: boolean) => typedError<SessionView, string>(__TAURI_INVOKE("set_include_folder", { include })),
+	/**  Everything the window needs at start; load problems are handed out once. */
+	appStart: () => typedError<StartView, string>(__TAURI_INVOKE("app_start")),
+	recentDestinations: () => typedError<string[], string>(__TAURI_INVOKE("recent_destinations")),
+	/**  FROM's drives, without the one holding the destination. */
+	listDrives: () => typedError<DriveView[], string>(__TAURI_INVOKE("list_drives")),
+	selectProfile: (id: string | null) => typedError<SessionView, string>(__TAURI_INVOKE("select_profile", { id })),
+	updateProfile: () => typedError<ProfilesView, string>(__TAURI_INVOKE("update_profile")),
+	saveProfileAs: (name: string, folder: string) => typedError<ProfilesView, string>(__TAURI_INVOKE("save_profile_as", { name, folder })),
+	createProfile: (input: ProfileInput) => typedError<Profile[], string>(__TAURI_INVOKE("create_profile", { input })),
+	editProfile: (id: string, input: ProfileInput) => typedError<ProfilesView, string>(__TAURI_INVOKE("edit_profile", { id, input })),
+	deleteProfile: (id: string) => typedError<ProfilesView, string>(__TAURI_INVOKE("delete_profile", { id })),
+	setSettings: (settings: Settings) => typedError<Settings, string>(__TAURI_INVOKE("set_settings", { settings })),
+	/**  Copy or Copy & Verify, remembered for the next launch (FR-36). */
+	setMode: (verify: boolean) => typedError<null, string>(__TAURI_INVOKE("set_mode", { verify })),
 	/**  Clears the source; the destination stays ("New copy", RFD §5.4). */
 	clearSource: () => typedError<SessionView, string>(__TAURI_INVOKE("clear_source")),
 	/**  `None` selects every extension (FR-8, FR-10). */
@@ -99,6 +113,13 @@ export type DestinationView = {
 	stalePartials: number,
 };
 
+export type DriveView = {
+	name: string,
+	path: string,
+	totalBytes: number,
+	freeBytes: number,
+};
+
 export type ExtensionView = {
 	key: string | null,
 	/**  ".mov", or "(no extension)". */
@@ -135,6 +156,33 @@ export type PlanView = {
 	bytesToWrite: number,
 	/**  Not enough free space (FR-16). */
 	blocker: string | null,
+};
+
+/**  A source profile (FR-38). */
+export type Profile = {
+	/**  Stays the same when the profile is renamed. */
+	id: string,
+	name: string,
+	/**  Relative to what was picked, `/`-separated; empty = the picked folder itself. */
+	folder: string,
+	/**  "Include the folder" (FR-4). */
+	includeFolder: boolean,
+	/**  `None` = every file type, including ones never seen. */
+	extensions: (string | null)[] | null,
+};
+
+/**  A profile as typed in a form (Save as new…, Settings). */
+export type ProfileInput = {
+	name: string,
+	folder: string,
+	includeFolder: boolean,
+	extensions: (string | null)[] | null,
+};
+
+/**  After a profile change: the profiles and what FROM shows now. */
+export type ProfilesView = {
+	profiles: Profile[],
+	session: SessionView,
 };
 
 /**  Sent twice a second while a job runs (RFD §5.3, NFR-5). */
@@ -185,6 +233,13 @@ export type SessionView = {
 	stale: boolean,
 };
 
+/**  The Settings screen (RFD §5.5). */
+export type Settings = {
+	writeChecksumFile?: boolean,
+	showHiddenCount?: boolean,
+	reportNextToChecksum?: boolean,
+};
+
 export type SmallFilesView = {
 	count: number,
 	size: number,
@@ -217,6 +272,19 @@ export type SourceView = {
 	/**  Things that couldn't be read while scanning, first 20. */
 	problems: string[],
 	problemCount: number,
+};
+
+/**  What the window loads at start (plan 3b-1). */
+export type StartView = {
+	session: SessionView,
+	settings: Settings,
+	profiles: Profile[],
+	/**  Copy & Verify (true) or Copy, as last used (FR-36). */
+	verify: boolean,
+	/**  Recent destinations that still exist, most recent first. */
+	recentDestinations: string[],
+	/**  Saved files that couldn't be read; shown once. */
+	warnings: string[],
 };
 
 /**  The summary after a job (RFD §5.4). */
