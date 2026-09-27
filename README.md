@@ -11,9 +11,16 @@ checksum file in the destination.
 
 Download `Secopy_<version>_aarch64.dmg` from the
 [latest release](https://github.com/AbelCS/secopy/releases/latest) and drag Secopy to
-Applications. The app isn't signed yet, so the first time macOS refuses to open it:
-right-click Secopy in Applications, choose **Open**, then **Open** again. After that it
-starts normally.
+Applications. The app isn't signed or notarized yet, so the first time macOS refuses to
+open it ("Apple could not verify…"):
+
+1. Click **Done** in that message.
+2. Open **System Settings → Privacy & Security**, scroll to **Security**, and click
+   **Open Anyway** next to the line about Secopy.
+3. Click **Open Anyway** again and confirm with your password or Touch ID.
+
+After that it starts normally. (Right-click → Open no longer works for this since macOS 15.)
+In Terminal, `xattr -dr com.apple.quarantine /Applications/Secopy.app` does the same.
 
 ## Development
 

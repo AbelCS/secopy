@@ -2,7 +2,8 @@
 
 Tauri's WebDriver doesn't support macOS, so the app gets this check by hand on a real Mac
 with a real SD card (or any USB stick) before each release. Build it with
-`npm run tauri build` from `ui/` (or install the release `.dmg`), then:
+`npm run tauri build` from `ui/` (or install the release `.dmg` as the README's Install
+section says, which also checks those first-launch steps), then:
 
 1. **Normal offload.** Insert a card with some video files. Drop its folder from Finder on
    FROM, choose an empty destination on TO. Expect: file count, size and hidden items
