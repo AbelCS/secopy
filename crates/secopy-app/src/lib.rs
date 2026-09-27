@@ -3,6 +3,7 @@
 pub mod commands;
 pub mod dto;
 pub mod jobs;
+mod migrate;
 mod picker;
 pub mod session;
 
@@ -60,8 +61,15 @@ pub fn run() {
         })
         .setup(move |app| {
             builder.mount_events(app);
-            let reports = app.path().app_data_dir()?.join("reports");
-            app.manage(AppState::new(reports));
+            let data = app.path().app_data_dir()?;
+            // Reports saved by 0.2.0 under its old identifier (RFD §14): moved once.
+            if let Some(parent) = data.parent() {
+                let old = parent.join(migrate::OLD_IDENTIFIER);
+                if let Err(e) = migrate::move_old_reports(&old, &data) {
+                    eprintln!("Secopy: the 0.2.0 reports stay in {}: {e}", old.display());
+                }
+            }
+            app.manage(AppState::new(data.join("reports")));
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -209,6 +217,14 @@ mod tests {
 
     /// The UI's bindings must match the Rust commands. Set `SECOPY_UPDATE_BINDINGS=1` to
     /// rewrite them after changing a command or a DTO.
+    #[test]
+    fn the_app_identifier_is_latecommits() {
+        let conf = Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+        let conf: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(conf).unwrap()).unwrap();
+        assert_eq!(conf["identifier"], "com.latecommits.secopy");
+    }
+
     #[test]
     fn ui_bindings_are_up_to_date() {
         let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ui/src/lib/bindings.ts");
