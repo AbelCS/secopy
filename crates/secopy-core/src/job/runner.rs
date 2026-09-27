@@ -71,6 +71,9 @@ pub(super) struct Runner<'a> {
     pub(super) bypass_unavailable: AtomicBool,
     /// Partial files left by interrupted jobs that were removed (FR-18).
     pub(super) removed_partials: AtomicU64,
+    /// Set when the source is gone: no new copies start, but files already copied are
+    /// still verified, since that only needs the destination (FR-21).
+    stop_copying: AtomicBool,
     /// Folders already created, so each one costs one system call (FR-10).
     created_dirs: Mutex<HashSet<PathBuf>>,
 }
@@ -102,6 +105,7 @@ impl<'a> Runner<'a> {
             fatal: Mutex::new(None),
             bypass_unavailable: AtomicBool::new(false),
             removed_partials: AtomicU64::new(0),
+            stop_copying: AtomicBool::new(false),
             created_dirs: Mutex::new(HashSet::new()),
         }
     }
@@ -123,7 +127,7 @@ impl<'a> Runner<'a> {
 
     pub(super) fn copy_lane(&self, queue: &Queue, verify_tx: &mpsc::SyncSender<VerifyTask>) {
         // Blocks while paused, so no new file starts during a pause (FR-22).
-        while self.control.checkpoint().is_ok() {
+        while !self.stop_copying.load(Relaxed) && self.control.checkpoint().is_ok() {
             let Some(idx) = queue.pop() else { break };
             self.copy_one(idx, verify_tx);
         }
@@ -395,8 +399,12 @@ impl<'a> Runner<'a> {
             self.fatal
                 .lock()
                 .expect("fatal lock poisoned")
-                .get_or_insert(fatal);
-            self.control.cancel();
+                .get_or_insert(fatal.clone());
+            if fatal == FatalError::SourceGone {
+                self.stop_copying.store(true, Relaxed);
+            } else {
+                self.control.cancel();
+            }
         }
         self.outcomes
             .lock()

@@ -225,7 +225,7 @@ pub fn run_job(
         .expect("outcomes lock poisoned");
     let fatal = runner.fatal.into_inner().expect("fatal lock poisoned");
     let mut removed_partials = runner.removed_partials.load(Relaxed);
-    if !control.is_stopped() {
+    if !control.is_stopped() && fatal.is_none() {
         // Before the folder times: removing a file changes its folder's time.
         removed_partials += remove_leftover_partials(plan);
         create_empty_dirs(plan);

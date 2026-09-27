@@ -244,7 +244,8 @@ with `paused: true`. Files stay open and the system stays awake.
 **Fatal errors (FR-21):** after any per-file I/O error, the runner checks the relevant root
 again: the destination, or the source root the file came from. If the root is gone, or its
 device id changed (unmounted, or remounted elsewhere), the job stops with
-`FatalError::DestinationGone` or `SourceGone`. `StorageFull` stays fatal
+`FatalError::DestinationGone` or `SourceGone`. `SourceGone` only stops new copies: files already copied
+are still verified, since that needs only the destination. *(CI)* `StorageFull` stays fatal
 (`FatalError::DiskFull`). Anything else fails only that file. `FatalError` is separate from
 `FileError`; `JobReport::fatal` becomes `Option<FatalError>`.
 
