@@ -486,3 +486,4 @@ The stack meets these constraints:
 | 2026-09-27 | Keep-awake uses the OS directly (`caffeinate`, `systemd-inhibit`, `SetThreadExecutionState`) instead of a crate that would add D-Bus to every Linux build. |
 | 2026-09-27 | Fatal errors are detected by re-checking the source and destination roots (existence and device id) after any per-file I/O error (FR-21). |
 | 2026-09-27 | Engine M1 design: [2026-09-27-engine-complete-design.md](../superpowers/specs/2026-09-27-engine-complete-design.md). |
+| 2026-09-27 | Plans 1 and 2 (M0 and M1) ship together as the first release, 0.1.0: plan 2 was merged before plan 1's release PR. Later plans move up one minor version: desktop app 0.2.0, performance 0.3.0, packaging 0.4.0, betas 0.5.x, then 1.0.0. |
