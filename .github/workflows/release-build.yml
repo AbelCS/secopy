@@ -1,6 +1,6 @@
 name: release-build
 
-# Tests, builds and packages the Apple Silicon binary (RFD NFR-9). release-please.yml
+# Tests, builds and packages the Apple Silicon app (.dmg) and CLI (RFD NFR-9). release-please.yml
 # calls it when a release is created and the files are attached to that release. Run it
 # by hand without a tag to check the build: the files are then kept as a run artifact.
 on:
@@ -30,14 +30,26 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
       - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
       - run: brew install xxhash
+      - run: npm ci
+        working-directory: ui
       # The same suite as ci.yml: nothing is released without it.
+      - run: npm run check && npm test
+        working-directory: ui
       - run: cargo test --workspace --locked
         env:
           SECOPY_REQUIRE_XXHSUM: "1"
           SECOPY_DEVICE_TESTS: "1"
       - run: rustup target add "$TARGET"
       - run: cargo build --release --locked -p secopy-cli --target "$TARGET"
+      # Unsigned for now: first launch is right-click → Open (see README).
+      - run: npm run tauri -- build --target "$TARGET" --bundles dmg
+        working-directory: ui
       - name: Package
         id: package
         run: |
@@ -47,15 +59,18 @@ jobs:
           cp "target/$TARGET/release/secopy-cli" README.md "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
           (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
-          echo "name=$name" >> "$GITHUB_OUTPUT"
+          cp target/"$TARGET"/release/bundle/dmg/*.dmg dist/
+          (cd dist && for f in *.dmg; do shasum -a 256 "$f" > "$f.sha256"; done)
+          echo "artifact=secopy-${version}-macos-arm64" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.package.outputs.name }}
+          name: ${{ steps.package.outputs.artifact }}
           path: |
             dist/*.tar.gz
+            dist/*.dmg
             dist/*.sha256
       - name: Attach to the release
         if: inputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ inputs.tag }}" dist/*.tar.gz dist/*.sha256 --clobber
+        run: gh release upload "${{ inputs.tag }}" dist/*.tar.gz dist/*.dmg dist/*.sha256 --clobber
