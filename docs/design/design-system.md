@@ -24,7 +24,7 @@ Every screen is an `AppShell` with three parts, always in the same place:
 - **Header** (`ScreenHeader`): the screen's title (the window's title bar already says Secopy); screen-wide controls
   on the right (Settings on New copy and Summary).
 - **Content**: `Section`s, one per part of the screen, and app-wide messages first.
-  Inside a section, one `FormRow` per kind of thing (Source, Profile, Selected, Options,
+  Inside a section, one `FormRow` per kind of thing (Source, Profile, Options,
   File types…), with a hairline between rows; a control whose row already names it hides
   its own label (`hideLabel`), keeping it for screen readers.
 - **Action bar** (`ActionBar`), always visible:
@@ -65,7 +65,7 @@ Components use tokens only, never raw colours or sizes.
 | `RadioGroup` | Exclusive options under a legend |
 | `TextField` | Labelled text input with help and an error tied to it; optional trailing button |
 | `Select` | A labelled menu |
-| `Chip` | A toggle with ✓ (file types, drives) or a removable value |
+| `Chip` | A toggle with ✓ (file types) or a removable value |
 | `Notice` | A message with icon and words: `info`, `success`, `warning`, `danger` (only danger interrupts); `announce={false}` for notes that are there when the screen opens |
 | `Stats` | Figures in one line, "3 files · 7.0 GB written · took 0:06" |
 | `ProgressBar` | One phase's progress with speed and ETA |

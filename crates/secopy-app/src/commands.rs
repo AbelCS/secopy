@@ -18,7 +18,7 @@ use crate::store::{
     PROFILES, Profile, ProfileInput, Profiles, REMEMBERED, Remembered, SETTINGS, Settings, Store,
     WindowSize,
 };
-use crate::volumes::{self, DriveView, VOLUMES};
+use crate::volumes;
 
 /// Everything the app keeps between commands.
 pub struct AppState {
@@ -477,17 +477,6 @@ pub async fn app_start(app: AppHandle) -> Result<StartView, String> {
 #[specta::specta]
 pub async fn recent_destinations(app: AppHandle) -> Result<Vec<String>, String> {
     blocking(app, |state| state.recent()).await
-}
-
-/// FROM's drives, without the one holding the destination.
-#[tauri::command]
-#[specta::specta]
-pub async fn list_drives(app: AppHandle) -> Result<Vec<DriveView>, String> {
-    blocking(app, |state| {
-        let dest = session(state).destination().map(Path::to_path_buf);
-        volumes::list(Path::new(VOLUMES), dest.as_deref())
-    })
-    .await
 }
 
 #[tauri::command]

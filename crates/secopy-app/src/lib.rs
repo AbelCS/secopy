@@ -24,7 +24,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::set_include_folder,
         commands::app_start,
         commands::recent_destinations,
-        commands::list_drives,
         commands::select_profile,
         commands::update_profile,
         commands::save_profile_as,

@@ -208,22 +208,6 @@ describe("Setup", () => {
     await fireEvent.click(to().getByRole("button", { name: "Choose…" }));
     await screen.findByText("Can't write to the destination");
   });
-  test("the drives row lists the drives, and clicking one scans it", async () => {
-    const { api } = setup(sessionView(), readyView());
-    await fireEvent.click(await from().findByRole("button", { name: /CARD_A/ }));
-    await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD_A"]));
-  });
-
-  test("the drives are asked for again every 2 seconds", async () => {
-    vi.useFakeTimers();
-    try {
-      const { api } = setup();
-      await vi.advanceTimersByTimeAsync(4100);
-      expect(api.listDrives).toHaveBeenCalledTimes(3);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
 
   test("choosing a profile selects it; Manage profiles… opens Settings", async () => {
     const { api, calls } = setup(readyView(), readyView(), { profiles: [profile()] });
@@ -307,11 +291,19 @@ describe("Setup", () => {
     await waitFor(() => expect(screen.queryByText("Scanning…")).toBeNull());
   });
 
-  test("drives and Choose… are one place to pick the source", async () => {
+  test("Source shows the chosen source, like Destination; no drives, no Selected row", () => {
+    setup(readyView());
+    const source = within(screen.getByRole("group", { name: "Source" }));
+    source.getByText(readyView().source!.label);
+    source.getByText("1,284 files · 212.4 GB · 37 system files skipped");
+    source.getByRole("button", { name: "Choose…" });
+    expect(screen.queryByRole("group", { name: "Selected" })).toBeNull();
+    expect(screen.queryByText(/cards or drives/)).toBeNull();
+  });
+
+  test("with nothing chosen, Source says how to choose", () => {
     setup();
-    const pick = within(screen.getByRole("group", { name: "Source" }));
-    await pick.findByRole("button", { name: /CARD_A/ });
-    pick.getByRole("button", { name: "Choose…" });
+    within(screen.getByRole("group", { name: "Source" })).getByText("Drop a directory or files here, or choose them.");
   });
 
   test("Esc closes Save as new…", async () => {

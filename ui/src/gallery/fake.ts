@@ -128,10 +128,6 @@ export function fakeApi(start: Partial<{ profiles: Profile[] }> = {}): Api {
       recentDestinations: ["/Volumes/V001/Day01", "/Volumes/V001/Day00"],
       warnings: [],
     }),
-    listDrives: ok([
-      { name: "CARD_A", path: "/Volumes/CARD_A", totalBytes: 128e9, freeBytes: 2e9 },
-      { name: "V001", path: "/Volumes/V001", totalBytes: 2e12, freeBytes: 1.8e12 },
-    ]),
     finishedPage: (offset: number, limit: number) =>
       Promise.resolve(Array.from({ length: Math.max(0, Math.min(limit, 40 - offset)) }, (_, i) => row(offset + i + 1))),
     onDrop: ok(() => {}),

@@ -34,11 +34,11 @@ section says, which also checks those first-launch steps), then:
 10. **Save report.** Summary → Save report… writes a `.txt` and a `.json` next to it.
 11. **Closing and quitting when idle.** With no copy running, the red button closes the
     window and the app quits; open it again and ⌘Q quits at once, without asking.
-12. **Drives.** Insert a card and a USB drive: both appear in FROM within 2 s; eject one and
-    it goes away. The Mac's own disk and the drive holding the destination aren't listed.
+12. **Drops.** Drop a card (or a directory on it) on FROM: Source shows it with its files
+    and size. Drop a directory on TO: it becomes the destination, not the source.
 13. **A profile on a real card.** Save as new… on the card's clip folder (e.g.
     `PRIVATE/M4ROOT/CLIP`), with only the video types on. Eject, insert another card of the
-    same camera, click its drive: the profile's folder and types apply. Insert a card of
+    same camera, drop or choose it: the profile's folder and types apply. Insert a card of
     another camera: "<card> has no <folder>", nothing copies. In Profile → Manage profiles…,
     Choose… a folder on the card: the folder fills in relative to the card; change a type
     and Save.
