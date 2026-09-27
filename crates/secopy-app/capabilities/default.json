@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the main window may do: pick files and folders, reveal and open results.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-ask",
+    "opener:allow-reveal-item-in-dir",
+    { "identifier": "opener:allow-open-path", "allow": [{ "path": "**" }] }
+  ]
+}
