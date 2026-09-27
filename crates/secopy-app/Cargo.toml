@@ -20,6 +20,7 @@ tauri-build.workspace = true
 chrono.workspace = true
 secopy-core.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true
 tauri.workspace = true
@@ -36,5 +37,4 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["s
 
 [dev-dependencies]
 glob.workspace = true
-serde_json.workspace = true
 tempfile.workspace = true
