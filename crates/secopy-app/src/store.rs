@@ -27,7 +27,7 @@ pub const RECENT: usize = 5;
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub write_checksum_file: bool,
-    pub show_hidden_count: bool,
+    pub show_system_count: bool,
     pub report_next_to_checksum: bool,
 }
 
@@ -39,7 +39,7 @@ struct SettingsOnDisk {
     #[serde(default = "yes")]
     write_checksum_file: bool,
     #[serde(default = "yes")]
-    show_hidden_count: bool,
+    show_system_count: bool,
     #[serde(default)]
     report_next_to_checksum: bool,
 }
@@ -53,7 +53,7 @@ impl<'de> Deserialize<'de> for Settings {
         let s = SettingsOnDisk::deserialize(d)?;
         Ok(Self {
             write_checksum_file: s.write_checksum_file,
-            show_hidden_count: s.show_hidden_count,
+            show_system_count: s.show_system_count,
             report_next_to_checksum: s.report_next_to_checksum,
         })
     }
@@ -63,7 +63,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             write_checksum_file: true,
-            show_hidden_count: true,
+            show_system_count: true,
             report_next_to_checksum: false,
         }
     }
@@ -435,12 +435,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::write(
             dir.path().join(SETTINGS),
-            br#"{"version": 1, "showHiddenCount": false, "later": 1}"#,
+            br#"{"version": 1, "showSystemCount": false, "later": 1}"#,
         )
         .unwrap();
         let (settings, warning) = Store::new(dir.path().to_path_buf()).load::<Settings>(SETTINGS);
         assert_eq!(warning, None);
-        assert!(!settings.show_hidden_count && settings.write_checksum_file);
+        assert!(!settings.show_system_count && settings.write_checksum_file);
     }
 
     #[cfg(unix)]
@@ -455,7 +455,7 @@ mod tests {
         let result = store.save(
             SETTINGS,
             &Settings {
-                show_hidden_count: false,
+                show_system_count: false,
                 ..Settings::default()
             },
         );

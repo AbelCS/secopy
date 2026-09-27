@@ -672,7 +672,7 @@ mod tests {
                     s.spawn(move || {
                         let settings = Settings {
                             write_checksum_file: i % 2 == 0,
-                            show_hidden_count: i % 3 == 0,
+                            show_system_count: i % 3 == 0,
                             report_next_to_checksum: i % 5 == 0,
                         };
                         let a = state.set_settings(settings).err();

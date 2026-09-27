@@ -64,7 +64,7 @@ describe("Setup", () => {
     expect(from().getAllByRole("button", { name: "Choose…" })).toHaveLength(1);
     await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD/DCIM"]));
-    await screen.findByText("1,284 files · 212.4 GB · 37 hidden items skipped");
+    await screen.findByText("1,284 files · 212.4 GB · 37 system files skipped");
     api.pickSource.mockResolvedValueOnce(["/a.wav", "/b.wav"]);
     await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/a.wav", "/b.wav"]));
@@ -270,7 +270,7 @@ describe("Setup", () => {
   });
 
   test("the hidden count follows the setting", () => {
-    setup(readyView(), undefined, { settings: settingsView({ showHiddenCount: false }) });
+    setup(readyView(), undefined, { settings: settingsView({ showSystemCount: false }) });
     screen.getByText("1,284 files · 212.4 GB");
   });
 

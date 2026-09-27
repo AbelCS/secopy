@@ -39,7 +39,7 @@ describe("SettingsScreen", () => {
   test("a settings save error is shown", async () => {
     const { api } = show();
     api.setSettings.mockRejectedValueOnce(new Error("Couldn't save the settings: disk full"));
-    await fireEvent.click(screen.getByLabelText("Show the count of skipped hidden items"));
+    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
     await screen.findByText("Couldn't save the settings: disk full");
   });
 
@@ -57,14 +57,14 @@ describe("SettingsScreen", () => {
   test("a change says it was saved, and there is nothing to apply", async () => {
     show();
     expect(screen.queryByRole("button", { name: /apply|cancel|done/i })).toBeNull();
-    await fireEvent.click(screen.getByLabelText("Show the count of skipped hidden items"));
+    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
     await screen.findByText("Saved");
   });
 
   test("a change that couldn't be saved doesn't say saved", async () => {
     const { api } = show();
     api.setSettings.mockRejectedValueOnce(new Error("Couldn't save the settings: disk full"));
-    await fireEvent.click(screen.getByLabelText("Show the count of skipped hidden items"));
+    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
     await screen.findByText("Couldn't save the settings: disk full");
     expect(screen.queryByText("Saved")).toBeNull();
   });
@@ -72,7 +72,7 @@ describe("SettingsScreen", () => {
   test("each setting explains itself", () => {
     show();
     screen.getByText(/xxhsum -c/);
-    screen.getByText(/never copied/);
+    screen.getByText(/\.DS_Store/);
     screen.getByText(/also kept in the app/);
   });
 });

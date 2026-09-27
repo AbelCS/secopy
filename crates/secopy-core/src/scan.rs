@@ -9,13 +9,14 @@ use std::time::SystemTime;
 use walkdir::WalkDir;
 
 use crate::filter::{ExtKey, ExtensionFilter, ext_key};
-use crate::hidden::is_hidden;
 use crate::source::{DirMode, Source};
+use crate::system::is_system_file;
 
 #[derive(Debug, Clone, Default)]
 pub struct ScanOptions {
-    /// Include hidden files and folders (FR-14). Not exposed in the v1 UI.
-    pub include_hidden: bool,
+    /// Include system files too (FR-14): `.DS_Store`, `Thumbs.db` and the like. Hidden
+    /// files are always included.
+    pub include_system_files: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,8 +61,8 @@ pub struct Scan {
     pub empty_dirs: Vec<PathBuf>,
     /// File count and bytes per extension, for the filter chips (FR-7).
     pub ext_stats: BTreeMap<ExtKey, ExtStat>,
-    /// Hidden files and folders skipped; a skipped folder counts once (FR-13).
-    pub skipped_hidden: u64,
+    /// System files skipped; a skipped directory counts once (FR-13).
+    pub skipped_system: u64,
     /// Symlinks are never followed or copied (FR-24).
     pub skipped_symlinks: Vec<PathBuf>,
     pub problems: Vec<ScanProblem>,
@@ -196,7 +197,7 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
     }
     let mut dirs = BTreeSet::new();
     let mut non_empty = HashSet::new();
-    let mut skipped_hidden = 0u64;
+    let mut skipped_system = 0u64;
 
     let walker = WalkDir::new(&root)
         .follow_links(false)
@@ -204,15 +205,15 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
         .sort_by_file_name()
         .into_iter()
         .filter_entry(|e| {
-            // The root is passed to the predicate too; picking a hidden folder is allowed.
-            if opts.include_hidden || e.depth() == 0 {
+            // The root is passed to the predicate too; whatever was picked is scanned.
+            if opts.include_system_files || e.depth() == 0 {
                 return true;
             }
-            let hidden = e.metadata().is_ok_and(|m| is_hidden(e.path(), &m));
-            if hidden {
-                skipped_hidden += 1;
+            let system = is_system_file(e.file_name());
+            if system {
+                skipped_system += 1;
             }
-            !hidden
+            !system
         });
 
     for entry in walker {
@@ -255,7 +256,7 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
         // Sockets, FIFOs and devices are ignored.
     }
 
-    scan.skipped_hidden = skipped_hidden;
+    scan.skipped_system = skipped_system;
     scan.empty_dirs = dirs
         .into_iter()
         .filter(|d| !non_empty.contains(d))

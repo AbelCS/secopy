@@ -33,7 +33,7 @@ export function sourceView(over: Partial<SourceView> = {}): SourceView {
       { key: "xml", label: ".xml", files: 24, bytes: 2_000_000 },
     ],
     selectedExtensions: null,
-    skippedHidden: 37,
+    skippedSystem: 37,
     skippedSymlinks: 0,
     problems: [],
     problemCount: 0,
@@ -145,7 +145,7 @@ export function profile(over: Partial<Profile> = {}): Profile {
 }
 
 export function settingsView(over: Partial<Settings> = {}): Settings {
-  return { writeChecksumFile: true, showHiddenCount: true, reportNextToChecksum: false, ...over };
+  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, ...over };
 }
 
 export function drive(over: Partial<DriveView> = {}): DriveView {

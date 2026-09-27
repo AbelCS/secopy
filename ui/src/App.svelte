@@ -37,7 +37,7 @@
   });
   let verify = $state(true);
   let profiles: Profile[] = $state([]);
-  let settings: Settings = $state({ writeChecksumFile: true, showHiddenCount: true, reportNextToChecksum: false });
+  let settings: Settings = $state({ writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false });
   let recent: string[] = $state([]);
   let progress: ProgressView | null = $state(null);
   let summary: SummaryView | null = $state(null);

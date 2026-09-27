@@ -57,7 +57,8 @@ pub struct SourceView {
     pub extensions: Vec<ExtensionView>,
     /// `None` = every extension; otherwise the selected keys (FR-8).
     pub selected_extensions: Option<Vec<ExtensionKey>>,
-    pub skipped_hidden: u32,
+    /// System files skipped (`.DS_Store`, `Thumbs.db`…); hidden files are copied (FR-12).
+    pub skipped_system: u32,
     pub skipped_symlinks: u32,
     /// Things that couldn't be read while scanning, first 20.
     pub problems: Vec<String>,
