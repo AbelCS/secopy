@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -269,11 +270,16 @@ struct VersionOnly {
 /// The app's data folder.
 pub struct Store {
     dir: PathBuf,
+    /// One save at a time: saves share the temp-file name.
+    saving: Mutex<()>,
 }
 
 impl Store {
     pub fn new(dir: PathBuf) -> Self {
-        Self { dir }
+        Self {
+            dir,
+            saving: Mutex::new(()),
+        }
     }
 
     /// Reads `name`: a missing file gives the defaults; a file that can't be read is set
@@ -316,6 +322,7 @@ impl Store {
     /// Writes `name` through a temp file and a rename, so a failed save never leaves half a
     /// file.
     pub fn save<T: Serialize>(&self, name: &str, data: &T) -> Result<(), String> {
+        let _one_at_a_time = self.saving.lock().expect("store lock poisoned");
         let path = self.dir.join(name);
         let failed = |e: io::Error| format!("{}: {e}", path.display());
         fs::create_dir_all(&self.dir).map_err(failed)?;
