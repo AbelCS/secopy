@@ -41,7 +41,7 @@
   <ul class="stats">
     <li>{plural(summary.files, "file")}</li>
     <li>{formatBytes(summary.bytesWritten)} written</li>
-    <li>{formatDuration(summary.millis)}</li>
+    <li>took {formatDuration(summary.millis)}</li>
     <li>
       {formatSpeed(summary.millis > 0 ? (summary.bytesWritten * 1000) / summary.millis : null)} average
     </li>
@@ -130,13 +130,19 @@
     color: var(--text-muted);
   }
 
+  /* "106 files · 180.0 GB written · took 4:12 · …" */
+  .stats li + li::before {
+    content: "·";
+    margin-right: 8px;
+  }
+
   .stats {
     list-style: none;
     padding: 0;
     margin: 0 0 12px;
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 16px;
+    gap: 4px 8px;
     color: var(--text-muted);
   }
 

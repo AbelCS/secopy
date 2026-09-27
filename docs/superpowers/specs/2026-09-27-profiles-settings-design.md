@@ -80,9 +80,11 @@ TO
 
 ## Settings screen (RFD §5.5)
 
-A ⚙ button in the header and **Secopy → Settings… (⌘,)** show it in the main window; Done
-goes back to where the user was. Not available during a job: the button is hidden and the
-menu item does nothing.
+A **Settings** button (gear icon) in the header and **Secopy → Settings… (⌘,)** show it in
+the main window; **‹ Back** returns to where the user was. As in macOS settings, a change
+applies and is saved at once, with a short "Saved" note; there is no Apply or Cancel. Each
+option has a one-line explanation. Not available during a job: the button is hidden and
+the menu item does nothing.
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -98,7 +100,8 @@ editor on the right: name; folder on the card, typed or filled by **Choose…** 
 a card, given relative to the card); "Include the “CLIP” folder"; file types as **All
 types** or **Only these** with removable chips and "+ add type". **Save** is active only
 when something changed; problems show next to their field; **Delete…** asks first;
-**+ New profile** starts an empty one. With no profiles, a short explanation of what a
+**+ New profile** starts an empty one. **‹ Back** returns to the main window; leaving a
+profile with unsaved changes (Back, or another profile) asks "Discard changes?". With no profiles, a short explanation of what a
 profile is. Not available during a job.
 
 Settings apply to the next job; changing one never affects a running job.

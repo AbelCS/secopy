@@ -48,7 +48,7 @@ describe("Summary", () => {
     show(summaryView({ skippedIdentical: 284 }));
     expect(screen.getByRole("status").textContent).toContain("All 1,284 files copied and verified");
     screen.getByText("212.4 GB written");
-    screen.getByText("4:12");
+    screen.getByText("took 4:12");
     screen.getByText("284 already at the destination, not checked");
     expect(screen.queryByRole("button", { name: "Retry failed" })).toBeNull();
   });

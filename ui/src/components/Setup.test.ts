@@ -238,7 +238,7 @@ describe("Setup", () => {
     const { api, calls } = setup(readyView({ profileId: "fx3", profileChanged: true }), readyView(), {
       profiles: [profile()],
     });
-    screen.getByText("Sony FX3 · changed for this run");
+    screen.getByText("Changed for this run");
     await fireEvent.click(screen.getByRole("button", { name: "Update profile" }));
     await waitFor(() => expect(api.updateProfile).toHaveBeenCalled());
     expect(calls.profiles).toHaveLength(1);
@@ -305,5 +305,12 @@ describe("Setup", () => {
     expect(includeFolder()).toHaveProperty("disabled", true);
     finishScan(readyView());
     await waitFor(() => expect(screen.queryByText("Scanning…")).toBeNull());
+  });
+
+  test("drives and Choose… are one place to pick the source", async () => {
+    setup();
+    const pick = within(screen.getByRole("group", { name: "Source" }));
+    await pick.findByRole("button", { name: /CARD_A/ });
+    pick.getByRole("button", { name: "Choose…" });
   });
 });

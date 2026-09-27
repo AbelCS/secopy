@@ -30,10 +30,11 @@
       type="button"
       class="chip"
       class:on={isOn(ext.key)}
+      class:selected-fill={isOn(ext.key)}
       aria-pressed={isOn(ext.key)}
       onclick={() => toggle(ext.key)}
     >
-      {ext.label} <span class="muted">{formatCount(ext.files)} · {formatBytes(ext.bytes)}</span>
+      {#if isOn(ext.key)}<span class="tick" aria-hidden="true">✓</span>{/if}{ext.label} <span class="muted">{formatCount(ext.files)} · {formatBytes(ext.bytes)}</span>
     </button>
   {/each}
   <button type="button" class="link" onclick={() => onChange(null)}>All</button>
@@ -55,7 +56,10 @@
 
   .chip.on {
     color: var(--text);
-    border-color: var(--accent);
+  }
+
+  .tick {
+    margin-right: 4px;
   }
 
   .muted {

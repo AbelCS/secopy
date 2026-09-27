@@ -78,7 +78,7 @@
     </select>
   </label>
   {#if selected && view.profileChanged}
-    <span class="muted">{selected.name} · changed for this run</span>
+    <span class="muted">Changed for this run</span>
     <button type="button" disabled={busy} onclick={() => act(() => api.updateProfile())}>Update profile</button>
   {/if}
   {#if canSaveAs}
