@@ -90,11 +90,11 @@ describe("App", () => {
     screen.getByRole("option", { name: "Sony FX3" });
   });
 
-  test("Settings opens from the gear and from the menu, and Done goes back", async () => {
+  test("Settings opens from the gear and from the menu, and Cancel goes back", async () => {
     const { state } = app();
     await fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
     await screen.findByRole("heading", { name: "Settings" });
-    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await startButton();
     await waitFor(() => expect(state.openSettings).not.toBeNull());
     state.openSettings!();
