@@ -16,6 +16,11 @@ function show(summary: SummaryView) {
 }
 
 describe("Summary", () => {
+  test("a report that couldn't be saved says why", () => {
+    show(summaryView({ reportFile: null, reportError: "/Users/me/reports: Permission denied" }));
+    screen.getByText("The report could not be saved: /Users/me/reports: Permission denied");
+  });
+
   test("a complete job: status, figures and no Retry", () => {
     show(summaryView({ skippedIdentical: 284 }));
     expect(screen.getByRole("status").textContent).toContain("All 1,284 files copied and verified");
