@@ -193,10 +193,11 @@ mod tests {
 
     #[test]
     fn every_path_component_is_checked() {
-        let rel = Path::new("CARD").join("a:b").join("A001.mov");
+        // Not ':' here: Windows parses "a:" at the start of a path as a drive.
+        let rel = Path::new("CARD").join("a?b").join("A001.mov");
         assert_eq!(
             check_path(&rel, &exfat()),
-            Err(NameProblem::InvalidChar(':'))
+            Err(NameProblem::InvalidChar('?'))
         );
         assert_eq!(check_path(Path::new("CARD/A001.mov"), &exfat()), Ok(()));
     }
