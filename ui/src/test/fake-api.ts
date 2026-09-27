@@ -213,6 +213,7 @@ export function fakeApi(session: SessionView = sessionView()) {
       return Promise.resolve(() => {});
     }),
     pickSource: vi.fn(() => Promise.resolve(["/Volumes/CARD/DCIM"] as string[] | null)),
+    pickCardFolder: vi.fn(() => Promise.resolve("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP" as string | null)),
     pickDestination: vi.fn(() => Promise.resolve("/Volumes/RAID/Day01" as string | null)),
     pickReportPath: vi.fn((_s: string) => Promise.resolve("/tmp/report.txt" as string | null)),
     confirm: vi.fn((_m: string, _t: string, _ok?: string, _cancel?: string) => Promise.resolve(true)),

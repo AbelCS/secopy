@@ -82,6 +82,9 @@ export const tauriApi = {
 
   /** FROM's Choose…: a folder or files, in one panel. */
   pickSource: (): Promise<string[] | null> => unwrap(commands.pickSource()),
+  /** A folder on a card, for a profile's folder. */
+  pickCardFolder: async (): Promise<string | null> =>
+    asList(await open({ directory: true, multiple: false, title: "Folder on the card" }))?.[0] ?? null,
   pickDestination: async (): Promise<string | null> =>
     asList(await open({ directory: true, multiple: false, title: "Copy to" }))?.[0] ?? null,
   pickReportPath: (suggested: string): Promise<string | null> =>

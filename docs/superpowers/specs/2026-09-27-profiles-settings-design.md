@@ -58,7 +58,8 @@ TO
   source, like a drop. Updated every 2 s while the setup screen shows; a drive that goes
   away while it is the source keeps the current view (pre-flight and the job already
   handle a missing source).
-- **Profile menu:** None, the profiles by name, and Manage profiles… (opens Settings).
+- **Profile menu:** None, the profiles by name, and Manage profiles… (opens the Profiles
+  screen).
   Selecting a profile rescans with its folder, include-folder choice and file types.
   Disabled when the source is a set of files (B4).
 - **Picked + folder:** with a profile selected, the source is the picked path joined with
@@ -89,9 +90,16 @@ menu item does nothing.
 | Show the count of skipped hidden items | On | Off: the count isn't shown; hidden files are still skipped. |
 | Also save the job report next to the checksum file | Off | On: the report is also written next to the checksum file (`Report::write_next_to`). Disabled while the checksum file is off. |
 
-**Profiles** section: the list, with Edit (name, folder, include folder, file types as a
-comma-separated list or "all") and Delete (asks first). New profiles come from "Save as
-new…" or a New button with an empty form.
+## Profiles screen
+
+Opened by **Manage profiles…** in the Profile menu (Settings has only the three settings, so
+each entry point leads to one place). The profile list on the left, the selected profile's
+editor on the right: name; folder on the card, typed or filled by **Choose…** (a folder on
+a card, given relative to the card); "Include the “CLIP” folder"; file types as **All
+types** or **Only these** with removable chips and "+ add type". **Save** is active only
+when something changed; problems show next to their field; **Delete…** asks first;
+**+ New profile** starts an empty one. With no profiles, a short explanation of what a
+profile is. Not available during a job.
 
 Settings apply to the next job; changing one never affects a running job.
 

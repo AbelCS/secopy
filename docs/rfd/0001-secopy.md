@@ -198,7 +198,6 @@ One small settings page, with no tabs. The app works without ever opening it.
 | Also save the job report next to the checksum file | Off | FR-35. |
 | Notify when a job finishes | On | Plan 3b-2. |
 | Advanced: files in flight, buffer size | Auto | §7.2. Folded under "Advanced". Plan 4 (performance). |
-| Profiles | — | FR-38: list, edit, delete. |
 | Include hidden files | — | Reserved (FR-14). Not shown in v1. |
 
 Settings are stored per user in the OS's standard app-config location.
