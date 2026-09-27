@@ -52,9 +52,9 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Choose between copying **the folder itself** (`SOURCE/…`) or **only its contents** (`…`).
 - Skip hidden files and folders, with the design ready to include them later.
 - Get close to the throughput of the slower of the two devices.
-- Run natively on macOS (Apple Silicon + Intel). v1 is macOS only (§14, 2026-09-27). The
-  engine stays portable: it is built and tested on Linux and Windows in CI, so apps for
-  those can follow after v1 (§11).
+- Run natively on Apple Silicon Macs. v1 is macOS only, and Intel Macs are not supported
+  (§14, 2026-09-27). The engine stays portable: it is built and tested on Linux and
+  Windows in CI, so apps for those can follow after v1 (§11).
 
 ### Non-goals (v1)
 
@@ -394,7 +394,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
 | NFR-6 | **Correctness over speed:** no optimization may weaken FR-18/25/26. |
 | NFR-7 | **Paths:** full Unicode (names are preserved byte-for-byte as the OS reports them; no NFC/NFD rewriting). Windows long paths (> 260 chars) are supported. Files > 4 GiB are supported. |
 | NFR-8 | **No elevated privileges** needed. No network access, no telemetry. |
-| NFR-9 | **Distribution:** macOS universal binary, signed and notarized (`.dmg`). An optional auto-updater, off by default, is the only network access. Windows and Linux packages come with those apps, after v1 (§11). |
+| NFR-9 | **Distribution:** Apple Silicon (`arm64`) build, signed and notarized (`.dmg`). An optional auto-updater, off by default, is the only network access. Windows and Linux packages come with those apps, after v1 (§11). |
 | NFR-10 | **Accessibility:** full keyboard operation, screen-reader labels on every control, WCAG AA contrast on the dark palette, respects "reduce motion". |
 | NFR-11 | **i18n-ready:** all strings externalized. English first. |
 | NFR-12 | **Look and feel:** dark theme only in v1 (§5.6), built on design tokens so a light theme can be added later. Native file pickers, notifications and menus. |
@@ -496,3 +496,4 @@ The stack meets these constraints:
 | 2026-09-27 | Engine M1 design: [2026-09-27-engine-complete-design.md](../superpowers/specs/2026-09-27-engine-complete-design.md). |
 | 2026-09-27 | Plans 1 and 2 (M0 and M1) ship together as the first release, 0.1.0: plan 2 was merged before plan 1's release PR. Later plans move up one minor version: desktop app 0.2.0, performance 0.3.0, packaging 0.4.0, betas 0.5.x, then 1.0.0. |
 | 2026-09-27 | v1 is a macOS app. Design, testing, polish, signing and packaging target macOS only until 1.0; Linux and Windows apps come after v1. The engine stays portable and keeps building and testing on all three OSes in CI. Supporting three OSes mostly costs testing and packaging work, and the main audience (media offload) is largely on Macs. |
+| 2026-09-27 | Apple Silicon only: no Intel Macs. Builds and releases are `aarch64-apple-darwin`, not universal binaries. |
