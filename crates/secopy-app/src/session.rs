@@ -35,6 +35,16 @@ pub struct Session {
     plan: Option<Plan>,
 }
 
+/// Everything a job needs from the main window.
+pub struct Ready {
+    pub source: Source,
+    pub plan: Plan,
+    /// The source as shown, for the report.
+    pub label: String,
+    /// Where the files land, for Reveal in Finder.
+    pub copy_root: PathBuf,
+}
+
 struct Picked {
     label: String,
     source: Source,
@@ -137,12 +147,16 @@ impl Session {
         self.view()
     }
 
-    /// The source and plan to start a job with; `None` while anything blocks Start.
-    pub fn ready(&self) -> Option<(&Source, &Plan, String)> {
+    /// What a job starts with; `None` while anything blocks Start.
+    pub fn ready(&self) -> Option<Ready> {
         let picked = self.source.as_ref()?;
         let plan = self.plan.as_ref()?;
-        (plan.blockers().is_empty() && !plan.files.is_empty())
-            .then(|| (&picked.source, plan, picked.label.clone()))
+        (plan.blockers().is_empty() && !plan.files.is_empty()).then(|| Ready {
+            source: picked.source.clone(),
+            plan: plan.clone(),
+            label: picked.label.clone(),
+            copy_root: self.copy_root(&plan.dest),
+        })
     }
 
     fn recompute(&mut self) {
