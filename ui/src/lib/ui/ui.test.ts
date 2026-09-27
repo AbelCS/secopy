@@ -41,14 +41,9 @@ describe("design system", () => {
     expect(screen.getByRole("contentinfo").textContent).toBe("act");
   });
 
-  test("ScreenHeader: the title, and Back only when there is somewhere to go", async () => {
-    const onBack = vi.fn();
-    const { unmount } = render(ScreenHeader, { props: { title: "Settings", onBack } });
+  test("ScreenHeader: the title; Back lives in the action bar with the other buttons", () => {
+    render(ScreenHeader, { props: { title: "Settings" } });
     screen.getByRole("heading", { level: 1, name: "Settings" });
-    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(onBack).toHaveBeenCalled();
-    unmount();
-    render(ScreenHeader, { props: { title: "New copy" } });
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
   });
 

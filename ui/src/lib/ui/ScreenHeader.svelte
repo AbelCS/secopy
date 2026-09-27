@@ -1,18 +1,9 @@
 <script lang="ts">
-  // Top of every screen: ‹ Back (only when there is somewhere to go back to), the title, and
-  // screen-wide controls on the right.
+  // Top of every screen: the title, and screen-wide controls on the right. Buttons that act
+  // on the screen, Back included, are in the action bar.
   import { onMount, type Snippet } from "svelte";
-  import Button from "./Button.svelte";
 
-  let {
-    title,
-    onBack,
-    trailing,
-  }: {
-    title: string;
-    onBack?: () => void;
-    trailing?: Snippet;
-  } = $props();
+  let { title, trailing }: { title: string; trailing?: Snippet } = $props();
 
   // A new screen takes focus at its title, so a screen reader says where you are (NFR-10).
   let heading: HTMLHeadingElement;
@@ -21,9 +12,6 @@
 
 <div class="screen-header">
   <div class="lead">
-    {#if onBack}
-      <Button variant="link" icon="chevron-left" onclick={onBack}>Back</Button>
-    {/if}
     <h1 bind:this={heading} tabindex="-1">{title}</h1>
   </div>
   {#if trailing}<div class="trailing">{@render trailing()}</div>{/if}

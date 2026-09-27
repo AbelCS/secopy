@@ -61,7 +61,8 @@
         <Button variant="primary">Primary</Button>
         <Button>Secondary</Button>
         <Button variant="danger">Delete…</Button>
-        <Button variant="link" icon="chevron-left">Back</Button>
+        <Button icon="chevron-left">Back</Button>
+        <Button variant="link">+ New profile</Button>
         <Button icon="settings">Settings</Button>
         <Button variant="primary" disabled>Disabled</Button>
       </div>

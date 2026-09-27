@@ -13,16 +13,15 @@ Every screen is an `AppShell` with three parts, always in the same place:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ ‹ Back   Screen title                          [⚙ Settings] │  header
+│ Screen title                                   [⚙ Settings] │  header
 ├──────────────────────────────────────────────────────────────┤
 │  Sections (FROM, TO, Files…): the only part that scrolls     │  content
 ├──────────────────────────────────────────────────────────────┤
-│ [other] [danger]              status          [ PRIMARY ]   │  action bar
+│ [‹ Back] [other] [danger]     status          [ PRIMARY ]   │  action bar
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **Header** (`ScreenHeader`): ‹ Back on the left when there is somewhere to go back to;
-  the screen's title (the window's title bar already says Secopy); screen-wide controls
+- **Header** (`ScreenHeader`): the screen's title (the window's title bar already says Secopy); screen-wide controls
   on the right (Settings on New copy and Summary).
 - **Content**: `Section`s, one per part of the screen, and app-wide messages first.
   Inside a section, one `FormRow` per kind of thing (Source, Profile, Selected, Options,
@@ -30,7 +29,9 @@ Every screen is an `AppShell` with three parts, always in the same place:
   its own label (`hideLabel`), keeping it for screen readers.
 - **Action bar** (`ActionBar`), always visible:
   - **right:** the screen's one primary action (Start, New copy, Save);
-  - **left:** the other actions, and destructive ones (Cancel, Delete…) in red;
+  - **left:** ‹ Back first, when there is somewhere to go back to; then the other actions,
+    and destructive ones (Cancel, Delete…) in red. Buttons that act on the screen are all
+    here, never in the header;
   - **middle:** a short status. It explains a disabled primary action ("Choose where to
     copy to."), or says what will happen.
 - Settings apply at once, so the Settings screen has no Apply or Cancel; its status says
@@ -54,7 +55,7 @@ Components use tokens only, never raw colours or sizes.
 | Component | Use it for |
 |---|---|
 | `AppShell` | Every screen's frame: `header`, content, `actions` |
-| `ScreenHeader` | Title, optional ‹ Back, optional trailing controls |
+| `ScreenHeader` | Title and optional trailing controls |
 | `ActionBar` | The bottom bar: `start`, `status`, `end` |
 | `Section` | A titled part of a screen; the only card style |
 | `FormRow` | One labelled line inside a section: the label column on the left, the content, the row's own actions on the right (Choose…, All · None) |
