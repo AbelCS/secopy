@@ -71,11 +71,22 @@
     return parts.join(" · ");
   });
 
-  async function cancel() {
+  export async function cancel() {
     const stop = await api.confirm(stopMessage(checksumFile), "Stop copying?");
     if (stop) await api.cancelJob();
   }
+
+  /** Space pauses and resumes; not while a field or button has focus (Space is theirs). */
+  function onKey(e: KeyboardEvent) {
+    if (e.key !== " " || e.repeat || progress.phase === "done") return;
+    const t = e.target as HTMLElement | null;
+    if (t?.closest?.("input, textarea, select, button, [contenteditable]")) return;
+    e.preventDefault();
+    void (progress.paused ? api.resumeJob() : api.pauseJob());
+  }
 </script>
+
+<svelte:window onkeydown={onKey} />
 
 <AppShell>
   {#snippet header()}

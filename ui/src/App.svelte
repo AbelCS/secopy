@@ -43,6 +43,23 @@
   let progress: ProgressView | null = $state(null);
   let summary: SummaryView | null = $state(null);
   let error: string | null = $state(null);
+  let setupScreen: Setup | undefined = $state();
+  let progressScreen: JobProgress | undefined = $state();
+  /** Start is enabled on New copy. */
+  let setupReady = $state(false);
+
+  // The File menu offers only what applies here (spec §3).
+  $effect(() => {
+    const copying = screen === "progress" && progress?.phase !== "done";
+    void api.setMenuState(screen === "setup", screen === "setup" && setupReady, copying).catch(() => {});
+  });
+
+  function onMenu(item: string) {
+    if (item === "choose-source" && screen === "setup") void setupScreen?.chooseSource();
+    else if (item === "choose-destination" && screen === "setup") void setupScreen?.chooseDestination();
+    else if (item === "start-copy" && screen === "setup") setupScreen?.startIfReady();
+    else if (item === "cancel-copy" && screen === "progress") void progressScreen?.cancel();
+  }
 
   /** What the progress view shows before the first update arrives. */
   const waiting = (): ProgressView => ({
@@ -136,6 +153,7 @@
       warnings = start.warnings;
     });
     const unlistenSettings = api.onOpenSettings(openSettings);
+    const unlistenMenu = api.onMenu(onMenu);
     // Closing during a copy asks first; if closed anyway, the app stops the copy cleanly.
     const unlisten = api.onCloseRequested(async (prevent) => {
       if (!(await api.jobRunning())) return;
@@ -146,6 +164,7 @@
     return () => {
       unlisten.then((stop) => stop());
       unlistenSettings.then((stop) => stop());
+      unlistenMenu.then((stop) => stop());
     };
   });
 </script>
@@ -163,6 +182,8 @@
 
 {#if screen === "setup"}
   <Setup
+    bind:this={setupScreen}
+    bind:ready={setupReady}
     bind:view
     bind:verify
     {profiles}
@@ -176,7 +197,7 @@
     onSettings={openSettings}
   />
 {:else if screen === "progress" && progress}
-  <JobProgress {progress} checksumFile={settings.writeChecksumFile} {banner} />
+  <JobProgress bind:this={progressScreen} {progress} checksumFile={settings.writeChecksumFile} {banner} />
 {:else if screen === "summary" && summary}
   <Summary {summary} {banner} onRetry={retry} onNewCopy={newCopy} onSettings={openSettings} />
 {:else if screen === "settings"}

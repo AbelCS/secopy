@@ -31,6 +31,7 @@
     onMode,
     onSettings,
     banner,
+    ready = $bindable(false),
   }: {
     view: SessionView;
     verify: boolean;
@@ -46,6 +47,8 @@
     onSettings?: () => void;
     /** App-wide messages, shown first. */
     banner?: Snippet;
+    /** Start is enabled (for the File menu's Start Copy). */
+    ready?: boolean;
   } = $props();
 
   const api = useApi();
@@ -135,10 +138,19 @@
     if (path) void setDestination(path);
   }
 
+  $effect(() => {
+    ready = canStart;
+  });
+
+  /** Start from the File menu: only what the Start button would start. */
+  export function startIfReady() {
+    if (canStart) onStart();
+  }
+
   /** The last part of a path: "/Volumes/CARD/DCIM" → "DCIM". */
   const baseName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
-  async function chooseSource() {
+  export async function chooseSource() {
     const paths = await api.pickSource();
     if (paths) await scan(paths);
   }
@@ -147,7 +159,7 @@
     return update(() => api.setDestination(path), (e) => (destError = e));
   }
 
-  async function chooseDestination() {
+  export async function chooseDestination() {
     const path = await api.pickDestination();
     if (path) await setDestination(path);
   }

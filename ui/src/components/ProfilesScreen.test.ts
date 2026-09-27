@@ -176,4 +176,15 @@ describe("ProfilesScreen", () => {
     expect(api.confirm).not.toHaveBeenCalled();
     expect(calls.done).toBe(1);
   });
+
+  test("Esc is Back, and still asks about unsaved changes", async () => {
+    const { api, calls } = show();
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(calls.done).toBe(1);
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
+    api.confirm.mockResolvedValueOnce(false);
+    await fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(api.confirm).toHaveBeenCalled());
+    expect(calls.done).toBe(1);
+  });
 });

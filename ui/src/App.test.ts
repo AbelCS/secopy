@@ -173,4 +173,34 @@ describe("App", () => {
     await screen.findByText(/All 1,284 files copied and verified/);
     expect(api.notify).not.toHaveBeenCalled();
   });
+
+  test("File menu items drive New copy", async () => {
+    const { api, state } = app();
+    await startButton();
+    state.menu!("choose-source");
+    await waitFor(() => expect(api.pickSource).toHaveBeenCalled());
+    state.menu!("choose-destination");
+    await waitFor(() => expect(api.pickDestination).toHaveBeenCalled());
+    state.menu!("start-copy");
+    await waitFor(() => expect(api.startJob).toHaveBeenCalled());
+    await screen.findByRole("heading", { name: "Copying & verifying" });
+    state.menu!("cancel-copy");
+    await waitFor(() => expect(api.confirm).toHaveBeenCalled());
+  });
+
+  test("the File menu only starts a copy Start would start", async () => {
+    const { api, state } = app(sessionView());
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("start-copy");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(api.startJob).not.toHaveBeenCalled();
+  });
+
+  test("the menu is told what applies", async () => {
+    const { api } = app();
+    await startButton();
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(true, true, false));
+    await fireEvent.click(await startButton());
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true));
+  });
 });

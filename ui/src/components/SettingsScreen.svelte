@@ -42,6 +42,8 @@
   }
 </script>
 
+<svelte:window onkeydown={(e) => e.key === "Escape" && onDone()} />
+
 <AppShell>
   {#snippet header()}<ScreenHeader title="Settings" onBack={onDone} />{/snippet}
 

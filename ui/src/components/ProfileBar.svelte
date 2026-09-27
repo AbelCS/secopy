@@ -89,7 +89,18 @@
   {/if}
 </div>
 {#if savingAs}
-  <form class="save-as" onsubmit={saveAs}>
+  <!-- Esc from any of its fields closes the form, like Cancel. -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <form
+    class="save-as"
+    onsubmit={saveAs}
+    onkeydown={(e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        savingAs = false;
+      }
+    }}
+  >
     <TextField label="Name" bind:value={name} placeholder="e.g. Sony FX3" />
     <TextField label="Directory on the card" bind:value={folder} mono placeholder="e.g. PRIVATE/M4ROOT/CLIP" />
     <div class="buttons">

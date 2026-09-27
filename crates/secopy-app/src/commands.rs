@@ -428,6 +428,15 @@ pub async fn eject(app: AppHandle, mount_point: String) -> Result<(), String> {
     blocking(app, move |state| state.eject(&mount_point)).await?
 }
 
+/// The UI says which File menu items apply.
+#[tauri::command]
+#[specta::specta]
+pub fn set_menu_state(app: AppHandle, setup: bool, can_start: bool, copying: bool) {
+    if let Some(menu) = app.try_state::<crate::FileMenu<tauri::Wry>>() {
+        menu.update(setup, can_start, copying);
+    }
+}
+
 /// "Retry failed": only the failed files, checked again (RFD §5.4).
 #[tauri::command]
 #[specta::specta]
