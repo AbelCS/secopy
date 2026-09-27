@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test, vi } from "vitest";
 import { apiContext } from "../lib/api";
 import type { SessionView } from "../lib/bindings";
@@ -16,6 +16,9 @@ function setup(view: SessionView = sessionView(), answer: SessionView = view) {
 }
 
 const start = () => screen.getByRole("button", { name: /copy & verify|start copy/i });
+const from = () => within(screen.getByRole("region", { name: "From" }));
+const to = () => within(screen.getByRole("region", { name: "To" }));
+const includeFolder = () => screen.getByLabelText("Include the “DCIM” folder");
 
 describe("Setup", () => {
   test("Start stays disabled until there is something to copy", () => {
@@ -31,18 +34,27 @@ describe("Setup", () => {
     expect(started).toHaveLength(1);
   });
 
-  test("Choose folder scans the picked folder", async () => {
+  test("one Choose… picks a folder or files, and scans what was picked", async () => {
     const { api } = setup(sessionView(), readyView());
-    await fireEvent.click(screen.getByRole("button", { name: "Choose folder…" }));
+    expect(from().getAllByRole("button")).toHaveLength(1);
+    await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD/DCIM"], false));
     await screen.findByText("1,284 files · 212.4 GB · 37 hidden items skipped");
+    api.pickSource.mockResolvedValueOnce(["/a.wav", "/b.wav"]);
+    await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
+    await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/a.wav", "/b.wav"], false));
   });
 
-  test("switching to 'only what's inside' rescans with contents only", async () => {
-    const { api } = setup(sessionView(), readyView());
-    await fireEvent.click(screen.getByRole("button", { name: "Choose folder…" }));
-    await fireEvent.click(await screen.findByLabelText("Copy only what's inside"));
+  test("a folder is included by default; unticking it copies only what's inside", async () => {
+    const { api } = setup(readyView());
+    expect(includeFolder()).toHaveProperty("checked", true);
+    await fireEvent.click(includeFolder());
     await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/Volumes/CARD/DCIM"], true));
+  });
+
+  test("files have no folder to include", () => {
+    setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: "2 files" }) }));
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
   test("a chip turned off narrows the filter; All selects everything again", async () => {
@@ -124,11 +136,11 @@ describe("Setup", () => {
     const { api } = setup(readyView());
     let finishScan = (_v: SessionView) => {};
     api.scanSource.mockImplementationOnce(() => new Promise((resolve) => (finishScan = resolve)));
-    await fireEvent.click(screen.getByRole("button", { name: "Choose folder…" }));
+    await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await screen.findByText("Scanning…");
     expect(start()).toHaveProperty("disabled", true);
     // A quicker destination check finishing meanwhile doesn't enable Start.
-    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await fireEvent.click(to().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.setDestination).toHaveBeenCalled());
     await Promise.resolve();
     expect(start()).toHaveProperty("disabled", true);
@@ -139,35 +151,31 @@ describe("Setup", () => {
 
   test("a scan replaced by a newer one doesn't change the view", async () => {
     const { api } = setup(readyView(), sessionView({ stale: true }));
-    await fireEvent.click(screen.getByRole("button", { name: "Choose folder…" }));
+    await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.scanSource).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByText("Scanning…")).toBeNull());
     screen.getByText("/Volumes/CARD/DCIM");
     expect(start()).toHaveProperty("disabled", false);
   });
 
-  test("the folder choice rescans the source's folder", async () => {
-    const { api } = setup(readyView());
-    await fireEvent.click(screen.getByLabelText("Copy only what's inside"));
-    await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/Volumes/CARD/DCIM"], true));
-  });
-
-  test("copying only what's inside still names the folder", () => {
-    setup(readyView({ source: sourceView({ contentsOnly: true, rootDir: null }) }));
-    screen.getByLabelText("Copy the folder “DCIM” itself");
+  test("copying only what's inside still names the folder, and ticking it includes it again", async () => {
+    const { api } = setup(readyView({ source: sourceView({ contentsOnly: true, rootDir: null }) }));
+    expect(includeFolder()).toHaveProperty("checked", false);
+    await fireEvent.click(includeFolder());
+    await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/Volumes/CARD/DCIM"], false));
   });
 
   test("a retry has no folder choice or filter to change", () => {
     setup(readyView({ source: sourceView({ isRetry: true, label: "Retry: 3 failed files" }) }));
     screen.getByText("Retry: 3 failed files");
-    expect(screen.queryByLabelText("Copy only what's inside")).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /\.xml/ })).toBeNull();
   });
 
   test("a command error is shown where it happened", async () => {
     const { api } = setup(sessionView({ source: sourceView() }));
     api.setDestination.mockRejectedValueOnce(new Error("Can't write to the destination"));
-    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await fireEvent.click(to().getByRole("button", { name: "Choose…" }));
     await screen.findByText("Can't write to the destination");
   });
 });

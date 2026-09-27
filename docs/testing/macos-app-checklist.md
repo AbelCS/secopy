@@ -18,8 +18,9 @@ section says, which also checks those first-launch steps), then:
 4. **Different files with the same name.** Change one file on the card (or copy another
    file over it), run again with Keep both. Expect: "1 file differs", and the copy lands as
    `name (1).ext`.
-5. **Only what's inside, and the filter.** Choose "Copy only what's inside" and turn off an
-   extension chip. Expect: the counts and "Files will go to" follow.
+5. **Choose…, only what's inside, and the filter.** FROM → Choose…: the panel accepts a
+   folder or several files. Pick the card folder, untick "Include the “…” folder" and turn
+   off an extension chip. Expect: the counts and "Files will go to" follow.
 6. **Pause and Cancel.** Start a large copy, Pause (the bars stop), Resume, then Cancel and
    confirm. Expect: the summary says Cancelled, and no `.secopy-partial` file is left in
    the destination (`ls -la`).

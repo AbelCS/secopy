@@ -96,8 +96,9 @@ summary.
 
 ## Main window (RFD §5.2)
 
-- **FROM:** Choose folder…, Choose files…, or drop from Finder. Shows the path, file count,
-  size and skipped hidden items. For a folder: Copy the folder itself / Only its contents,
+- **FROM:** Choose… (one panel for a folder or files) or drop from Finder. Shows the path,
+  file count, size and skipped hidden items. For a folder: an "Include the “DCIM” folder"
+  checkbox (on by default; off copies only what's inside),
   and the extension chips (largest first, All / None).
 - **TO:** Choose… or drop. Shows the path and free space, then "Files will go to: …". If
   that folder exists and isn't empty, a yellow warning with its file count (A5).
