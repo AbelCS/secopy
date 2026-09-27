@@ -185,8 +185,11 @@ to files already copied). The OS is kept awake while the job runs.
   already at the destination are counted separately and marked as not checked (FR-17).
 - Failure list with the reason for each file (permission denied, hash mismatch, disk full…).
 - Actions: **Reveal in Finder/Explorer/Files**, **Open checksum file**, **Save report…**,
-  **Retry failed**, **New copy**.
-- System notification when the job ends while the window is in the background.
+  **Retry failed**, **Eject <card>** (when the source is on an ejectable drive; never
+  automatic, since Retry failed may still need the card), **New copy**.
+- "Safe to eject <drive>" when the destination is on an ejectable drive.
+- System notification when the job ends while the window is in the background (a setting,
+  on by default).
 
 ### 5.5 Settings
 
@@ -197,7 +200,7 @@ One small settings page, with no tabs. The app works without ever opening it.
 | Write checksum file to destination | On | FR-29. |
 | Show count of skipped system files | On | FR-13. |
 | Also save the job report next to the checksum file | Off | FR-35. |
-| Notify when a job finishes | On | Plan 3b-2. |
+| Notify when a copy finishes | On | Only when the window isn't in front. |
 | Advanced: files in flight, buffer size | Auto | §7.2. Folded under "Advanced". Plan 4 (performance). |
 | Include system files | — | Reserved (FR-14). Not shown in v1. |
 
@@ -320,7 +323,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 |---|---|---|
 | FR-35 | Each job produces a report as plain text and as JSON: settings, start/end, counts, per-file result (including skipped files), failures with reasons, whether cache bypass was active, leftover partial files removed, and files left out of the checksum file. It is kept in the app's data folder, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
 | FR-36 | The app remembers the mode, the window size and the last selected source profile. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
-| FR-37 | Keyboard: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `Esc` cancel dialog. | S |
+| FR-37 | Keyboard, in a File menu: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `⌘/Ctrl+.` cancel the copy (asks first); items greyed out when they don't apply. `Space` pauses and resumes a copy; `Esc` goes back from Settings and Profiles and cancels dialogs. | S |
 | FR-38 | **Source profiles**, chosen by hand: a name, a folder inside the card (e.g. `PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one applies it; changes last for one run unless saved with "Update profile" or "Save as new profile". No automatic card detection, and nothing is written to cards. | S |
 
 ## 7. Engine design (performance)
@@ -384,7 +387,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
   files take 80 s instead of 2.6 s in the M0 prototype.
 - At the end of the job: one `fsync` per created directory (makes the renames durable), then
   one drive-cache flush for the whole volume (`F_FULLFSYNC` on macOS).
-- If the destination is removable, show "Safe to eject".
+- If the destination is removable, the summary says "Safe to eject" (§5.4).
 
 ## 8. Non-functional requirements
 
@@ -513,4 +516,5 @@ The stack meets these constraints:
 | 2026-09-27 | No "Default mode" setting (§5.5): the app remembers the last mode (FR-36), which makes a default redundant. The last selected source profile is remembered too; the destination still never is. |
 | 2026-09-27 | App identifier changes to `com.latecommits.secopy` (0.3.0). Reports saved by 0.2.0 move to the new data folder on first launch. |
 | 2026-09-27 | Hidden files are copied; only known system files are skipped (FR-12, #25). On FAT/exFAT cards a camera can mark its own files hidden, so skipping every hidden item could leave a card copy silently incomplete. |
+| 2026-09-27 | Plan 3b-2 (#20, 0.4.0): Eject is a summary button, never automatic (Retry failed may still need the card), using macOS's own eject; shortcuts live in a File menu; the notification only shows when the window isn't in front; accessibility is checked by tests (axe-core, token contrast) plus a VoiceOver walk-through. Design: [2026-09-27-notify-eject-shortcuts-design.md](../superpowers/specs/2026-09-27-notify-eject-shortcuts-design.md). |
 | 2026-09-27 | FROM has one Choose… for a folder or files (one macOS panel that accepts both, like a drop), and "folder itself / only its contents" is one checkbox, "Include the “DCIM” folder", instead of two radio buttons. |
