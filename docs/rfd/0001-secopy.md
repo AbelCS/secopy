@@ -53,8 +53,8 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Skip hidden files and folders, with the design ready to include them later.
 - Get close to the throughput of the slower of the two devices.
 - Run natively on Apple Silicon Macs. v1 is macOS only, and Intel Macs are not supported
-  (§14, 2026-09-27). The engine stays portable: it is built and tested on Linux and
-  Windows in CI, so apps for those can follow after v1 (§11).
+  (§14, 2026-09-27). The engine stays portable: it keeps building for Linux and
+  Windows, so apps for those can follow after v1 (§11).
 
 ### Non-goals (v1)
 
@@ -408,10 +408,12 @@ derives speeds, ETAs and smoothing from them (§5.3).
 - **Fault injection:** source file removed mid-copy, permission denied, disk full,
   destination unplugged (simulated with a loopback/RAM disk), a corrupted write (hook
   that flips a byte) to prove verification catches it.
-- **Benchmarks** in CI against `cp`, `rsync`, `robocopy` on reference trees. Regressions
-  fail the build.
-- **CI matrix:** macOS (arm64) for the app and the engine. The engine is also built,
-  linted and tested on Windows (x64) and Ubuntu (x64), so it stays portable.
+- **Benchmarks** against `cp` and `rsync` on reference trees (M3). Regressions fail the
+  release build.
+- **Where tests run:** locally before every commit (fmt, clippy, tests), in one macOS
+  (arm64) CI job after each merge to `main`, and again in the release workflow before it
+  builds. PRs don't wait for CI, and docs-only changes skip it. Portability is kept by
+  linting the engine locally for the Linux and Windows targets when their code changes.
 
 ## 10. Milestones
 
@@ -497,3 +499,4 @@ The stack meets these constraints:
 | 2026-09-27 | Plans 1 and 2 (M0 and M1) ship together as the first release, 0.1.0: plan 2 was merged before plan 1's release PR. Later plans move up one minor version: desktop app 0.2.0, performance 0.3.0, packaging 0.4.0, betas 0.5.x, then 1.0.0. |
 | 2026-09-27 | v1 is a macOS app. Design, testing, polish, signing and packaging target macOS only until 1.0; Linux and Windows apps come after v1. The engine stays portable and keeps building and testing on all three OSes in CI. Supporting three OSes mostly costs testing and packaging work, and the main audience (media offload) is largely on Macs. |
 | 2026-09-27 | Apple Silicon only: no Intel Macs. Builds and releases are `aarch64-apple-darwin`, not universal binaries. |
+| 2026-09-27 | CI runs one macOS job after merges to `main` (and on demand), not on PRs, and skips docs-only changes; the release workflow runs the full suite before building. Windows and Linux CI jobs return with those apps. Goal: a faster workflow without dropping any check. |

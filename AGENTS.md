@@ -1,8 +1,8 @@
 # Secopy
 
 macOS desktop app for fast file copies with optional
-xxHash64 verification and a checksum file written to the destination. v1 is macOS only; the engine
-stays portable and is built and tested on Linux and Windows in CI (RFD §14).
+xxHash64 verification and a checksum file written to the destination. v1 is macOS only (Apple Silicon);
+the engine stays portable and keeps building for Linux and Windows (RFD §14).
 
 - **Source of truth:** [docs/rfd/0001-secopy.md](docs/rfd/0001-secopy.md). Read it before designing or
   changing behaviour. Requirement IDs (FR-x, NFR-x) are used in code comments, commits and
@@ -130,6 +130,10 @@ format exactly.
   `--target x86_64-pc-windows-msvc` (add them once with `rustup target add`).
 - `xxhsum` must be installed locally (`brew install xxhash`). CI runs its compatibility
   test with `SECOPY_REQUIRE_XXHSUM=1` so it can't silently skip.
+- CI (`.github/workflows/ci.yml`) is one macOS job that runs after each merge to `main` and
+  on demand (`gh workflow run ci`), not on PRs, and skips docs-only changes. The local
+  checks above are what gate a commit; don't wait for CI before merging. If CI fails on
+  `main`, open an issue and fix it before anything else.
 - Fault tests on real volumes (disk full, unplugging, FAT32/exFAT, case-sensitive APFS) use
   macOS RAM disks and run only with `SECOPY_DEVICE_TESTS=1`; CI's macOS job sets it. Run
   them locally before changing `copy`, `os`, `preflight` or the job runner.
