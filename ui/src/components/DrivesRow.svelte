@@ -1,6 +1,6 @@
 <script lang="ts">
-  // FROM's drives (plan 3b-1): the mounted volumes, asked for every 2 s. Clicking one
-  // picks it, like a drop.
+  // FROM's drives (plan 3b-1): the mounted volumes, asked for again 2 s after each answer
+  // (never two questions at once). Clicking one picks it, like a drop.
   import { onMount } from "svelte";
   import { useApi } from "../lib/api";
   import type { DriveView } from "../lib/bindings";
@@ -18,7 +18,8 @@
 
   const api = useApi();
   const POLL_MS = 2000;
-  let drives: DriveView[] = $state([]);
+  /** `null` until the first answer. */
+  let drives: DriveView[] | null = $state(null);
 
   const isOn = (d: DriveView) => source === d.path || !!source?.startsWith(`${d.path}/`);
 
@@ -31,18 +32,30 @@
   }
 
   onMount(() => {
-    void refresh();
-    const timer = setInterval(refresh, POLL_MS);
-    return () => clearInterval(timer);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    async function poll() {
+      await refresh();
+      if (!stopped) timer = setTimeout(poll, POLL_MS);
+    }
+    void poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   });
 </script>
 
 <div class="drives">
-  {#each drives as d (d.path)}
-    <Chip label={d.name} meta={formatBytes(d.totalBytes)} selected={isOn(d)} onToggle={() => onPick(d.path)} />
+  {#if drives === null}
+    <span class="muted">Looking for drives…</span>
   {:else}
-    <span class="muted">No cards or drives connected.</span>
-  {/each}
+    {#each drives as d (d.path)}
+      <Chip label={d.name} meta={formatBytes(d.totalBytes)} selected={isOn(d)} onToggle={() => onPick(d.path)} />
+    {:else}
+      <span class="muted">No cards or drives connected.</span>
+    {/each}
+  {/if}
 </div>
 
 <style>
