@@ -132,4 +132,18 @@ describe("JobProgress", () => {
     await fireEvent.click(screen.getByLabelText("Failed only"));
     await waitFor(() => expect(api.finishedPage).toHaveBeenCalledWith(0, 100, true));
   });
+
+  test("Space pauses and resumes, but not while typing", async () => {
+    const { api, rerender } = show(progressView());
+    await fireEvent.keyDown(window, { key: " " });
+    expect(api.pauseJob).toHaveBeenCalledTimes(1);
+    const field = document.createElement("input");
+    document.body.append(field);
+    await fireEvent.keyDown(field, { key: " " });
+    expect(api.pauseJob).toHaveBeenCalledTimes(1);
+    field.remove();
+    await rerender({ progress: progressView({ paused: true }) });
+    await fireEvent.keyDown(window, { key: " " });
+    expect(api.resumeJob).toHaveBeenCalledTimes(1);
+  });
 });

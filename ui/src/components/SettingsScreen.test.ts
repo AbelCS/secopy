@@ -81,4 +81,10 @@ describe("SettingsScreen", () => {
     await fireEvent.click(screen.getByLabelText("Notify when a copy finishes"));
     await waitFor(() => expect(api.setSettings).toHaveBeenCalledWith(settingsView({ notifyWhenDone: false })));
   });
+
+  test("Esc goes back", async () => {
+    const { calls } = show();
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(calls.done).toBe(1);
+  });
 });

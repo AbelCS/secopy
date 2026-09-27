@@ -89,6 +89,8 @@
   }
 </script>
 
+<svelte:window onkeydown={(e) => e.key === "Escape" && void back()} />
+
 <AppShell>
   {#snippet header()}<ScreenHeader title="Profiles" onBack={back} />{/snippet}
 

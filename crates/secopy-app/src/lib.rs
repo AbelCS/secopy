@@ -48,6 +48,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::save_report,
         commands::retry_failed,
         commands::eject,
+        commands::set_menu_state,
     ])
 }
 
@@ -77,6 +78,11 @@ pub fn run() {
                 quit(app);
             } else if event.id() == SETTINGS_MENU {
                 let _ = app.emit(OPEN_SETTINGS, ());
+            } else if let Some(item) = [CHOOSE_SOURCE, CHOOSE_DESTINATION, START_COPY, CANCEL_COPY]
+                .into_iter()
+                .find(|id| event.id() == *id)
+            {
+                let _ = app.emit(MENU_EVENT, item);
             }
         })
         .on_window_event(|window, event| {
@@ -138,6 +144,31 @@ const SETTINGS_MENU: &str = "settings";
 /// Asks the UI to show Settings (Secopy → Settings…).
 pub const OPEN_SETTINGS: &str = "open-settings";
 
+/// File menu items, and the event that tells the UI one was chosen.
+const CHOOSE_SOURCE: &str = "choose-source";
+const CHOOSE_DESTINATION: &str = "choose-destination";
+const START_COPY: &str = "start-copy";
+const CANCEL_COPY: &str = "cancel-copy";
+pub const MENU_EVENT: &str = "menu";
+
+/// The File menu's items, kept to grey them out.
+pub struct FileMenu<R: Runtime> {
+    items: [MenuItem<R>; 4],
+}
+
+impl<R: Runtime> FileMenu<R> {
+    pub fn update(&self, setup: bool, can_start: bool, copying: bool) {
+        for (item, on) in self.items.iter().zip(menu_state(setup, can_start, copying)) {
+            let _ = item.set_enabled(on);
+        }
+    }
+}
+
+/// Which File items apply: [Choose Source, Choose Destination, Start Copy, Cancel Copy].
+fn menu_state(setup: bool, can_start: bool, copying: bool) -> [bool; 4] {
+    [setup, setup, setup && can_start, copying]
+}
+
 /// The window's minimum size (`tauri.conf.json`).
 const MIN_WIDTH: f64 = 720.0;
 const MIN_HEIGHT: f64 = 560.0;
@@ -194,6 +225,49 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &MenuItem::with_id(app, QUIT, "Quit Secopy", true, Some("CmdOrCtrl+Q"))?,
         ],
     )?;
+    let source = MenuItem::with_id(
+        app,
+        CHOOSE_SOURCE,
+        "Choose Source…",
+        true,
+        Some("CmdOrCtrl+O"),
+    )?;
+    let destination = MenuItem::with_id(
+        app,
+        CHOOSE_DESTINATION,
+        "Choose Destination…",
+        true,
+        Some("CmdOrCtrl+D"),
+    )?;
+    let start = MenuItem::with_id(
+        app,
+        START_COPY,
+        "Start Copy",
+        false,
+        Some("CmdOrCtrl+Enter"),
+    )?;
+    let cancel = MenuItem::with_id(
+        app,
+        CANCEL_COPY,
+        "Cancel Copy",
+        false,
+        Some("CmdOrCtrl+Period"),
+    )?;
+    let file = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[
+            &source,
+            &destination,
+            &PredefinedMenuItem::separator(app)?,
+            &start,
+            &cancel,
+        ],
+    )?;
+    app.manage(FileMenu {
+        items: [source, destination, start, cancel],
+    });
     let edit = Submenu::with_items(
         app,
         "Edit",
@@ -219,7 +293,7 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::close_window(app, None)?,
         ],
     )?;
-    Menu::with_items(app, &[&app_menu, &edit, &window])
+    Menu::with_items(app, &[&app_menu, &file, &edit, &window])
 }
 
 #[cfg(test)]
@@ -227,6 +301,19 @@ mod tests {
     use std::path::Path;
 
     use super::{Quit, quit_action};
+
+    #[test]
+    fn the_file_menu_offers_only_what_applies() {
+        use super::menu_state;
+        assert_eq!(menu_state(true, false, false), [true, true, false, false]);
+        assert_eq!(menu_state(true, true, false), [true, true, true, false]);
+        assert_eq!(menu_state(false, false, true), [false, false, false, true]);
+        assert_eq!(
+            menu_state(false, true, false),
+            [false, false, false, false],
+            "Start only on New copy"
+        );
+    }
 
     fn capability() -> serde_json::Value {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("capabilities/default.json");

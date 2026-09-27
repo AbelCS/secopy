@@ -313,4 +313,12 @@ describe("Setup", () => {
     await pick.findByRole("button", { name: /CARD_A/ });
     pick.getByRole("button", { name: "Choose…" });
   });
+
+  test("Esc closes Save as new…", async () => {
+    setup(readyView());
+    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    const form = screen.getByRole("textbox", { name: "Name" }).closest("form")!;
+    await fireEvent.keyDown(form, { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+  });
 });

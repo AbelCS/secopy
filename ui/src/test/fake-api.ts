@@ -175,6 +175,7 @@ export function fakeApi(session: SessionView = sessionView()) {
     close: null as ((prevent: () => void) => Promise<void>) | null,
     start: startView({ session }),
     openSettings: null as (() => void) | null,
+    menu: null as ((item: string) => void) | null,
   };
   const answer = () => Promise.resolve(state.session);
   const profilesAnswer = () =>
@@ -215,6 +216,11 @@ export function fakeApi(session: SessionView = sessionView()) {
       state.openSettings = handler;
       return Promise.resolve(() => {});
     }),
+    onMenu: vi.fn((handler: (item: string) => void) => {
+      state.menu = handler;
+      return Promise.resolve(() => {});
+    }),
+    setMenuState: vi.fn((_setup: boolean, _canStart: boolean, _copying: boolean) => Promise.resolve()),
     pickSource: vi.fn(() => Promise.resolve(["/Volumes/CARD/DCIM"] as string[] | null)),
     pickCardFolder: vi.fn(() => Promise.resolve("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP" as string | null)),
     pickDestination: vi.fn(() => Promise.resolve("/Volumes/RAID/Day01" as string | null)),

@@ -80,6 +80,8 @@ export const commands = {
 	retryFailed: () => typedError<SessionView, string>(__TAURI_INVOKE("retry_failed")),
 	/**  Eject a drive of the finished copy (spec §2). */
 	eject: (mountPoint: string) => typedError<null, string>(__TAURI_INVOKE("eject", { mountPoint })),
+	/**  The UI says which File menu items apply. */
+	setMenuState: (setup: boolean, canStart: boolean, copying: boolean) => __TAURI_INVOKE<void>("set_menu_state", { setup, canStart, copying }),
 };
 
 /* Types */
