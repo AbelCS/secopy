@@ -39,7 +39,9 @@ section says, which also checks those first-launch steps), then:
 13. **A profile on a real card.** Save as new… on the card's clip folder (e.g.
     `PRIVATE/M4ROOT/CLIP`), with only the video types on. Eject, insert another card of the
     same camera, click its drive: the profile's folder and types apply. Insert a card of
-    another camera: "<card> has no <folder>", nothing copies.
+    another camera: "<card> has no <folder>", nothing copies. In Profile → Manage profiles…,
+    Choose… a folder on the card: the folder fills in relative to the card; change a type
+    and Save.
 14. **Changed for this run.** With a profile applied, turn a type off: "changed for this
     run" appears. Copy without saving; after New copy the profile is as it was. Change it
     again and Update profile: the next card uses the change.

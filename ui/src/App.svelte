@@ -5,6 +5,7 @@
   import { stopMessage } from "./lib/stopping";
   import type { Profile, ProgressView, SessionView, Settings, SummaryView } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
+  import ProfilesScreen from "./components/ProfilesScreen.svelte";
   import SettingsScreen from "./components/SettingsScreen.svelte";
   import Setup from "./components/Setup.svelte";
   import Summary from "./components/Summary.svelte";
@@ -14,7 +15,7 @@
   // svelte-ignore state_referenced_locally
   provideApi(api);
 
-  let screen: "setup" | "progress" | "summary" | "settings" = $state("setup");
+  let screen: "setup" | "progress" | "summary" | "settings" | "profiles" = $state("setup");
   /** Where Settings' Done goes back to. */
   let back: "setup" | "summary" = "setup";
   /** Saved files that couldn't be read, shown once. */
@@ -82,11 +83,14 @@
     else recent = (await run(() => api.recentDestinations())) ?? recent;
   }
 
-  function openSettings() {
-    if (screen === "progress" || screen === "settings") return; // not during a copy
+  /** Settings or Profiles, over the setup or summary screen; never during a copy. */
+  function open(next: "settings" | "profiles") {
+    if (screen !== "setup" && screen !== "summary") return;
     back = screen;
-    screen = "settings";
+    screen = next;
   }
+
+  const openSettings = () => open("settings");
 
   function saveMode(v: boolean) {
     void api.setMode(v).catch(() => {}); // remembered for next time; not worth an error
@@ -161,7 +165,7 @@
       {recent}
       onStart={start}
       onProfiles={(p) => (profiles = p)}
-      onManageProfiles={openSettings}
+      onManageProfiles={() => open("profiles")}
       onMode={saveMode}
     />
   {:else if screen === "progress" && progress}
@@ -169,10 +173,10 @@
   {:else if screen === "summary" && summary}
     <Summary {summary} onRetry={retry} onNewCopy={newCopy} />
   {:else if screen === "settings"}
-    <SettingsScreen
-      {settings}
+    <SettingsScreen {settings} onSettings={(s) => (settings = s)} onDone={() => (screen = back)} />
+  {:else if screen === "profiles"}
+    <ProfilesScreen
       {profiles}
-      onSettings={(s) => (settings = s)}
       onProfiles={(p) => (profiles = p)}
       onView={(v) => (view = v)}
       onDone={() => (screen = back)}

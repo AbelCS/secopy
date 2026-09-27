@@ -138,4 +138,16 @@ describe("App", () => {
       "Stop copying and quit?",
     );
   });
+
+  test("Manage profiles… opens the Profiles screen, not Settings", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.start = startView({ session: readyView(), profiles: [profile()] });
+    render(App, { props: { api } });
+    await screen.findByRole("option", { name: "Sony FX3" });
+    await fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "manage" } });
+    await screen.findByRole("heading", { name: "Profiles" });
+    expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await screen.findByRole("button", { name: /^Copy & verify 1,284 files/ });
+  });
 });
