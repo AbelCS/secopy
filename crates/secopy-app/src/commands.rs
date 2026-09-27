@@ -674,6 +674,7 @@ mod tests {
                             write_checksum_file: i % 2 == 0,
                             show_system_count: i % 3 == 0,
                             report_next_to_checksum: i % 5 == 0,
+                            notify_when_done: i % 7 == 0,
                         };
                         let a = state.set_settings(settings).err();
                         let b = state.create_profile(input(&format!("P{i}"), "")).err();

@@ -7,7 +7,7 @@ export const profiles: Profile[] = [
   { id: "dji", name: "DJI Mini 4", folder: "DCIM", includeFolder: false, extensions: null },
 ];
 
-export const settings: Settings = { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false };
+export const settings: Settings = { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true };
 
 export const session: SessionView = {
   source: {

@@ -76,6 +76,13 @@
       >
         {#snippet help()}Every job's report is also kept in the app; this adds a copy next to the checksum file.{/snippet}
       </Checkbox>
+      <Checkbox
+        label="Notify when a copy finishes"
+        checked={settings.notifyWhenDone}
+        onChange={(on) => toggle("notifyWhenDone", on)}
+      >
+        {#snippet help()}Only when Secopy's window isn't in front. macOS asks for permission the first time.{/snippet}
+      </Checkbox>
     </div>
     {#if settingsError}<Notice tone="danger">{settingsError}</Notice>{/if}
   </Section>

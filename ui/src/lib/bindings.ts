@@ -238,6 +238,8 @@ export type Settings = {
 	writeChecksumFile: boolean,
 	showSystemCount: boolean,
 	reportNextToChecksum: boolean,
+	/**  A notification when a copy ends while the window isn't in front (3b-2). */
+	notifyWhenDone: boolean,
 };
 
 export type SmallFilesView = {

@@ -6,6 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
+import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { getContext, setContext } from "svelte";
 import {
@@ -92,6 +93,14 @@ export const tauriApi = {
   confirm: (message: string, title: string, ok = "Stop copying", cancel = "Keep copying"): Promise<boolean> =>
     ask(message, { title, kind: "warning", okLabel: ok, cancelLabel: cancel }),
   reveal: (path: string): Promise<void> => revealItemInDir(path),
+  /** The window is in front; notifications are only for when it isn't. */
+  windowFocused: (): boolean => document.hasFocus(),
+  /** A macOS notification. Asks for permission once; does nothing if it's refused. */
+  notify: async (title: string, body: string): Promise<void> => {
+    let granted = await isPermissionGranted();
+    if (!granted) granted = (await requestPermission()) === "granted";
+    if (granted) sendNotification({ title, body });
+  },
   openFile: (path: string): Promise<void> => openPath(path),
 
   /** Finder drops: the paths and the element under the pointer. */

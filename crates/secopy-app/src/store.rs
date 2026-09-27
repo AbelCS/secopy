@@ -29,6 +29,8 @@ pub struct Settings {
     pub write_checksum_file: bool,
     pub show_system_count: bool,
     pub report_next_to_checksum: bool,
+    /// A notification when a copy ends while the window isn't in front (3b-2).
+    pub notify_when_done: bool,
 }
 
 /// `settings.json` as read: missing fields take their defaults. Kept apart from
@@ -42,6 +44,8 @@ struct SettingsOnDisk {
     show_system_count: bool,
     #[serde(default)]
     report_next_to_checksum: bool,
+    #[serde(default = "yes")]
+    notify_when_done: bool,
 }
 
 fn yes() -> bool {
@@ -55,6 +59,7 @@ impl<'de> Deserialize<'de> for Settings {
             write_checksum_file: s.write_checksum_file,
             show_system_count: s.show_system_count,
             report_next_to_checksum: s.report_next_to_checksum,
+            notify_when_done: s.notify_when_done,
         })
     }
 }
@@ -65,6 +70,7 @@ impl Default for Settings {
             write_checksum_file: true,
             show_system_count: true,
             report_next_to_checksum: false,
+            notify_when_done: true,
         }
     }
 }
@@ -550,5 +556,19 @@ mod tests {
         assert!(p.selects(&Some("mp4".into())) && !p.selects(&Some("xml".into())));
         p.extensions = None;
         assert!(p.selects(&Some("anything".into())) && p.selects(&None));
+    }
+
+    #[test]
+    fn notify_when_done_is_on_unless_turned_off() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join(SETTINGS), br#"{"version": 1}"#).unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        assert!(store.load::<Settings>(SETTINGS).0.notify_when_done);
+        let off = Settings {
+            notify_when_done: false,
+            ..Settings::default()
+        };
+        store.save(SETTINGS, &off).unwrap();
+        assert!(!store.load::<Settings>(SETTINGS).0.notify_when_done);
     }
 }

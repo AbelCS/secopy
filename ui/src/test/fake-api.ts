@@ -145,7 +145,7 @@ export function profile(over: Partial<Profile> = {}): Profile {
 }
 
 export function settingsView(over: Partial<Settings> = {}): Settings {
-  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, ...over };
+  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, ...over };
 }
 
 export function drive(over: Partial<DriveView> = {}): DriveView {
@@ -218,6 +218,8 @@ export function fakeApi(session: SessionView = sessionView()) {
     pickReportPath: vi.fn((_s: string) => Promise.resolve("/tmp/report.txt" as string | null)),
     confirm: vi.fn((_m: string, _t: string, _ok?: string, _cancel?: string) => Promise.resolve(true)),
     reveal: vi.fn((_p: string) => Promise.resolve()),
+    windowFocused: vi.fn(() => true),
+    notify: vi.fn((_t: string, _b: string) => Promise.resolve()),
     openFile: vi.fn((_p: string) => Promise.resolve()),
     onDrop: vi.fn((handler: (paths: string[], target: Element | null) => void) => {
       state.drop = handler;

@@ -24,6 +24,7 @@ tauri = "2.12.0"
 tauri-build = "2.6.3"
 tauri-plugin-dialog = "2.7.3"
 tauri-plugin-opener = "2.6.0"
+tauri-plugin-notification = "2.4.0"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 thiserror = "2.0.21"
 walkdir = "2.5.0"

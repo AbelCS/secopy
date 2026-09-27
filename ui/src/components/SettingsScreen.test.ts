@@ -75,4 +75,10 @@ describe("SettingsScreen", () => {
     screen.getByText(/\.DS_Store/);
     screen.getByText(/also kept in the app/);
   });
+
+  test("notifications can be turned off", async () => {
+    const { api } = show();
+    await fireEvent.click(screen.getByLabelText("Notify when a copy finishes"));
+    await waitFor(() => expect(api.setSettings).toHaveBeenCalledWith(settingsView({ notifyWhenDone: false })));
+  });
 });

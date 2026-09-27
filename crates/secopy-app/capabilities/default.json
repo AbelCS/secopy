@@ -9,6 +9,7 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-ask",
+    "notification:default",
     "opener:allow-reveal-item-in-dir",
     { "identifier": "opener:allow-open-path", "allow": [{ "path": "/**/*.xxh64" }] }
   ]

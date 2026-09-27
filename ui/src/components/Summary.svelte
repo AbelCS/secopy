@@ -2,8 +2,9 @@
   // The summary (RFD §5.4): what happened, the figures, what failed and why, and what to do next.
   import { useApi } from "../lib/api";
   import type { SummaryView } from "../lib/bindings";
-  import { formatBytes, formatCount, formatDuration, formatSpeed, plural } from "../lib/format";
+  import { formatCount } from "../lib/format";
   import { headline } from "../lib/headline";
+  import { summaryStats } from "../lib/summaryText";
   import type { Snippet } from "svelte";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
@@ -33,20 +34,7 @@
   const api = useApi();
   let actionError: string | null = $state(null);
   const ok = $derived(summary.outcome === "complete");
-  const stats = $derived.by(() => {
-    const speed = formatSpeed(summary.millis > 0 ? (summary.bytesWritten * 1000) / summary.millis : null);
-    const items = [
-      plural(summary.files, "file"),
-      `${formatBytes(summary.bytesWritten)} written`,
-      `took ${formatDuration(summary.millis)}`,
-      `${speed} average`,
-    ];
-    if (summary.skippedIdentical > 0)
-      items.push(`${formatCount(summary.skippedIdentical)} already at the destination, not checked`);
-    if (summary.skippedDifferent > 0) items.push(`${plural(summary.skippedDifferent, "different file")} left as they were`);
-    if (summary.notStarted > 0) items.push(`${formatCount(summary.notStarted)} not started`);
-    return items;
-  });
+  const stats = $derived(summaryStats(summary));
 
   async function act(action: () => Promise<unknown>) {
     try {
