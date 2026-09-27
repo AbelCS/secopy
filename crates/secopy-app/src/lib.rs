@@ -10,7 +10,9 @@ pub mod store;
 pub mod volumes;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Manager, RunEvent, Runtime};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, Runtime, WindowEvent};
+
+use store::WindowSize;
 
 use commands::AppState;
 
@@ -20,6 +22,17 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::pick_source,
         commands::scan_source,
         commands::set_include_folder,
+        commands::app_start,
+        commands::recent_destinations,
+        commands::list_drives,
+        commands::select_profile,
+        commands::update_profile,
+        commands::save_profile_as,
+        commands::create_profile,
+        commands::edit_profile,
+        commands::delete_profile,
+        commands::set_settings,
+        commands::set_mode,
         commands::clear_source,
         commands::set_filter,
         commands::set_destination,
@@ -60,6 +73,24 @@ pub fn run() {
         .on_menu_event(|app, event| {
             if event.id() == QUIT {
                 quit(app);
+            } else if event.id() == SETTINGS_MENU {
+                let _ = app.emit(OPEN_SETTINGS, ());
+            }
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::Resized(size) = event {
+                let scale = window.scale_factor().unwrap_or(1.0);
+                let size = size.to_logical::<f64>(scale);
+                // Minimizing reports a tiny size; keep the last real one.
+                if size.width >= MIN_WIDTH
+                    && size.height >= MIN_HEIGHT
+                    && let Some(state) = window.try_state::<AppState>()
+                {
+                    state.window_resized(WindowSize {
+                        width: size.width,
+                        height: size.height,
+                    });
+                }
             }
         })
         .setup(move |app| {
@@ -72,7 +103,18 @@ pub fn run() {
                     eprintln!("Secopy: the 0.2.0 reports stay in {}: {e}", old.display());
                 }
             }
-            app.manage(AppState::new(data.join("reports")));
+            app.manage(AppState::new(data));
+            if let Some(window) = app.get_webview_window("main") {
+                if let Some(saved) = app.state::<AppState>().saved_window() {
+                    let screen = window.current_monitor().ok().flatten().map(|m| {
+                        let size = m.size().to_logical::<f64>(m.scale_factor());
+                        (size.width, size.height)
+                    });
+                    let (width, height) = window_size(saved, screen);
+                    let _ = window.set_size(tauri::LogicalSize::new(width, height));
+                }
+                let _ = window.show();
+            }
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -81,14 +123,31 @@ pub fn run() {
             // The app is going away: stop the copy first, so no partial file is left behind.
             // `Exit` also covers quitting from the Dock or at logout, which can't be refused.
             if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
-                let jobs = &app.state::<AppState>().jobs;
-                jobs.cancel();
-                jobs.wait();
+                let state = app.state::<AppState>();
+                state.remember(|_| {}); // writes the window size
+                state.jobs.cancel();
+                state.jobs.wait();
             }
         });
 }
 
 const QUIT: &str = "quit";
+const SETTINGS_MENU: &str = "settings";
+/// Asks the UI to show Settings (Secopy → Settings…).
+pub const OPEN_SETTINGS: &str = "open-settings";
+
+/// The window's minimum size (`tauri.conf.json`).
+const MIN_WIDTH: f64 = 720.0;
+const MIN_HEIGHT: f64 = 560.0;
+
+/// The saved window size, kept within the minimum and the screen.
+fn window_size(saved: WindowSize, screen: Option<(f64, f64)>) -> (f64, f64) {
+    let (max_w, max_h) = screen.unwrap_or((f64::MAX, f64::MAX));
+    (
+        saved.width.clamp(MIN_WIDTH, max_w.max(MIN_WIDTH)),
+        saved.height.clamp(MIN_HEIGHT, max_h.max(MIN_HEIGHT)),
+    )
+}
 
 #[derive(Debug, PartialEq)]
 enum Quit {
@@ -121,6 +180,8 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         true,
         &[
             &PredefinedMenuItem::about(app, None, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, SETTINGS_MENU, "Settings…", true, Some("CmdOrCtrl+,"))?,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::services(app, None)?,
             &PredefinedMenuItem::separator(app)?,
@@ -220,6 +281,22 @@ mod tests {
 
     /// The UI's bindings must match the Rust commands. Set `SECOPY_UPDATE_BINDINGS=1` to
     /// rewrite them after changing a command or a DTO.
+    #[test]
+    fn the_saved_window_size_is_kept_within_the_minimum_and_the_screen() {
+        use super::window_size;
+        use crate::store::WindowSize;
+        let saved = |width, height| WindowSize { width, height };
+        assert_eq!(
+            window_size(saved(1200.0, 900.0), Some((1440.0, 900.0))),
+            (1200.0, 900.0)
+        );
+        assert_eq!(window_size(saved(300.0, 200.0), None), (720.0, 560.0));
+        assert_eq!(
+            window_size(saved(3000.0, 2000.0), Some((1440.0, 900.0))),
+            (1440.0, 900.0)
+        );
+    }
+
     #[test]
     fn the_app_identifier_is_latecommits() {
         let conf = Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");

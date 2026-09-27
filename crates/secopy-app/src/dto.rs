@@ -8,6 +8,8 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::store::{Profile, Settings};
+
 /// Everything the main window shows. Every session command returns the whole view, so the
 /// UI never has to combine partial answers.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Type)]
@@ -266,4 +268,27 @@ pub fn show(path: &Path) -> String {
 /// Counts shown in the UI; clamped rather than wrapped past `u32::MAX`.
 pub fn count(n: impl TryInto<u32>) -> u32 {
     n.try_into().unwrap_or(u32::MAX)
+}
+
+/// What the window loads at start (plan 3b-1).
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StartView {
+    pub session: SessionView,
+    pub settings: Settings,
+    pub profiles: Vec<Profile>,
+    /// Copy & Verify (true) or Copy, as last used (FR-36).
+    pub verify: bool,
+    /// Recent destinations that still exist, most recent first.
+    pub recent_destinations: Vec<String>,
+    /// Saved files that couldn't be read; shown once.
+    pub warnings: Vec<String>,
+}
+
+/// After a profile change: the profiles and what FROM shows now.
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfilesView {
+    pub profiles: Vec<Profile>,
+    pub session: SessionView,
 }

@@ -12,6 +12,7 @@
     "windows": [
       {
         "title": "Secopy",
+        "visible": false,
         "width": 900,
         "height": 780,
         "minWidth": 720,
