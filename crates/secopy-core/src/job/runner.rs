@@ -19,15 +19,6 @@ use crate::verify::{self, CacheBypass};
 /// Verify tasks that may wait per verify lane before copy lanes block (RFD §7.3).
 pub(super) const VERIFY_QUEUE_PER_LANE: usize = 4;
 
-/// Sets the flag when dropped, including during a panic.
-pub(super) struct SetOnDrop<'a>(pub(super) &'a AtomicBool);
-
-impl Drop for SetOnDrop<'_> {
-    fn drop(&mut self) {
-        self.0.store(true, Relaxed);
-    }
-}
-
 /// Lock-free work list shared by the lanes of one kind.
 pub(super) struct Queue {
     items: Vec<usize>,
