@@ -6,10 +6,12 @@
   import { formatBytes, formatDuration, formatSpeed } from "../lib/format";
 
   let {
+    title = "Finished",
     total,
     failedTotal,
     updated,
   }: {
+    title?: string;
     /** Finished files so far. */
     total: number;
     /** Failed files so far. */
@@ -76,7 +78,7 @@
 </script>
 
 <div class="head">
-  <h3>Finished</h3>
+  <h3>{title}</h3>
   <label>
     <input
       type="checkbox"

@@ -182,6 +182,7 @@ impl Jobs {
                 .take(FAILURES_SHOWN)
                 .map(row)
                 .collect(),
+            finished: count(outcomes.len()),
             copy_root: show(&job.ready.copy_root),
             checksum_file: done.report.checksum_file.as_deref().map(show),
             checksum_error: done.report.checksum_error.clone(),
@@ -465,6 +466,7 @@ mod tests {
         let s = f.jobs.summary().unwrap();
         assert_eq!(s.outcome, JobOutcome::Complete);
         assert_eq!((s.files, s.verified, s.failed), (5, 5, 0));
+        assert_eq!(s.finished, 5, "rows in the finished list");
         assert_eq!(s.copy_root, show(&f.dest.join("CARD")));
         assert!(s.checksum_file.is_some());
         assert!(f.dest.join("CARD/C0004.mov").is_file());
