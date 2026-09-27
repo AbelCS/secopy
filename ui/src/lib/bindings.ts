@@ -40,6 +40,8 @@ export const commands = {
 	millis: number,
 	/**  Failed files with their reasons, first 1,000. */
 	failures: FinishedRow[],
+	/**  Rows in the finished list: every file the job got to. */
+	finished: number,
 	copyRoot: string,
 	checksumFile: string | null,
 	checksumError: string | null,
@@ -219,6 +221,8 @@ export type SummaryView = {
 	millis: number,
 	/**  Failed files with their reasons, first 1,000. */
 	failures: FinishedRow[],
+	/**  Rows in the finished list: every file the job got to. */
+	finished: number,
 	copyRoot: string,
 	checksumFile: string | null,
 	checksumError: string | null,

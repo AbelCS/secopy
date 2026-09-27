@@ -4,6 +4,7 @@
   import type { SummaryView } from "../lib/bindings";
   import { formatBytes, formatCount, formatDuration, formatSpeed, plural } from "../lib/format";
   import { headline } from "../lib/headline";
+  import FinishedList from "./FinishedList.svelte";
 
   let {
     summary,
@@ -90,6 +91,11 @@
     </ul>
   </section>
 {/if}
+
+<!-- Every file with its status and checksum, as during the copy (RFD §5.4). -->
+<section class="card">
+  <FinishedList title="Files" total={summary.finished} failedTotal={summary.failed} updated={0} />
+</section>
 
 <style>
   .card {

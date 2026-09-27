@@ -9,7 +9,7 @@ section says, which also checks those first-launch steps), then:
    FROM, choose an empty destination on TO. Expect: file count, size and hidden items
    skipped; "Files will go to" ends in the card folder's name. Start with Copy & Verify.
    Expect: both bars move, active files show, the finished list fills, the summary says
-   "All N files copied and verified".
+   "All N files copied and verified" and lists every file as ✓ Verified with its checksum.
 2. **Checksum file.** Summary → Open checksum file opens it; in Terminal,
    `cd <destination> && xxhsum -c secopy_*.xxh64` prints `OK` for every file.
 3. **Run it again.** New copy, same card, same destination. Expect: the non-empty warning
