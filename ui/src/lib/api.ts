@@ -93,3 +93,8 @@ export function provideApi(api: Api): void {
 export function useApi(): Api {
   return getContext<Api>(KEY);
 }
+
+/** The context to render a component with a given `Api` (tests). */
+export function apiContext(api: Api): Map<symbol, Api> {
+  return new Map([[KEY, api]]);
+}
