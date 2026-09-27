@@ -129,6 +129,10 @@ format exactly.
   once with `rustup target add`). The app crate is macOS only and isn't linted for them.
 - UI checks, from `ui/` (`npm ci` once): `npm run check` (svelte-check) and `npm test`
   (Vitest). Both must pass before every commit that touches `ui/` or `crates/secopy-app`.
+- UI design: follow [docs/design/design-system.md](docs/design/design-system.md). Build
+  screens from the components in `ui/src/lib/ui/` (AppShell, Section, Button…) and the
+  tokens in `ui/src/app.css`; don't style one-off cards, buttons or fields. Check changes in
+  the dev-only gallery (`npm run dev`, then `/gallery.html#<screen>`).
 - `ui/src/lib/bindings.ts` is generated from the app's commands and DTOs by tauri-specta.
   After changing either, run `SECOPY_UPDATE_BINDINGS=1 cargo test -p secopy-app`; a test
   fails while the committed file is out of date. Never edit it by hand.
