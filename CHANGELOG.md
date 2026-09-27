@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.0](https://github.com/AbelCS/secopy/compare/v0.3.0...v0.4.0) (2026-09-27)
+
+
+### Features
+
+* **app:** a File menu with shortcuts; Space pauses, Esc goes back ([5779d7a](https://github.com/AbelCS/secopy/commit/5779d7ab5bf9b042b8b85a368fbda8241935a617)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+* **app:** eject the card from the summary ([bcf7896](https://github.com/AbelCS/secopy/commit/bcf78965859a03b56748dc91e20e0e02b90688b5)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+* **app:** notify when a copy finishes in the background ([9017e6c](https://github.com/AbelCS/secopy/commit/9017e6cdd81f7218e783fe335addd01d0a36266d)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+* **ui:** accessibility pass: contrast, focus, announcements, axe checks ([553f7a2](https://github.com/AbelCS/secopy/commit/553f7a24de7a2699957149571ddfcaa6acde2a9a)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+* **ui:** Settings are saved with Save, dropped with Cancel ([d030f3d](https://github.com/AbelCS/secopy/commit/d030f3d347b9d4ee7e2f477c766a4956bc3ce4ec)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+* **ui:** Source shows the chosen source; no drives row ([f6afffa](https://github.com/AbelCS/secopy/commit/f6afffaa19c7952d5848ff93441840cc91153445)), closes [#30](https://github.com/AbelCS/secopy/issues/30)
+
+
+### Bug Fixes
+
+* **app:** list drives without waiting on slow file systems ([b3c3b7b](https://github.com/AbelCS/secopy/commit/b3c3b7b329d5496c9e739176563e49a9e35738ec)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+* **app:** review fixes for Eject, Retry and Space ([2ed876f](https://github.com/AbelCS/secopy/commit/2ed876fdc9646dc0fe02ab16431f50d198695bed)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+* **core:** end a job without waiting for the progress interval ([58de8f8](https://github.com/AbelCS/secopy/commit/58de8f87f4516d58a9f6dc1df37591f9ee27e732)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+* **core:** keep the Mac awake without a helper process ([d850bbe](https://github.com/AbelCS/secopy/commit/d850bbedcded0684c685b828368c4750e4490030)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+* **ui:** a directory dropped on TO becomes the destination ([f6fc526](https://github.com/AbelCS/secopy/commit/f6fc526f00fe797ece3a7c734f32e0c423686a24)), closes [#29](https://github.com/AbelCS/secopy/issues/29)
+* **ui:** Back is a button in the action bar, like every other action ([a71f6f0](https://github.com/AbelCS/secopy/commit/a71f6f0ee5f1ffcd3e20adc06f2b044204aa6976)), closes [#20](https://github.com/AbelCS/secopy/issues/20)
+
 ## [0.3.0](https://github.com/AbelCS/secopy/compare/v0.2.0...v0.3.0) (2026-09-27)
 
 
