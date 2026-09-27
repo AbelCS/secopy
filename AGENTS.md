@@ -122,14 +122,22 @@ format exactly.
 
 ## Development
 
-- Layout: `crates/secopy-core` (engine library, no UI dependencies) and `crates/secopy-cli`
-  (developer CLI and benchmark driver). The Tauri app and Svelte UI come in plan 3.
+- Layout: `crates/secopy-core` (engine library, no UI dependencies), `crates/secopy-cli`
+  (developer CLI and benchmark driver), `crates/secopy-app` (the Tauri 2 shell: session,
+  jobs, commands) and `ui/` (Svelte 5 + TypeScript, Vite). Run the app with
+  `npm run tauri dev` from `ui/`; build the `.dmg` with `npm run tauri build`.
 - Engine flow: `scan → select → preflight → Plan::resolve → run_job`, then `Report` for
   the job report. Design notes per plan are in `docs/superpowers/specs/`.
 - Before every commit: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`
   and `cargo test --workspace`. All must pass. When a change touches Linux- or Windows-only
-  `cfg` code, also run clippy with `--target x86_64-unknown-linux-gnu` and
-  `--target x86_64-pc-windows-msvc` (add them once with `rustup target add`).
+  `cfg` code in the engine, also run `cargo clippy -p secopy-core -p secopy-cli --all-targets`
+  with `--target x86_64-unknown-linux-gnu` and `--target x86_64-pc-windows-msvc` (add them
+  once with `rustup target add`). The app crate is macOS only and isn't linted for them.
+- UI checks, from `ui/` (`npm ci` once): `npm run check` (svelte-check) and `npm test`
+  (Vitest). Both must pass before every commit that touches `ui/` or `crates/secopy-app`.
+- `ui/src/lib/bindings.ts` is generated from the app's commands and DTOs by tauri-specta.
+  After changing either, run `SECOPY_UPDATE_BINDINGS=1 cargo test -p secopy-app`; a test
+  fails while the committed file is out of date. Never edit it by hand.
 - `xxhsum` must be installed locally (`brew install xxhash`). CI runs its compatibility
   test with `SECOPY_REQUIRE_XXHSUM=1` so it can't silently skip.
 - CI (`.github/workflows/ci.yml`) is one macOS job that runs after each merge to `main` and
