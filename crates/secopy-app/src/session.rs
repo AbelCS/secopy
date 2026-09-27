@@ -27,6 +27,11 @@ const SCAN_PROBLEMS_SHOWN: usize = 20;
 pub struct Session {
     /// Increases with every change to FROM; only the newest scan's result is kept (FR-3).
     generation: u64,
+    /// The change the shown source and this run's choices belong to; behind `generation`
+    /// while a scan is pending.
+    source_generation: u64,
+    /// The file types the pending scan starts with.
+    next_filter: ExtensionFilter,
     /// What the user picked: a drive, a drop or Choose…. The source is this plus the
     /// profile's folder (spec B3).
     picked: Option<Vec<PathBuf>>,
@@ -48,6 +53,8 @@ impl Default for Session {
     fn default() -> Self {
         Self {
             generation: 0,
+            source_generation: 0,
+            next_filter: ExtensionFilter::All,
             picked: None,
             profile: None,
             include_folder: true,
@@ -126,6 +133,12 @@ impl Session {
     /// a folder and files together).
     pub fn begin(&mut self, change: Change) -> Result<PendingScan, Box<SessionView>> {
         let keep_filter = matches!(change, Change::IncludeFolder(_));
+        // A toggle during a pending scan keeps that scan's file types, not the old card's.
+        let kept = if self.scan_pending() {
+            self.next_filter.clone()
+        } else {
+            self.filter.clone()
+        };
         match change {
             Change::Pick(paths) => {
                 self.picked = Some(paths);
@@ -141,15 +154,17 @@ impl Session {
         }
         self.generation += 1;
         let Some(paths) = self.picked.clone() else {
+            self.source_generation = self.generation;
             return Err(Box::new(self.view()));
         };
         match self.resolve(&paths) {
             Ok(source) => {
                 let filter = if keep_filter {
-                    self.filter.clone()
+                    kept
                 } else {
                     self.profile_filter(&source)
                 };
+                self.next_filter = filter.clone();
                 Ok(PendingScan {
                     ticket: self.generation,
                     source,
@@ -158,6 +173,7 @@ impl Session {
             }
             Err(problem) => {
                 self.no_source(problem);
+                self.source_generation = self.generation;
                 Err(Box::new(self.view()))
             }
         }
@@ -174,6 +190,7 @@ impl Session {
                 ..self.view()
             };
         }
+        self.source_generation = pending.ticket;
         match scanned {
             Ok(scan) => {
                 self.pick_problem = None;
@@ -245,12 +262,20 @@ impl Session {
     }
 
     /// This run's include-folder choice and file types, for Save as new….
-    pub fn choices(&self) -> (bool, Option<Vec<ExtensionKey>>) {
+    pub fn choices(&self) -> Option<(bool, Option<Vec<ExtensionKey>>)> {
+        if self.scan_pending() {
+            return None;
+        }
         let extensions = match &self.filter {
             ExtensionFilter::All => None,
             ExtensionFilter::Only(keys) => Some(keys.iter().cloned().collect()),
         };
-        (self.include_folder, extensions)
+        Some((self.include_folder, extensions))
+    }
+
+    /// A change to FROM is still being scanned.
+    pub fn scan_pending(&self) -> bool {
+        self.generation != self.source_generation
     }
 
     /// Whether this run's choices differ from the selected profile's.
@@ -272,6 +297,9 @@ impl Session {
     /// The selected profile with this run's choices (Update profile). File types the profile
     /// lists that aren't on this card are kept.
     pub fn updated_profile(&self) -> Option<Profile> {
+        if self.scan_pending() {
+            return None;
+        }
         let profile = self.profile.as_ref()?;
         let picked = self.source.as_ref()?;
         let present: Vec<&ExtensionKey> = picked.scan.ext_stats.keys().collect();
@@ -322,6 +350,7 @@ impl Session {
     /// For "Retry failed": the failed files of the last job, checked again (RFD §5.4).
     pub fn install_retry(&mut self, source: Source, selection: Selection) -> SessionView {
         self.generation += 1;
+        self.source_generation = self.generation;
         // The same folder the first job created, as the scan would have named it.
         let root_dir = match &source {
             Source::Directory {
@@ -350,6 +379,7 @@ impl Session {
 
     pub fn clear_source(&mut self) -> SessionView {
         self.generation += 1;
+        self.source_generation = self.generation;
         self.picked = None;
         self.pick_problem = None;
         self.source = None;
@@ -873,6 +903,54 @@ mod tests {
         assert!(!src.is_folder);
         assert_eq!(view.selected_files, 2);
         assert!(!view.profile_changed);
+    }
+
+    #[test]
+    fn update_and_save_as_wait_for_a_pending_scan() {
+        let f = fixture();
+        let root = card(&f);
+        let mut s = Session::new();
+        apply(
+            &mut s,
+            Change::Profile(Some(profile("PRIVATE/M4ROOT/CLIP", Some(&["mp4"])))),
+        );
+        apply(&mut s, Change::Pick(vec![root]));
+        s.set_filter(Some(vec![Some("xml".into())]));
+        assert!(s.updated_profile().is_some() && s.choices().is_some());
+        let mut photos = profile("PRIVATE", Some(&["jpg"]));
+        photos.id = "photos".into();
+        let pending = s.begin(Change::Profile(Some(photos))).ok();
+        assert!(s.scan_pending());
+        assert_eq!(
+            s.updated_profile(),
+            None,
+            "the choices belong to the old profile's scan"
+        );
+        assert_eq!(s.choices(), None);
+        drop(pending);
+    }
+
+    #[test]
+    fn a_new_picks_file_types_survive_an_include_toggle_during_its_scan() {
+        let f = fixture();
+        let root = card(&f);
+        let mut s = Session::new();
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        s.set_filter(Some(vec![Some("xml".into())]));
+        let first = s
+            .begin(Change::Pick(vec![root.join("PRIVATE/M4ROOT/CLIP")]))
+            .ok()
+            .unwrap();
+        let second = s.begin(Change::IncludeFolder(false)).ok().unwrap();
+        let first_scan = scan_source(&first.source);
+        assert!(s.finish_scan(first, first_scan).stale);
+        let second_scan = scan_source(&second.source);
+        let view = s.finish_scan(second, second_scan);
+        assert_eq!(
+            view.selected_files, 3,
+            "a new pick starts with every file type, not the old card's"
+        );
+        assert!(!s.scan_pending());
     }
 
     #[test]
