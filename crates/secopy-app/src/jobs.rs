@@ -26,6 +26,7 @@ use crate::dto::{
 };
 use crate::session::Ready;
 use crate::store::Settings;
+use crate::volumes;
 
 /// Progress reaches the UI twice a second (NFR-5).
 pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
@@ -232,6 +233,8 @@ impl Jobs {
                     .collect();
                 (!errors.is_empty()).then(|| errors.join("; "))
             },
+            source_drive: source_path(&job.ready.source).and_then(|p| volumes::ejectable_drive(&p)),
+            destination_drive: volumes::ejectable_drive(&job.ready.plan.dest),
         })
     }
 
@@ -445,6 +448,14 @@ fn sentence(text: &str) -> String {
     match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect(),
         None => String::new(),
+    }
+}
+
+/// A path on the source's drive: the directory, or the first file.
+fn source_path(s: &Source) -> Option<PathBuf> {
+    match s {
+        Source::Directory { path, .. } => Some(path.clone()),
+        Source::Files(files) => files.first().cloned(),
     }
 }
 

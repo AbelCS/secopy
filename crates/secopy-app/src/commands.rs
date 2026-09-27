@@ -251,6 +251,19 @@ impl AppState {
         }
         Ok(())
     }
+
+    /// Eject the finished copy's source or destination drive (never another one).
+    pub fn eject(&self, mount_point: &str) -> Result<(), String> {
+        let summary = self.jobs.summary().ok_or("There is no finished copy.")?;
+        let ours = [summary.source_drive, summary.destination_drive]
+            .into_iter()
+            .flatten()
+            .any(|d| d.mount_point == mount_point);
+        if !ours {
+            return Err("Secopy only ejects the copy's source or destination drive.".into());
+        }
+        volumes::eject(Path::new(mount_point))
+    }
 }
 
 impl ProgressSink for Channel<ProgressView> {
@@ -408,6 +421,13 @@ pub async fn save_report(app: AppHandle, path: String) -> Result<(), String> {
     .await?
 }
 
+/// Eject a drive of the finished copy (spec §2).
+#[tauri::command]
+#[specta::specta]
+pub async fn eject(app: AppHandle, mount_point: String) -> Result<(), String> {
+    blocking(app, move |state| state.eject(&mount_point)).await?
+}
+
 /// "Retry failed": only the failed files, checked again (RFD §5.4).
 #[tauri::command]
 #[specta::specta]
@@ -506,6 +526,7 @@ mod tests {
     use std::sync::{Arc, Mutex as StdMutex};
 
     use super::*;
+    use crate::dto::JobOutcome;
     use crate::store::{PROFILES, REMEMBERED, SETTINGS};
 
     #[derive(Clone, Default)]
@@ -696,5 +717,66 @@ mod tests {
         let saved = store.load::<Profiles>(PROFILES).0;
         assert_eq!(saved.profiles.len(), 16, "no profile lost");
         assert_eq!(saved, *state.profiles.lock().unwrap());
+    }
+
+    #[test]
+    fn eject_only_takes_the_copys_own_drives() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        assert_eq!(
+            state.eject("/Volumes/CARD_A").unwrap_err(),
+            "There is no finished copy."
+        );
+        // After a copy between folders on the Mac's own disk, nothing may be ejected.
+        let card = dir.path().join("CARD");
+        fs::create_dir_all(&card).unwrap();
+        fs::write(card.join("a.mov"), b"a").unwrap();
+        let dest = dir.path().join("dest");
+        fs::create_dir_all(&dest).unwrap();
+        state.rescan(Change::Pick(vec![card]));
+        state.session.lock().unwrap().set_destination(Some(dest));
+        state.start(false, Sink::default()).unwrap();
+        state.jobs.wait();
+        assert_eq!(
+            state.eject("/Volumes/Other").unwrap_err(),
+            "Secopy only ejects the copy's source or destination drive."
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retry_after_the_source_is_gone_has_nothing_to_start() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let card = dir.path().join("CARD");
+        fs::create_dir_all(&card).unwrap();
+        fs::write(card.join("a.mov"), b"a").unwrap();
+        fs::write(card.join("b.mov"), b"b").unwrap();
+        fs::set_permissions(card.join("b.mov"), fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::read(card.join("b.mov")).is_ok() {
+            return; // running as root
+        }
+        let dest = dir.path().join("dest");
+        fs::create_dir_all(&dest).unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        state.rescan(Change::Pick(vec![card.clone()]));
+        state.session.lock().unwrap().set_destination(Some(dest));
+        state.start(false, Sink::default()).unwrap();
+        state.jobs.wait();
+        fs::set_permissions(card.join("b.mov"), fs::Permissions::from_mode(0o644)).unwrap();
+        fs::remove_dir_all(&card).unwrap(); // the card was ejected
+        let (source, selection) = state.jobs.retry().unwrap();
+        state
+            .session
+            .lock()
+            .unwrap()
+            .install_retry(source, selection);
+        let started = state.start(false, Sink::default());
+        state.jobs.wait();
+        let summary = state.jobs.summary().unwrap();
+        assert!(
+            started.is_err() || summary.outcome != JobOutcome::Complete,
+            "a retry without its card must not report a complete copy"
+        );
     }
 }
