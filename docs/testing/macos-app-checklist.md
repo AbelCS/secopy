@@ -34,5 +34,22 @@ section says, which also checks those first-launch steps), then:
 10. **Save report.** Summary → Save report… writes a `.txt` and a `.json` next to it.
 11. **Closing and quitting when idle.** With no copy running, the red button closes the
     window and the app quits; open it again and ⌘Q quits at once, without asking.
+12. **Drives.** Insert a card and a USB drive: both appear in FROM within 2 s; eject one and
+    it goes away. The Mac's own disk and the drive holding the destination aren't listed.
+13. **A profile on a real card.** Save as new… on the card's clip folder (e.g.
+    `PRIVATE/M4ROOT/CLIP`), with only the video types on. Eject, insert another card of the
+    same camera, click its drive: the profile's folder and types apply. Insert a card of
+    another camera: "<card> has no <folder>", nothing copies.
+14. **Changed for this run.** With a profile applied, turn a type off: "changed for this
+    run" appears. Copy without saving; after New copy the profile is as it was. Change it
+    again and Update profile: the next card uses the change.
+15. **Settings.** Turn the checksum file off: the next job writes none and the summary says
+    so. Turn it on with "report next to it": the report files appear next to the checksum
+    file.
+16. **Remembered, and not.** Choose Copy, resize the window, select a profile, run a job,
+    quit and open again: Copy, the size and the profile are back; the destination is empty
+    and the used one is in Recent ▾.
+17. **The identifier move.** After updating from 0.2.0, `~/Library/Application Support/
+    com.latecommits.secopy/reports/` holds the old reports.
 
 Record the macOS version, the card reader and anything odd in the release PR.

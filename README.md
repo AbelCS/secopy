@@ -22,6 +22,9 @@ open it ("Apple could not verify…"):
 After that it starts normally. (Right-click → Open no longer works for this since macOS 15.)
 In Terminal, `xattr -dr com.apple.quarantine /Applications/Secopy.app` does the same.
 
+Updating from 0.2.0: macOS sees 0.3.0 as a new app (its identifier changed), so the first
+launch needs **Open Anyway** once more.
+
 ## Development
 
 Requirements: Rust via [rustup](https://rustup.rs) (the toolchain is pinned in
