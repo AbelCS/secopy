@@ -1,14 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the main window may do: pick files and folders, reveal and open results.",
+  "description": "What the main window may do: pick files and folders, close itself, reveal results and open checksum files.",
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-destroy",
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-ask",
     "opener:allow-reveal-item-in-dir",
-    { "identifier": "opener:allow-open-path", "allow": [{ "path": "**" }] }
+    { "identifier": "opener:allow-open-path", "allow": [{ "path": "/**/*.xxh64" }] }
   ]
 }

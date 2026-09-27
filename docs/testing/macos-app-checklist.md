@@ -26,8 +26,11 @@ with a real SD card (or any USB stick) before each release. Build it with
    "Stopped: the source is no longer available" and a summary that lists what finished.
 8. **Retry failed.** Make a file unreadable (`chmod 000` on a copy of a card folder),
    copy, then Retry failed. Expect: only that file is offered again.
-9. **Closing during a copy.** Start a copy, close the window: it asks first; Keep copying
-   keeps it open, Stop copying quits and leaves no partial file.
+9. **Closing and quitting during a copy.** Start a copy, close the window (red button, then
+   ⌘W): it asks first; Keep copying keeps it open, Stop copying quits and leaves no partial
+   file. Start another copy and press ⌘Q: the same question, the same result.
 10. **Save report.** Summary → Save report… writes a `.txt` and a `.json` next to it.
+11. **Closing and quitting when idle.** With no copy running, the red button closes the
+    window and the app quits; open it again and ⌘Q quits at once, without asking.
 
 Record the macOS version, the card reader and anything odd in the release PR.

@@ -3104,8 +3104,10 @@ name = "secopy-app"
 version = "0.0.0"
 dependencies = [
  "chrono",
+ "glob",
  "secopy-core",
  "serde",
+ "serde_json",
  "specta",
  "specta-typescript",
  "tauri",
