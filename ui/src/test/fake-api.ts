@@ -16,6 +16,8 @@ export function sourceView(over: Partial<SourceView> = {}): SourceView {
     label: "/Volumes/CARD/DCIM",
     isFolder: true,
     contentsOnly: false,
+    folder: "/Volumes/CARD/DCIM",
+    isRetry: false,
     rootDir: "DCIM",
     files: 1284,
     bytes: 212_400_000_000,

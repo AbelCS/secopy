@@ -47,6 +47,7 @@ pub struct Ready {
 
 struct Picked {
     label: String,
+    is_retry: bool,
     source: Source,
     scan: Scan,
 }
@@ -91,6 +92,7 @@ impl Session {
         }
         self.source = Some(Picked {
             label: label(&source),
+            is_retry: false,
             source,
             scan,
         });
@@ -102,12 +104,22 @@ impl Session {
     /// For "Retry failed": the failed files of the last job, checked again (RFD §5.4).
     pub fn install_retry(&mut self, source: Source, selection: Selection) -> SessionView {
         self.generation += 1;
+        // The same folder the first job created, as the scan would have named it.
+        let root_dir = match &source {
+            Source::Directory {
+                path,
+                mode: DirMode::FolderItself,
+            } => path.file_name().map(PathBuf::from),
+            _ => None,
+        };
         let scan = Scan {
             files: selection.files.clone(),
+            root_dir,
             ..Scan::default()
         };
         self.source = Some(Picked {
             label: format!("Retry: {} failed files", selection.files.len()),
+            is_retry: true,
             source,
             scan,
         });
@@ -207,14 +219,16 @@ impl Session {
             })
             .collect();
         extensions.sort_by_key(|e| std::cmp::Reverse(e.bytes));
-        let (is_folder, contents_only) = match &picked.source {
-            Source::Directory { mode, .. } => (true, *mode == DirMode::ContentsOnly),
-            Source::Files(_) => (false, false),
+        let (folder, contents_only) = match &picked.source {
+            Source::Directory { path, mode } => (Some(show(path)), *mode == DirMode::ContentsOnly),
+            Source::Files(_) => (None, false),
         };
         SourceView {
             label: picked.label.clone(),
-            is_folder,
+            is_folder: folder.is_some(),
             contents_only,
+            folder,
+            is_retry: picked.is_retry,
             root_dir: scan.root_dir.as_deref().map(show),
             files: count(scan.files.len()),
             bytes: scan.files.iter().map(|f| f.size).sum(),
@@ -420,8 +434,9 @@ mod tests {
         let mut s = Session::new();
         let view = pick(&mut s, std::slice::from_ref(&f.card), false);
         let src = view.source.unwrap();
-        assert!(src.is_folder && !src.contents_only);
+        assert!(src.is_folder && !src.contents_only && !src.is_retry);
         assert_eq!(src.root_dir.as_deref(), Some("CARD"));
+        assert_eq!(src.folder, Some(show(&f.card)));
         assert_eq!((src.files, src.bytes), (3, 17));
         let labels: Vec<_> = src.extensions.iter().map(|e| e.label.as_str()).collect();
         assert_eq!(labels, [".mov", ".xml"]);
@@ -551,6 +566,28 @@ mod tests {
         assert!(view.stale && view.source.is_none());
         let view = s.finish_scan(newer, source.clone(), scan_source(&source).unwrap());
         assert!(!view.stale && view.source.is_some());
+    }
+
+    #[test]
+    fn a_retry_keeps_the_copy_root_and_says_it_is_a_retry() {
+        let f = fixture();
+        let mut s = Session::new();
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        s.set_destination(Some(f.dest.clone()));
+        let source = Session::source_for(std::slice::from_ref(&f.card), false).unwrap();
+        let failed = scan_source(&source)
+            .unwrap()
+            .select(&ExtensionFilter::All)
+            .subset(&[0]);
+        let view = s.install_retry(source, failed);
+        let src = view.source.unwrap();
+        assert!(src.is_retry);
+        assert_eq!(src.files, 1);
+        assert_eq!(
+            view.destination.unwrap().copy_root,
+            show(&f.dest.join("CARD"))
+        );
+        assert_eq!(s.ready().unwrap().copy_root, f.dest.join("CARD"));
     }
 
     #[test]
