@@ -5,7 +5,8 @@ pub mod dto;
 pub mod jobs;
 pub mod session;
 
-use tauri::{Manager, RunEvent};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::{AppHandle, Manager, RunEvent, Runtime};
 
 use commands::AppState;
 
@@ -49,6 +50,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(builder.invoke_handler())
+        .menu(menu)
+        .on_menu_event(|app, event| {
+            if event.id() == QUIT {
+                quit(app);
+            }
+        })
         .setup(move |app| {
             builder.mount_events(app);
             let reports = app.path().app_data_dir()?.join("reports");
@@ -58,8 +65,9 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("failed to start Secopy")
         .run(|app, event| {
-            // Quitting during a copy: stop it first, so no partial file is left behind.
-            if let RunEvent::ExitRequested { .. } = event {
+            // The app is going away: stop the copy first, so no partial file is left behind.
+            // `Exit` also covers quitting from the Dock or at logout, which can't be refused.
+            if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
                 let jobs = &app.state::<AppState>().jobs;
                 jobs.cancel();
                 jobs.wait();
@@ -67,9 +75,135 @@ pub fn run() {
         });
 }
 
+const QUIT: &str = "quit";
+
+#[derive(Debug, PartialEq)]
+enum Quit {
+    /// Close the window instead: the UI asks "Stop copying and quit?" first.
+    AskFirst,
+    Now,
+}
+
+fn quit_action(copying: bool) -> Quit {
+    if copying { Quit::AskFirst } else { Quit::Now }
+}
+
+/// Quit Secopy (⌘Q): during a copy it asks first, like closing the window.
+fn quit<R: Runtime>(app: &AppHandle<R>) {
+    let copying = app.state::<AppState>().jobs.is_running();
+    match (quit_action(copying), app.get_webview_window("main")) {
+        (Quit::AskFirst, Some(window)) => {
+            let _ = window.close();
+        }
+        _ => app.exit(0),
+    }
+}
+
+/// The standard macOS menu, except Quit: the standard one ends the app at once, without
+/// the chance to ask.
+fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let app_menu = Submenu::with_items(
+        app,
+        "Secopy",
+        true,
+        &[
+            &PredefinedMenuItem::about(app, None, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::services(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, None)?,
+            &PredefinedMenuItem::hide_others(app, None)?,
+            &PredefinedMenuItem::show_all(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, QUIT, "Quit Secopy", true, Some("CmdOrCtrl+Q"))?,
+        ],
+    )?;
+    let edit = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+    let window = Submenu::with_items(
+        app,
+        "Window",
+        true,
+        &[
+            &PredefinedMenuItem::minimize(app, None)?,
+            &PredefinedMenuItem::maximize(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::close_window(app, None)?,
+        ],
+    )?;
+    Menu::with_items(app, &[&app_menu, &edit, &window])
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+
+    use super::{Quit, quit_action};
+
+    fn capability() -> serde_json::Value {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("capabilities/default.json");
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    /// The UI's close handler ends by destroying the window; without this permission the
+    /// window can't be closed at all.
+    #[test]
+    fn the_window_may_close_itself() {
+        let permissions = capability()["permissions"].clone();
+        assert!(
+            permissions
+                .as_array()
+                .unwrap()
+                .contains(&"core:window:allow-destroy".into()),
+            "{permissions}"
+        );
+    }
+
+    /// The UI only opens checksum files, so that's all it may open.
+    #[test]
+    fn only_checksum_files_can_be_opened() {
+        let permissions = capability()["permissions"].clone();
+        let open = permissions
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["identifier"] == "opener:allow-open-path")
+            .unwrap();
+        let pattern = glob::Pattern::new(open["allow"][0]["path"].as_str().unwrap()).unwrap();
+        // How Tauri matches path scopes on Unix.
+        let options = glob::MatchOptions {
+            require_literal_separator: true,
+            require_literal_leading_dot: true,
+            ..Default::default()
+        };
+        let allowed = |p: &str| pattern.matches_path_with(Path::new(p), options);
+        assert!(allowed(
+            "/Volumes/RAID/Day01/secopy_2026-09-27_140302.xxh64"
+        ));
+        assert!(allowed(
+            "/Users/me/Movies/CARD/secopy_2026-09-27_140302.xxh64"
+        ));
+        assert!(!allowed("/Users/me/Documents/notes.txt"));
+        assert!(!allowed("/Applications/Calculator.app"));
+    }
+
+    #[test]
+    fn quitting_during_a_copy_asks_first() {
+        assert_eq!(quit_action(true), Quit::AskFirst);
+        assert_eq!(quit_action(false), Quit::Now);
+    }
 
     /// The UI's bindings must match the Rust commands. Set `SECOPY_UPDATE_BINDINGS=1` to
     /// rewrite them after changing a command or a DTO.

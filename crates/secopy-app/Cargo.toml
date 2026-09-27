@@ -28,4 +28,6 @@ tauri-plugin-opener.workspace = true
 tauri-specta.workspace = true
 
 [dev-dependencies]
+glob.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
