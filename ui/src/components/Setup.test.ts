@@ -122,7 +122,7 @@ describe("Setup", () => {
 
   test("a non-empty copy root is a warning, not a block", () => {
     setup(readyView({ destination: destinationView({ existingItems: 1204 }) }));
-    screen.getByText(/already contains 1,204 items/);
+    screen.getByText(/Already contains 1,204 items/);
     expect(start()).toHaveProperty("disabled", false);
   });
 
@@ -227,7 +227,7 @@ describe("Setup", () => {
 
   test("choosing a profile selects it; Manage profiles… opens Settings", async () => {
     const { api, calls } = setup(readyView(), readyView(), { profiles: [profile()] });
-    const menu = screen.getByLabelText("Profile");
+    const menu = screen.getByRole("combobox", { name: "Profile" });
     await fireEvent.change(menu, { target: { value: "fx3" } });
     await waitFor(() => expect(api.selectProfile).toHaveBeenCalledWith("fx3"));
     await fireEvent.change(menu, { target: { value: "manage" } });
@@ -265,7 +265,7 @@ describe("Setup", () => {
     setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: "2 files" }) }), undefined, {
       profiles: [profile()],
     });
-    expect(screen.getByLabelText("Profile")).toHaveProperty("disabled", true);
+    expect(screen.getByRole("combobox", { name: "Profile" })).toHaveProperty("disabled", true);
     expect(screen.queryByRole("button", { name: "Save as new…" })).toBeNull();
   });
 
@@ -299,7 +299,7 @@ describe("Setup", () => {
     });
     let finishScan = (_v: SessionView) => {};
     api.selectProfile.mockImplementationOnce(() => new Promise((resolve) => (finishScan = resolve)));
-    await fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "" } });
+    await fireEvent.change(screen.getByRole("combobox", { name: "Profile" }), { target: { value: "" } });
     await screen.findByText("Scanning…");
     expect(screen.getByRole("button", { name: "Update profile" })).toHaveProperty("disabled", true);
     expect(includeFolder()).toHaveProperty("disabled", true);

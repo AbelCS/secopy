@@ -5,6 +5,7 @@
 
   let {
     label,
+    hideLabel = false,
     value = $bindable(""),
     help,
     error = null,
@@ -13,6 +14,8 @@
     ...rest
   }: HTMLInputAttributes & {
     label: string;
+    /** Kept for screen readers only, when a FormRow already shows the label. */
+    hideLabel?: boolean;
     value?: string;
     help?: string;
     error?: string | null;
@@ -25,7 +28,7 @@
 </script>
 
 <div class="field">
-  <label for={id}>{label}</label>
+  <label for={id} class:visually-hidden={hideLabel}>{label}</label>
   <div class="row">
     <input
       {id}

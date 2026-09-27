@@ -25,6 +25,9 @@ Every screen is an `AppShell` with three parts, always in the same place:
   the screen's title (the window's title bar already says Secopy); screen-wide controls
   on the right (Settings on New copy and Summary).
 - **Content**: `Section`s, one per part of the screen, and app-wide messages first.
+  Inside a section, one `FormRow` per kind of thing (Source, Profile, Selected, Options,
+  File types…), with a hairline between rows; a control whose row already names it hides
+  its own label (`hideLabel`), keeping it for screen readers.
 - **Action bar** (`ActionBar`), always visible:
   - **right:** the screen's one primary action (Start, New copy, Save);
   - **left:** the other actions, and destructive ones (Cancel, Delete…) in red;
@@ -54,6 +57,7 @@ Components use tokens only, never raw colours or sizes.
 | `ScreenHeader` | Title, optional ‹ Back, optional trailing controls |
 | `ActionBar` | The bottom bar: `start`, `status`, `end` |
 | `Section` | A titled part of a screen; the only card style |
+| `FormRow` | One labelled line inside a section: the label column on the left, the content, the row's own actions on the right (Choose…, All · None) |
 | `Button` | `primary` (one per screen), `secondary`, `danger`, `link`; optional icon |
 | `SegmentedControl` | A small exclusive choice shown as one control (Copy / Copy & Verify) |
 | `Checkbox` | An option, with an optional line of help |

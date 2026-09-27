@@ -37,6 +37,23 @@
   });
 </script>
 
-{#each drives as d (d.path)}
-  <Chip label={d.name} meta={formatBytes(d.totalBytes)} selected={isOn(d)} onToggle={() => onPick(d.path)} />
-{/each}
+<div class="drives">
+  {#each drives as d (d.path)}
+    <Chip label={d.name} meta={formatBytes(d.totalBytes)} selected={isOn(d)} onToggle={() => onPick(d.path)} />
+  {:else}
+    <span class="muted">No cards or drives connected.</span>
+  {/each}
+</div>
+
+<style>
+  .drives {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .muted {
+    color: var(--text-muted);
+    padding-top: 4px;
+  }
+</style>

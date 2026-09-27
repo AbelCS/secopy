@@ -79,7 +79,7 @@
 </script>
 
 <div class="profile">
-  <Select label="Profile" value={view.profileId ?? ""} {options} disabled={forFiles} onChange={choose} />
+  <Select label="Profile" hideLabel value={view.profileId ?? ""} {options} disabled={forFiles} onChange={choose} />
   {#if selected && view.profileChanged}
     <span class="muted">Changed for this run</span>
     <Button disabled={busy} onclick={() => act(() => api.updateProfile())}>Update profile</Button>

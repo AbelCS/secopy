@@ -13,6 +13,7 @@
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
   import Section from "../lib/ui/Section.svelte";
   import SegmentedControl from "../lib/ui/SegmentedControl.svelte";
+  import FormRow from "../lib/ui/FormRow.svelte";
   import DrivesRow from "./DrivesRow.svelte";
   import ExtensionChips from "./ExtensionChips.svelte";
   import PreflightPanel from "./PreflightPanel.svelte";
@@ -184,11 +185,11 @@
   {@render banner?.()}
 
   <Section title="From" data-drop="from">
-    <div class="rows">
-      <div class="pick" role="group" aria-label="Source">
-        <DrivesRow source={source?.folder ?? null} onPick={(path) => scan([path])} />
-        <Button onclick={chooseSource}>Choose…</Button>
-      </div>
+    <FormRow label="Source">
+      <DrivesRow source={source?.folder ?? null} onPick={(path) => scan([path])} />
+      {#snippet aside()}<Button onclick={chooseSource}>Choose…</Button>{/snippet}
+    </FormRow>
+    <FormRow label="Profile">
       <ProfileBar
         {view}
         {profiles}
@@ -197,29 +198,33 @@
         onApplied={profilesApplied}
         onManage={onManageProfiles}
       />
-      <div>
-        {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
-        {#if view.pickProblem}<Notice tone="danger">{view.pickProblem}</Notice>{/if}
-        {#if source}
+    </FormRow>
+    <FormRow label="Selected">
+      {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
+      {#if view.pickProblem}<Notice tone="danger">{view.pickProblem}</Notice>{/if}
+      {#if source}
+        <div>
           <p class="path mono">{source.label}</p>
           <p class="muted">{sourceSummary}</p>
-          {#if source.problemCount > 0}
-            <details class="unreadable">
-              <summary>{plural(source.problemCount, "item")} couldn't be read</summary>
-              <ul>
-                {#each source.problems as p (p)}<li class="mono">{p}</li>{/each}
-              </ul>
-            </details>
-          {/if}
-        {:else}
-          <p class="muted">Drop a directory or files here, or choose them.</p>
+        </div>
+        {#if source.problemCount > 0}
+          <details class="unreadable">
+            <summary>{plural(source.problemCount, "item")} couldn't be read</summary>
+            <ul>
+              {#each source.problems as p (p)}<li class="mono">{p}</li>{/each}
+            </ul>
+          </details>
         {/if}
-        {#if sourceError}<Notice tone="danger">{sourceError}</Notice>{/if}
-      </div>
+      {:else}
+        <p class="muted">Drop a directory or files here, or choose them.</p>
+      {/if}
+      {#if sourceError}<Notice tone="danger">{sourceError}</Notice>{/if}
+    </FormRow>
 
-      <!-- A retry copies exactly the files that failed: nothing to choose there. -->
-      {#if source?.folder && !source.isRetry}
-        {@const folder = source.folder}
+    <!-- A retry copies exactly the files that failed: nothing to choose there. -->
+    {#if source?.folder && !source.isRetry}
+      {@const folder = source.folder}
+      <FormRow label="Options">
         <!-- On: DEST/DCIM/…; off: only what's inside, straight into DEST (FR-4). -->
         <Checkbox
           label="Include the “{baseName(folder)}” directory"
@@ -227,43 +232,47 @@
           disabled={scanning > 0}
           onChange={setIncludeFolder}
         />
-        {#if source.extensions.length > 0}
+      </FormRow>
+      {#if source.extensions.length > 0}
+        <FormRow label="File types">
           <ExtensionChips extensions={source.extensions} selected={source.selectedExtensions} onChange={setFilter} />
-        {/if}
+          {#snippet aside()}
+            <Button variant="link" onclick={() => setFilter(null)}>All</Button>
+            <Button variant="link" onclick={() => setFilter([])}>None</Button>
+          {/snippet}
+        </FormRow>
       {/if}
-    </div>
+    {/if}
   </Section>
 
   <Section title="To" data-drop="to">
-    <div class="rows">
-      <div>
-        {#if checking > 0}<p class="muted" role="status">Checking…</p>{/if}
-        {#if destination}
+    <FormRow label="Destination">
+      {#if checking > 0}<p class="muted" role="status">Checking…</p>{/if}
+      {#if destination}
+        <div>
           <p class="path mono">{destination.path}</p>
           {#if !destination.blocker}
             <p class="muted">{formatBytes(destination.freeBytes)} free · {destination.fsKind}</p>
           {/if}
-        {:else}
-          <p class="muted">Drop the destination directory here, or choose it.</p>
-        {/if}
-      </div>
-      <div class="pick">
-        <Button onclick={chooseDestination}>Choose…</Button>
+        </div>
+      {:else}
+        <p class="muted">Drop the destination directory here, or choose it.</p>
+      {/if}
+      {#if destError}<Notice tone="danger">{destError}</Notice>{/if}
+      {#if destination?.blocker && !source}<Notice tone="danger">{destination.blocker}</Notice>{/if}
+      {#snippet aside()}
         {#if recent.length > 0}
           <select aria-label="Recent destinations" value="" onchange={(e) => chooseRecent(e.currentTarget)}>
             <option value="" disabled>Recent…</option>
             {#each recent as r (r)}<option value={r}>{r}</option>{/each}
           </select>
         {/if}
-      </div>
-      {#if destError}<Notice tone="danger">{destError}</Notice>{/if}
-      {#if destination && source}
-        <p>Files will go to: <span class="mono">{destination.copyRoot}</span></p>
-        <PreflightPanel {destination} plan={view.plan} conflicts={view.conflicts} onConflicts={setConflicts} />
-      {:else if destination?.blocker}
-        <Notice tone="danger">{destination.blocker}</Notice>
-      {/if}
-    </div>
+        <Button onclick={chooseDestination}>Choose…</Button>
+      {/snippet}
+    </FormRow>
+    {#if destination && source}
+      <PreflightPanel {destination} plan={view.plan} conflicts={view.conflicts} onConflicts={setConflicts} />
+    {/if}
   </Section>
 
   {#snippet actions()}
@@ -294,21 +303,14 @@
 </AppShell>
 
 <style>
-  .rows {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
 
-  .pick {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-  }
 
   p {
-    margin: 0 0 var(--space-1);
+    margin: 0;
+  }
+
+  select {
+    max-width: 220px;
   }
 
   .path {

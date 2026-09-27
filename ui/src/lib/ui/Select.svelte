@@ -2,12 +2,15 @@
   // A labelled menu; the label sits beside it.
   let {
     label,
+    hideLabel = false,
     value,
     options,
     disabled = false,
     onChange,
   }: {
     label: string;
+    /** Kept for screen readers only, when a FormRow already shows the label. */
+    hideLabel?: boolean;
     value: string;
     options: { value: string; label: string }[];
     disabled?: boolean;
@@ -18,7 +21,7 @@
 </script>
 
 <span class="select">
-  <label for={id}>{label}</label>
+  <label for={id} class:visually-hidden={hideLabel}>{label}</label>
   <select {id} {value} {disabled} onchange={(e) => onChange(e.currentTarget.value, e.currentTarget)}>
     {#each options as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
   </select>

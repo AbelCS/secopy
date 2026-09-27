@@ -6,6 +6,7 @@ import AppShell from "./AppShell.svelte";
 import Button from "./Button.svelte";
 import Checkbox from "./Checkbox.svelte";
 import Chip from "./Chip.svelte";
+import FormRow from "./FormRow.svelte";
 import Notice from "./Notice.svelte";
 import RadioGroup from "./RadioGroup.svelte";
 import ScreenHeader from "./ScreenHeader.svelte";
@@ -136,5 +137,19 @@ describe("design system", () => {
     render(Stats, { props: { items: ["3 files", "7.0 GB written", "took 0:06"] } });
     const items = screen.getAllByRole("listitem").map((li) => li.textContent);
     expect(items).toEqual(["3 files", "7.0 GB written", "took 0:06"]);
+  });
+
+  test("FormRow: a labelled row, with its actions apart", () => {
+    render(FormRow, { props: { label: "Source", children: text("CARD_A"), aside: text("Choose…") } });
+    const row = screen.getByRole("group", { name: "Source" });
+    expect(row.textContent).toContain("CARD_A");
+    expect(row.lastElementChild?.textContent).toBe("Choose…");
+  });
+
+  test("Select: its label can be hidden when a row already names it", () => {
+    render(Select, { props: { label: "Profile", hideLabel: true, value: "", options: [{ value: "", label: "None" }], onChange: () => {} } });
+    const label = screen.getByText("Profile");
+    expect(label.className).toContain("visually-hidden");
+    screen.getByLabelText("Profile");
   });
 });

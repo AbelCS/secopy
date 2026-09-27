@@ -3,6 +3,7 @@
   // already there, and the choice for files that differ.
   import type { ConflictPolicy, DestinationView, PlanView } from "../lib/bindings";
   import { formatCount, plural } from "../lib/format";
+  import FormRow from "../lib/ui/FormRow.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import RadioGroup from "../lib/ui/RadioGroup.svelte";
 
@@ -26,17 +27,19 @@
   ];
 </script>
 
-<div class="preflight">
-  {#if blocker}
-    <Notice tone="danger">{blocker}</Notice>
-  {:else}
+{#if blocker}
+  <Notice tone="danger">{blocker}</Notice>
+{:else}
+  <FormRow label="Files go to">
+    <p class="mono">{destination.copyRoot}</p>
     {#if destination.existingItems}
       <Notice tone="warning">
-        <span class="mono">{destination.copyRoot}</span> already contains
-        {plural(destination.existingItems, "item")}. Identical files will be skipped.
+        Already contains {plural(destination.existingItems, "item")}. Identical files will be skipped.
       </Notice>
     {/if}
-    {#if destination.problemCount > 0}
+  </FormRow>
+  {#if destination.problemCount > 0}
+    <FormRow label="Problems">
       <details class="failing">
         <summary>{plural(destination.problemCount, "file")} will fail</summary>
         <ul>
@@ -48,33 +51,33 @@
           {/if}
         </ul>
       </details>
-    {/if}
-    {#if destination.identical > 0}
+    </FormRow>
+  {/if}
+  {#if destination.identical > 0}
+    <FormRow label="Identical">
       <p>{plural(destination.identical, "identical file")} will be skipped (not checked).</p>
-    {/if}
-    {#if destination.differs > 0}
+    </FormRow>
+  {/if}
+  {#if destination.differs > 0}
+    <FormRow label="Different">
       <RadioGroup
         legend="{plural(destination.differs, 'file')} {destination.differs === 1 ? 'differs' : 'differ'} from what's there"
         options={choices}
         value={conflicts}
         onChange={onConflicts}
       />
-    {/if}
-    {#if destination.stalePartials > 0}
+    </FormRow>
+  {/if}
+  {#if destination.stalePartials > 0}
+    <FormRow label="Leftovers">
       <p class="muted">
         {plural(destination.stalePartials, "unfinished file")} from an interrupted copy will be replaced.
       </p>
-    {/if}
+    </FormRow>
   {/if}
-</div>
+{/if}
 
 <style>
-  .preflight {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
   p {
     margin: 0;
   }
