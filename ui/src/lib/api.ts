@@ -9,6 +9,7 @@ import { ask, open, save } from "@tauri-apps/plugin-dialog";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { getContext, setContext } from "svelte";
+import { dropPoint, isMacOS } from "./drop";
 import {
   commands,
   type ConflictPolicy,
@@ -113,7 +114,7 @@ export const tauriApi = {
   onDrop: (handler: (paths: string[], target: Element | null) => void): Promise<() => void> =>
     getCurrentWebview().onDragDropEvent((event) => {
       if (event.payload.type !== "drop") return;
-      const { x, y } = event.payload.position.toLogical(window.devicePixelRatio);
+      const { x, y } = dropPoint(event.payload.position, window.devicePixelRatio, isMacOS());
       handler(event.payload.paths, document.elementFromPoint(x, y));
     }),
   /** Closing the window; call `prevent()` to keep it open. */
