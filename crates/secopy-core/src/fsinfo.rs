@@ -202,7 +202,6 @@ mod sys {
 mod sys {
     use std::fs::{File, OpenOptions};
     use std::io;
-    use std::os::windows::ffi::OsStrExt;
     use std::os::windows::fs::OpenOptionsExt;
     use std::os::windows::io::AsRawHandle;
     use std::path::Path;
@@ -251,7 +250,7 @@ mod sys {
     }
 
     pub fn free_bytes(dir: &Path) -> io::Result<u64> {
-        let wide: Vec<u16> = dir.as_os_str().encode_wide().chain([0]).collect();
+        let wide = crate::os::wide_path(dir)?;
         let mut available = 0u64;
         // SAFETY: `wide` is NUL-terminated; unused out-pointers are null.
         let ok = unsafe {

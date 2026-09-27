@@ -128,16 +128,38 @@ pub fn rename_noreplace(from: &Path, to: &Path) -> io::Result<()> {
 /// It also fails on a file another writer has open without delete sharing.
 #[cfg(windows)]
 pub fn rename_noreplace(from: &Path, to: &Path) -> io::Result<()> {
-    use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::MoveFileExW;
-    let wide = |p: &Path| -> Vec<u16> { p.as_os_str().encode_wide().chain([0]).collect() };
-    let (from, to) = (wide(from), wide(to));
+    let (from, to) = (wide_path(from)?, wide_path(to)?);
     // SAFETY: both pointers are valid NUL-terminated wide strings for the call's duration.
     if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), 0) } != 0 {
         Ok(())
     } else {
         Err(io::Error::last_os_error())
     }
+}
+
+/// A NUL-terminated wide path for raw Win32 calls, in the `\\?\` form, so paths longer
+/// than 260 characters work (NFR-7). `std` does this for its own calls; raw calls must too.
+#[cfg(windows)]
+pub fn wide_path(path: &Path) -> io::Result<Vec<u16>> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::{Component, Prefix};
+    // `absolute` also turns `/` into `\` and resolves `..`, which `\\?\` paths don't.
+    let abs = std::path::absolute(path)?;
+    let wide: Vec<u16> = abs.as_os_str().encode_wide().collect();
+    let prefixed: Vec<u16> = match abs.components().next() {
+        Some(Component::Prefix(p)) => match p.kind() {
+            Prefix::Disk(_) => r"\\?\".encode_utf16().chain(wide).collect(),
+            // \\server\share → \\?\UNC\server\share
+            Prefix::UNC(..) => r"\\?\UNC"
+                .encode_utf16()
+                .chain(wide[1..].iter().copied())
+                .collect(),
+            _ => wide,
+        },
+        _ => wide,
+    };
+    Ok(prefixed.into_iter().chain([0]).collect())
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
@@ -343,5 +365,34 @@ mod tests {
         let (_file, bypassed) = open_uncached(&path).unwrap();
         assert!(bypassed);
         assert_eq!(resident_pages(&path), 0);
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+
+    fn text(wide: Vec<u16>) -> String {
+        String::from_utf16(&wide[..wide.len() - 1]).unwrap()
+    }
+
+    #[test]
+    fn wide_paths_use_the_long_path_form() {
+        assert_eq!(
+            text(wide_path(Path::new(r"C:\a\b")).unwrap()),
+            r"\\?\C:\a\b"
+        );
+        assert_eq!(
+            text(wide_path(Path::new("C:/a/../b")).unwrap()),
+            r"\\?\C:\b"
+        );
+        assert_eq!(
+            text(wide_path(Path::new(r"\\server\share\x")).unwrap()),
+            r"\\?\UNC\server\share\x"
+        );
+        assert_eq!(
+            text(wide_path(Path::new(r"\\?\C:\a")).unwrap()),
+            r"\\?\C:\a"
+        );
     }
 }
