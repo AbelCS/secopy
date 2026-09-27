@@ -50,6 +50,51 @@ button.primary {
   color: #fff;
 }
 
+/* A primary button that can't be used must not look like one that can. */
+button.primary:disabled {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  color: var(--text-faint);
+}
+
+/* Text fields and menus, one look everywhere. */
+input:not([type]),
+input[type="text"],
+select {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+}
+
+select {
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239a9da3' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+input::placeholder {
+  color: var(--text-faint);
+}
+
+/* "‹ Back" at the top of Settings and Profiles. */
+button.back {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 4px 0;
+}
+
+/* A chosen option: filled, not only outlined. */
+.selected-fill {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-raised));
+  border-color: var(--accent);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

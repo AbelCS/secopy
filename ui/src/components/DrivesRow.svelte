@@ -36,27 +36,19 @@
   });
 </script>
 
-{#if drives.length > 0}
-  <div class="drives" role="group" aria-label="Drives">
-    {#each drives as d (d.path)}
-      <button type="button" class="drive" class:on={isOn(d)} aria-pressed={isOn(d)} onclick={() => onPick(d.path)}>
-        {d.name} <span class="muted">{formatBytes(d.totalBytes)}</span>
-      </button>
-    {/each}
-  </div>
-{/if}
+{#each drives as d (d.path)}
+  <button
+    type="button"
+    class="drive"
+    class:selected-fill={isOn(d)}
+    aria-pressed={isOn(d)}
+    onclick={() => onPick(d.path)}
+  >
+    {d.name} <span class="muted">{formatBytes(d.totalBytes)}</span>
+  </button>
+{/each}
 
 <style>
-  .drives {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 0 0 8px;
-  }
-
-  .drive.on {
-    border-color: var(--accent);
-  }
 
   .muted {
     color: var(--text-muted);

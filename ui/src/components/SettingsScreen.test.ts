@@ -48,9 +48,31 @@ describe("SettingsScreen", () => {
     expect(screen.queryByText(/profile/i)).toBeNull();
   });
 
-  test("Done goes back", async () => {
+  test("Back goes back", async () => {
     const { calls } = show();
-    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(calls.done).toBe(1);
+  });
+
+  test("a change says it was saved, and there is nothing to apply", async () => {
+    show();
+    expect(screen.queryByRole("button", { name: /apply|cancel|done/i })).toBeNull();
+    await fireEvent.click(screen.getByLabelText("Show the count of skipped hidden items"));
+    await screen.findByText("Saved");
+  });
+
+  test("a change that couldn't be saved doesn't say saved", async () => {
+    const { api } = show();
+    api.setSettings.mockRejectedValueOnce(new Error("Couldn't save the settings: disk full"));
+    await fireEvent.click(screen.getByLabelText("Show the count of skipped hidden items"));
+    await screen.findByText("Couldn't save the settings: disk full");
+    expect(screen.queryByText("Saved")).toBeNull();
+  });
+
+  test("each setting explains itself", () => {
+    show();
+    screen.getByText(/xxhsum -c/);
+    screen.getByText(/never copied/);
+    screen.getByText(/also kept in the app/);
   });
 });

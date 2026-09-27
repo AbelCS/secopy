@@ -143,7 +143,10 @@
 
 <section class="card" data-drop="from" aria-labelledby="from-title">
   <h2 id="from-title">From</h2>
-  <DrivesRow source={source?.folder ?? null} onPick={(path) => scan([path])} />
+  <div class="pick" role="group" aria-label="Source">
+    <DrivesRow source={source?.folder ?? null} onPick={(path) => scan([path])} />
+    <button type="button" onclick={chooseSource}>Choose…</button>
+  </div>
   <ProfileBar {view} {profiles} busy={scanning > 0} onSelect={selectProfile} onApplied={profilesApplied} onManage={onManageProfiles} />
   {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
   {#if view.pickProblem}<p class="danger" role="alert">{view.pickProblem}</p>{/if}
@@ -161,9 +164,6 @@
   {:else}
     <p class="muted">Drop a directory or files here, or choose them.</p>
   {/if}
-  <div class="actions">
-    <button type="button" onclick={chooseSource}>Choose…</button>
-  </div>
   {#if sourceError}<p class="danger" role="alert">{sourceError}</p>{/if}
 
   <!-- A retry copies exactly the files that failed: nothing to choose there. -->
@@ -287,6 +287,13 @@
     color: var(--warning);
   }
 
+  .pick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 10px;
+  }
+
   .actions {
     display: flex;
     gap: 8px;
@@ -304,21 +311,33 @@
     align-items: center;
   }
 
+  /* One control, the chosen mode filled. */
   .segmented {
-    display: flex;
-    gap: 4px;
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
   }
 
   .segmented label {
     position: relative;
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    padding: 6px 14px;
+    color: var(--text-muted);
     cursor: pointer;
   }
 
+  .segmented label + label {
+    border-left: 1px solid var(--border);
+  }
+
   .segmented label.on {
-    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .segmented label:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   .segmented input {

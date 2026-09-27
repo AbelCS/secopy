@@ -22,10 +22,29 @@
   // svelte-ignore state_referenced_locally
   let selectedId: string | null = $state(profiles[0]?.id ?? null);
   let error: string | null = $state(null);
+  /** The editor has unsaved changes. */
+  let changed = false;
 
   const selected = $derived(profiles.find((p) => p.id === selectedId) ?? null);
   /** Recreates the editor for another profile, or after this one was saved. */
   const editorKey = $derived(selectedId === NEW ? NEW : JSON.stringify(selected));
+
+  /** Whether it's fine to leave the profile being edited; asks when it has changes. */
+  async function mayLeave(): Promise<boolean> {
+    if (!changed) return true;
+    const which = selectedId === NEW ? "the new profile" : `“${selected?.name ?? ""}”`;
+    return api.confirm(`Your changes to ${which} aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+  }
+
+  async function select(id: string) {
+    if (id === selectedId || !(await mayLeave())) return;
+    changed = false;
+    selectedId = id;
+  }
+
+  async function back() {
+    if (await mayLeave()) onDone();
+  }
 
   async function save(input: ProfileInput) {
     if (selectedId === NEW) {
@@ -60,11 +79,12 @@
   }
 </script>
 
+<nav class="bar">
+  <button type="button" class="back" onclick={back}><span aria-hidden="true">‹</span> Back</button>
+</nav>
+
 <section class="card" aria-labelledby="profiles-title">
-  <div class="head">
-    <h2 id="profiles-title">Profiles</h2>
-    <button type="button" class="primary" onclick={onDone}>Done</button>
-  </div>
+  <h2 id="profiles-title">Profiles</h2>
   <div class="panes">
     <nav class="list" aria-label="Profiles">
       {#each profiles as p (p.id)}
@@ -74,13 +94,13 @@
           class:on={p.id === selectedId}
           aria-label={p.name}
           aria-current={p.id === selectedId}
-          onclick={() => (selectedId = p.id)}
+          onclick={() => select(p.id)}
         >
           <span class="name">{p.name}</span>
           <span class="muted mono">{p.folder || "(what you pick)"}</span>
         </button>
       {/each}
-      <button type="button" class="new" class:on={selectedId === NEW} onclick={() => (selectedId = NEW)}>
+      <button type="button" class="new" class:on={selectedId === NEW} onclick={() => select(NEW)}>
         + New profile
       </button>
     </nav>
@@ -91,6 +111,7 @@
             profile={selectedId === NEW ? null : selected}
             onSave={save}
             onDelete={selected ? () => remove(selected) : null}
+            onChanged={(c) => (changed = c)}
           />
         {/key}
       {:else}
@@ -114,15 +135,12 @@
     padding: 14px 16px;
   }
 
-  .head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
+  .bar {
+    margin: -6px 0 8px;
   }
 
   h2 {
-    margin: 0;
+    margin: 0 0 12px;
     font-size: 11px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -159,7 +177,7 @@
   .item.on,
   .new.on {
     border-color: var(--accent);
-    background: var(--bg);
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
   }
 
   .item .muted {

@@ -94,7 +94,7 @@ describe("App", () => {
     const { state } = app();
     await fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
     await screen.findByRole("heading", { name: "Settings" });
-    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     await startButton();
     await waitFor(() => expect(state.openSettings).not.toBeNull());
     state.openSettings!();
@@ -147,7 +147,7 @@ describe("App", () => {
     await fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "manage" } });
     await screen.findByRole("heading", { name: "Profiles" });
     expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
-    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     await screen.findByRole("button", { name: /^Copy & verify 1,284 files/ });
   });
 });

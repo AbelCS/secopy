@@ -9,12 +9,15 @@
     profile,
     onSave,
     onDelete,
+    onChanged,
   }: {
     /** `null` for a new profile. */
     profile: Profile | null;
     /** Throws the app's message when the profile can't be saved. */
     onSave: (input: ProfileInput) => Promise<void>;
     onDelete: (() => void) | null;
+    /** Whether there are unsaved changes, so leaving can ask first. */
+    onChanged: (changed: boolean) => void;
   } = $props();
 
   const api = useApi();
@@ -51,6 +54,7 @@
           (!all && types.join("\n") !== start.types.join("\n")),
   );
   const noTypes = $derived(!all && types.length === 0);
+  $effect(() => onChanged(changed));
   const canSave = $derived(changed && !noTypes && !saving);
 
   const label = (key: string | null) => (key === null ? NO_EXTENSION : `.${key}`);

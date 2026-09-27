@@ -124,9 +124,45 @@ describe("ProfilesScreen", () => {
     await waitFor(() => expect(api.deleteProfile).toHaveBeenCalledWith("fx3"));
   });
 
-  test("Done goes back", async () => {
+  test("Back goes back", async () => {
     const { calls } = show();
-    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(calls.done).toBe(1);
+  });
+
+  test("leaving a profile with unsaved changes asks first", async () => {
+    const { api } = show();
+    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3 A-cam" } });
+    api.confirm.mockResolvedValueOnce(false);
+    await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
+    await waitFor(() =>
+      expect(api.confirm).toHaveBeenCalledWith(
+        "Your changes to “Sony FX3” aren't saved.",
+        "Discard changes?",
+        "Discard",
+        "Keep editing",
+      ),
+    );
+    expect(screen.getByLabelText("Name")).toHaveProperty("value", "FX3 A-cam");
+    api.confirm.mockResolvedValueOnce(true);
+    await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveProperty("value", "DJI Mini 4"));
+  });
+
+  test("Back with unsaved changes asks first", async () => {
+    const { api, calls } = show();
+    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3 A-cam" } });
+    api.confirm.mockResolvedValueOnce(false);
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(api.confirm).toHaveBeenCalled());
+    expect(calls.done).toBe(0);
+  });
+
+  test("without changes nothing asks", async () => {
+    const { api, calls } = show();
+    await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(api.confirm).not.toHaveBeenCalled();
     expect(calls.done).toBe(1);
   });
 });
