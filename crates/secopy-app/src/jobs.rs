@@ -396,7 +396,7 @@ fn sentence(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::{Session, scan_source};
+    use crate::session::{Change, Session, scan_source};
 
     #[derive(Clone, Default)]
     struct Collect(Arc<Mutex<Vec<ProgressView>>>);
@@ -431,10 +431,12 @@ mod tests {
         let dest = dir.path().join("dest");
         fs::create_dir_all(&dest).unwrap();
         let mut session = Session::new();
-        let ticket = session.begin_scan();
-        let source = Session::source_for(std::slice::from_ref(&card), false).unwrap();
-        let scan = scan_source(&source).unwrap();
-        session.finish_scan(ticket, source, scan);
+        let pending = session
+            .begin(Change::Pick(vec![card.clone()]))
+            .ok()
+            .unwrap();
+        let scanned = scan_source(&pending.source);
+        session.finish_scan(pending, scanned);
         session.set_destination(Some(dest.clone()));
         let jobs = Jobs::new(dir.path().join("reports"));
         Fixture {

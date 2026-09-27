@@ -16,16 +16,25 @@ use crate::dto::{
     ConflictPolicy, DestinationView, ExtensionKey, ExtensionView, FileProblemView, PlanView,
     SessionView, SourceView, count, show,
 };
+use crate::store::Profile;
+use crate::volumes::VOLUMES;
 
 /// Per-file problems sent to the UI; the rest are only counted.
 const PROBLEMS_SHOWN: usize = 100;
 /// Scan problems sent to the UI.
 const SCAN_PROBLEMS_SHOWN: usize = 20;
 
-#[derive(Default)]
 pub struct Session {
-    /// Increases with every scan; only the newest scan's result is kept (FR-3).
+    /// Increases with every change to FROM; only the newest scan's result is kept (FR-3).
     generation: u64,
+    /// What the user picked: a drive, a drop or Choose…. The source is this plus the
+    /// profile's folder (spec B3).
+    picked: Option<Vec<PathBuf>>,
+    profile: Option<Profile>,
+    /// "Include the folder" for this run (FR-4).
+    include_folder: bool,
+    /// Why the pick has no source.
+    pick_problem: Option<String>,
     source: Option<Picked>,
     filter: ExtensionFilter,
     selection: Option<Selection>,
@@ -33,6 +42,42 @@ pub struct Session {
     policy: ConflictPolicy,
     checked: Option<Result<Preflight, Blocker>>,
     plan: Option<Plan>,
+}
+
+impl Default for Session {
+    fn default() -> Self {
+        Self {
+            generation: 0,
+            picked: None,
+            profile: None,
+            include_folder: true,
+            pick_problem: None,
+            source: None,
+            filter: ExtensionFilter::All,
+            selection: None,
+            dest: None,
+            policy: ConflictPolicy::default(),
+            checked: None,
+            plan: None,
+        }
+    }
+}
+
+/// A change to FROM; each one rescans.
+pub enum Change {
+    /// A new pick: a drive, a drop or Choose….
+    Pick(Vec<PathBuf>),
+    /// The "Include the folder" checkbox; keeps this run's file types.
+    IncludeFolder(bool),
+    /// A profile selected, or `None`.
+    Profile(Option<Profile>),
+}
+
+/// A scan to run without the session locked, then hand to [`Session::finish_scan`].
+pub struct PendingScan {
+    ticket: u64,
+    pub source: Source,
+    filter: ExtensionFilter,
 }
 
 /// Everything a job needs from the main window.
@@ -76,29 +121,202 @@ impl Session {
         }
     }
 
-    /// Starts a scan and returns its ticket. Scanning runs without the session locked;
-    /// [`finish_scan`](Self::finish_scan) then keeps the result only if no newer scan began.
-    pub fn begin_scan(&mut self) -> u64 {
+    /// Applies `change` and returns the scan it needs, or the view when there is nothing to
+    /// scan: nothing picked yet, or the pick can't be used (the profile's folder is missing,
+    /// a folder and files together).
+    pub fn begin(&mut self, change: Change) -> Result<PendingScan, SessionView> {
+        let keep_filter = matches!(change, Change::IncludeFolder(_));
+        match change {
+            Change::Pick(paths) => {
+                self.picked = Some(paths);
+                self.include_folder = self.profile.as_ref().is_none_or(|p| p.include_folder);
+            }
+            Change::IncludeFolder(include) => self.include_folder = include,
+            Change::Profile(profile) => {
+                if let Some(p) = &profile {
+                    self.include_folder = p.include_folder;
+                }
+                self.profile = profile;
+            }
+        }
         self.generation += 1;
-        self.generation
+        let Some(paths) = self.picked.clone() else {
+            return Err(self.view());
+        };
+        match self.resolve(&paths) {
+            Ok(source) => {
+                let filter = if keep_filter {
+                    self.filter.clone()
+                } else {
+                    self.profile_filter(&source)
+                };
+                Ok(PendingScan {
+                    ticket: self.generation,
+                    source,
+                    filter,
+                })
+            }
+            Err(problem) => {
+                self.no_source(problem);
+                Err(self.view())
+            }
+        }
     }
 
-    pub fn finish_scan(&mut self, ticket: u64, source: Source, scan: Scan) -> SessionView {
-        if ticket != self.generation {
+    pub fn finish_scan(
+        &mut self,
+        pending: PendingScan,
+        scanned: Result<Scan, String>,
+    ) -> SessionView {
+        if pending.ticket != self.generation {
             return SessionView {
                 stale: true,
                 ..self.view()
             };
         }
-        self.source = Some(Picked {
-            label: label(&source),
-            is_retry: false,
-            source,
-            scan,
-        });
+        match scanned {
+            Ok(scan) => {
+                self.pick_problem = None;
+                self.source = Some(Picked {
+                    label: label(&pending.source),
+                    is_retry: false,
+                    source: pending.source,
+                    scan,
+                });
+                self.filter = pending.filter;
+                self.recompute();
+            }
+            Err(problem) => self.no_source(problem),
+        }
+        self.view()
+    }
+
+    fn no_source(&mut self, problem: String) {
+        self.pick_problem = Some(problem);
+        self.source = None;
         self.filter = ExtensionFilter::All;
         self.recompute();
+    }
+
+    /// The source for `paths`: one folder (plus the profile's folder), otherwise files. A pick
+    /// that already ends with the profile's folder is used as is.
+    fn resolve(&self, paths: &[PathBuf]) -> Result<Source, String> {
+        let contents_only = !self.include_folder;
+        match (paths, &self.profile) {
+            ([picked], Some(profile)) if picked.is_dir() && !profile.folder.is_empty() => {
+                let folder = Path::new(&profile.folder);
+                let path = if picked.ends_with(folder) {
+                    picked.clone()
+                } else {
+                    picked.join(folder)
+                };
+                if !path.is_dir() {
+                    let name = picked
+                        .file_name()
+                        .map_or_else(|| show(picked), |n| n.to_string_lossy().into_owned());
+                    return Err(format!("{name} has no {}", profile.folder));
+                }
+                Self::source_for(&[path], contents_only)
+            }
+            _ => Self::source_for(paths, contents_only),
+        }
+    }
+
+    /// The filter a new pick or profile starts with: the profile's file types for a folder.
+    fn profile_filter(&self, source: &Source) -> ExtensionFilter {
+        match (&self.profile, source) {
+            (
+                Some(Profile {
+                    extensions: Some(keys),
+                    ..
+                }),
+                Source::Directory { .. },
+            ) => ExtensionFilter::Only(keys.iter().cloned().collect()),
+            _ => ExtensionFilter::All,
+        }
+    }
+
+    pub fn profile(&self) -> Option<&Profile> {
+        self.profile.as_ref()
+    }
+
+    pub fn destination(&self) -> Option<&Path> {
+        self.dest.as_deref()
+    }
+
+    /// This run's include-folder choice and file types, for Save as new….
+    pub fn choices(&self) -> (bool, Option<Vec<ExtensionKey>>) {
+        let extensions = match &self.filter {
+            ExtensionFilter::All => None,
+            ExtensionFilter::Only(keys) => Some(keys.iter().cloned().collect()),
+        };
+        (self.include_folder, extensions)
+    }
+
+    /// Whether this run's choices differ from the selected profile's.
+    fn profile_changed(&self) -> bool {
+        let (Some(profile), Some(picked)) = (&self.profile, &self.source) else {
+            return false;
+        };
+        if picked.is_retry || !matches!(picked.source, Source::Directory { .. }) {
+            return false;
+        }
+        profile.include_folder != self.include_folder
+            || picked
+                .scan
+                .ext_stats
+                .keys()
+                .any(|key| profile.selects(key) != self.filter.matches(key))
+    }
+
+    /// The selected profile with this run's choices (Update profile). File types the profile
+    /// lists that aren't on this card are kept.
+    pub fn updated_profile(&self) -> Option<Profile> {
+        let profile = self.profile.as_ref()?;
+        let picked = self.source.as_ref()?;
+        let present: Vec<&ExtensionKey> = picked.scan.ext_stats.keys().collect();
+        let extensions =
+            if profile.extensions.is_none() && present.iter().all(|k| self.filter.matches(k)) {
+                None
+            } else {
+                let mut keys: BTreeSet<ExtensionKey> = profile
+                    .extensions
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|k| !present.contains(&k))
+                    .collect();
+                keys.extend(
+                    present
+                        .into_iter()
+                        .filter(|k| self.filter.matches(k))
+                        .cloned(),
+                );
+                Some(keys.into_iter().collect())
+            };
+        Some(Profile {
+            include_folder: self.include_folder,
+            extensions,
+            ..profile.clone()
+        })
+    }
+
+    /// The selected profile was saved (Update profile, or edited in Settings).
+    pub fn profile_saved(&mut self, profile: Profile) -> SessionView {
+        self.profile = Some(profile);
         self.view()
+    }
+
+    /// For Save as new…: the selected profile's folder, or the picked folder relative to its
+    /// drive.
+    fn suggested_folder(&self) -> String {
+        if let Some(profile) = &self.profile {
+            return profile.folder.clone();
+        }
+        match self.picked.as_deref() {
+            Some([one]) => relative_to_drive(one).unwrap_or_default(),
+            _ => String::new(),
+        }
     }
 
     /// For "Retry failed": the failed files of the last job, checked again (RFD §5.4).
@@ -124,6 +342,7 @@ impl Session {
             scan,
         });
         self.filter = ExtensionFilter::All;
+        self.pick_problem = None;
         self.selection = Some(selection);
         self.recheck();
         self.view()
@@ -131,6 +350,8 @@ impl Session {
 
     pub fn clear_source(&mut self) -> SessionView {
         self.generation += 1;
+        self.picked = None;
+        self.pick_problem = None;
         self.source = None;
         self.filter = ExtensionFilter::All;
         self.recompute();
@@ -201,6 +422,10 @@ impl Session {
             conflicts: self.policy,
             plan: self.plan.as_ref().map(plan_view),
             stale: false,
+            profile_id: self.profile.as_ref().map(|p| p.id.clone()),
+            profile_changed: self.profile_changed(),
+            pick_problem: self.pick_problem.clone(),
+            suggested_folder: self.suggested_folder(),
         }
     }
 
@@ -235,7 +460,13 @@ impl Session {
             extensions,
             selected_extensions: match &self.filter {
                 ExtensionFilter::All => None,
-                ExtensionFilter::Only(keys) => Some(keys.iter().cloned().collect()),
+                ExtensionFilter::Only(keys) => Some(
+                    scan.ext_stats
+                        .keys()
+                        .filter(|k| keys.contains(*k))
+                        .cloned()
+                        .collect(),
+                ),
             },
             skipped_hidden: count(scan.skipped_hidden),
             skipped_symlinks: count(scan.skipped_symlinks.len()),
@@ -343,6 +574,18 @@ fn label(source: &Source) -> String {
     }
 }
 
+/// `/Volumes/CARD/PRIVATE/M4ROOT/CLIP` → `PRIVATE/M4ROOT/CLIP`; `None` off a drive.
+fn relative_to_drive(path: &Path) -> Option<String> {
+    let mut parts = path.strip_prefix(VOLUMES).ok()?.components();
+    parts.next()?;
+    Some(
+        parts
+            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join("/"),
+    )
+}
+
 /// Visible items in `dir` (names starting with `.` aren't counted); `None` if it isn't a
 /// folder.
 fn existing_items(dir: &Path) -> Option<u32> {
@@ -421,11 +664,237 @@ mod tests {
         }
     }
 
+    use crate::store::Profile;
+
+    /// Applies `change` and runs its scan, like the commands do.
+    fn apply(session: &mut Session, change: Change) -> SessionView {
+        match session.begin(change) {
+            Ok(pending) => {
+                let scanned = scan_source(&pending.source);
+                session.finish_scan(pending, scanned)
+            }
+            Err(view) => view,
+        }
+    }
+
     fn pick(session: &mut Session, paths: &[PathBuf], contents_only: bool) -> SessionView {
-        let ticket = session.begin_scan();
-        let source = Session::source_for(paths, contents_only).unwrap();
-        let scan = scan_source(&source).unwrap();
-        session.finish_scan(ticket, source, scan)
+        apply(session, Change::Pick(paths.to_vec()));
+        if contents_only {
+            apply(session, Change::IncludeFolder(false))
+        } else {
+            session.view()
+        }
+    }
+
+    fn profile(folder: &str, extensions: Option<&[&str]>) -> Profile {
+        Profile {
+            id: "fx3".into(),
+            name: "Sony FX3".into(),
+            folder: folder.into(),
+            include_folder: true,
+            extensions: extensions.map(|e| e.iter().map(|x| Some(x.to_string())).collect()),
+        }
+    }
+
+    /// A card with the fixture's files in PRIVATE/M4ROOT/CLIP.
+    fn card(f: &Fixture) -> PathBuf {
+        let root = f.card.parent().unwrap().join("SONY_CARD");
+        write(
+            &root.join("PRIVATE/M4ROOT/CLIP"),
+            &[
+                ("C001.mp4", b"clip-1"),
+                ("C002.mp4", b"clip-2"),
+                ("C001M01.xml", b"x"),
+            ],
+        );
+        root
+    }
+
+    #[test]
+    fn a_profile_folder_is_joined_to_the_pick() {
+        let f = fixture();
+        let root = card(&f);
+        let mut s = Session::new();
+        apply(
+            &mut s,
+            Change::Profile(Some(profile("PRIVATE/M4ROOT/CLIP", None))),
+        );
+        let view = apply(&mut s, Change::Pick(vec![root.clone()]));
+        let src = view.source.unwrap();
+        assert_eq!(src.label, show(&root.join("PRIVATE/M4ROOT/CLIP")));
+        assert_eq!(src.root_dir.as_deref(), Some("CLIP"));
+        assert_eq!(src.files, 3);
+        assert_eq!(view.profile_id.as_deref(), Some("fx3"));
+        assert!(!view.profile_changed && view.pick_problem.is_none());
+    }
+
+    #[test]
+    fn picking_the_folder_itself_uses_it_as_is() {
+        let f = fixture();
+        let clip = card(&f).join("PRIVATE/M4ROOT/CLIP");
+        let mut s = Session::new();
+        apply(
+            &mut s,
+            Change::Profile(Some(profile("PRIVATE/M4ROOT/CLIP", None))),
+        );
+        let view = apply(&mut s, Change::Pick(vec![clip.clone()]));
+        assert_eq!(view.source.unwrap().label, show(&clip));
+    }
+
+    #[test]
+    fn a_card_without_the_folder_says_so_and_has_no_source() {
+        let f = fixture();
+        let root = card(&f);
+        let mut s = Session::new();
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        apply(
+            &mut s,
+            Change::Profile(Some(profile("PRIVATE/M4ROOT/CLIP", None))),
+        );
+        let view = s.view();
+        assert!(view.source.is_none());
+        assert_eq!(
+            view.pick_problem.as_deref(),
+            Some("CARD has no PRIVATE/M4ROOT/CLIP")
+        );
+        let view = apply(&mut s, Change::Pick(vec![root.join("PRIVATE")]));
+        assert_eq!(
+            view.pick_problem.as_deref(),
+            Some("PRIVATE has no PRIVATE/M4ROOT/CLIP")
+        );
+        s.set_destination(Some(f.dest.clone()));
+        assert!(s.ready().is_none());
+        let view = apply(&mut s, Change::Pick(vec![root]));
+        assert!(view.source.is_some() && view.pick_problem.is_none());
+    }
+
+    #[test]
+    fn the_profile_file_types_become_the_filter() {
+        let f = fixture();
+        let root = card(&f);
+        let mut s = Session::new();
+        apply(
+            &mut s,
+            Change::Profile(Some(profile("PRIVATE/M4ROOT/CLIP", Some(&["mp4", "wav"])))),
+        );
+        let view = apply(&mut s, Change::Pick(vec![root]));
+        assert_eq!(view.selected_files, 2, "the two .mp4 files");
+        assert_eq!(
+            view.source.unwrap().selected_extensions,
+            Some(vec![Some("mp4".into())]),
+            "only the types on this card are shown as selected"
+        );
+        assert!(!view.profile_changed);
+    }
+
+    #[test]
+    fn changed_for_this_run_follows_include_and_file_types() {
+        let f = fixture();
+        let root = card(&f);
+        let mut s = Session::new();
+        apply(
+            &mut s,
+            Change::Profile(Some(profile("PRIVATE/M4ROOT/CLIP", Some(&["mp4"])))),
+        );
+        apply(&mut s, Change::Pick(vec![root]));
+        assert!(
+            s.set_filter(Some(vec![Some("mp4".into()), Some("xml".into())]))
+                .profile_changed
+        );
+        assert!(!s.set_filter(Some(vec![Some("mp4".into())])).profile_changed);
+        assert!(apply(&mut s, Change::IncludeFolder(false)).profile_changed);
+    }
+
+    #[test]
+    fn the_include_checkbox_keeps_this_runs_file_types() {
+        let f = fixture();
+        let mut s = Session::new();
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        s.set_filter(Some(vec![Some("xml".into())]));
+        let view = apply(&mut s, Change::IncludeFolder(false));
+        assert!(view.source.unwrap().contents_only);
+        assert_eq!(view.selected_files, 1, "still only the .xml");
+    }
+
+    #[test]
+    fn update_keeps_file_types_not_on_this_card() {
+        let f = fixture();
+        let root = card(&f);
+        let mut s = Session::new();
+        apply(
+            &mut s,
+            Change::Profile(Some(profile("PRIVATE/M4ROOT/CLIP", Some(&["mp4", "wav"])))),
+        );
+        apply(&mut s, Change::Pick(vec![root]));
+        s.set_filter(Some(vec![Some("xml".into())]));
+        let updated = s.updated_profile().unwrap();
+        assert_eq!(
+            updated.extensions,
+            Some(vec![Some("wav".into()), Some("xml".into())]),
+            ".wav isn't on this card, so it stays; .mp4 was turned off, .xml on"
+        );
+        let view = s.profile_saved(updated);
+        assert!(!view.profile_changed);
+    }
+
+    #[test]
+    fn an_all_types_profile_stays_all_when_nothing_is_turned_off() {
+        let f = fixture();
+        let root = card(&f);
+        let mut s = Session::new();
+        apply(
+            &mut s,
+            Change::Profile(Some(profile("PRIVATE/M4ROOT/CLIP", None))),
+        );
+        apply(&mut s, Change::Pick(vec![root]));
+        apply(&mut s, Change::IncludeFolder(false));
+        let updated = s.updated_profile().unwrap();
+        assert_eq!((updated.include_folder, updated.extensions), (false, None));
+        s.set_filter(Some(vec![Some("mp4".into())]));
+        assert_eq!(
+            s.updated_profile().unwrap().extensions,
+            Some(vec![Some("mp4".into())])
+        );
+    }
+
+    #[test]
+    fn a_files_pick_ignores_the_profile() {
+        let f = fixture();
+        let mut s = Session::new();
+        apply(
+            &mut s,
+            Change::Profile(Some(profile("PRIVATE/M4ROOT/CLIP", Some(&["mp4"])))),
+        );
+        let view = apply(
+            &mut s,
+            Change::Pick(vec![f.card.join("A001.mov"), f.card.join("A001.xml")]),
+        );
+        let src = view.source.unwrap();
+        assert!(!src.is_folder);
+        assert_eq!(view.selected_files, 2);
+        assert!(!view.profile_changed);
+    }
+
+    #[test]
+    fn save_as_new_suggests_the_folder_relative_to_the_drive() {
+        assert_eq!(
+            relative_to_drive(Path::new("/Volumes/CARD/PRIVATE/M4ROOT/CLIP")),
+            Some("PRIVATE/M4ROOT/CLIP".to_string())
+        );
+        assert_eq!(
+            relative_to_drive(Path::new("/Volumes/CARD")),
+            Some(String::new())
+        );
+        assert_eq!(relative_to_drive(Path::new("/Users/me/Desktop/A")), None);
+        let f = fixture();
+        let mut s = Session::new();
+        let view = pick(&mut s, std::slice::from_ref(&f.card), false);
+        assert_eq!(view.suggested_folder, "", "not on a drive");
+        let view = apply(&mut s, Change::Profile(Some(profile("DCIM", None))));
+        assert_eq!(
+            view.suggested_folder, "DCIM",
+            "the selected profile's folder"
+        );
     }
 
     #[test]
@@ -460,9 +929,13 @@ mod tests {
     #[test]
     fn a_folder_and_files_together_are_refused() {
         let f = fixture();
-        let err =
-            Session::source_for(&[f.card.clone(), f.card.join("A001.mov")], false).unwrap_err();
-        assert!(err.contains("not both"), "{err}");
+        let mut s = Session::new();
+        let view = apply(
+            &mut s,
+            Change::Pick(vec![f.card.clone(), f.card.join("A001.mov")]),
+        );
+        assert!(view.source.is_none());
+        assert!(view.pick_problem.unwrap().contains("not both"));
     }
 
     #[test]
@@ -559,12 +1032,13 @@ mod tests {
     fn a_scan_replaced_by_a_newer_one_is_dropped() {
         let f = fixture();
         let mut s = Session::new();
-        let old = s.begin_scan();
-        let newer = s.begin_scan();
-        let source = Session::source_for(std::slice::from_ref(&f.card), false).unwrap();
-        let view = s.finish_scan(old, source.clone(), scan_source(&source).unwrap());
+        let old = s.begin(Change::Pick(vec![f.card.clone()])).ok().unwrap();
+        let newer = s.begin(Change::Pick(vec![f.card.clone()])).ok().unwrap();
+        let old_scan = scan_source(&old.source);
+        let view = s.finish_scan(old, old_scan);
         assert!(view.stale && view.source.is_none());
-        let view = s.finish_scan(newer, source.clone(), scan_source(&source).unwrap());
+        let newer_scan = scan_source(&newer.source);
+        let view = s.finish_scan(newer, newer_scan);
         assert!(!view.stale && view.source.is_some());
     }
 
