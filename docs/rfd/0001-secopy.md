@@ -169,7 +169,8 @@ Rules that keep the view readable:
 - Speeds and ETAs are smoothed over the last ~3 s (moving average) so they don't jump
   around. ETA shows "—" until there is enough data to estimate.
 - All figures use tabular (fixed-width) digits so columns stay still while numbers change.
-- The view refreshes 10–20 times per second, however many files are in flight.
+- The view updates twice per second, however many files are in flight. Bars animate for
+  0.5 s between updates, so they still move smoothly.
 
 Actions: **Pause / Resume**, **Cancel** (asks for confirmation and explains what happens
 to files already copied). The OS is kept awake while the job runs.
@@ -275,7 +276,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-15 | The user picks one existing destination directory via native picker or drag and drop. A "New folder" action is available in the picker. | M |
-| FR-16 | Pre-flight checks run before Start is enabled, and each problem shows a clear, actionable message. **Job-level problems block Start:** the destination is missing or not writable; not enough free space for the files that will be written, plus a margin of max(1 %, 64 MiB); the destination is the source or inside it. **Per-file problems are listed, and the user may start anyway;** those files fail with the listed reason: the name is not valid on the destination file system (e.g. `: * ? " < > |`, reserved names like `CON`, a trailing dot or space on NTFS/exFAT/FAT32), the file is larger than the file system allows (FAT32 4 GiB limit), the name is too long, or a file or folder is in the way. Names are never changed automatically. | M |
+| FR-16 | Pre-flight checks run before Start is enabled, and each problem shows a clear, actionable message. **Job-level problems block Start:** the destination is missing or not writable; not enough free space for the files that will be written, plus a margin of max(1 %, 64 MiB); the destination is the source or inside it. **Per-file problems are listed, and the user may start anyway;** those files fail with the listed reason: the name is not valid on the destination file system (e.g. `: * ? " < > |`, reserved names like `CON`, a trailing dot or space on NTFS/exFAT/FAT32), the file is larger than the file system allows (FAT32 4 GiB limit), the name is too long, or a file or folder is in the way. Names are never changed automatically. **Non-empty copy root:** if the folder the files will go to already exists and isn't empty, a warning says so (with its file count) without blocking. | M |
 | FR-17 | **Conflicts:** if files already exist at the target paths, pre-flight lists them in two groups. **Identical** files (same size, mtimes less than 2 s apart) are always skipped. They are not re-read, so they are not in this job's checksum file, and the summary and report count them as "already at the destination, not checked". For files that **differ**, the user chooses once: **Keep both** (default; the copy is named `name (1).ext`) / **Overwrite** / **Skip**. Overwrite replaces the old file only once the new copy is complete, and verified in Copy & Verify. | M |
 | FR-17a | Files whose destination paths are equal (e.g. `x/a.txt` and `y/A.TXT` picked as loose files, on a case-insensitive destination) are never copied over each other: the first one is copied, the others fail with "another file in this copy has the same name". Names are compared ignoring case only when the destination file system is case-insensitive. | M |
 
@@ -316,8 +317,9 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-35 | Each job produces a report as plain text and as JSON: settings, start/end, counts, per-file result (including skipped files), failures with reasons, whether cache bypass was active, leftover partial files removed, and files left out of the checksum file. It is kept in the app's data folder, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
-| FR-36 | The app remembers the last source/destination folders, mode and window size. | S |
+| FR-36 | The app remembers the mode and the window size. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
 | FR-37 | Keyboard: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `Esc` cancel dialog. | S |
+| FR-38 | **Source profiles**, chosen by hand: a name, a folder inside the card (e.g. `PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one applies it; changes last for one run unless saved with "Update profile" or "Save as new profile". No automatic card detection, and nothing is written to cards. | S |
 
 ## 7. Engine design (performance)
 
@@ -390,7 +392,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
 | NFR-2 | **Throughput, Copy & Verify:** total time ≤ 1.3 × Copy mode when source and destination are different devices, ≤ 2.1 × on the same device. |
 | NFR-3 | **Many small files** (100k × 16 KiB): within 10 % of `rsync`/`robocopy /MT`, faster than Finder/Explorer. |
 | NFR-4 | **Memory:** bounded, independent of file size. < 250 MB at 1M files. |
-| NFR-5 | **Responsiveness:** cold start < 1 s. UI never blocks, and progress updates at 10–20 Hz regardless of file count. |
+| NFR-5 | **Responsiveness:** cold start < 1 s. UI never blocks, and progress updates twice per second regardless of file count. |
 | NFR-6 | **Correctness over speed:** no optimization may weaken FR-18/25/26. |
 | NFR-7 | **Paths:** full Unicode (names are preserved byte-for-byte as the OS reports them; no NFC/NFD rewriting). Windows long paths (> 260 chars) are supported. Files > 4 GiB are supported. |
 | NFR-8 | **No elevated privileges** needed. No network access, no telemetry. |
@@ -500,3 +502,8 @@ The stack meets these constraints:
 | 2026-09-27 | v1 is a macOS app. Design, testing, polish, signing and packaging target macOS only until 1.0; Linux and Windows apps come after v1. The engine stays portable and keeps building and testing on all three OSes in CI. Supporting three OSes mostly costs testing and packaging work, and the main audience (media offload) is largely on Macs. |
 | 2026-09-27 | Apple Silicon only: no Intel Macs. Builds and releases are `aarch64-apple-darwin`, not universal binaries. |
 | 2026-09-27 | CI runs one macOS job after merges to `main` (and on demand), not on PRs, and skips docs-only changes; the release workflow runs the full suite before building. Windows and Linux CI jobs return with those apps. Goal: a faster workflow without dropping any check. |
+| 2026-09-27 | The app (M2) is split: plan 3a is a working app (0.2.0); plan 3b adds source profiles, settings and polish (0.3.0) once 3a has been used on real shoots. Design: [2026-09-27-macos-app-core-design.md](../superpowers/specs/2026-09-27-macos-app-core-design.md). |
+| 2026-09-27 | Progress updates twice per second instead of 10–20 times (NFR-5, §5.3); bars animate between updates. |
+| 2026-09-27 | The destination is never filled in automatically (FR-36): every project has its own folder, and a wrong automatic choice mixes shoots. |
+| 2026-09-27 | Source profiles are chosen by hand, with no automatic card detection, and nothing is ever written to a card (FR-38): formatting erases such files, locked cards can't take them, and camera media should never be modified. |
+| 2026-09-27 | App identifier: `com.belisoft.secopy`. |
