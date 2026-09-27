@@ -57,6 +57,9 @@
   {#if summary.checksumError}
     <p class="danger" role="alert">The checksum file could not be written: {summary.checksumError}</p>
   {/if}
+  {#if summary.reportError}
+    <p class="danger" role="alert">The report could not be saved: {summary.reportError}</p>
+  {/if}
 
   <div class="actions">
     <button type="button" onclick={() => act(() => api.reveal(summary.copyRoot))}>Reveal in Finder</button>
