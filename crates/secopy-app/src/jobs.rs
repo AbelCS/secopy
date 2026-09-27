@@ -25,6 +25,7 @@ use crate::dto::{
     SummaryView, count, show,
 };
 use crate::session::Ready;
+use crate::store::Settings;
 
 /// Progress reaches the UI twice a second (NFR-5).
 pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
@@ -32,6 +33,28 @@ pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
 const OWN_ROW: u64 = 8 << 20;
 /// Failures listed in the summary; the finished list has all of them.
 const FAILURES_SHOWN: usize = 1000;
+
+/// The settings a job starts with (RFD §5.5); changing them later doesn't affect it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct JobSettings {
+    pub write_checksum_file: bool,
+    pub report_next_to_checksum: bool,
+}
+
+impl Default for JobSettings {
+    fn default() -> Self {
+        (&Settings::default()).into()
+    }
+}
+
+impl From<&Settings> for JobSettings {
+    fn from(s: &Settings) -> Self {
+        Self {
+            write_checksum_file: s.write_checksum_file,
+            report_next_to_checksum: s.report_next_to_checksum,
+        }
+    }
+}
 
 /// Where progress goes: a Tauri channel in the app, a collector in tests.
 pub trait ProgressSink: Send + Sync + 'static {
@@ -48,6 +71,7 @@ pub struct Jobs {
 struct Job {
     ready: Ready,
     verify: bool,
+    settings: JobSettings,
     control: JobControl,
     started: DateTime<Local>,
     clock: Instant,
@@ -64,6 +88,8 @@ struct Done {
     finished: DateTime<Local>,
     /// The report saved in the reports folder, or why it couldn't be.
     report_file: Result<PathBuf, String>,
+    /// Why the report couldn't also be written next to the checksum file.
+    next_to_error: Option<String>,
 }
 
 impl Jobs {
@@ -77,7 +103,13 @@ impl Jobs {
     }
 
     /// Starts copying `ready`. Fails if a job is already running.
-    pub fn start(&self, ready: Ready, verify: bool, sink: impl ProgressSink) -> Result<(), String> {
+    pub fn start(
+        &self,
+        ready: Ready,
+        verify: bool,
+        settings: JobSettings,
+        sink: impl ProgressSink,
+    ) -> Result<(), String> {
         // Held until the job is in place, so two starts can't both get past the check.
         let mut current = self.current.lock().expect("jobs lock poisoned");
         if current.as_ref().is_some_and(|job| job.running()) {
@@ -86,6 +118,7 @@ impl Jobs {
         let job = Arc::new(Job {
             ready,
             verify,
+            settings,
             control: JobControl::new(),
             started: Local::now(),
             clock: Instant::now(),
@@ -186,8 +219,19 @@ impl Jobs {
             copy_root: show(&job.ready.copy_root),
             checksum_file: done.report.checksum_file.as_deref().map(show),
             checksum_error: done.report.checksum_error.clone(),
+            checksum_off: !job.settings.write_checksum_file,
             report_file: done.report_file.as_deref().ok().map(show),
-            report_error: done.report_file.as_ref().err().cloned(),
+            report_error: {
+                let errors: Vec<String> = done
+                    .report_file
+                    .as_ref()
+                    .err()
+                    .cloned()
+                    .into_iter()
+                    .chain(done.next_to_error.clone())
+                    .collect();
+                (!errors.is_empty()).then(|| errors.join("; "))
+            },
         })
     }
 
@@ -238,6 +282,7 @@ impl Job {
     fn run(&self, sink: &impl ProgressSink, reports_dir: &Path) {
         let opts = JobOptions {
             verify: self.verify,
+            write_checksum_file: self.settings.write_checksum_file,
             progress_interval: PROGRESS_INTERVAL,
             ..JobOptions::default()
         };
@@ -257,9 +302,19 @@ impl Job {
         let mut done = Done {
             finished: Local::now(),
             report_file: Err(String::new()),
+            next_to_error: None,
             report,
         };
         done.report_file = self.save(&done, reports_dir);
+        if self.settings.report_next_to_checksum
+            && let Some(checksum) = &done.report.checksum_file
+        {
+            done.next_to_error = self
+                .report(&done)
+                .write_next_to(checksum)
+                .err()
+                .map(|e| format!("next to the checksum file: {e}"));
+        }
         let fatal = done.report.fatal.as_ref().map(|f| sentence(&f.to_string()));
         // The engine's last progress, so a stopped job's bars stay where it stopped.
         let last = self.last.lock().expect("job lock poisoned").clone();
@@ -447,13 +502,17 @@ mod tests {
         }
     }
 
-    fn run(f: &Fixture, verify: bool) -> Collect {
+    fn run_with(f: &Fixture, verify: bool, settings: JobSettings) -> Collect {
         let sink = Collect::default();
         f.jobs
-            .start(f.session.ready().unwrap(), verify, sink.clone())
+            .start(f.session.ready().unwrap(), verify, settings, sink.clone())
             .unwrap();
         f.jobs.wait();
         sink
+    }
+
+    fn run(f: &Fixture, verify: bool) -> Collect {
+        run_with(f, verify, JobSettings::default())
     }
 
     #[test]
@@ -518,7 +577,12 @@ mod tests {
         let f = fixture(200, 50_000);
         let sink = Collect::default();
         f.jobs
-            .start(f.session.ready().unwrap(), true, sink.clone())
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                sink.clone(),
+            )
             .unwrap();
         f.jobs.cancel();
         f.jobs.wait();
@@ -558,7 +622,9 @@ mod tests {
                         s.spawn(|| {
                             let ready = f.session.ready().unwrap();
                             barrier.wait();
-                            f.jobs.start(ready, true, Collect::default()).is_ok()
+                            f.jobs
+                                .start(ready, true, JobSettings::default(), Collect::default())
+                                .is_ok()
                         })
                     })
                     .collect();
@@ -577,12 +643,22 @@ mod tests {
     fn a_second_job_cannot_start_while_one_runs() {
         let f = fixture(200, 50_000);
         f.jobs
-            .start(f.session.ready().unwrap(), true, Collect::default())
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                Collect::default(),
+            )
             .unwrap();
         f.jobs.pause();
         let err = f
             .jobs
-            .start(f.session.ready().unwrap(), true, Collect::default())
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                Collect::default(),
+            )
             .unwrap_err();
         assert!(err.contains("already running"));
         f.jobs.cancel();
@@ -594,7 +670,12 @@ mod tests {
         let f = fixture(50, 20_000);
         let sink = Collect::default();
         f.jobs
-            .start(f.session.ready().unwrap(), true, sink.clone())
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                sink.clone(),
+            )
             .unwrap();
         f.jobs.pause();
         let deadline = Instant::now() + Duration::from_secs(10);
@@ -634,5 +715,51 @@ mod tests {
         let (_, sel) = f.jobs.retry().unwrap();
         assert_eq!(sel.files.len(), 1);
         assert_eq!(f.jobs.finished_page(0, 10, true).len(), 1);
+    }
+
+    #[test]
+    fn a_job_with_the_checksum_file_off_writes_none() {
+        let f = fixture(2, 10);
+        run_with(
+            &f,
+            true,
+            JobSettings {
+                write_checksum_file: false,
+                ..JobSettings::default()
+            },
+        );
+        let s = f.jobs.summary().unwrap();
+        assert_eq!(s.outcome, JobOutcome::Complete);
+        assert!(s.checksum_off && s.checksum_file.is_none());
+        let xxh: Vec<_> = fs::read_dir(&f.dest)
+            .unwrap()
+            .filter(|e| {
+                e.as_ref()
+                    .unwrap()
+                    .path()
+                    .extension()
+                    .is_some_and(|x| x == "xxh64")
+            })
+            .collect();
+        assert!(xxh.is_empty());
+    }
+
+    #[test]
+    fn the_report_can_also_go_next_to_the_checksum_file() {
+        let f = fixture(2, 10);
+        run_with(
+            &f,
+            true,
+            JobSettings {
+                report_next_to_checksum: true,
+                ..JobSettings::default()
+            },
+        );
+        let s = f.jobs.summary().unwrap();
+        let checksum = PathBuf::from(s.checksum_file.unwrap());
+        let stem = checksum.file_stem().unwrap().to_string_lossy().into_owned();
+        assert!(f.dest.join(format!("{stem}_report.txt")).is_file());
+        assert!(f.dest.join(format!("{stem}_report.json")).is_file());
+        assert!(!s.checksum_off && s.report_error.is_none());
     }
 }
