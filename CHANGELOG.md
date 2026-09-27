@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.2.0](https://github.com/AbelCS/secopy/compare/v0.1.0...v0.2.0) (2026-09-27)
+
+
+### Features
+
+* **app:** add the tauri app and svelte ui scaffold ([4cc5977](https://github.com/AbelCS/secopy/commit/4cc5977601fe2e1dafa5a07e3671055348df07d7)), closes [#15](https://github.com/AbelCS/secopy/issues/15)
+* **app:** expose commands and generate typescript bindings ([3642685](https://github.com/AbelCS/secopy/commit/36426851b2d03aa412423939b898ed5e913119c3)), closes [#15](https://github.com/AbelCS/secopy/issues/15)
+* **app:** keep the main window's session state ([12b75bc](https://github.com/AbelCS/secopy/commit/12b75bc813f0869f375ac9b55e54eb8f83637566)), closes [#15](https://github.com/AbelCS/secopy/issues/15)
+* **app:** run copy jobs from the app ([7908c36](https://github.com/AbelCS/secopy/commit/7908c364eceb852dea8d8a5c0ca538185aead5ed)), closes [#15](https://github.com/AbelCS/secopy/issues/15)
+* **ui:** add formatting, speed meters and the app api ([92ca1b6](https://github.com/AbelCS/secopy/commit/92ca1b6c091ef8c3851f22515237f2e4627d250a)), closes [#15](https://github.com/AbelCS/secopy/issues/15)
+* **ui:** add the main window ([43d3e2b](https://github.com/AbelCS/secopy/commit/43d3e2b11495a7ebdf9989d22e79079076957036)), closes [#15](https://github.com/AbelCS/secopy/issues/15)
+* **ui:** add the progress view ([a1f6638](https://github.com/AbelCS/secopy/commit/a1f66382bb7f70741a25159b6a0adb3bef92fd5f)), closes [#15](https://github.com/AbelCS/secopy/issues/15)
+* **ui:** add the summary and connect the screens ([d6e3506](https://github.com/AbelCS/secopy/commit/d6e35067cd295faa4a18036912b25972a7bef721)), closes [#15](https://github.com/AbelCS/secopy/issues/15)
+* **ui:** list every file on the summary ([b7361bf](https://github.com/AbelCS/secopy/commit/b7361bfcd1ea7580a8994f87e1cdc58a5760b209))
+* **ui:** one Choose… for a folder or files, and an Include folder checkbox ([600fdad](https://github.com/AbelCS/secopy/commit/600fdad1feb1b55157417783c04e0fac67d9708d))
+
+
+### Bug Fixes
+
+* **app:** keep a stopped job's bars honest, say why a report wasn't saved ([16640f3](https://github.com/AbelCS/secopy/commit/16640f3e3de3bb746a85dfba8c7c50a222968331))
+* **app:** let the window close, and ask before quitting during a copy ([7c91fbb](https://github.com/AbelCS/secopy/commit/7c91fbbb6889206aeaf374fe491203cbef876fd0))
+* **ui:** ask for a short page once per update, and scroll up for Failed only ([9baf750](https://github.com/AbelCS/secopy/commit/9baf7500750e181102a87c4b6011b7816e2a6df5))
+* **ui:** show scans in progress, and keep a retry in the card's folder ([7b46fa1](https://github.com/AbelCS/secopy/commit/7b46fa1752d22796d6878b9579813801e44d1b23))
+
 ## 0.1.0 (2026-09-27)
 
 
