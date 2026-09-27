@@ -8,8 +8,8 @@ the decisions made while designing it (also logged in RFD §14).
 
 Finish `secopy-core` so the desktop app (plan 3) only has to call it: pre-flight, conflict
 handling, metadata, pause/resume, fatal-error detection, keep-awake, the job report, the
-plan 1 carry-overs, and fault-injection tests that prove the correctness promises. Release
-0.2.0.
+plan 1 carry-overs, and fault-injection tests that prove the correctness promises. Ships
+in 0.1.0, together with plan 1 (RFD §14, 2026-09-27).
 
 **Out of scope:** benchmarks and tuning (plan 4, RFD M3). Where a choice here affects speed,
 the simplest correct option is taken and plan 4 revisits it.
