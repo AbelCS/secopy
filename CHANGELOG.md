@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.0](https://github.com/AbelCS/secopy/compare/v0.2.0...v0.3.0) (2026-09-27)
+
+
+### Features
+
+* **app:** apply source profiles to what was picked ([16e85af](https://github.com/AbelCS/secopy/commit/16e85afcf0a381060402b0cd082222717a8d1f82)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **app:** let a job skip the checksum file or save its report next to it ([3b1ae30](https://github.com/AbelCS/secopy/commit/3b1ae30e7e876a7050a5d769c01d5a3d4c6511c3)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **app:** list the drives under /Volumes ([69fb1cb](https://github.com/AbelCS/secopy/commit/69fb1cbf56327e29ee4832aa0dc2cbedc7bf640d)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **app:** profile, settings and start-up commands, remembered window and mode ([c1d90bb](https://github.com/AbelCS/secopy/commit/c1d90bbe01aeeb58818e23f4c9e5ab08dd59456f)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **app:** save settings, profiles and remembered state ([805acd4](https://github.com/AbelCS/secopy/commit/805acd4862112db04725c4ab39152a6945eb8b8c)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **app:** use the com.latecommits.secopy identifier, moving 0.2.0 reports ([d4733de](https://github.com/AbelCS/secopy/commit/d4733deb496255b481013ac50eed65b720fa0e7d)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **core:** copy hidden files, skip only system files ([764d047](https://github.com/AbelCS/secopy/commit/764d04726b98c2184632d4bc3fd2e90068bfc65f)), closes [#25](https://github.com/AbelCS/secopy/issues/25)
+* **ui:** a Profiles screen of its own, and Settings with only the settings ([446b853](https://github.com/AbelCS/secopy/commit/446b853f213bd82b45b37303e20d5c30d19e520d)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **ui:** clearer main window, Settings and Profiles ([fa107a4](https://github.com/AbelCS/secopy/commit/fa107a4d2a849fd07e9ab9ca0dd7bd4b0722573a)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **ui:** design tokens and the component library ([1408c38](https://github.com/AbelCS/secopy/commit/1408c38bc52f377f0d4d40a0129ca8dc13d97907)), closes [#22](https://github.com/AbelCS/secopy/issues/22)
+* **ui:** drives, source profiles and recent destinations in the main window ([ddcbb88](https://github.com/AbelCS/secopy/commit/ddcbb8876e8456096aad10e287151245bc9d4a04)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **ui:** every screen on one layout: header, sections, action bar ([7fa0105](https://github.com/AbelCS/secopy/commit/7fa01051432aa57fc2c6a6f110289eba6b019923)), closes [#22](https://github.com/AbelCS/secopy/issues/22)
+* **ui:** labelled rows inside sections ([78f22d9](https://github.com/AbelCS/secopy/commit/78f22d9cdb48cb6f894e405d4f90ac535c792207)), closes [#22](https://github.com/AbelCS/secopy/issues/22)
+* **ui:** the Settings screen, with source profiles ([3f1c6f9](https://github.com/AbelCS/secopy/commit/3f1c6f9e4387f6dfdde9e81aa93e73d36f31ef52)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+
+
+### Bug Fixes
+
+* **app:** let saves at the same time neither fail nor undo each other ([d74a900](https://github.com/AbelCS/secopy/commit/d74a9001bc94b3f6e27f8a907611448c8ad5e2a6)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **app:** list only real drives in FROM ([9f7f8e1](https://github.com/AbelCS/secopy/commit/9f7f8e17b5419008776d9b8f8dc8059e13125496)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* **app:** wait for a pending scan before saving a profile or keeping file types ([49229a1](https://github.com/AbelCS/secopy/commit/49229a16855693c5ea2b48f2ce6e415f6ce37659)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* say directory, not folder, everywhere the user reads it ([6e5f30c](https://github.com/AbelCS/secopy/commit/6e5f30c8e7d3e13cdb8054ac84519ffa49ad6c8a)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+* say nothing about a checksum file when it is turned off ([4053e77](https://github.com/AbelCS/secopy/commit/4053e77126d964780667860dc992670e505153f9)), closes [#16](https://github.com/AbelCS/secopy/issues/16)
+
 ## [0.2.0](https://github.com/AbelCS/secopy/compare/v0.1.0...v0.2.0) (2026-09-27)
 
 
