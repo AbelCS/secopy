@@ -2,11 +2,14 @@
   // A small set of exclusive options under a legend (File types: All types / Only these).
   let {
     legend,
+    hideLegend = false,
     options,
     value,
     onChange,
   }: {
     legend: string;
+    /** Kept for screen readers only, when a FormRow already shows it. */
+    hideLegend?: boolean;
     options: { value: T; label: string }[];
     value: T;
     onChange: (value: T) => void;
@@ -15,7 +18,7 @@
 </script>
 
 <fieldset class="radio-group">
-  <legend>{legend}</legend>
+  <legend class:visually-hidden={hideLegend}>{legend}</legend>
   <div class="options">
     {#each options as option (option.label)}
       <label>

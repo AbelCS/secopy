@@ -28,17 +28,17 @@ describe("ProfilesScreen", () => {
     show([]);
     screen.getByText(/A profile remembers where the clips are on a card/);
     await fireEvent.click(screen.getByRole("button", { name: "+ New profile" }));
-    expect(screen.getByLabelText("Name")).toHaveProperty("value", "");
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "");
   });
 
   test("the first profile is shown in the editor, and the list switches it", async () => {
     show();
-    expect(screen.getByLabelText("Name")).toHaveProperty("value", "Sony FX3");
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "Sony FX3");
     expect(screen.getByLabelText("Directory on the card")).toHaveProperty("value", "PRIVATE/M4ROOT/CLIP");
     expect(screen.getByLabelText("Only these")).toHaveProperty("checked", true);
     screen.getByText(".mp4");
     await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
-    expect(screen.getByLabelText("Name")).toHaveProperty("value", "DJI Mini 4");
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "DJI Mini 4");
     expect(screen.getByLabelText("All types")).toHaveProperty("checked", true);
     screen.getByLabelText("Include the “DCIM” directory");
   });
@@ -46,7 +46,7 @@ describe("ProfilesScreen", () => {
   test("Save is only active once something changed", async () => {
     const { api } = show();
     expect(save()).toHaveProperty("disabled", true);
-    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3 A-cam" } });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
     expect(save()).toHaveProperty("disabled", false);
     await fireEvent.click(save());
     await waitFor(() =>
@@ -93,10 +93,10 @@ describe("ProfilesScreen", () => {
   test("a problem is shown next to its field", async () => {
     const { api } = show();
     api.editProfile.mockRejectedValueOnce(new Error("There is already a profile called “DJI Mini 4”."));
-    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "DJI Mini 4" } });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "DJI Mini 4" } });
     await fireEvent.click(save());
     const nameError = await screen.findByText("There is already a profile called “DJI Mini 4”.");
-    expect(screen.getByLabelText("Name").getAttribute("aria-describedby")).toBe(nameError.id);
+    expect(screen.getByRole("textbox", { name: "Name" }).getAttribute("aria-describedby")).toBe(nameError.id);
     api.editProfile.mockRejectedValueOnce(new Error("The directory can't contain “..” or “.”."));
     await fireEvent.click(save());
     const folderError = await screen.findByText("The directory can't contain “..” or “.”.");
@@ -107,16 +107,16 @@ describe("ProfilesScreen", () => {
     show();
     const revert = () => screen.getByRole("button", { name: "Revert" });
     expect(revert()).toHaveProperty("disabled", true);
-    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3 A-cam" } });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
     await fireEvent.click(revert());
-    expect(screen.getByLabelText("Name")).toHaveProperty("value", "Sony FX3");
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "Sony FX3");
     expect(save()).toHaveProperty("disabled", true);
   });
 
   test("a new profile is created and selected", async () => {
     const { api, calls } = show();
     await fireEvent.click(screen.getByRole("button", { name: "+ New profile" }));
-    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "GoPro" } });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "GoPro" } });
     await fireEvent.input(screen.getByLabelText("Directory on the card"), { target: { value: "DCIM" } });
     await fireEvent.click(save());
     await waitFor(() =>
@@ -143,7 +143,7 @@ describe("ProfilesScreen", () => {
 
   test("leaving a profile with unsaved changes asks first", async () => {
     const { api } = show();
-    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3 A-cam" } });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
     api.confirm.mockResolvedValueOnce(false);
     await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
     await waitFor(() =>
@@ -154,15 +154,15 @@ describe("ProfilesScreen", () => {
         "Keep editing",
       ),
     );
-    expect(screen.getByLabelText("Name")).toHaveProperty("value", "FX3 A-cam");
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "FX3 A-cam");
     api.confirm.mockResolvedValueOnce(true);
     await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
-    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveProperty("value", "DJI Mini 4"));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "DJI Mini 4"));
   });
 
   test("Back with unsaved changes asks first", async () => {
     const { api, calls } = show();
-    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3 A-cam" } });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
     api.confirm.mockResolvedValueOnce(false);
     await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     await waitFor(() => expect(api.confirm).toHaveBeenCalled());

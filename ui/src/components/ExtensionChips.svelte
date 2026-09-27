@@ -1,8 +1,8 @@
 <script lang="ts">
-  // The file-type filter (FR-7..FR-9): one chip per extension, largest first, with All / None.
+  // The file-type filter (FR-7..FR-9): one chip per extension, largest first. All / None are
+  // the row's actions (Setup).
   import type { ExtensionView } from "../lib/bindings";
   import { formatBytes, formatCount } from "../lib/format";
-  import Button from "../lib/ui/Button.svelte";
   import Chip from "../lib/ui/Chip.svelte";
 
   let {
@@ -26,7 +26,7 @@
   }
 </script>
 
-<div class="chips" role="group" aria-label="File types">
+<div class="chips">
   {#each extensions as ext (ext.key)}
     <Chip
       label={ext.label}
@@ -35,8 +35,6 @@
       onToggle={() => toggle(ext.key)}
     />
   {/each}
-  <Button variant="link" onclick={() => onChange(null)}>All</Button>
-  <Button variant="link" onclick={() => onChange([])}>None</Button>
 </div>
 
 <style>

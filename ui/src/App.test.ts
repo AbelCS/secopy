@@ -144,7 +144,7 @@ describe("App", () => {
     state.start = startView({ session: readyView(), profiles: [profile()] });
     render(App, { props: { api } });
     await screen.findByRole("option", { name: "Sony FX3" });
-    await fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "manage" } });
+    await fireEvent.change(screen.getByRole("combobox", { name: "Profile" }), { target: { value: "manage" } });
     await screen.findByRole("heading", { name: "Profiles" });
     expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
     await fireEvent.click(screen.getByRole("button", { name: "Back" }));

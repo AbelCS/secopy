@@ -7,6 +7,7 @@
   import Button from "../lib/ui/Button.svelte";
   import Checkbox from "../lib/ui/Checkbox.svelte";
   import Chip from "../lib/ui/Chip.svelte";
+  import FormRow from "../lib/ui/FormRow.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import RadioGroup from "../lib/ui/RadioGroup.svelte";
   import TextField from "../lib/ui/TextField.svelte";
@@ -117,27 +118,34 @@
 </script>
 
 <form id={formId} class="editor" onsubmit={save}>
-  <TextField label="Name" bind:value={name} error={nameProblem} placeholder="e.g. Sony FX3" />
+  <FormRow label="Name">
+    <TextField label="Name" hideLabel bind:value={name} error={nameProblem} placeholder="e.g. Sony FX3" />
+  </FormRow>
 
-  <TextField
-    label="Directory on the card"
-    bind:value={folder}
-    error={folderProblem}
-    mono
-    placeholder="empty = the directory or card you pick"
-  >
-    {#snippet trailing()}<Button onclick={chooseFolder}>Choose…</Button>{/snippet}
-  </TextField>
+  <FormRow label="Directory">
+    <TextField
+      label="Directory on the card"
+      hideLabel
+      bind:value={folder}
+      error={folderProblem}
+      mono
+      placeholder="empty = the directory or card you pick"
+    />
+    {#snippet aside()}<Button onclick={chooseFolder}>Choose…</Button>{/snippet}
+  </FormRow>
 
-  <Checkbox
-    label={folderName ? `Include the “${folderName}” directory` : "Include the picked directory itself"}
-    checked={includeFolder}
-    onChange={(on) => (includeFolder = on)}
-  />
+  <FormRow label="Options">
+    <Checkbox
+      label={folderName ? `Include the “${folderName}” directory` : "Include the picked directory itself"}
+      checked={includeFolder}
+      onChange={(on) => (includeFolder = on)}
+    />
+  </FormRow>
 
-  <div>
+  <FormRow label="File types">
     <RadioGroup
       legend="File types"
+      hideLegend
       options={[
         { value: true, label: "All types" },
         { value: false, label: "Only these" },
@@ -166,24 +174,17 @@
       </div>
       {#if noTypes}<p class="muted">Add at least one file type.</p>{/if}
     {/if}
-  </div>
+  </FormRow>
 
   {#if otherProblem}<Notice tone="danger">{otherProblem}</Notice>{/if}
 </form>
 
 <style>
-  .editor {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
   .chips {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
-    margin-top: var(--space-2);
   }
 
   .add {
@@ -194,6 +195,6 @@
   .muted {
     color: var(--text-muted);
     font-size: var(--text-sm);
-    margin: var(--space-1) 0 0;
+    margin: 0;
   }
 </style>
