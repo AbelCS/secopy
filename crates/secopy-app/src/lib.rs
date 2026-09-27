@@ -1,5 +1,8 @@
 //! The Secopy desktop app (RFD §5, milestone M2): a Tauri shell around `secopy-core`.
 
+pub mod dto;
+pub mod session;
+
 /// Starts the app. Blocks until the last window closes.
 pub fn run() {
     tauri::Builder::default()
