@@ -1,6 +1,6 @@
 # Secopy
 
-Fast, verified file copies for macOS, Linux and Windows. Copy a folder or a set of
+Fast, verified file copies for macOS. Copy a folder or a set of
 files, optionally verify every copy with xxHash64, and get an `xxhsum`-compatible
 checksum file in the destination.
 

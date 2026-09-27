@@ -1,7 +1,8 @@
 # Secopy
 
-Cross-platform desktop app (macOS, Linux, Windows) for fast file copies with optional
-xxHash64 verification and a checksum file written to the destination.
+macOS desktop app for fast file copies with optional
+xxHash64 verification and a checksum file written to the destination. v1 is macOS only; the engine
+stays portable and is built and tested on Linux and Windows in CI (RFD §14).
 
 - **Source of truth:** [docs/rfd/0001-secopy.md](docs/rfd/0001-secopy.md). Read it before designing or
   changing behaviour. Requirement IDs (FR-x, NFR-x) are used in code comments, commits and
