@@ -132,13 +132,20 @@ impl AppState {
         Ok(self.rescan(Change::Profile(profile)))
     }
 
-    /// Saves `profiles`; memory changes only when the file is written.
-    fn save_profiles(&self, profiles: Profiles) -> Result<(), String> {
+    /// Changes the profiles and saves them, holding their lock throughout so saves at the
+    /// same time can't undo each other; memory changes only when the file is written.
+    fn change_profiles<T>(
+        &self,
+        change: impl FnOnce(&mut Profiles) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut profiles = lock(&self.profiles);
+        let mut next = profiles.clone();
+        let result = change(&mut next)?;
         self.store
-            .save(PROFILES, &profiles)
+            .save(PROFILES, &next)
             .map_err(|e| format!("Couldn't save the profile: {e}"))?;
-        *lock(&self.profiles) = profiles;
-        Ok(())
+        *profiles = next;
+        Ok(result)
     }
 
     fn profiles_view(&self, session: SessionView) -> ProfilesView {
@@ -157,9 +164,10 @@ impl AppState {
             }
             s.updated_profile().ok_or("No profile is selected.")?
         };
-        let mut profiles = lock(&self.profiles).clone();
-        profiles.replace(updated.clone());
-        self.save_profiles(profiles)?;
+        self.change_profiles(|p| {
+            p.replace(updated.clone());
+            Ok(())
+        })?;
         let view = session(self).profile_saved(updated);
         Ok(self.profiles_view(view))
     }
@@ -169,14 +177,14 @@ impl AppState {
         let (include_folder, extensions) = session(self)
             .choices()
             .ok_or("Wait until the scan finishes.")?;
-        let mut profiles = lock(&self.profiles).clone();
-        let profile = profiles.add(ProfileInput {
-            name,
-            folder,
-            include_folder,
-            extensions,
+        let profile = self.change_profiles(|p| {
+            p.add(ProfileInput {
+                name,
+                folder,
+                include_folder,
+                extensions,
+            })
         })?;
-        self.save_profiles(profiles)?;
         self.remember(|r| r.last_profile = Some(profile.id.clone()));
         let view = self.rescan(Change::Profile(Some(profile)));
         Ok(self.profiles_view(view))
@@ -184,17 +192,13 @@ impl AppState {
 
     /// Settings → New.
     pub fn create_profile(&self, input: ProfileInput) -> Result<Vec<Profile>, String> {
-        let mut profiles = lock(&self.profiles).clone();
-        profiles.add(input)?;
-        self.save_profiles(profiles)?;
+        self.change_profiles(|p| p.add(input))?;
         Ok(lock(&self.profiles).profiles.clone())
     }
 
     /// Settings → Edit; the selected profile is applied again.
     pub fn edit_profile(&self, id: &str, input: ProfileInput) -> Result<ProfilesView, String> {
-        let mut profiles = lock(&self.profiles).clone();
-        let edited = profiles.edit(id, input)?;
-        self.save_profiles(profiles)?;
+        let edited = self.change_profiles(|p| p.edit(id, input))?;
         let selected = session(self).profile().is_some_and(|p| p.id == id);
         let view = if selected {
             self.rescan(Change::Profile(Some(edited)))
@@ -206,9 +210,10 @@ impl AppState {
 
     /// Settings → Delete; a selected profile becomes None.
     pub fn delete_profile(&self, id: &str) -> Result<ProfilesView, String> {
-        let mut profiles = lock(&self.profiles).clone();
-        profiles.delete(id);
-        self.save_profiles(profiles)?;
+        self.change_profiles(|p| {
+            p.delete(id);
+            Ok(())
+        })?;
         let selected = session(self).profile().is_some_and(|p| p.id == id);
         let view = if selected {
             self.remember(|r| r.last_profile = None);
@@ -221,9 +226,11 @@ impl AppState {
 
     /// Applies at once (the next job uses it) and saves.
     pub fn set_settings(&self, settings: Settings) -> Result<Settings, String> {
-        *lock(&self.settings) = settings.clone();
+        // Held across the save, so the last change in memory is also the last one on disk.
+        let mut current = lock(&self.settings);
+        *current = settings.clone();
         self.store
-            .save(SETTINGS, &settings)
+            .save(SETTINGS, &*current)
             .map_err(|e| format!("Couldn't save the settings: {e}"))?;
         Ok(settings)
     }
@@ -652,5 +659,41 @@ mod tests {
             state.recent().is_empty(),
             "folders that are gone are left out"
         );
+    }
+
+    #[test]
+    fn saves_at_the_same_time_all_succeed_and_disk_matches_memory() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().to_path_buf());
+        let errors = std::thread::scope(|s| {
+            let tasks: Vec<_> = (0..16)
+                .map(|i| {
+                    let state = &state;
+                    s.spawn(move || {
+                        let settings = Settings {
+                            write_checksum_file: i % 2 == 0,
+                            show_hidden_count: i % 3 == 0,
+                            report_next_to_checksum: i % 5 == 0,
+                        };
+                        let a = state.set_settings(settings).err();
+                        let b = state.create_profile(input(&format!("P{i}"), "")).err();
+                        a.into_iter().chain(b).collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            tasks
+                .into_iter()
+                .flat_map(|t| t.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        assert!(errors.is_empty(), "{errors:?}");
+        let store = Store::new(dir.path().to_path_buf());
+        assert_eq!(
+            store.load::<Settings>(SETTINGS).0,
+            *state.settings.lock().unwrap()
+        );
+        let saved = store.load::<Profiles>(PROFILES).0;
+        assert_eq!(saved.profiles.len(), 16, "no profile lost");
+        assert_eq!(saved, *state.profiles.lock().unwrap());
     }
 }
