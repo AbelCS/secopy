@@ -57,10 +57,8 @@ export const tauriApi = {
   saveReport: (path: string): Promise<null> => unwrap(commands.saveReport(path)),
   retryFailed: (): Promise<SessionView> => unwrap(commands.retryFailed()),
 
-  pickFolder: async (): Promise<string[] | null> =>
-    asList(await open({ directory: true, multiple: false, title: "Copy from" })),
-  pickFiles: async (): Promise<string[] | null> =>
-    asList(await open({ directory: false, multiple: true, title: "Copy these files" })),
+  /** FROM's Choose…: a folder or files, in one panel. */
+  pickSource: (): Promise<string[] | null> => unwrap(commands.pickSource()),
   pickDestination: async (): Promise<string | null> =>
     asList(await open({ directory: true, multiple: false, title: "Copy to" }))?.[0] ?? null,
   pickReportPath: (suggested: string): Promise<string | null> =>
