@@ -48,13 +48,13 @@
 
   .primary {
     color: var(--on-accent);
-    background: var(--accent);
-    border-color: var(--accent);
+    background: var(--accent-strong);
+    border-color: var(--accent-strong);
   }
 
   .primary:hover:not(:disabled) {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 88%, white);
+    border-color: var(--accent-strong);
+    background: color-mix(in srgb, var(--accent-strong) 88%, white);
   }
 
   .danger {

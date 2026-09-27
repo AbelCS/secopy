@@ -8,13 +8,15 @@
   --text-muted: #9a9da3;
   --text-faint: #6b6e75;
   --accent: #4f8cff;
+  /* Filled accent backgrounds (primary buttons, the selected segment): white on it is 4.7:1. */
+  --accent-strong: #2f6fe0;
   --success: #3ecf8e;
   --warning: #f5a524;
   --danger: #f25f5c;
 
   /* Derived colours. */
   --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface-raised));
-  --on-accent: #fff;
+  --on-accent: #ffffff;
 
   /* Spacing scale (docs/design/design-system.md). */
   --space-1: 4px;

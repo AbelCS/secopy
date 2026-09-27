@@ -49,7 +49,7 @@
   }
 
   label.on {
-    background: var(--accent);
+    background: var(--accent-strong);
     color: var(--on-accent);
   }
 

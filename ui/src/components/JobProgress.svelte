@@ -96,6 +96,7 @@
   {/snippet}
 
   {@render banner?.()}
+  <p class="visually-hidden" aria-live="polite">{phase}</p>
   {#if progress.fatal}<Notice tone="danger">Stopped: {progress.fatal}</Notice>{/if}
 
   <Section title="Progress">
