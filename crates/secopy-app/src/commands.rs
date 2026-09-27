@@ -150,9 +150,13 @@ impl AppState {
 
     /// Update profile: this run's choices go into the selected profile.
     pub fn update_profile(&self) -> Result<ProfilesView, String> {
-        let updated = session(self)
-            .updated_profile()
-            .ok_or("No profile is selected.")?;
+        let updated = {
+            let s = session(self);
+            if s.scan_pending() {
+                return Err("Wait until the scan finishes.".into());
+            }
+            s.updated_profile().ok_or("No profile is selected.")?
+        };
         let mut profiles = lock(&self.profiles).clone();
         profiles.replace(updated.clone());
         self.save_profiles(profiles)?;
@@ -162,7 +166,9 @@ impl AppState {
 
     /// Save as new…: this run's choices under a new name, then selected.
     pub fn save_profile_as(&self, name: String, folder: String) -> Result<ProfilesView, String> {
-        let (include_folder, extensions) = session(self).choices();
+        let (include_folder, extensions) = session(self)
+            .choices()
+            .ok_or("Wait until the scan finishes.")?;
         let mut profiles = lock(&self.profiles).clone();
         let profile = profiles.add(ProfileInput {
             name,

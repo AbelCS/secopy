@@ -290,4 +290,18 @@ describe("Setup", () => {
     await fireEvent.click(screen.getByLabelText("Copy"));
     expect(calls.modes).toEqual([false]);
   });
+
+  test("profile actions and the Include checkbox wait for a scan", async () => {
+    const { api } = setup(readyView({ profileId: "fx3", profileChanged: true }), readyView(), {
+      profiles: [profile()],
+    });
+    let finishScan = (_v: SessionView) => {};
+    api.selectProfile.mockImplementationOnce(() => new Promise((resolve) => (finishScan = resolve)));
+    await fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "" } });
+    await screen.findByText("Scanning…");
+    expect(screen.getByRole("button", { name: "Update profile" })).toHaveProperty("disabled", true);
+    expect(includeFolder()).toHaveProperty("disabled", true);
+    finishScan(readyView());
+    await waitFor(() => expect(screen.queryByText("Scanning…")).toBeNull());
+  });
 });

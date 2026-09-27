@@ -144,7 +144,7 @@
 <section class="card" data-drop="from" aria-labelledby="from-title">
   <h2 id="from-title">From</h2>
   <DrivesRow source={source?.folder ?? null} onPick={(path) => scan([path])} />
-  <ProfileBar {view} {profiles} onSelect={selectProfile} onApplied={profilesApplied} onManage={onManageProfiles} />
+  <ProfileBar {view} {profiles} busy={scanning > 0} onSelect={selectProfile} onApplied={profilesApplied} onManage={onManageProfiles} />
   {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
   {#if view.pickProblem}<p class="danger" role="alert">{view.pickProblem}</p>{/if}
   {#if source}
@@ -174,6 +174,7 @@
       <input
         type="checkbox"
         checked={!source.contentsOnly}
+        disabled={scanning > 0}
         onchange={(e) => setIncludeFolder(e.currentTarget.checked)}
       />
       Include the “{baseName(folder)}” folder

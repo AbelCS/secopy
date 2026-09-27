@@ -7,12 +7,15 @@
   let {
     view,
     profiles,
+    busy,
     onSelect,
     onApplied,
     onManage,
   }: {
     view: SessionView;
     profiles: Profile[];
+    /** A scan is running: its result decides what Update / Save as new would save. */
+    busy: boolean;
     onSelect: (id: string | null) => void;
     /** After Update profile / Save as new…: the profiles and the new view. */
     onApplied: (result: ProfilesView) => void;
@@ -76,17 +79,17 @@
   </label>
   {#if selected && view.profileChanged}
     <span class="muted">{selected.name} · changed for this run</span>
-    <button type="button" onclick={() => act(() => api.updateProfile())}>Update profile</button>
+    <button type="button" disabled={busy} onclick={() => act(() => api.updateProfile())}>Update profile</button>
   {/if}
   {#if canSaveAs}
-    <button type="button" onclick={openSaveAs}>Save as new…</button>
+    <button type="button" disabled={busy} onclick={openSaveAs}>Save as new…</button>
   {/if}
 </div>
 {#if savingAs}
   <form class="save-as" onsubmit={saveAs}>
     <label>Name <input bind:value={name} /></label>
     <label>Folder on the card <input bind:value={folder} placeholder="e.g. PRIVATE/M4ROOT/CLIP" /></label>
-    <button type="submit" class="primary">Save</button>
+    <button type="submit" class="primary" disabled={busy}>Save</button>
     <button type="button" onclick={() => (savingAs = false)}>Cancel</button>
   </form>
 {/if}
