@@ -124,7 +124,7 @@ impl Session {
     /// Applies `change` and returns the scan it needs, or the view when there is nothing to
     /// scan: nothing picked yet, or the pick can't be used (the profile's folder is missing,
     /// a folder and files together).
-    pub fn begin(&mut self, change: Change) -> Result<PendingScan, SessionView> {
+    pub fn begin(&mut self, change: Change) -> Result<PendingScan, Box<SessionView>> {
         let keep_filter = matches!(change, Change::IncludeFolder(_));
         match change {
             Change::Pick(paths) => {
@@ -141,7 +141,7 @@ impl Session {
         }
         self.generation += 1;
         let Some(paths) = self.picked.clone() else {
-            return Err(self.view());
+            return Err(Box::new(self.view()));
         };
         match self.resolve(&paths) {
             Ok(source) => {
@@ -158,7 +158,7 @@ impl Session {
             }
             Err(problem) => {
                 self.no_source(problem);
-                Err(self.view())
+                Err(Box::new(self.view()))
             }
         }
     }
@@ -673,7 +673,7 @@ mod tests {
                 let scanned = scan_source(&pending.source);
                 session.finish_scan(pending, scanned)
             }
-            Err(view) => view,
+            Err(view) => *view,
         }
     }
 

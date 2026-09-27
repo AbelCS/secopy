@@ -65,7 +65,7 @@ pub async fn pick_source(app: AppHandle) -> Result<Option<Vec<String>>, String> 
 pub(crate) fn rescan(state: &AppState, change: Change) -> SessionView {
     let pending = match session(state).begin(change) {
         Ok(pending) => pending,
-        Err(view) => return view,
+        Err(view) => return *view,
     };
     let scanned = scan(&pending.source);
     session(state).finish_scan(pending, scanned)
