@@ -196,9 +196,9 @@ One small settings page, with no tabs. The app works without ever opening it.
 | Write checksum file to destination | On | FR-29. |
 | Show count of skipped hidden items | On | FR-13. |
 | Also save the job report next to the checksum file | Off | FR-35. |
-| Default mode | Copy & Verify | |
-| Notify when a job finishes | On | |
-| Advanced: files in flight, buffer size | Auto | §7.2. Folded under "Advanced". |
+| Notify when a job finishes | On | Plan 3b-2. |
+| Advanced: files in flight, buffer size | Auto | §7.2. Folded under "Advanced". Plan 4 (performance). |
+| Profiles | — | FR-38: list, edit, delete. |
 | Include hidden files | — | Reserved (FR-14). Not shown in v1. |
 
 Settings are stored per user in the OS's standard app-config location.
@@ -319,7 +319,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-35 | Each job produces a report as plain text and as JSON: settings, start/end, counts, per-file result (including skipped files), failures with reasons, whether cache bypass was active, leftover partial files removed, and files left out of the checksum file. It is kept in the app's data folder, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
-| FR-36 | The app remembers the mode and the window size. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
+| FR-36 | The app remembers the mode, the window size and the last selected source profile. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
 | FR-37 | Keyboard: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `Esc` cancel dialog. | S |
 | FR-38 | **Source profiles**, chosen by hand: a name, a folder inside the card (e.g. `PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one applies it; changes last for one run unless saved with "Update profile" or "Save as new profile". No automatic card detection, and nothing is written to cards. | S |
 
@@ -509,4 +509,7 @@ The stack meets these constraints:
 | 2026-09-27 | The destination is never filled in automatically (FR-36): every project has its own folder, and a wrong automatic choice mixes shoots. |
 | 2026-09-27 | Source profiles are chosen by hand, with no automatic card detection, and nothing is ever written to a card (FR-38): formatting erases such files, locked cards can't take them, and camera media should never be modified. |
 | 2026-09-27 | App identifier: `com.belisoft.secopy`. |
+| 2026-09-27 | Plan 3b is split: 3b-1 is source profiles and settings (0.3.0, #16), 3b-2 is notifications, Eject, keyboard shortcuts and accessibility (0.4.0, #20). Performance moves to 0.5.0. Design: [2026-09-27-profiles-settings-design.md](../superpowers/specs/2026-09-27-profiles-settings-design.md). |
+| 2026-09-27 | No "Default mode" setting (§5.5): the app remembers the last mode (FR-36), which makes a default redundant. The last selected source profile is remembered too; the destination still never is. |
+| 2026-09-27 | App identifier changes to `com.latecommits.secopy` (0.3.0). Reports saved by 0.2.0 move to the new data folder on first launch. |
 | 2026-09-27 | FROM has one Choose… for a folder or files (one macOS panel that accepts both, like a drop), and "folder itself / only its contents" is one checkbox, "Include the “DCIM” folder", instead of two radio buttons. |
