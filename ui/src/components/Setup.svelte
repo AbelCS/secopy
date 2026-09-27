@@ -71,13 +71,8 @@
   /** The last part of a path: "/Volumes/CARD/DCIM" → "DCIM". */
   const baseName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
-  async function chooseFolder() {
-    const paths = await api.pickFolder();
-    if (paths) await scan(paths);
-  }
-
-  async function chooseFiles() {
-    const paths = await api.pickFiles();
+  async function chooseSource() {
+    const paths = await api.pickSource();
     if (paths) await scan(paths);
   }
 
@@ -129,35 +124,22 @@
     <p class="muted">Drop a folder or files here, or choose them.</p>
   {/if}
   <div class="actions">
-    <button type="button" onclick={chooseFolder}>Choose folder…</button>
-    <button type="button" onclick={chooseFiles}>Choose files…</button>
+    <button type="button" onclick={chooseSource}>Choose…</button>
   </div>
   {#if sourceError}<p class="danger" role="alert">{sourceError}</p>{/if}
 
   <!-- A retry copies exactly the files that failed: nothing to choose there. -->
   {#if source?.folder && !source.isRetry}
     {@const folder = source.folder}
-    <fieldset class="mode">
-      <legend class="sr-only">What to copy</legend>
-      <label>
-        <input
-          type="radio"
-          name="contents"
-          checked={!source.contentsOnly}
-          onchange={() => scan([folder], false)}
-        />
-        Copy the folder “{baseName(folder)}” itself
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="contents"
-          checked={source.contentsOnly}
-          onchange={() => scan([folder], true)}
-        />
-        Copy only what's inside
-      </label>
-    </fieldset>
+    <!-- On: DEST/DCIM/…; off: only what's inside, straight into DEST (FR-4). -->
+    <label class="include">
+      <input
+        type="checkbox"
+        checked={!source.contentsOnly}
+        onchange={(e) => scan([folder], !e.currentTarget.checked)}
+      />
+      Include the “{baseName(folder)}” folder
+    </label>
     {#if source.extensions.length > 0}
       <ExtensionChips
         extensions={source.extensions}
@@ -260,13 +242,9 @@
     margin: 8px 0;
   }
 
-  fieldset.mode {
-    border: none;
-    padding: 0;
+  .include {
+    display: block;
     margin: 8px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
   }
 
   .start {
@@ -295,13 +273,5 @@
   .segmented input {
     position: absolute;
     opacity: 0;
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
   }
 </style>

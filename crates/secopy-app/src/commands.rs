@@ -50,6 +50,17 @@ fn session(state: &AppState) -> std::sync::MutexGuard<'_, Session> {
     state.session.lock().expect("session lock poisoned")
 }
 
+/// FROM's Choose…: a folder or files, in one panel (FR-1, FR-2). `None` when cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn pick_source(app: AppHandle) -> Result<Option<Vec<String>>, String> {
+    let (done, picked) = std::sync::mpsc::channel();
+    crate::picker::pick_source(&app, done).map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || picked.recv().ok().flatten())
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Scans a picked or dropped source (FR-1..FR-3). A newer scan replaces an older one.
 #[tauri::command]
 #[specta::specta]

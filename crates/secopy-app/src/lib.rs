@@ -3,6 +3,7 @@
 pub mod commands;
 pub mod dto;
 pub mod jobs;
+mod picker;
 pub mod session;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -13,6 +14,7 @@ use commands::AppState;
 /// The commands and types the UI sees; `ui/src/lib/bindings.ts` is generated from this.
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
+        commands::pick_source,
         commands::scan_source,
         commands::clear_source,
         commands::set_filter,

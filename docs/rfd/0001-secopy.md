@@ -49,7 +49,8 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Two modes: **Copy** and **Copy & Verify** (xxHash64, source vs. copy read back from disk).
 - Write an **xxHash64 checksum file** to the destination for every job.
 - **Filter by extension** when the source is a directory.
-- Choose between copying **the folder itself** (`SOURCE/…`) or **only its contents** (`…`).
+- Choose between copying **the folder itself** (`SOURCE/…`) or **only its contents** (`…`),
+  with one checkbox: "Include the “SOURCE” folder", on by default.
 - Skip hidden files and folders, with the design ready to include them later.
 - Get close to the throughput of the slower of the two devices.
 - Run natively on Apple Silicon Macs. v1 is macOS only, and Intel Macs are not supported
@@ -106,11 +107,10 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 ├──────────────────────────────────────────────────────────────┤
 │ FROM                                                          │
 │ ┌──────────────────────────────────────────────────────────┐ │
-│ │ /Volumes/CARD_A/DCIM                         [ Change ]   │ │
+│ │ /Volumes/CARD_A/DCIM                        [ Choose… ]   │ │
 │ │ 1,284 files · 212.4 GB · 37 hidden items skipped          │ │
 │ └──────────────────────────────────────────────────────────┘ │
-│   (•) Copy the folder "DCIM" itself                           │
-│   ( ) Copy only what's inside                                 │
+│   [✓] Include the "DCIM" folder                               │
 │                                                               │
 │   File types   [✓ .mov 1,020 · 208 GB] [✓ .wav 240 · 4.1 GB]  │
 │                [  .xml 24 · 2 MB]  [✓ (no extension) 0]  All ▾│
@@ -128,8 +128,10 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Drag and drop works on both FROM and TO areas. When the source is a set of files, the
-"folder itself / contents only" option and the file-type filter are hidden. They do not apply.
+Drag and drop works on both FROM and TO areas. FROM has one Choose… that opens a panel
+where a folder or files can be picked, the same things a drop accepts. When the source is a
+set of files, the "Include the folder" checkbox and the file-type filter are hidden. They do
+not apply.
 The "hidden items skipped" count only appears when it is enabled in Settings (on by default).
 
 ### 5.3 Progress view
@@ -246,10 +248,10 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-1 | The user can pick **one directory** as source via the native folder picker or drag and drop. | M |
-| FR-2 | The user can pick **one or more files** as source via the native file picker (multi-select) or drag and drop. Files dropped from different folders are allowed. | M |
+| FR-1 | The user can pick **one directory** as source via the native picker or drag and drop. | M |
+| FR-2 | The user can pick **one or more files** as source via the same native picker (multi-select) or drag and drop. Files dropped from different folders are allowed. | M |
 | FR-3 | After a source is picked, the app scans it in the background. It shows file count and total size, and updates them live as filters change. The UI stays responsive during the scan, and the scan can be cancelled by picking another source. | M |
-| FR-4 | For a directory source, the user chooses between: **(a) Copy the folder itself.** Copy root = `DEST/<SOURCE_NAME>/`. **(b) Copy only its contents.** Copy root = `DEST/`. The resulting path is previewed. Default: (a). | M |
+| FR-4 | For a directory source, the user chooses between: **(a) Copy the folder itself.** Copy root = `DEST/<SOURCE_NAME>/`. **(b) Copy only its contents.** Copy root = `DEST/`. One checkbox, "Include the “<SOURCE_NAME>” folder": on is (a), off is (b). The resulting path is previewed. Default: (a). | M |
 | FR-5 | For a file-set source, the files are copied flat into `DEST/`. Directory structure is not recreated. | M |
 | FR-6 | Directory sources are copied **recursively**, keeping the relative directory structure. Empty directories are recreated. | M |
 
@@ -507,3 +509,4 @@ The stack meets these constraints:
 | 2026-09-27 | The destination is never filled in automatically (FR-36): every project has its own folder, and a wrong automatic choice mixes shoots. |
 | 2026-09-27 | Source profiles are chosen by hand, with no automatic card detection, and nothing is ever written to a card (FR-38): formatting erases such files, locked cards can't take them, and camera media should never be modified. |
 | 2026-09-27 | App identifier: `com.belisoft.secopy`. |
+| 2026-09-27 | FROM has one Choose… for a folder or files (one macOS panel that accepts both, like a drop), and "folder itself / only its contents" is one checkbox, "Include the “DCIM” folder", instead of two radio buttons. |

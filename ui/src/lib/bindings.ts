@@ -6,6 +6,8 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
+	/**  FROM's Choose…: a folder or files, in one panel (FR-1, FR-2). `None` when cancelled. */
+	pickSource: () => typedError<string[] | null, string>(__TAURI_INVOKE("pick_source")),
 	/**  Scans a picked or dropped source (FR-1..FR-3). A newer scan replaces an older one. */
 	scanSource: (paths: string[], contentsOnly: boolean) => typedError<SessionView, string>(__TAURI_INVOKE("scan_source", { paths, contentsOnly })),
 	/**  Clears the source; the destination stays ("New copy", RFD §5.4). */
