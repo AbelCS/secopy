@@ -14,7 +14,6 @@
   import Section from "../lib/ui/Section.svelte";
   import SegmentedControl from "../lib/ui/SegmentedControl.svelte";
   import FormRow from "../lib/ui/FormRow.svelte";
-  import DrivesRow from "./DrivesRow.svelte";
   import ExtensionChips from "./ExtensionChips.svelte";
   import PreflightPanel from "./PreflightPanel.svelte";
   import ProfileBar from "./ProfileBar.svelte";
@@ -198,20 +197,6 @@
 
   <Section title="From" data-drop="from">
     <FormRow label="Source">
-      <DrivesRow source={source?.folder ?? null} onPick={(path) => scan([path])} />
-      {#snippet aside()}<Button onclick={chooseSource}>Choose…</Button>{/snippet}
-    </FormRow>
-    <FormRow label="Profile">
-      <ProfileBar
-        {view}
-        {profiles}
-        busy={scanning > 0}
-        onSelect={selectProfile}
-        onApplied={profilesApplied}
-        onManage={onManageProfiles}
-      />
-    </FormRow>
-    <FormRow label="Selected">
       {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
       {#if view.pickProblem}<Notice tone="danger">{view.pickProblem}</Notice>{/if}
       {#if source}
@@ -231,6 +216,17 @@
         <p class="muted">Drop a directory or files here, or choose them.</p>
       {/if}
       {#if sourceError}<Notice tone="danger">{sourceError}</Notice>{/if}
+      {#snippet aside()}<Button onclick={chooseSource}>Choose…</Button>{/snippet}
+    </FormRow>
+    <FormRow label="Profile">
+      <ProfileBar
+        {view}
+        {profiles}
+        busy={scanning > 0}
+        onSelect={selectProfile}
+        onApplied={profilesApplied}
+        onManage={onManageProfiles}
+      />
     </FormRow>
 
     <!-- A retry copies exactly the files that failed: nothing to choose there. -->

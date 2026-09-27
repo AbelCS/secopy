@@ -18,8 +18,6 @@ export const commands = {
 	/**  Everything the window needs at start; load problems are handed out once. */
 	appStart: () => typedError<StartView, string>(__TAURI_INVOKE("app_start")),
 	recentDestinations: () => typedError<string[], string>(__TAURI_INVOKE("recent_destinations")),
-	/**  FROM's drives, without the one holding the destination. */
-	listDrives: () => typedError<DriveView[], string>(__TAURI_INVOKE("list_drives")),
 	selectProfile: (id: string | null) => typedError<SessionView, string>(__TAURI_INVOKE("select_profile", { id })),
 	updateProfile: () => typedError<ProfilesView, string>(__TAURI_INVOKE("update_profile")),
 	saveProfileAs: (name: string, folder: string) => typedError<ProfilesView, string>(__TAURI_INVOKE("save_profile_as", { name, folder })),
@@ -125,13 +123,6 @@ export type DestinationView = {
 export type DriveRef = {
 	name: string,
 	mountPoint: string,
-};
-
-export type DriveView = {
-	name: string,
-	path: string,
-	totalBytes: number,
-	freeBytes: number,
 };
 
 export type ExtensionView = {

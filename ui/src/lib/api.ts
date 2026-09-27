@@ -13,7 +13,6 @@ import { dropPoint, isMacOS } from "./drop";
 import {
   commands,
   type ConflictPolicy,
-  type DriveView,
   type FinishedRow,
   type Profile,
   type ProfileInput,
@@ -69,7 +68,6 @@ export const tauriApi = {
   eject: (mountPoint: string): Promise<null> => unwrap(commands.eject(mountPoint)),
   appStart: (): Promise<StartView> => unwrap(commands.appStart()),
   recentDestinations: (): Promise<string[]> => unwrap(commands.recentDestinations()),
-  listDrives: (): Promise<DriveView[]> => unwrap(commands.listDrives()),
   selectProfile: (id: string | null): Promise<SessionView> => unwrap(commands.selectProfile(id)),
   updateProfile: (): Promise<ProfilesView> => unwrap(commands.updateProfile()),
   saveProfileAs: (name: string, folder: string): Promise<ProfilesView> =>

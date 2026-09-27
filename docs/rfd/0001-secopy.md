@@ -521,3 +521,4 @@ The stack meets these constraints:
 | 2026-09-27 | FROM has one Choose… for a folder or files (one macOS panel that accepts both, like a drop), and "folder itself / only its contents" is one checkbox, "Include the “DCIM” folder", instead of two radio buttons. |
 | 2026-09-28 | On macOS, keep-awake is an IOKit power assertion inside the app instead of a `caffeinate` process: macOS 27 reports an app whose helper process is running as "running in the background". |
 | 2026-09-28 | Settings are saved with Save and dropped with Cancel, instead of applying at once: simpler to predict, and the same as profiles. Back sits in the action bar with every other button. |
+| 2026-09-28 | No drives row in FROM (was B8, plan 3b-1): Source shows the chosen source, as Destination does in TO; a card is picked by dropping it or with Choose…. |

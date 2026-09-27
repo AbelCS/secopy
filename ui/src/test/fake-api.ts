@@ -5,7 +5,6 @@ import { vi } from "vitest";
 import type { Api } from "../lib/api";
 import type {
   DestinationView,
-  DriveView,
   Profile,
   ProfileInput,
   ProfilesView,
@@ -150,10 +149,6 @@ export function settingsView(over: Partial<Settings> = {}): Settings {
   return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, ...over };
 }
 
-export function drive(over: Partial<DriveView> = {}): DriveView {
-  return { name: "CARD_A", path: "/Volumes/CARD_A", totalBytes: 64_000_000_000, freeBytes: 20_000_000_000, ...over };
-}
-
 export function startView(over: Partial<StartView> = {}): StartView {
   return {
     session: sessionView(),
@@ -203,7 +198,6 @@ export function fakeApi(session: SessionView = sessionView()) {
     eject: vi.fn((_m: string) => Promise.resolve(null)),
     appStart: vi.fn(() => Promise.resolve(state.start)),
     recentDestinations: vi.fn(() => Promise.resolve(state.start.recentDestinations)),
-    listDrives: vi.fn(() => Promise.resolve([drive()] as DriveView[])),
     selectProfile: vi.fn((_id: string | null) => answer()),
     updateProfile: vi.fn(profilesAnswer),
     saveProfileAs: vi.fn((_name: string, _folder: string) => profilesAnswer()),
