@@ -241,6 +241,8 @@ pub struct SummaryView {
     pub copy_root: String,
     pub checksum_file: Option<String>,
     pub checksum_error: Option<String>,
+    /// The checksum file is off in Settings (RFD §5.5).
+    pub checksum_off: bool,
     /// The text report saved in the app's data folder (FR-35).
     pub report_file: Option<String>,
     /// Why the report couldn't be saved there.

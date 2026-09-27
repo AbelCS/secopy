@@ -50,6 +50,8 @@ export const commands = {
 	copyRoot: string,
 	checksumFile: string | null,
 	checksumError: string | null,
+	/**  The checksum file is off in Settings (RFD §5.5). */
+	checksumOff: boolean,
 	/**  The text report saved in the app's data folder (FR-35). */
 	reportFile: string | null,
 	/**  Why the report couldn't be saved there. */
@@ -239,6 +241,8 @@ export type SummaryView = {
 	copyRoot: string,
 	checksumFile: string | null,
 	checksumError: string | null,
+	/**  The checksum file is off in Settings (RFD §5.5). */
+	checksumOff: boolean,
 	/**  The text report saved in the app's data folder (FR-35). */
 	reportFile: string | null,
 	/**  Why the report couldn't be saved there. */

@@ -11,7 +11,7 @@ use tauri::{AppHandle, Manager};
 use crate::dto::{
     ConflictPolicy, ExtensionKey, FinishedRow, ProgressView, SessionView, SummaryView,
 };
-use crate::jobs::{Jobs, ProgressSink};
+use crate::jobs::{JobSettings, Jobs, ProgressSink};
 use crate::session::{Change, Session, scan_source as scan};
 
 /// Everything the app keeps between commands.
@@ -145,7 +145,9 @@ pub async fn start_job(
         let ready = session(state)
             .ready()
             .ok_or("Nothing to copy, or something blocks the copy.")?;
-        state.jobs.start(ready, verify, on_progress)
+        state
+            .jobs
+            .start(ready, verify, JobSettings::default(), on_progress)
     })
     .await?
 }
