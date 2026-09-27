@@ -19,6 +19,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
         commands::pick_source,
         commands::scan_source,
+        commands::set_include_folder,
         commands::clear_source,
         commands::set_filter,
         commands::set_destination,

@@ -12,7 +12,7 @@ use crate::dto::{
     ConflictPolicy, ExtensionKey, FinishedRow, ProgressView, SessionView, SummaryView,
 };
 use crate::jobs::{Jobs, ProgressSink};
-use crate::session::{Session, scan_source as scan};
+use crate::session::{Change, Session, scan_source as scan};
 
 /// Everything the app keeps between commands.
 pub struct AppState {
@@ -61,22 +61,38 @@ pub async fn pick_source(app: AppHandle) -> Result<Option<Vec<String>>, String> 
         .map_err(|e| e.to_string())
 }
 
-/// Scans a picked or dropped source (FR-1..FR-3). A newer scan replaces an older one.
+/// Applies a change to FROM and runs the scan it needs without the session locked.
+pub(crate) fn rescan(state: &AppState, change: Change) -> SessionView {
+    let pending = match session(state).begin(change) {
+        Ok(pending) => pending,
+        Err(view) => return view,
+    };
+    let scanned = scan(&pending.source);
+    session(state).finish_scan(pending, scanned)
+}
+
+/// Scans a picked, dropped or chosen drive or source (FR-1..FR-3). A newer scan replaces
+/// an older one.
 #[tauri::command]
 #[specta::specta]
-pub async fn scan_source(
-    app: AppHandle,
-    paths: Vec<String>,
-    contents_only: bool,
-) -> Result<SessionView, String> {
+pub async fn scan_source(app: AppHandle, paths: Vec<String>) -> Result<SessionView, String> {
     blocking(app, move |state| {
-        let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-        let source = Session::source_for(&paths, contents_only)?;
-        let ticket = session(state).begin_scan();
-        let scanned = scan(&source)?;
-        Ok(session(state).finish_scan(ticket, source, scanned))
+        rescan(
+            state,
+            Change::Pick(paths.into_iter().map(PathBuf::from).collect()),
+        )
     })
-    .await?
+    .await
+}
+
+/// The "Include the folder" checkbox (FR-4); this run's file types stay.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_include_folder(app: AppHandle, include: bool) -> Result<SessionView, String> {
+    blocking(app, move |state| {
+        rescan(state, Change::IncludeFolder(include))
+    })
+    .await
 }
 
 /// Clears the source; the destination stays ("New copy", RFD §5.4).

@@ -21,6 +21,14 @@ pub struct SessionView {
     pub destination: Option<DestinationView>,
     pub conflicts: ConflictPolicy,
     pub plan: Option<PlanView>,
+    /// The selected source profile's id (FR-38).
+    pub profile_id: Option<String>,
+    /// This run's choices differ from the profile's: offer Update profile / Save as new….
+    pub profile_changed: bool,
+    /// Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP".
+    pub pick_problem: Option<String>,
+    /// What Save as new… suggests for the profile's folder.
+    pub suggested_folder: String,
     /// A newer scan replaced this one while it ran (FR-3); the UI keeps its current view.
     pub stale: bool,
 }

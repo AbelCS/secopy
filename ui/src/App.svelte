@@ -20,6 +20,10 @@
     destination: null,
     conflicts: "keepBoth",
     plan: null,
+    profileId: null,
+    profileChanged: false,
+    pickProblem: null,
+    suggestedFolder: "",
     stale: false,
   });
   let verify = $state(true);

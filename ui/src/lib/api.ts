@@ -31,8 +31,9 @@ function asList(picked: string | string[] | null): string[] | null {
 }
 
 export const tauriApi = {
-  scanSource: (paths: string[], contentsOnly: boolean): Promise<SessionView> =>
-    unwrap(commands.scanSource(paths, contentsOnly)),
+  scanSource: (paths: string[]): Promise<SessionView> => unwrap(commands.scanSource(paths)),
+  setIncludeFolder: (include: boolean): Promise<SessionView> =>
+    unwrap(commands.setIncludeFolder(include)),
   clearSource: (): Promise<SessionView> => unwrap(commands.clearSource()),
   setFilter: (selected: (string | null)[] | null): Promise<SessionView> =>
     unwrap(commands.setFilter(selected)),

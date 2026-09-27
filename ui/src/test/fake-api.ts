@@ -60,6 +60,10 @@ export function sessionView(over: Partial<SessionView> = {}): SessionView {
     destination: null,
     conflicts: "keepBoth",
     plan: null,
+    profileId: null,
+    profileChanged: false,
+    pickProblem: null,
+    suggestedFolder: "",
     stale: false,
     ...over,
   };
@@ -133,6 +137,7 @@ export function fakeApi(session: SessionView = sessionView()) {
   const answer = () => Promise.resolve(state.session);
   const api = {
     scanSource: vi.fn(answer),
+    setIncludeFolder: vi.fn((_include: boolean) => answer()),
     clearSource: vi.fn(answer),
     setFilter: vi.fn(answer),
     setDestination: vi.fn(answer),

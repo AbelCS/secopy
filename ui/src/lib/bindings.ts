@@ -8,8 +8,13 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 export const commands = {
 	/**  FROM's Choose…: a folder or files, in one panel (FR-1, FR-2). `None` when cancelled. */
 	pickSource: () => typedError<string[] | null, string>(__TAURI_INVOKE("pick_source")),
-	/**  Scans a picked or dropped source (FR-1..FR-3). A newer scan replaces an older one. */
-	scanSource: (paths: string[], contentsOnly: boolean) => typedError<SessionView, string>(__TAURI_INVOKE("scan_source", { paths, contentsOnly })),
+	/**
+	 *  Scans a picked, dropped or chosen drive or source (FR-1..FR-3). A newer scan replaces
+	 *  an older one.
+	 */
+	scanSource: (paths: string[]) => typedError<SessionView, string>(__TAURI_INVOKE("scan_source", { paths })),
+	/**  The "Include the folder" checkbox (FR-4); this run's file types stay. */
+	setIncludeFolder: (include: boolean) => typedError<SessionView, string>(__TAURI_INVOKE("set_include_folder", { include })),
 	/**  Clears the source; the destination stays ("New copy", RFD §5.4). */
 	clearSource: () => typedError<SessionView, string>(__TAURI_INVOKE("clear_source")),
 	/**  `None` selects every extension (FR-8, FR-10). */
@@ -166,6 +171,14 @@ export type SessionView = {
 	destination: DestinationView | null,
 	conflicts: ConflictPolicy,
 	plan: PlanView | null,
+	/**  The selected source profile's id (FR-38). */
+	profileId: string | null,
+	/**  This run's choices differ from the profile's: offer Update profile / Save as new…. */
+	profileChanged: boolean,
+	/**  Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP". */
+	pickProblem: string | null,
+	/**  What Save as new… suggests for the profile's folder. */
+	suggestedFolder: string,
 	/**  A newer scan replaced this one while it ran (FR-3); the UI keeps its current view. */
 	stale: boolean,
 };

@@ -64,8 +64,12 @@
     }
   }
 
-  function scan(paths: string[], contentsOnly = false) {
-    return update(() => api.scanSource(paths, contentsOnly), (e) => (sourceError = e), "scan");
+  function scan(paths: string[]) {
+    return update(() => api.scanSource(paths), (e) => (sourceError = e), "scan");
+  }
+
+  function setIncludeFolder(include: boolean) {
+    return update(() => api.setIncludeFolder(include), (e) => (sourceError = e), "scan");
   }
 
   /** The last part of a path: "/Volumes/CARD/DCIM" → "DCIM". */
@@ -109,6 +113,7 @@
 <section class="card" data-drop="from" aria-labelledby="from-title">
   <h2 id="from-title">From</h2>
   {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
+  {#if view.pickProblem}<p class="danger" role="alert">{view.pickProblem}</p>{/if}
   {#if source}
     <p class="path mono">{source.label}</p>
     <p class="muted">{sourceSummary}</p>
@@ -136,7 +141,7 @@
       <input
         type="checkbox"
         checked={!source.contentsOnly}
-        onchange={(e) => scan([folder], !e.currentTarget.checked)}
+        onchange={(e) => setIncludeFolder(e.currentTarget.checked)}
       />
       Include the “{baseName(folder)}” folder
     </label>

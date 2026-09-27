@@ -38,18 +38,18 @@ describe("Setup", () => {
     const { api } = setup(sessionView(), readyView());
     expect(from().getAllByRole("button")).toHaveLength(1);
     await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
-    await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD/DCIM"], false));
+    await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD/DCIM"]));
     await screen.findByText("1,284 files · 212.4 GB · 37 hidden items skipped");
     api.pickSource.mockResolvedValueOnce(["/a.wav", "/b.wav"]);
     await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
-    await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/a.wav", "/b.wav"], false));
+    await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/a.wav", "/b.wav"]));
   });
 
   test("a folder is included by default; unticking it copies only what's inside", async () => {
     const { api } = setup(readyView());
     expect(includeFolder()).toHaveProperty("checked", true);
     await fireEvent.click(includeFolder());
-    await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/Volumes/CARD/DCIM"], true));
+    await waitFor(() => expect(api.setIncludeFolder).toHaveBeenLastCalledWith(false));
   });
 
   test("files have no folder to include", () => {
@@ -69,7 +69,7 @@ describe("Setup", () => {
     const { api, state, container } = setup(readyView());
     await waitFor(() => expect(state.drop).not.toBeNull());
     state.drop!(["/Volumes/CARD2"], container.querySelector('[data-drop="from"] p'));
-    await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD2"], false));
+    await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD2"]));
     state.drop!(["/Volumes/Backup"], container.querySelector('[data-drop="to"]'));
     await waitFor(() => expect(api.setDestination).toHaveBeenCalledWith("/Volumes/Backup"));
   });
@@ -162,7 +162,7 @@ describe("Setup", () => {
     const { api } = setup(readyView({ source: sourceView({ contentsOnly: true, rootDir: null }) }));
     expect(includeFolder()).toHaveProperty("checked", false);
     await fireEvent.click(includeFolder());
-    await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/Volumes/CARD/DCIM"], false));
+    await waitFor(() => expect(api.setIncludeFolder).toHaveBeenLastCalledWith(true));
   });
 
   test("a retry has no folder choice or filter to change", () => {
@@ -170,6 +170,11 @@ describe("Setup", () => {
     screen.getByText("Retry: 3 failed files");
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /\.xml/ })).toBeNull();
+  });
+
+  test("a pick problem is shown in FROM", () => {
+    setup(sessionView({ pickProblem: "CARD_A has no PRIVATE/M4ROOT/CLIP" }));
+    expect(from().getByRole("alert").textContent).toBe("CARD_A has no PRIVATE/M4ROOT/CLIP");
   });
 
   test("a command error is shown where it happened", async () => {
