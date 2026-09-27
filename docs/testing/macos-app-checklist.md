@@ -53,5 +53,14 @@ section says, which also checks those first-launch steps), then:
     and the used one is in Recent ▾.
 17. **The identifier move.** After updating from 0.2.0, `~/Library/Application Support/
     com.latecommits.secopy/reports/` holds the old reports.
+18. **Notification.** Start a copy, switch to another app: when it ends, a notification says
+    the result. With "Notify when a copy finishes" off, none. With the window in front, none.
+19. **Eject.** After copying from a card, "Eject <card>" ejects it and says so. Open a file
+    from the card in QuickTime and try again: the reason is shown, the card stays mounted.
+    With a removable destination, "Safe to eject <drive>" shows.
+20. **Keyboard.** ⌘O, ⌘D, ⌘↩ from the File menu (greyed out when they don't apply); Space
+    pauses and resumes; ⌘. asks to cancel; Esc leaves Settings and Profiles.
+21. **VoiceOver.** With VoiceOver on (⌘F5), do a whole copy with the keyboard: every control
+    is read with its name, each new screen reads its title, and the end is announced.
 
 Record the macOS version, the card reader and anything odd in the release PR.

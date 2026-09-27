@@ -25,6 +25,12 @@ In Terminal, `xattr -dr com.apple.quarantine /Applications/Secopy.app` does the 
 Updating from 0.2.0: macOS sees 0.3.0 as a new app (its identifier changed), so the first
 launch needs **Open Anyway** once more.
 
+## Keyboard
+
+File menu: **⌘O** choose the source, **⌘D** choose the destination, **⌘↩** start,
+**⌘.** cancel. While copying, **Space** pauses and resumes. **Esc** goes back from Settings
+and Profiles; **⌘,** opens Settings.
+
 ## Development
 
 Requirements: Rust via [rustup](https://rustup.rs) (the toolchain is pinned in
