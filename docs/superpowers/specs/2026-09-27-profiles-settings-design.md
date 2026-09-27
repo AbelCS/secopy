@@ -62,8 +62,10 @@ TO
   Selecting a profile rescans with its folder, include-folder choice and file types.
   Disabled when the source is a set of files (B4).
 - **Picked + folder:** with a profile selected, the source is the picked path joined with
-  the profile's folder. If that folder doesn't exist: "CARD_A has no
-  PRIVATE/M4ROOT/CLIP" in FROM, no source, Start disabled.
+  the profile's folder; a pick that already ends with that folder (Choose… on
+  `CARD_A/PRIVATE/M4ROOT/CLIP`) is used as is. If the folder doesn't exist: "CARD_A has no
+  PRIVATE/M4ROOT/CLIP" in FROM, no source, Start disabled. Other pick problems (a folder and
+  files together, a scan that fails) are shown the same way.
 - **Changed for this run** shows when the include-folder choice, or the selection among the
   file types present on this card, differs from the profile. It offers:
   - **Update profile:** saves the current choices into the profile. File types the profile
@@ -78,8 +80,8 @@ TO
 ## Settings screen (RFD §5.5)
 
 A ⚙ button in the header and **Secopy → Settings… (⌘,)** show it in the main window; Done
-goes back to where the user was. Not available during a job (the button is hidden, the
-menu item disabled).
+goes back to where the user was. Not available during a job: the button is hidden and the
+menu item does nothing.
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -108,8 +110,8 @@ Settings apply to the next job; changing one never affects a running job.
 
 - **Mode** (Copy / Copy & Verify): saved when changed, restored at launch. Default Copy &
   Verify.
-- **Window size:** saved when the window is resized (debounced 1 s) and at close;
-  restored at launch, clamped to the minimum size and the screen.
+- **Window size:** kept in memory as the window is resized and written when the window
+  closes or the app quits; restored at launch, clamped to the minimum size and the screen.
 - **Last profile:** saved when selected; restored at launch if it still exists.
 - **Recent destinations:** a destination is added when a job starts with it; last 5,
   most recent first, no duplicates.
@@ -127,8 +129,8 @@ Settings apply to the next job; changing one never affects a running job.
 | `commands` | + `list_drives`, `select_profile`, `update_profile`, `save_profile_as`, `profiles`, `edit_profile`, `delete_profile`, `settings`, `set_settings`, `recent_destinations`, `app_state`, `set_mode`. | — |
 | UI | Drives row, profile menu and actions, Recent ▾, the Settings screen. | generated bindings |
 
-The window size is saved from Rust (`WindowEvent::Resized`, `CloseRequested`) and applied
-before the window shows, so it doesn't jump.
+The window size is tracked from Rust (`WindowEvent::Resized`), written at quit, and applied
+before the window shows (the window starts hidden), so it doesn't jump.
 
 ### Files
 
