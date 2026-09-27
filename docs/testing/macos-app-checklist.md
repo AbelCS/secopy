@@ -6,7 +6,7 @@ with a real SD card (or any USB stick) before each release. Build it with
 section says, which also checks those first-launch steps), then:
 
 1. **Normal offload.** Insert a card with some video files. Drop its folder from Finder on
-   FROM, choose an empty destination on TO. Expect: file count, size and hidden items
+   FROM, choose an empty destination on TO. Expect: file count, size and system files
    skipped; "Files will go to" ends in the card folder's name. Start with Copy & Verify.
    Expect: both bars move, active files show, the finished list fills, the summary says
    "All N files copied and verified" and lists every file as ✓ Verified with its checksum.

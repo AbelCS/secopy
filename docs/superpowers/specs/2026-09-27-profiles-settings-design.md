@@ -89,7 +89,7 @@ the menu item does nothing.
 | Setting | Default | Effect |
 |---|---|---|
 | Write the checksum file to the destination | On | Off: the job writes none; the summary says "No checksum file (off in Settings)". |
-| Show the count of skipped hidden items | On | Off: the count isn't shown; hidden files are still skipped. |
+| Show the count of skipped system files | On | Off: the count isn't shown; system files are still skipped (hidden files are copied, #25). |
 | Also save the job report next to the checksum file | Off | On: the report is also written next to the checksum file (`Report::write_next_to`). Disabled while the checksum file is off. |
 
 ## Profiles screen
@@ -149,7 +149,7 @@ In `~/Library/Application Support/com.latecommits.secopy/`, each with `"version"
 
 ```json
 // settings.json
-{ "version": 1, "writeChecksumFile": true, "showHiddenCount": true, "reportNextToChecksum": false }
+{ "version": 1, "writeChecksumFile": true, "showSystemCount": true, "reportNextToChecksum": false }
 // profiles.json
 { "version": 1, "profiles": [
   { "id": "k3f9…", "name": "Sony FX3", "folder": "PRIVATE/M4ROOT/CLIP",

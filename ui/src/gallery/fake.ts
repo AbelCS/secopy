@@ -7,7 +7,7 @@ export const profiles: Profile[] = [
   { id: "dji", name: "DJI Mini 4", folder: "DCIM", includeFolder: false, extensions: null },
 ];
 
-export const settings: Settings = { writeChecksumFile: true, showHiddenCount: true, reportNextToChecksum: false };
+export const settings: Settings = { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false };
 
 export const session: SessionView = {
   source: {
@@ -24,7 +24,7 @@ export const session: SessionView = {
       { key: "xml", label: ".xml", files: 106, bytes: 400_000 },
     ],
     selectedExtensions: ["mp4"],
-    skippedHidden: 4,
+    skippedSystem: 4,
     skippedSymlinks: 0,
     problems: [],
     problemCount: 0,

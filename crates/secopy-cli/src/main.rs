@@ -41,9 +41,9 @@ struct Args {
     /// Do not write the .xxh64 checksum file.
     #[arg(long)]
     no_checksum: bool,
-    /// Include hidden files and folders.
+    /// Also copy system files (.DS_Store, Thumbs.db, …). Hidden files are always copied.
     #[arg(long)]
-    include_hidden: bool,
+    include_system_files: bool,
     /// What to do with files that already exist at the destination but differ.
     /// Identical files (same size and date) are always skipped.
     #[arg(long, value_enum, default_value_t = OnConflict::KeepBoth)]
@@ -91,7 +91,7 @@ fn run(args: Args) -> Result<ExitCode, String> {
     let scan = scan::scan(
         &source,
         &ScanOptions {
-            include_hidden: args.include_hidden,
+            include_system_files: args.include_system_files,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -108,10 +108,10 @@ fn run(args: Args) -> Result<ExitCode, String> {
         .unwrap_or_default();
     let selection = scan.select(&filter);
     eprintln!(
-        "{} files, {} ({} hidden items skipped)",
+        "{} files, {} ({} system files skipped)",
         selection.files.len(),
         fmt_bytes(selection.total_bytes),
-        scan.skipped_hidden
+        scan.skipped_system
     );
     let pf = preflight(&source, &selection, &args.to).map_err(|e| e.to_string())?;
     let plan = Plan::resolve(&selection, &pf, args.on_conflict.into());

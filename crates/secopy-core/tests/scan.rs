@@ -12,7 +12,10 @@ use secopy_core::source::{DirMode, Source};
 
 /// CARD/
 ///   A001.MOV, sound.wav, README, clips/B002.mov, clips/empty/,
-///   .DS_Store, .hidden_dir/inner.mov   (hidden)
+///   .camera_index                          (hidden, but the camera's: copied)
+///   .DS_Store, ._A001.MOV, clips/.DS_Store, .Spotlight-V100/Store/db, .fseventsd/log,
+///   Thumbs.db, System Volume Information/guid, .A001.MOV.secopy-partial
+///                                          (system files: skipped)
 fn card() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let card = dir.path().join("CARD");
@@ -23,20 +26,36 @@ fn card() -> (tempfile::TempDir, PathBuf) {
             ("sound.wav", b"wav"),
             ("README", b"r"),
             ("clips/B002.mov", b"mov-b"),
+            (".camera_index", b"i"),
             (".DS_Store", b"x"),
-            (".hidden_dir/inner.mov", b"h"),
+            ("._A001.MOV", b"x"),
+            ("clips/.DS_Store", b"x"),
+            (".Spotlight-V100/Store/db", b"x"),
+            (".fseventsd/log", b"x"),
+            ("Thumbs.db", b"x"),
+            ("System Volume Information/guid", b"x"),
+            (".A001.MOV.secopy-partial", b"x"),
         ],
     );
     fs::create_dir_all(card.join("clips/empty")).unwrap();
     (dir, card)
 }
 
-fn scan_card(card: &Path, mode: DirMode, include_hidden: bool) -> Scan {
+/// Skipped in `card()`: 5 files and 3 directories (each directory counts once).
+const SYSTEM_ITEMS: u64 = 8;
+
+fn scan_card(card: &Path, mode: DirMode, include_system_files: bool) -> Scan {
     let source = Source::Directory {
         path: card.to_path_buf(),
         mode,
     };
-    scan(&source, &ScanOptions { include_hidden }).unwrap()
+    scan(
+        &source,
+        &ScanOptions {
+            include_system_files,
+        },
+    )
+    .unwrap()
 }
 
 fn rels(paths: impl IntoIterator<Item = PathBuf>) -> BTreeSet<String> {
@@ -55,6 +74,7 @@ fn folder_itself_prefixes_paths_with_the_folder_name() {
         rels(scan.files.iter().map(|f| f.rel.clone())),
         rels(
             [
+                "CARD/.camera_index",
                 "CARD/A001.MOV",
                 "CARD/README",
                 "CARD/clips/B002.mov",
@@ -72,28 +92,57 @@ fn contents_only_has_no_prefix() {
     assert_eq!(scan.root_dir, None);
     assert_eq!(
         rels(scan.files.iter().map(|f| f.rel.clone())),
-        rels(["A001.MOV", "README", "clips/B002.mov", "sound.wav"].map(PathBuf::from))
+        rels(
+            [
+                ".camera_index",
+                "A001.MOV",
+                "README",
+                "clips/B002.mov",
+                "sound.wav"
+            ]
+            .map(PathBuf::from)
+        )
     );
 }
 
 #[test]
-fn hidden_items_are_skipped_and_counted_once() {
+fn system_files_are_skipped_and_counted_once() {
     let (_dir, card) = card();
     let scan = scan_card(&card, DirMode::ContentsOnly, false);
-    assert_eq!(scan.skipped_hidden, 2); // .DS_Store and .hidden_dir
+    assert_eq!(scan.skipped_system, SYSTEM_ITEMS);
+    assert_eq!(scan.files.len(), 5);
+}
+
+#[test]
+fn include_system_files_scans_everything() {
+    let (_dir, card) = card();
+    let scan = scan_card(&card, DirMode::ContentsOnly, true);
+    assert_eq!(scan.skipped_system, 0);
+    assert_eq!(
+        scan.files.len(),
+        5 + 8,
+        "the 8 system files are 5 files plus one in each directory"
+    );
+}
+
+/// Cameras can set the hidden attribute on their own files on FAT/exFAT cards; macOS
+/// reports it as `UF_HIDDEN`. Those are part of the card and are copied.
+#[cfg(target_os = "macos")]
+#[test]
+fn files_a_camera_marked_hidden_are_copied() {
+    use std::os::unix::ffi::OsStrExt;
+    let (_dir, card) = card();
+    let flagged = card.join("clips/B002.mov");
+    let c = std::ffi::CString::new(flagged.as_os_str().as_bytes()).unwrap();
+    // SAFETY: a valid C string path; UF_HIDDEN is 0x8000.
+    assert_eq!(unsafe { libc::chflags(c.as_ptr(), 0x8000) }, 0);
+    let scan = scan_card(&card, DirMode::ContentsOnly, false);
     assert!(
         scan.files
             .iter()
-            .all(|f| !f.rel.to_string_lossy().contains("inner"))
+            .any(|f| f.rel == Path::new("clips/B002.mov")),
+        "the hidden-flagged file is copied"
     );
-}
-
-#[test]
-fn include_hidden_scans_hidden_items() {
-    let (_dir, card) = card();
-    let scan = scan_card(&card, DirMode::ContentsOnly, true);
-    assert_eq!(scan.skipped_hidden, 0);
-    assert_eq!(scan.files.len(), 6);
 }
 
 #[test]
@@ -123,7 +172,8 @@ fn extension_stats_group_case_insensitively() {
         scan.ext_stats[&Some("wav".into())],
         ExtStat { files: 1, bytes: 3 }
     );
-    assert_eq!(scan.ext_stats[&None], ExtStat { files: 1, bytes: 1 });
+    // README and .camera_index
+    assert_eq!(scan.ext_stats[&None], ExtStat { files: 2, bytes: 2 });
 }
 
 #[test]
@@ -140,8 +190,8 @@ fn empty_source_dirs_are_recorded() {
 fn selecting_without_filter_keeps_every_file_and_empty_dirs() {
     let (_dir, card) = card();
     let sel = scan_card(&card, DirMode::FolderItself, false).select(&ExtensionFilter::All);
-    assert_eq!(sel.files.len(), 4);
-    assert_eq!(sel.total_bytes, 14);
+    assert_eq!(sel.files.len(), 5);
+    assert_eq!(sel.total_bytes, 15);
     assert_eq!(
         rels(sel.dirs.iter().map(|d| d.rel.clone())),
         rels(["CARD", "CARD/clips", "CARD/clips/empty"].map(PathBuf::from))

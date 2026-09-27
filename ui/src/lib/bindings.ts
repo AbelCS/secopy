@@ -236,7 +236,7 @@ export type SessionView = {
 /**  The Settings screen (RFD §5.5). */
 export type Settings = {
 	writeChecksumFile: boolean,
-	showHiddenCount: boolean,
+	showSystemCount: boolean,
 	reportNextToChecksum: boolean,
 };
 
@@ -267,7 +267,8 @@ export type SourceView = {
 	extensions: ExtensionView[],
 	/**  `None` = every extension; otherwise the selected keys (FR-8). */
 	selectedExtensions: (string | null)[] | null,
-	skippedHidden: number,
+	/**  System files skipped (`.DS_Store`, `Thumbs.db`…); hidden files are copied (FR-12). */
+	skippedSystem: number,
 	skippedSymlinks: number,
 	/**  Things that couldn't be read while scanning, first 20. */
 	problems: string[],

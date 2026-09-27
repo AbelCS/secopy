@@ -498,7 +498,7 @@ impl Session {
                         .collect(),
                 ),
             },
-            skipped_hidden: count(scan.skipped_hidden),
+            skipped_system: count(scan.skipped_system),
             skipped_symlinks: count(scan.skipped_symlinks.len()),
             problems: scan
                 .problems

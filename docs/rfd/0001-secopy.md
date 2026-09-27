@@ -51,7 +51,8 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - **Filter by extension** when the source is a directory.
 - Choose between copying **the folder itself** (`SOURCE/…`) or **only its contents** (`…`),
   with one checkbox: "Include the “SOURCE” folder", on by default.
-- Skip hidden files and folders, with the design ready to include them later.
+- Copy hidden files too (a camera can mark its own files hidden); skip only the files
+  computers leave on a card, such as `.DS_Store` and `Thumbs.db`.
 - Get close to the throughput of the slower of the two devices.
 - Run natively on Apple Silicon Macs. v1 is macOS only, and Intel Macs are not supported
   (§14, 2026-09-27). The engine stays portable: it keeps building for Linux and
@@ -64,7 +65,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Network protocols (SFTP, S3…). Mounted network shares work as ordinary folders.
 - Scheduling, watch folders, background daemons.
 - Resuming a job after the app is closed or crashes (planned, §11).
-- Copying hidden files, extended attributes, ACLs, resource forks.
+- Copying extended attributes, ACLs, resource forks.
 - Encryption or compression.
 - Telemetry of any kind. The app never talks to the network (updates excepted, see NFR-9).
 - Linux and Windows apps (planned after v1, §11).
@@ -108,7 +109,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 │ FROM                                                          │
 │ ┌──────────────────────────────────────────────────────────┐ │
 │ │ /Volumes/CARD_A/DCIM                        [ Choose… ]   │ │
-│ │ 1,284 files · 212.4 GB · 37 hidden items skipped          │ │
+│ │ 1,284 files · 212.4 GB · 37 system files skipped          │ │
 │ └──────────────────────────────────────────────────────────┘ │
 │   [✓] Include the "DCIM" folder                               │
 │                                                               │
@@ -132,7 +133,7 @@ Drag and drop works on both FROM and TO areas. FROM has one Choose… that opens
 where a folder or files can be picked, the same things a drop accepts. When the source is a
 set of files, the "Include the folder" checkbox and the file-type filter are hidden. They do
 not apply.
-The "hidden items skipped" count only appears when it is enabled in Settings (on by default).
+The "system files skipped" count only appears when it is enabled in Settings (on by default).
 
 ### 5.3 Progress view
 
@@ -194,11 +195,11 @@ One small settings page, with no tabs. The app works without ever opening it.
 | Setting | Default | Notes |
 |---|---|---|
 | Write checksum file to destination | On | FR-29. |
-| Show count of skipped hidden items | On | FR-13. |
+| Show count of skipped system files | On | FR-13. |
 | Also save the job report next to the checksum file | Off | FR-35. |
 | Notify when a job finishes | On | Plan 3b-2. |
 | Advanced: files in flight, buffer size | Auto | §7.2. Folded under "Advanced". Plan 4 (performance). |
-| Include hidden files | — | Reserved (FR-14). Not shown in v1. |
+| Include system files | — | Reserved (FR-14). Not shown in v1. |
 
 Settings are stored per user in the OS's standard app-config location.
 
@@ -264,13 +265,13 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-10 | The filter applies to the whole tree. Directories that end up with no files after filtering are **not** created. | S |
 | FR-11 | The user can type extensions directly (e.g. `mov, wav`) as an alternative to the chips. | C |
 
-### 6.3 Hidden files
+### 6.3 Hidden and system files
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-12 | Hidden files and directories are skipped, and hidden directories are not traversed. "Hidden" means: the name starts with `.` (all platforms), OR the Windows `HIDDEN`/`SYSTEM` attribute is set, OR the macOS `UF_HIDDEN` flag is set. | M |
-| FR-13 | The number of skipped hidden items is shown in the scan summary so nothing disappears silently. It can be turned off in Settings (§5.5). Default: on. | S |
-| FR-14 | Hidden-file handling is one engine option (`include_hidden: bool`, default `false`) so a UI toggle can be added later without engine changes. | M |
+| FR-12 | Hidden files and directories are copied like any other: a camera can mark its own files hidden (the FAT/exFAT hidden attribute, `UF_HIDDEN` on macOS). Only **system files** are skipped, and system directories are not traversed: names computers leave on a card, never the camera (macOS `.DS_Store`, `._*`, `.Spotlight-V100`, `.fseventsd`, `.Trashes`, `.TemporaryItems`…; Windows `System Volume Information`, `$RECYCLE.BIN`, `Thumbs.db`…), and Secopy's own unfinished-copy files. | M |
+| FR-13 | The number of skipped system files is shown in the scan summary so nothing disappears silently. It can be turned off in Settings (§5.5). Default: on. | S |
+| FR-14 | System-file handling is one engine option (`include_system_files: bool`, default `false`) so a UI toggle can be added later without engine changes. | M |
 
 ### 6.4 Destination
 
@@ -334,7 +335,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
 
 ### 7.1 Scan
 
-- Parallel directory walk. Filtering (hidden, extensions, symlinks) happens during the walk.
+- Parallel directory walk. Filtering (system files, extensions, symlinks) happens during the walk.
 - Stores entries compactly so 1M files fit in well under 200 MB of RAM.
 - Produces the plan: the ordered list of (source, relative path, size, mtime), totals per
   extension, skipped items.
@@ -442,7 +443,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
 passes its tests there; the work is the UI on WebView2 / WebKitGTK, installers and signing,
 and Windows small-file speed (`bench.ps1`).
 
-**Later:** include hidden files (setting) · light theme · paranoid verify (a second,
+**Later:** include system files (setting) · light theme · paranoid verify (a second,
 independent read of the source) · XXH3-64/XXH128 options · resume interrupted jobs ·
 "Verify existing copy" as a full feature · CLI front-end on the same engine · extended
 attributes / Finder tags / ACLs · presets (saved source-destination-filter combos).
@@ -511,4 +512,5 @@ The stack meets these constraints:
 | 2026-09-27 | Plan 3b is split: 3b-1 is source profiles and settings (0.3.0, #16), 3b-2 is notifications, Eject, keyboard shortcuts and accessibility (0.4.0, #20). Performance moves to 0.5.0. Design: [2026-09-27-profiles-settings-design.md](../superpowers/specs/2026-09-27-profiles-settings-design.md). |
 | 2026-09-27 | No "Default mode" setting (§5.5): the app remembers the last mode (FR-36), which makes a default redundant. The last selected source profile is remembered too; the destination still never is. |
 | 2026-09-27 | App identifier changes to `com.latecommits.secopy` (0.3.0). Reports saved by 0.2.0 move to the new data folder on first launch. |
+| 2026-09-27 | Hidden files are copied; only known system files are skipped (FR-12, #25). On FAT/exFAT cards a camera can mark its own files hidden, so skipping every hidden item could leave a card copy silently incomplete. |
 | 2026-09-27 | FROM has one Choose… for a folder or files (one macOS panel that accepts both, like a drop), and "folder itself / only its contents" is one checkbox, "Include the “DCIM” folder", instead of two radio buttons. |

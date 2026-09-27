@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { useApi } from "../lib/api";
   import type { ConflictPolicy, Profile, ProfilesView, SessionView, Settings } from "../lib/bindings";
-  import { formatBytes, formatCount, plural } from "../lib/format";
+  import { formatBytes, plural } from "../lib/format";
   import type { Snippet } from "svelte";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
@@ -56,11 +56,12 @@
   let destError: string | null = $state(null);
 
   const source = $derived(view.source);
-  /** "1,284 files · 212.4 GB · 37 hidden items skipped" (FR-3, FR-13, FR-24) */
+  /** "1,284 files · 212.4 GB · 37 system files skipped" (FR-3, FR-13, FR-24) */
   const sourceSummary = $derived.by(() => {
     if (!source) return "";
     const parts = [plural(source.files, "file"), formatBytes(source.bytes)];
-    if (settings.showHiddenCount && source.skippedHidden > 0) parts.push(`${formatCount(source.skippedHidden)} hidden items skipped`);
+    if (settings.showSystemCount && source.skippedSystem > 0)
+      parts.push(`${plural(source.skippedSystem, "system file")} skipped`);
     if (source.skippedSymlinks > 0) parts.push(`${plural(source.skippedSymlinks, "symlink")} skipped`);
     return parts.join(" · ");
   });

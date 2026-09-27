@@ -58,13 +58,14 @@
         {/snippet}
       </Checkbox>
       <Checkbox
-        label="Show the count of skipped hidden items"
-        checked={settings.showHiddenCount}
-        onChange={(on) => toggle("showHiddenCount", on)}
+        label="Show the count of skipped system files"
+        checked={settings.showSystemCount}
+        onChange={(on) => toggle("showSystemCount", on)}
       >
         {#snippet help()}
-          Hidden items (names starting with “.”, like <span class="mono">.DS_Store</span>) are never copied; this
-          only shows how many were skipped.
+          Files computers leave on a card (<span class="mono">.DS_Store</span>, <span class="mono">._*</span>,
+          <span class="mono">Thumbs.db</span>…) are never copied; this only shows how many were skipped. Hidden
+          files the camera wrote are copied.
         {/snippet}
       </Checkbox>
       <Checkbox
