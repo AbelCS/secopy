@@ -3,6 +3,7 @@ mod common;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use common::{pattern, read_tree, write_files};
 use secopy_core::copy::CopyConfig;
@@ -1074,4 +1075,18 @@ fn files_copied_before_the_source_disappears_are_still_verified() {
         "{report:?}"
     );
     assert!(!report.cancelled);
+}
+
+#[test]
+fn a_job_ends_without_waiting_for_the_progress_interval() {
+    let f = fixture();
+    let mut o = opts(false);
+    o.progress_interval = Duration::from_secs(2);
+    let started = Instant::now();
+    run(&plan(&f.src, &f.dest), &o);
+    assert!(
+        started.elapsed() < Duration::from_millis(1500),
+        "took {:?}",
+        started.elapsed()
+    );
 }

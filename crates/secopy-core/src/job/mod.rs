@@ -6,7 +6,7 @@ mod runner;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
+use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 
@@ -23,7 +23,7 @@ use crate::{metadata, os};
 
 pub use crate::control::JobControl;
 pub use progress::{ActiveFile, Phase, Progress};
-use runner::{Queue, Runner, SetOnDrop, VERIFY_QUEUE_PER_LANE, VerifyTask};
+use runner::{Queue, Runner, VERIFY_QUEUE_PER_LANE, VerifyTask};
 
 #[derive(Debug, Clone)]
 pub struct JobOptions {
@@ -176,18 +176,21 @@ pub fn run_job(
         .partition(|&i| plan.files[i].entry.size <= opts.small_file_threshold);
     let small = Queue::new(small);
     let large = Queue::new(large);
-    let finished = AtomicBool::new(false);
-
     std::thread::scope(|s| {
-        let ticker = s.spawn(|| {
-            while !finished.load(Relaxed) {
-                std::thread::sleep(opts.progress_interval);
-                runner.emit_progress();
-            }
-        });
-        // Stops the ticker even when joining a worker panics below; otherwise the scope
-        // would wait for the ticker forever and the panic would become a hang.
-        let stop_ticker = SetOnDrop(&finished);
+        // Dropping the sender ends the ticker at once: when the workers are done, and also
+        // when joining one panics below (otherwise the scope would wait for the ticker, and
+        // the panic would become a hang).
+        let (stop_ticker, stop) = mpsc::channel::<()>();
+        let ticker = {
+            let runner = &runner;
+            s.spawn(move || {
+                while let Err(mpsc::RecvTimeoutError::Timeout) =
+                    stop.recv_timeout(opts.progress_interval)
+                {
+                    runner.emit_progress();
+                }
+            })
+        };
         // Bounded, so copying can't run thousands of files ahead of verification.
         let (verify_tx, verify_rx) =
             mpsc::sync_channel::<VerifyTask>(VERIFY_QUEUE_PER_LANE * opts.verify_lanes.max(1));
