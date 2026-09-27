@@ -1,18 +1,41 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test, vi } from "vitest";
 import { apiContext } from "../lib/api";
-import type { SessionView } from "../lib/bindings";
-import { destinationView, fakeApi, readyView, sessionView, sourceView } from "../test/fake-api";
+import type { Profile, SessionView, Settings } from "../lib/bindings";
+import {
+  destinationView,
+  fakeApi,
+  profile,
+  readyView,
+  sessionView,
+  settingsView,
+  sourceView,
+} from "../test/fake-api";
 import Setup from "./Setup.svelte";
 
-function setup(view: SessionView = sessionView(), answer: SessionView = view) {
+function setup(
+  view: SessionView = sessionView(),
+  answer: SessionView = view,
+  props: Partial<{ profiles: Profile[]; settings: Settings; recent: string[] }> = {},
+) {
   const { api, state } = fakeApi(answer);
   const started: number[] = [];
+  const calls = { profiles: [] as Profile[][], manage: 0, modes: [] as boolean[] };
   const result = render(Setup, {
-    props: { view, verify: true, onStart: () => started.push(1) },
+    props: {
+      view,
+      verify: true,
+      profiles: props.profiles ?? [],
+      settings: props.settings ?? settingsView(),
+      recent: props.recent ?? [],
+      onStart: () => started.push(1),
+      onProfiles: (p: Profile[]) => calls.profiles.push(p),
+      onManageProfiles: () => calls.manage++,
+      onMode: (v: boolean) => calls.modes.push(v),
+    },
     context: apiContext(api),
   });
-  return { api, state, started, ...result };
+  return { api, state, started, calls, ...result };
 }
 
 const start = () => screen.getByRole("button", { name: /copy & verify|start copy/i });
@@ -36,7 +59,7 @@ describe("Setup", () => {
 
   test("one Choose… picks a folder or files, and scans what was picked", async () => {
     const { api } = setup(sessionView(), readyView());
-    expect(from().getAllByRole("button")).toHaveLength(1);
+    expect(from().getAllByRole("button", { name: "Choose…" })).toHaveLength(1);
     await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD/DCIM"]));
     await screen.findByText("1,284 files · 212.4 GB · 37 hidden items skipped");
@@ -182,5 +205,89 @@ describe("Setup", () => {
     api.setDestination.mockRejectedValueOnce(new Error("Can't write to the destination"));
     await fireEvent.click(to().getByRole("button", { name: "Choose…" }));
     await screen.findByText("Can't write to the destination");
+  });
+  test("the drives row lists the drives, and clicking one scans it", async () => {
+    const { api } = setup(sessionView(), readyView());
+    await fireEvent.click(await from().findByRole("button", { name: /CARD_A/ }));
+    await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD_A"]));
+  });
+
+  test("the drives are asked for again every 2 seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      const { api } = setup();
+      await vi.advanceTimersByTimeAsync(4100);
+      expect(api.listDrives).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("choosing a profile selects it; Manage profiles… opens Settings", async () => {
+    const { api, calls } = setup(readyView(), readyView(), { profiles: [profile()] });
+    const menu = screen.getByLabelText("Profile");
+    await fireEvent.change(menu, { target: { value: "fx3" } });
+    await waitFor(() => expect(api.selectProfile).toHaveBeenCalledWith("fx3"));
+    await fireEvent.change(menu, { target: { value: "manage" } });
+    expect(calls.manage).toBe(1);
+  });
+
+  test("a profile changed for this run offers Update profile", async () => {
+    const { api, calls } = setup(readyView({ profileId: "fx3", profileChanged: true }), readyView(), {
+      profiles: [profile()],
+    });
+    screen.getByText("Sony FX3 · changed for this run");
+    await fireEvent.click(screen.getByRole("button", { name: "Update profile" }));
+    await waitFor(() => expect(api.updateProfile).toHaveBeenCalled());
+    expect(calls.profiles).toHaveLength(1);
+  });
+
+  test("Save as new… suggests the folder and saves under a new name", async () => {
+    const { api } = setup(readyView({ suggestedFolder: "PRIVATE/M4ROOT/CLIP" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    expect(screen.getByLabelText("Folder on the card")).toHaveProperty("value", "PRIVATE/M4ROOT/CLIP");
+    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.saveProfileAs).toHaveBeenCalledWith("FX3", "PRIVATE/M4ROOT/CLIP"));
+  });
+
+  test("a profile that can't be saved says why", async () => {
+    const { api } = setup(readyView());
+    api.saveProfileAs.mockRejectedValueOnce(new Error("There is already a profile called “FX3”."));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("There is already a profile called “FX3”.");
+  });
+
+  test("profiles don't apply to files", () => {
+    setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: "2 files" }) }), undefined, {
+      profiles: [profile()],
+    });
+    expect(screen.getByLabelText("Profile")).toHaveProperty("disabled", true);
+    expect(screen.queryByRole("button", { name: "Save as new…" })).toBeNull();
+  });
+
+  test("the hidden count follows the setting", () => {
+    setup(readyView(), undefined, { settings: settingsView({ showHiddenCount: false }) });
+    screen.getByText("1,284 files · 212.4 GB");
+  });
+
+  test("a recent destination can be chosen again", async () => {
+    const { api } = setup(readyView(), undefined, { recent: ["/Volumes/RAID/Day01"] });
+    await fireEvent.change(screen.getByLabelText("Recent destinations"), {
+      target: { value: "/Volumes/RAID/Day01" },
+    });
+    await waitFor(() => expect(api.setDestination).toHaveBeenCalledWith("/Volumes/RAID/Day01"));
+  });
+
+  test("no recent destinations, no menu", () => {
+    setup(readyView());
+    expect(screen.queryByLabelText("Recent destinations")).toBeNull();
+  });
+
+  test("changing the mode is reported", async () => {
+    const { calls } = setup(readyView());
+    await fireEvent.click(screen.getByLabelText("Copy"));
+    expect(calls.modes).toEqual([false]);
   });
 });
