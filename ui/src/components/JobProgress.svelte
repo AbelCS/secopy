@@ -115,7 +115,11 @@
       {/if}
     </tbody>
   </table>
-  <FinishedList total={progress.filesDone} failedTotal={progress.filesFailed} />
+  <FinishedList
+    total={progress.filesDone}
+    failedTotal={progress.filesFailed}
+    updated={progress.elapsedMs}
+  />
 </section>
 
 <style>
