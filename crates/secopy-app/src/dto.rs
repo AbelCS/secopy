@@ -1,6 +1,7 @@
 //! The data the UI sees (RFD §5.2–§5.4). Plain, serializable summaries: paths are strings
-//! (names that aren't UTF-8 are shown lossily), byte counts are `f64` (exact up to 9 PB,
-//! and JavaScript has no 64-bit integers), counts are `u32`.
+//! (names that aren't UTF-8 are shown lossily), counts are `u32`. Bytes and milliseconds
+//! are `u64` exported as a TypeScript `number`, marked field by field: JavaScript numbers
+//! are exact up to 2^53, which is 9 PB or 285,000 years.
 
 use std::path::Path;
 
@@ -15,7 +16,8 @@ pub struct SessionView {
     pub source: Option<SourceView>,
     /// Files and bytes the extension filter keeps.
     pub selected_files: u32,
-    pub selected_bytes: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub selected_bytes: u64,
     pub destination: Option<DestinationView>,
     pub conflicts: ConflictPolicy,
     pub plan: Option<PlanView>,
@@ -34,7 +36,8 @@ pub struct SourceView {
     /// The folder created for "copy the folder itself", e.g. "CLIP".
     pub root_dir: Option<String>,
     pub files: u32,
-    pub bytes: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub bytes: u64,
     /// Sorted by bytes, largest first (FR-8).
     pub extensions: Vec<ExtensionView>,
     /// `None` = every extension; otherwise the selected keys (FR-8).
@@ -56,7 +59,8 @@ pub struct ExtensionView {
     /// ".mov", or "(no extension)".
     pub label: String,
     pub files: u32,
-    pub bytes: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub bytes: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -67,7 +71,8 @@ pub struct DestinationView {
     pub copy_root: String,
     /// Stops the job (FR-16); Start stays disabled.
     pub blocker: Option<String>,
-    pub free_bytes: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub free_bytes: u64,
     pub fs_kind: String,
     /// Items already in the copy root, hidden ones not counted; `None` if it doesn't exist.
     /// More than zero shows the non-empty warning.
@@ -104,7 +109,8 @@ pub enum ConflictPolicy {
 #[serde(rename_all = "camelCase")]
 pub struct PlanView {
     pub files_to_write: u32,
-    pub bytes_to_write: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub bytes_to_write: u64,
     /// Not enough free space (FR-16).
     pub blocker: Option<String>,
 }
@@ -114,14 +120,18 @@ pub struct PlanView {
 #[serde(rename_all = "camelCase")]
 pub struct ProgressView {
     pub phase: JobPhase,
-    pub elapsed_ms: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub elapsed_ms: u64,
     pub paused: bool,
     pub verify: bool,
     pub total_files: u32,
     /// Bytes the job writes; skipped files are not included.
-    pub total_bytes: f64,
-    pub copied_bytes: f64,
-    pub verified_bytes: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub total_bytes: u64,
+    #[specta(type = specta_typescript::Number)]
+    pub copied_bytes: u64,
+    #[specta(type = specta_typescript::Number)]
+    pub verified_bytes: u64,
     pub files_done: u32,
     pub files_skipped: u32,
     pub files_failed: u32,
@@ -149,16 +159,20 @@ pub struct ActiveFileView {
     pub name: String,
     pub path: String,
     pub verifying: bool,
-    pub size: f64,
-    pub bytes_done: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub size: u64,
+    #[specta(type = specta_typescript::Number)]
+    pub bytes_done: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SmallFilesView {
     pub count: u32,
-    pub size: f64,
-    pub bytes_done: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub size: u64,
+    #[specta(type = specta_typescript::Number)]
+    pub bytes_done: u64,
 }
 
 /// One row of the finished list (RFD §5.3).
@@ -169,8 +183,10 @@ pub struct FinishedRow {
     pub path: String,
     /// Differs from `path` when the copy was kept under a new name.
     pub final_path: String,
-    pub size: f64,
-    pub seconds: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub size: u64,
+    #[specta(type = specta_typescript::Number)]
+    pub millis: u64,
     pub hash: Option<String>,
     pub status: RowStatus,
     /// Why it failed or was skipped.
@@ -201,8 +217,10 @@ pub struct SummaryView {
     pub skipped_different: u32,
     pub failed: u32,
     pub not_started: u32,
-    pub bytes_written: f64,
-    pub seconds: f64,
+    #[specta(type = specta_typescript::Number)]
+    pub bytes_written: u64,
+    #[specta(type = specta_typescript::Number)]
+    pub millis: u64,
     /// Failed files with their reasons, first 1,000.
     pub failures: Vec<FinishedRow>,
     pub copy_root: String,
@@ -229,9 +247,4 @@ pub fn show(path: &Path) -> String {
 /// Counts shown in the UI; clamped rather than wrapped past `u32::MAX`.
 pub fn count(n: impl TryInto<u32>) -> u32 {
     n.try_into().unwrap_or(u32::MAX)
-}
-
-/// Bytes shown in the UI.
-pub fn bytes(n: u64) -> f64 {
-    n as f64
 }

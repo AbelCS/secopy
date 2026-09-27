@@ -14,7 +14,7 @@ use secopy_core::source::{DirMode, Source};
 
 use crate::dto::{
     ConflictPolicy, DestinationView, ExtensionKey, ExtensionView, FileProblemView, PlanView,
-    SessionView, SourceView, bytes, count, show,
+    SessionView, SourceView, count, show,
 };
 
 /// Per-file problems sent to the UI; the rest are only counted.
@@ -184,7 +184,7 @@ impl Session {
         SessionView {
             source: self.source.as_ref().map(|p| self.source_view(p)),
             selected_files: selection.map_or(0, |s| count(s.files.len())),
-            selected_bytes: selection.map_or(0.0, |s| bytes(s.total_bytes)),
+            selected_bytes: selection.map_or(0, |s| s.total_bytes),
             destination: self.dest.as_ref().map(|d| self.destination_view(d)),
             conflicts: self.policy,
             plan: self.plan.as_ref().map(plan_view),
@@ -203,10 +203,10 @@ impl Session {
                     .as_ref()
                     .map_or("(no extension)".to_string(), |k| format!(".{k}")),
                 files: count(stat.files),
-                bytes: bytes(stat.bytes),
+                bytes: stat.bytes,
             })
             .collect();
-        extensions.sort_by(|a, b| b.bytes.total_cmp(&a.bytes));
+        extensions.sort_by_key(|e| std::cmp::Reverse(e.bytes));
         let (is_folder, contents_only) = match &picked.source {
             Source::Directory { mode, .. } => (true, *mode == DirMode::ContentsOnly),
             Source::Files(_) => (false, false),
@@ -217,7 +217,7 @@ impl Session {
             contents_only,
             root_dir: scan.root_dir.as_deref().map(show),
             files: count(scan.files.len()),
-            bytes: bytes(scan.files.iter().map(|f| f.size).sum()),
+            bytes: scan.files.iter().map(|f| f.size).sum(),
             extensions,
             selected_extensions: match &self.filter {
                 ExtensionFilter::All => None,
@@ -241,7 +241,7 @@ impl Session {
             path: show(dest),
             copy_root: show(&copy_root),
             blocker: None,
-            free_bytes: 0.0,
+            free_bytes: 0,
             fs_kind: String::new(),
             existing_items: existing_items(&copy_root),
             problems: Vec::new(),
@@ -256,7 +256,7 @@ impl Session {
                     .selection
                     .as_ref()
                     .expect("checked implies a selection");
-                view.free_bytes = bytes(pf.fs.free_bytes);
+                view.free_bytes = pf.fs.free_bytes;
                 view.fs_kind = fs_label(&pf.fs.kind);
                 view.problems = pf
                     .file_problems
@@ -281,7 +281,7 @@ impl Session {
             // No source yet: show what the destination is, or why it can't be used.
             None => match fsinfo::fs_info(dest) {
                 Ok(info) => {
-                    view.free_bytes = bytes(info.free_bytes);
+                    view.free_bytes = info.free_bytes;
                     view.fs_kind = fs_label(&info.kind);
                 }
                 Err(_) if !dest.is_dir() => {
@@ -316,7 +316,7 @@ fn policy(p: ConflictPolicy) -> DiffersPolicy {
 fn plan_view(plan: &Plan) -> PlanView {
     PlanView {
         files_to_write: count(plan.files.iter().filter(|f| f.action.writes()).count()),
-        bytes_to_write: bytes(plan.bytes_to_write()),
+        bytes_to_write: plan.bytes_to_write(),
         blocker: plan.blockers().first().map(|b| sentence(b.to_string())),
     }
 }
@@ -422,10 +422,10 @@ mod tests {
         let src = view.source.unwrap();
         assert!(src.is_folder && !src.contents_only);
         assert_eq!(src.root_dir.as_deref(), Some("CARD"));
-        assert_eq!((src.files, src.bytes), (3, 17.0));
+        assert_eq!((src.files, src.bytes), (3, 17));
         let labels: Vec<_> = src.extensions.iter().map(|e| e.label.as_str()).collect();
         assert_eq!(labels, [".mov", ".xml"]);
-        assert_eq!((view.selected_files, view.selected_bytes), (3, 17.0));
+        assert_eq!((view.selected_files, view.selected_bytes), (3, 17));
         assert_eq!(src.selected_extensions, None);
     }
 
@@ -435,7 +435,7 @@ mod tests {
         let mut s = Session::new();
         pick(&mut s, std::slice::from_ref(&f.card), false);
         let view = s.set_filter(Some(vec![Some("mov".into())]));
-        assert_eq!((view.selected_files, view.selected_bytes), (2, 14.0));
+        assert_eq!((view.selected_files, view.selected_bytes), (2, 14));
         assert_eq!(
             view.source.unwrap().selected_extensions,
             Some(vec![Some("mov".into())])
@@ -529,7 +529,7 @@ mod tests {
         let f = fixture();
         let mut s = Session::new();
         let dest = s.set_destination(Some(f.dest.clone())).destination.unwrap();
-        assert!(dest.free_bytes > 0.0 && dest.blocker.is_none());
+        assert!(dest.free_bytes > 0 && dest.blocker.is_none());
         let missing = s
             .set_destination(Some(f.dest.join("nope")))
             .destination

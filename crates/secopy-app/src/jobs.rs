@@ -22,7 +22,7 @@ use secopy_core::source::Source;
 
 use crate::dto::{
     ActiveFileView, FinishedRow, JobOutcome, JobPhase, ProgressView, RowStatus, SmallFilesView,
-    SummaryView, bytes, count, show,
+    SummaryView, count, show,
 };
 use crate::session::Ready;
 
@@ -169,8 +169,8 @@ impl Jobs {
             skipped_different: count(c.skipped_different),
             failed: count(c.failed),
             not_started: count(c.not_started),
-            bytes_written: bytes(c.bytes_written),
-            seconds: done.report.elapsed.as_secs_f64(),
+            bytes_written: c.bytes_written,
+            millis: done.report.elapsed.as_millis() as u64,
             failures: outcomes
                 .iter()
                 .filter(|o| matches!(o.status, FileStatus::Failed(_)))
@@ -253,7 +253,7 @@ impl Job {
         };
         let mut view = self.progress(&last, true, fatal);
         view.copied_bytes = view.total_bytes;
-        view.verified_bytes = if self.verify { view.total_bytes } else { 0.0 };
+        view.verified_bytes = if self.verify { view.total_bytes } else { 0 };
         view.files_done = count(done.report.outcomes.len());
         view.files_skipped = count(done.report.skipped().count());
         *self.done.lock().expect("job lock poisoned") = Some(done);
@@ -264,8 +264,8 @@ impl Job {
         let total_bytes = self.ready.plan.bytes_to_write();
         let mut small = SmallFilesView {
             count: 0,
-            size: 0.0,
-            bytes_done: 0.0,
+            size: 0,
+            bytes_done: 0,
         };
         let mut active = Vec::new();
         for f in &p.active {
@@ -279,13 +279,13 @@ impl Job {
                         .unwrap_or_default(),
                     path: show(&f.rel),
                     verifying: f.phase == secopy_core::job::Phase::Verifying,
-                    size: bytes(f.size),
-                    bytes_done: bytes(f.bytes_done),
+                    size: f.size,
+                    bytes_done: f.bytes_done,
                 });
             } else {
                 small.count += 1;
-                small.size += bytes(f.size);
-                small.bytes_done += bytes(f.bytes_done);
+                small.size += f.size;
+                small.bytes_done += f.bytes_done;
             }
         }
         let copying = p
@@ -300,13 +300,13 @@ impl Job {
             } else {
                 JobPhase::Copying
             },
-            elapsed_ms: self.clock.elapsed().as_secs_f64() * 1000.0,
+            elapsed_ms: self.clock.elapsed().as_millis() as u64,
             paused: p.paused,
             verify: self.verify,
             total_files: count(self.ready.plan.files.len()),
-            total_bytes: bytes(total_bytes),
-            copied_bytes: bytes(p.copied_bytes),
-            verified_bytes: bytes(p.verified_bytes),
+            total_bytes,
+            copied_bytes: p.copied_bytes,
+            verified_bytes: p.verified_bytes,
             files_done: count(p.files_done),
             files_skipped: count(p.files_skipped),
             files_failed: self.failed.load(Relaxed),
@@ -361,8 +361,8 @@ fn row(o: &FileOutcome) -> FinishedRow {
         id: count(o.id),
         path: show(&o.rel),
         final_path: show(&o.final_rel),
-        size: bytes(o.size),
-        seconds: o.elapsed.as_secs_f64(),
+        size: o.size,
+        millis: o.elapsed.as_millis() as u64,
         hash: o.hash.map(secopy_core::hash::to_hex),
         status,
         reason,
@@ -445,7 +445,7 @@ mod tests {
         let last = sink.last();
         assert_eq!(last.phase, JobPhase::Done);
         assert_eq!(last.files_done, 5);
-        assert_eq!(last.verified_bytes, 5000.0);
+        assert_eq!(last.verified_bytes, 5000);
         assert!(!f.jobs.is_running());
         let s = f.jobs.summary().unwrap();
         assert_eq!(s.outcome, JobOutcome::Complete);
