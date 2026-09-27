@@ -178,6 +178,13 @@ export type SourceView = {
 	isFolder: boolean,
 	/**  Copy only what's inside the folder (FR-4b) instead of the folder itself. */
 	contentsOnly: boolean,
+	/**  The picked folder, to scan again when "folder itself / only what's inside" changes. */
+	folder: string | null,
+	/**
+	 *  The failed files of the last job ("Retry failed"): nothing to choose but the
+	 *  destination.
+	 */
+	isRetry: boolean,
 	/**  The folder created for "copy the folder itself", e.g. "CLIP". */
 	rootDir: string | null,
 	files: number,
