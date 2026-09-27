@@ -116,8 +116,10 @@ format exactly.
 
 - Layout: `crates/secopy-core` (engine library, no UI dependencies), `crates/secopy-cli`
   (developer CLI and benchmark driver), `crates/secopy-app` (the Tauri 2 shell: session,
-  jobs, commands) and `ui/` (Svelte 5 + TypeScript, Vite). Run the app with
-  `npm run tauri dev` from `ui/`; build the `.dmg` with `npm run tauri build`.
+  jobs, commands, `store` for the saved settings, profiles and state, `volumes` for the
+  drives list, `migrate` for the 0.2.0 → 0.3.0 data folder) and `ui/` (Svelte 5 +
+  TypeScript, Vite). Run the app with `npm run tauri dev` from `ui/`; build the `.dmg`
+  with `npm run tauri build`.
 - Engine flow: `scan → select → preflight → Plan::resolve → run_job`, then `Report` for
   the job report. Design notes per plan are in `docs/superpowers/specs/`.
 - Before every commit: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`
