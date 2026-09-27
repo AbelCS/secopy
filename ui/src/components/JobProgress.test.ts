@@ -99,6 +99,25 @@ describe("JobProgress", () => {
     await waitFor(() => expect(api.finishedPage).toHaveBeenCalledWith(4900, 100, false));
   });
 
+  test("Failed only goes back to the top", async () => {
+    const { container } = show(progressView({ filesDone: 10_000, filesFailed: 2 }));
+    const viewport = container.querySelector(".viewport") as HTMLElement;
+    viewport.scrollTop = 5000 * 28;
+    await fireEvent.scroll(viewport);
+    await fireEvent.click(screen.getByLabelText("Failed only"));
+    expect(viewport.scrollTop).toBe(0);
+  });
+
+  test("a short page is asked for again once per update, not in a loop", async () => {
+    const { api, rerender } = show(progressView({ filesDone: 5, elapsedMs: 500 }));
+    api.finishedPage.mockImplementation(() => Promise.resolve([row(0), row(1), row(2)]));
+    await waitFor(() => expect(api.finishedPage).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(api.finishedPage).toHaveBeenCalledTimes(1);
+    await rerender({ progress: progressView({ filesDone: 5, elapsedMs: 1000 }) });
+    await waitFor(() => expect(api.finishedPage).toHaveBeenCalledTimes(2));
+  });
+
   test("Failed only asks for failed rows", async () => {
     const { api } = show(progressView({ filesDone: 10, filesFailed: 2 }));
     await fireEvent.click(screen.getByLabelText("Failed only"));
