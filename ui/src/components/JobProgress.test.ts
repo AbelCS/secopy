@@ -146,4 +146,10 @@ describe("JobProgress", () => {
     await fireEvent.keyDown(window, { key: " " });
     expect(api.resumeJob).toHaveBeenCalledTimes(1);
   });
+
+  test("the phase is announced, and the finished list can be scrolled from the keyboard", () => {
+    const { container } = show(progressView());
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toContain("Copying & verifying");
+    expect(container.querySelector(".viewport")?.getAttribute("tabindex")).toBe("0");
+  });
 });

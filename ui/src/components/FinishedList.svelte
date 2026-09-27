@@ -89,6 +89,8 @@
       Failed only
     </label>
   {/snippet}
+<!-- Focusable so the arrow keys scroll it (a scrollable region, WCAG 2.1.1). -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   bind:this={viewport}
   class="viewport"
@@ -96,6 +98,7 @@
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
   role="list"
   aria-label="Finished files"
+  tabindex="0"
 >
   <div style:height="{count * ROW}px" class="spacer">
     {#each visible as { index, row } (index)}

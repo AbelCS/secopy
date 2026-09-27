@@ -1,7 +1,7 @@
 <script lang="ts">
   // Top of every screen: ‹ Back (only when there is somewhere to go back to), the title, and
   // screen-wide controls on the right.
-  import type { Snippet } from "svelte";
+  import { onMount, type Snippet } from "svelte";
   import Button from "./Button.svelte";
 
   let {
@@ -13,6 +13,10 @@
     onBack?: () => void;
     trailing?: Snippet;
   } = $props();
+
+  // A new screen takes focus at its title, so a screen reader says where you are (NFR-10).
+  let heading: HTMLHeadingElement;
+  onMount(() => heading.focus());
 </script>
 
 <div class="screen-header">
@@ -20,7 +24,7 @@
     {#if onBack}
       <Button variant="link" icon="chevron-left" onclick={onBack}>Back</Button>
     {/if}
-    <h1>{title}</h1>
+    <h1 bind:this={heading} tabindex="-1">{title}</h1>
   </div>
   {#if trailing}<div class="trailing">{@render trailing()}</div>{/if}
 </div>
@@ -48,6 +52,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* A heading isn't a control: no focus ring. */
+  h1:focus {
+    outline: none;
   }
 
   .trailing {

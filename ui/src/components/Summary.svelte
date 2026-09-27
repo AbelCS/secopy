@@ -75,7 +75,9 @@
 
   {@render banner?.()}
   <div class="result">
-    <h2 class:ok class:bad={!ok} role="status"><Icon name={ok ? "check" : "x"} size={20} /> {headline(summary)}</h2>
+    <div role="status">
+      <h2 class:ok class:bad={!ok}><Icon name={ok ? "check" : "x"} size={20} /> {headline(summary)}</h2>
+    </div>
     <Stats items={stats} />
     {#if summary.checksumOff}<p class="muted">No checksum file (off in Settings)</p>{/if}
     {#if summary.checksumError}

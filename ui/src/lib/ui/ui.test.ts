@@ -152,4 +152,9 @@ describe("design system", () => {
     expect(label.className).toContain("visually-hidden");
     screen.getByLabelText("Profile");
   });
+
+  test("ScreenHeader takes focus, so a new screen is announced by its title", () => {
+    render(ScreenHeader, { props: { title: "Summary" } });
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Summary" }));
+  });
 });
