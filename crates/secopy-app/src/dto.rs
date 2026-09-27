@@ -228,6 +228,8 @@ pub struct SummaryView {
     pub millis: u64,
     /// Failed files with their reasons, first 1,000.
     pub failures: Vec<FinishedRow>,
+    /// Rows in the finished list: every file the job got to.
+    pub finished: u32,
     pub copy_root: String,
     pub checksum_file: Option<String>,
     pub checksum_error: Option<String>,

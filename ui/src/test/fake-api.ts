@@ -117,6 +117,7 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
     checksumError: null,
     reportFile: "/Users/me/Library/Application Support/com.belisoft.secopy/reports/r.txt",
     reportError: null,
+    finished: 1284,
     ...over,
   };
 }

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import { apiContext } from "../lib/api";
-import type { SummaryView } from "../lib/bindings";
+import type { FinishedRow, SummaryView } from "../lib/bindings";
 import { fakeApi, summaryView } from "../test/fake-api";
 import Summary from "./Summary.svelte";
 
@@ -16,6 +16,29 @@ function show(summary: SummaryView) {
 }
 
 describe("Summary", () => {
+  test("every file is listed with its status and checksum", async () => {
+    const { api } = fakeApi();
+    const rows: FinishedRow[] = ["A001.MP4", "A002.MP4", "A003.MP4"].map((name, id) => ({
+      id,
+      path: name,
+      finalPath: name,
+      size: 2_300_000_000,
+      millis: 2_000,
+      hash: `d78a9dd8afc9649${id}`,
+      status: "verified",
+      reason: null,
+    }));
+    api.finishedPage.mockResolvedValue(rows);
+    render(Summary, {
+      props: { summary: summaryView({ files: 3, finished: 3 }), onRetry: () => {}, onNewCopy: () => {} },
+      context: apiContext(api),
+    });
+    await waitFor(() => expect(api.finishedPage).toHaveBeenCalledWith(0, 100, false));
+    await screen.findByText("A002.MP4");
+    screen.getByText("d78a9dd8afc96492");
+    expect(screen.getAllByText("✓ Verified")).toHaveLength(3);
+  });
+
   test("a report that couldn't be saved says why", () => {
     show(summaryView({ reportFile: null, reportError: "/Users/me/reports: Permission denied" }));
     screen.getByText("The report could not be saved: /Users/me/reports: Permission denied");
