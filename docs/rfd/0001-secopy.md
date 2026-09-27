@@ -193,7 +193,8 @@ to files already copied). The OS is kept awake while the job runs.
 
 ### 5.5 Settings
 
-One small settings page, with no tabs. The app works without ever opening it.
+One small settings page, with no tabs. The app works without ever opening it. Changes
+apply when saved (Save); Cancel or Esc drops them.
 
 | Setting | Default | Notes |
 |---|---|---|
@@ -519,3 +520,4 @@ The stack meets these constraints:
 | 2026-09-27 | Plan 3b-2 (#20, 0.4.0): Eject is a summary button, never automatic (Retry failed may still need the card), using macOS's own eject; shortcuts live in a File menu; the notification only shows when the window isn't in front; accessibility is checked by tests (axe-core, token contrast) plus a VoiceOver walk-through. Design: [2026-09-27-notify-eject-shortcuts-design.md](../superpowers/specs/2026-09-27-notify-eject-shortcuts-design.md). |
 | 2026-09-27 | FROM has one Choose… for a folder or files (one macOS panel that accepts both, like a drop), and "folder itself / only its contents" is one checkbox, "Include the “DCIM” folder", instead of two radio buttons. |
 | 2026-09-28 | On macOS, keep-awake is an IOKit power assertion inside the app instead of a `caffeinate` process: macOS 27 reports an app whose helper process is running as "running in the background". |
+| 2026-09-28 | Settings are saved with Save and dropped with Cancel, instead of applying at once: simpler to predict, and the same as profiles. Back sits in the action bar with every other button. |

@@ -45,8 +45,8 @@ section says, which also checks those first-launch steps), then:
 14. **Changed for this run.** With a profile applied, turn a type off: "changed for this
     run" appears. Copy without saving; after New copy the profile is as it was. Change it
     again and Update profile: the next card uses the change.
-15. **Settings.** Turn the checksum file off: the next job writes none and the summary says
-    so. Turn it on with "report next to it": the report files appear next to the checksum
+15. **Settings.** Change a setting and Cancel: nothing changed. Turn the checksum file off
+    and Save: the next job writes none and the summary says so. Turn it on with "report next to it": the report files appear next to the checksum
     file.
 16. **Remembered, and not.** Choose Copy, resize the window, select a profile, run a job,
     quit and open again: Copy, the size and the profile are back; the destination is empty
@@ -59,7 +59,7 @@ section says, which also checks those first-launch steps), then:
     from the card in QuickTime and try again: the reason is shown, the card stays mounted.
     With a removable destination, "Safe to eject <drive>" shows.
 20. **Keyboard.** ⌘O, ⌘D, ⌘↩ from the File menu (greyed out when they don't apply); Space
-    pauses and resumes; ⌘. asks to cancel; Esc leaves Settings and Profiles.
+    pauses and resumes; ⌘. asks to cancel; Esc cancels Settings and leaves Profiles.
 21. **VoiceOver.** With VoiceOver on (⌘F5), do a whole copy with the keyboard: every control
     is read with its name, each new screen reads its title, and the end is announced.
 

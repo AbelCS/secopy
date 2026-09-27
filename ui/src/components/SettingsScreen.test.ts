@@ -19,54 +19,70 @@ function show(settings: Settings = settingsView()) {
   return { api, state, calls };
 }
 
+const actions = () => within(screen.getByRole("group", { name: "Actions" }));
+const save = () => actions().getByRole("button", { name: "Save" });
+
 describe("SettingsScreen", () => {
-  test("a toggle applies at once and is saved", async () => {
+  test("a change applies when saved, and Save goes back", async () => {
     const { api, calls } = show();
     await fireEvent.click(screen.getByLabelText("Write the checksum file to the destination"));
+    expect(api.setSettings).not.toHaveBeenCalled();
+    expect(calls.settings).toEqual([]);
+    await fireEvent.click(save());
     const off = settingsView({ writeChecksumFile: false });
+    await waitFor(() => expect(calls.done).toBe(1));
+    expect(api.setSettings).toHaveBeenCalledWith(off);
     expect(calls.settings).toEqual([off]);
-    await waitFor(() => expect(api.setSettings).toHaveBeenCalledWith(off));
   });
 
-  test("the report option is off while there is no checksum file", () => {
-    show(settingsView({ writeChecksumFile: false }));
-    expect(screen.getByLabelText("Also save the job report next to the checksum file")).toHaveProperty(
-      "disabled",
-      true,
-    );
+  test("Save is on only when something changed", async () => {
+    show();
+    expect(save()).toHaveProperty("disabled", true);
+    const box = screen.getByLabelText("Show the count of skipped system files");
+    await fireEvent.click(box);
+    expect(save()).toHaveProperty("disabled", false);
+    await fireEvent.click(box);
+    expect(save()).toHaveProperty("disabled", true);
   });
 
-  test("a settings save error is shown", async () => {
-    const { api } = show();
+  test("Cancel drops the changes and goes back", async () => {
+    const { api, calls } = show();
+    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
+    await fireEvent.click(actions().getByRole("button", { name: "Cancel" }));
+    expect(calls.done).toBe(1);
+    expect(api.setSettings).not.toHaveBeenCalled();
+    expect(calls.settings).toEqual([]);
+  });
+
+  test("Esc is Cancel", async () => {
+    const { api, calls } = show();
+    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(calls.done).toBe(1);
+    expect(api.setSettings).not.toHaveBeenCalled();
+  });
+
+  test("the report option is off while there is no checksum file", async () => {
+    show();
+    const report = () => screen.getByLabelText("Also save the job report next to the checksum file");
+    expect(report()).toHaveProperty("disabled", false);
+    await fireEvent.click(screen.getByLabelText("Write the checksum file to the destination"));
+    expect(report()).toHaveProperty("disabled", true);
+  });
+
+  test("a save error is shown, and nothing is left", async () => {
+    const { api, calls } = show();
     api.setSettings.mockRejectedValueOnce(new Error("Couldn't save the settings: disk full"));
     await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
+    await fireEvent.click(save());
     await screen.findByText("Couldn't save the settings: disk full");
+    expect(calls.done).toBe(0);
+    expect(calls.settings).toEqual([]);
   });
 
   test("Settings has only the settings; profiles have their own screen", () => {
     show();
     expect(screen.queryByText(/profile/i)).toBeNull();
-  });
-
-  test("Back goes back, from the action bar", async () => {
-    const { calls } = show();
-    await fireEvent.click(within(screen.getByRole("group", { name: "Actions" })).getByRole("button", { name: "Back" }));
-    expect(calls.done).toBe(1);
-  });
-
-  test("a change says it was saved, and there is nothing to apply", async () => {
-    show();
-    expect(screen.queryByRole("button", { name: /apply|cancel|done/i })).toBeNull();
-    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
-    await screen.findByText("Saved");
-  });
-
-  test("a change that couldn't be saved doesn't say saved", async () => {
-    const { api } = show();
-    api.setSettings.mockRejectedValueOnce(new Error("Couldn't save the settings: disk full"));
-    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
-    await screen.findByText("Couldn't save the settings: disk full");
-    expect(screen.queryByText("Saved")).toBeNull();
   });
 
   test("each setting explains itself", () => {
@@ -79,12 +95,7 @@ describe("SettingsScreen", () => {
   test("notifications can be turned off", async () => {
     const { api } = show();
     await fireEvent.click(screen.getByLabelText("Notify when a copy finishes"));
+    await fireEvent.click(save());
     await waitFor(() => expect(api.setSettings).toHaveBeenCalledWith(settingsView({ notifyWhenDone: false })));
-  });
-
-  test("Esc goes back", async () => {
-    const { calls } = show();
-    await fireEvent.keyDown(window, { key: "Escape" });
-    expect(calls.done).toBe(1);
   });
 });

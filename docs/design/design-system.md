@@ -34,9 +34,9 @@ Every screen is an `AppShell` with three parts, always in the same place:
     here, never in the header;
   - **middle:** a short status. It explains a disabled primary action ("Choose where to
     copy to."), or says what will happen.
-- Settings apply at once, so the Settings screen has no Apply or Cancel; its status says
-  so. A form that is saved explicitly (a profile) has Revert and Save, and leaving it with
-  unsaved changes asks first.
+- Changes are saved explicitly, never on their own. Settings has Cancel (left; Esc too)
+  and Save (right, on only when something changed; it saves and goes back). A profile has
+  Revert and Save, and leaving it with unsaved changes asks first.
 
 ## Tokens (`ui/src/app.css`)
 
