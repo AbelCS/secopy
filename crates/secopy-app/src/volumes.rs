@@ -1,6 +1,5 @@
 //! The drives FROM offers (plan 3b-1): the volumes mounted under `/Volumes`.
 
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -42,16 +41,43 @@ struct Mount {
 /// The drives under `volumes`, by name: real drives Finder would show, not disk images, and
 /// not the one holding `dest`.
 pub fn list(volumes: &Path, dest: Option<&Path>) -> Vec<DriveView> {
-    let Ok(entries) = fs::read_dir(volumes) else {
+    // Only mount points count, so folders left in /Volumes and the link to `/` never do.
+    let mounts = mount_table()
+        .into_iter()
+        .filter(|(on, _, _)| on.parent() == Some(volumes))
+        .filter_map(|(on, from, st)| mount_from(&on, on.clone(), &from, &st));
+    drives(mounts, dest)
+}
+
+/// Every mounted file system, from the kernel's table (`MNT_NOWAIT`): no file system is
+/// asked anything, so a slow one (a Time Machine backup over the network) can't hold up
+/// the list.
+fn mount_table() -> Vec<(PathBuf, String, libc::statfs)> {
+    // SAFETY: a null buffer only asks for the count.
+    let count = unsafe { libc::getfsstat(std::ptr::null_mut(), 0, libc::MNT_NOWAIT) };
+    let Ok(count) = usize::try_from(count) else {
         return Vec::new();
     };
-    let mounts = entries
-        .filter_map(Result::ok)
-        // `file_type` doesn't follow links, so the link to `/` isn't a folder here.
-        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
-        .filter(|e| !e.file_name().as_encoded_bytes().starts_with(b"."))
-        .filter_map(|e| mount_info(&e.path()));
-    drives(mounts, dest)
+    // Room for a few mounts that appear between the two calls.
+    let mut table: Vec<libc::statfs> = Vec::with_capacity(count + 8);
+    let Ok(size) = libc::c_int::try_from(table.capacity() * std::mem::size_of::<libc::statfs>())
+    else {
+        return Vec::new();
+    };
+    // SAFETY: the buffer has room for `capacity` entries and the kernel writes at most that.
+    let got = unsafe { libc::getfsstat(table.as_mut_ptr(), size, libc::MNT_NOWAIT) };
+    let Ok(got) = usize::try_from(got) else {
+        return Vec::new();
+    };
+    // SAFETY: the kernel filled the first `got` entries.
+    unsafe { table.set_len(got.min(table.capacity())) };
+    table
+        .into_iter()
+        .map(|st| {
+            let (on, from) = names(&st);
+            (on, from, st)
+        })
+        .collect()
 }
 
 fn drives(mounts: impl IntoIterator<Item = Mount>, dest: Option<&Path>) -> Vec<DriveView> {
@@ -72,7 +98,6 @@ fn drives(mounts: impl IntoIterator<Item = Mount>, dest: Option<&Path>) -> Vec<D
 
 /// Where `path`'s file system is mounted, the device it comes from, and `statfs`'s answer.
 fn mount_of(path: &Path) -> Option<(PathBuf, String, libc::statfs)> {
-    use std::ffi::{CStr, OsStr};
     use std::os::unix::ffi::OsStrExt;
     let c = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
     // SAFETY: an all-zero `statfs` is a valid value to be overwritten.
@@ -81,6 +106,14 @@ fn mount_of(path: &Path) -> Option<(PathBuf, String, libc::statfs)> {
     if unsafe { libc::statfs(c.as_ptr(), &mut st) } != 0 {
         return None;
     }
+    let (mounted_on, from) = names(&st);
+    Some((mounted_on, from, st))
+}
+
+/// Where a file system is mounted, and the device it comes from.
+fn names(st: &libc::statfs) -> (PathBuf, String) {
+    use std::ffi::{CStr, OsStr};
+    use std::os::unix::ffi::OsStrExt;
     // SAFETY: the kernel fills both names as NUL-terminated strings.
     let (on, from) = unsafe {
         (
@@ -88,12 +121,20 @@ fn mount_of(path: &Path) -> Option<(PathBuf, String, libc::statfs)> {
             CStr::from_ptr(st.f_mntfromname.as_ptr()),
         )
     };
-    let mounted_on = PathBuf::from(OsStr::from_bytes(on.to_bytes()));
-    Some((mounted_on, from.to_string_lossy().into_owned(), st))
+    (
+        PathBuf::from(OsStr::from_bytes(on.to_bytes())),
+        from.to_string_lossy().into_owned(),
+    )
 }
 
+/// What `statfs` says about `path` (the tests compare it with the list).
+#[cfg(test)]
 fn mount_info(path: &Path) -> Option<Mount> {
     let (mounted_on, from, st) = mount_of(path)?;
+    mount_from(path, mounted_on, &from, &st)
+}
+
+fn mount_from(path: &Path, mounted_on: PathBuf, from: &str, st: &libc::statfs) -> Option<Mount> {
     let is_mount = mounted_on == path;
     let block = u64::from(st.f_bsize);
     Some(Mount {
@@ -242,6 +283,7 @@ mod disk_arbitration {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::path::PathBuf;
 
     fn mount(name: &str) -> Mount {
