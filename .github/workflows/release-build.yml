@@ -1,0 +1,61 @@
+name: release-build
+
+# Tests, builds and packages the Apple Silicon binary (RFD NFR-9). release-please.yml
+# calls it when a release is created and the files are attached to that release. Run it
+# by hand without a tag to check the build: the files are then kept as a run artifact.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the files to (empty = build only)
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    env:
+      TARGET: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: Swatinem/rust-cache@v2
+      - run: brew install xxhash
+      # The same suite as ci.yml: nothing is released without it.
+      - run: cargo test --workspace --locked
+        env:
+          SECOPY_REQUIRE_XXHSUM: "1"
+          SECOPY_DEVICE_TESTS: "1"
+      - run: rustup target add "$TARGET"
+      - run: cargo build --release --locked -p secopy-cli --target "$TARGET"
+      - name: Package
+        id: package
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          name="secopy-cli-${version}-macos-arm64"
+          mkdir -p "dist/$name"
+          cp "target/$TARGET/release/secopy-cli" README.md "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+      - name: Attach to the release
+        if: inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.tag }}" dist/*.tar.gz dist/*.sha256 --clobber

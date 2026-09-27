@@ -92,7 +92,9 @@ format exactly.
 - Each push to `main` updates an open **release PR**. That PR bumps the version,
   updates `CHANGELOG.md` and `version.txt`, and updates every file listed in `extra-files`.
 - **Merging the release PR is the release:** it creates the `vX.Y.Z` tag and the GitHub release.
-  It's the user's call.
+  It's the user's call. It also runs `.github/workflows/release-build.yml`, which runs the full
+  test suite on macOS, builds for Apple Silicon and attaches the archive and its SHA-256 to the
+  release. Check a build without releasing with `gh workflow run release-build`.
 - **Merge PRs with a rebase merge** (`gh pr merge --rebase`), never squash: a squash turns
   all of a PR's commits into one message, and release-please loses the individual
   `feat`/`fix` entries. Before merging feature work, check `gh pr list` for an open
