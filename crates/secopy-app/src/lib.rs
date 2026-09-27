@@ -47,6 +47,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::job_summary,
         commands::save_report,
         commands::retry_failed,
+        commands::eject,
     ])
 }
 

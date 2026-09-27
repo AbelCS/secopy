@@ -128,6 +128,8 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
     checksumOff: false,
     reportFile: "/Users/me/Library/Application Support/com.latecommits.secopy/reports/r.txt",
     reportError: null,
+    sourceDrive: null,
+    destinationDrive: null,
     finished: 1284,
     ...over,
   };
@@ -197,6 +199,7 @@ export function fakeApi(session: SessionView = sessionView()) {
     jobSummary: vi.fn(() => Promise.resolve(summaryView() as SummaryView | null)),
     saveReport: vi.fn((_p: string) => Promise.resolve(null)),
     retryFailed: vi.fn(answer),
+    eject: vi.fn((_m: string) => Promise.resolve(null)),
     appStart: vi.fn(() => Promise.resolve(state.start)),
     recentDestinations: vi.fn(() => Promise.resolve(state.start.recentDestinations)),
     listDrives: vi.fn(() => Promise.resolve([drive()] as DriveView[])),

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::store::{Profile, Settings};
+use crate::volumes::DriveRef;
 
 /// Everything the main window shows. Every session command returns the whole view, so the
 /// UI never has to combine partial answers.
@@ -250,6 +251,10 @@ pub struct SummaryView {
     pub report_file: Option<String>,
     /// Why the report couldn't be saved there.
     pub report_error: Option<String>,
+    /// The source's drive, when macOS can eject it (spec §2).
+    pub source_drive: Option<DriveRef>,
+    /// The destination's drive, when it is ejectable: "Safe to eject".
+    pub destination_drive: Option<DriveRef>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
