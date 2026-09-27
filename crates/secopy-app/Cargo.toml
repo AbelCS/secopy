@@ -18,6 +18,7 @@ tauri-build.workspace = true
 
 [dependencies]
 chrono.workspace = true
+libc.workspace = true
 secopy-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
