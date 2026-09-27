@@ -19,9 +19,9 @@
 
   const api = useApi();
 
-  /** What was picked last, to rescan when "folder itself / contents" changes. */
-  let sourcePaths: string[] = $state([]);
-  let busy = $state(false);
+  /** Scans and destination checks still running; Start waits for all of them. */
+  let scanning = $state(0);
+  let checking = $state(0);
   let sourceError: string | null = $state(null);
   let destError: string | null = $state(null);
 
@@ -36,7 +36,8 @@
   });
   const destination = $derived(view.destination);
   const canStart = $derived(
-    !busy &&
+    scanning === 0 &&
+      checking === 0 &&
       !!view.plan &&
       !view.plan.blocker &&
       !destination?.blocker &&
@@ -47,8 +48,10 @@
   async function update(
     call: () => Promise<SessionView>,
     setError: (e: string | null) => void,
+    kind: "scan" | "check" = "check",
   ): Promise<void> {
-    busy = true;
+    if (kind === "scan") scanning++;
+    else checking++;
     try {
       const next = await call();
       if (!next.stale) view = next;
@@ -56,14 +59,17 @@
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      busy = false;
+      if (kind === "scan") scanning--;
+      else checking--;
     }
   }
 
   function scan(paths: string[], contentsOnly = false) {
-    sourcePaths = paths;
-    return update(() => api.scanSource(paths, contentsOnly), (e) => (sourceError = e));
+    return update(() => api.scanSource(paths, contentsOnly), (e) => (sourceError = e), "scan");
   }
+
+  /** The last part of a path: "/Volumes/CARD/DCIM" → "DCIM". */
+  const baseName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
   async function chooseFolder() {
     const paths = await api.pickFolder();
@@ -107,6 +113,7 @@
 
 <section class="card" data-drop="from" aria-labelledby="from-title">
   <h2 id="from-title">From</h2>
+  {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
   {#if source}
     <p class="path mono">{source.label}</p>
     <p class="muted">{sourceSummary}</p>
@@ -127,7 +134,9 @@
   </div>
   {#if sourceError}<p class="danger" role="alert">{sourceError}</p>{/if}
 
-  {#if source?.isFolder}
+  <!-- A retry copies exactly the files that failed: nothing to choose there. -->
+  {#if source?.folder && !source.isRetry}
+    {@const folder = source.folder}
     <fieldset class="mode">
       <legend class="sr-only">What to copy</legend>
       <label>
@@ -135,16 +144,16 @@
           type="radio"
           name="contents"
           checked={!source.contentsOnly}
-          onchange={() => scan(sourcePaths, false)}
+          onchange={() => scan([folder], false)}
         />
-        Copy the folder “{source.rootDir ?? source.label}” itself
+        Copy the folder “{baseName(folder)}” itself
       </label>
       <label>
         <input
           type="radio"
           name="contents"
           checked={source.contentsOnly}
-          onchange={() => scan(sourcePaths, true)}
+          onchange={() => scan([folder], true)}
         />
         Copy only what's inside
       </label>
@@ -161,6 +170,7 @@
 
 <section class="card" data-drop="to" aria-labelledby="to-title">
   <h2 id="to-title">To</h2>
+  {#if checking > 0}<p class="muted" role="status">Checking…</p>{/if}
   {#if destination}
     <p class="path mono">{destination.path}</p>
     {#if !destination.blocker}

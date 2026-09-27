@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { apiContext } from "../lib/api";
 import type { SessionView } from "../lib/bindings";
 import { destinationView, fakeApi, readyView, sessionView, sourceView } from "../test/fake-api";
@@ -118,6 +118,50 @@ describe("Setup", () => {
     setup(readyView());
     await fireEvent.click(screen.getByLabelText("Copy"));
     screen.getByRole("button", { name: "Copy 1,284 files · 212.4 GB" });
+  });
+
+  test("a scan in progress says so, and Start waits for it", async () => {
+    const { api } = setup(readyView());
+    let finishScan = (_v: SessionView) => {};
+    api.scanSource.mockImplementationOnce(() => new Promise((resolve) => (finishScan = resolve)));
+    await fireEvent.click(screen.getByRole("button", { name: "Choose folder…" }));
+    await screen.findByText("Scanning…");
+    expect(start()).toHaveProperty("disabled", true);
+    // A quicker destination check finishing meanwhile doesn't enable Start.
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await waitFor(() => expect(api.setDestination).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(start()).toHaveProperty("disabled", true);
+    finishScan(readyView());
+    await waitFor(() => expect(screen.queryByText("Scanning…")).toBeNull());
+    expect(start()).toHaveProperty("disabled", false);
+  });
+
+  test("a scan replaced by a newer one doesn't change the view", async () => {
+    const { api } = setup(readyView(), sessionView({ stale: true }));
+    await fireEvent.click(screen.getByRole("button", { name: "Choose folder…" }));
+    await waitFor(() => expect(api.scanSource).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText("Scanning…")).toBeNull());
+    screen.getByText("/Volumes/CARD/DCIM");
+    expect(start()).toHaveProperty("disabled", false);
+  });
+
+  test("the folder choice rescans the source's folder", async () => {
+    const { api } = setup(readyView());
+    await fireEvent.click(screen.getByLabelText("Copy only what's inside"));
+    await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/Volumes/CARD/DCIM"], true));
+  });
+
+  test("copying only what's inside still names the folder", () => {
+    setup(readyView({ source: sourceView({ contentsOnly: true, rootDir: null }) }));
+    screen.getByLabelText("Copy the folder “DCIM” itself");
+  });
+
+  test("a retry has no folder choice or filter to change", () => {
+    setup(readyView({ source: sourceView({ isRetry: true, label: "Retry: 3 failed files" }) }));
+    screen.getByText("Retry: 3 failed files");
+    expect(screen.queryByLabelText("Copy only what's inside")).toBeNull();
+    expect(screen.queryByRole("button", { name: /\.xml/ })).toBeNull();
   });
 
   test("a command error is shown where it happened", async () => {

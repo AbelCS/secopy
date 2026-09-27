@@ -33,6 +33,11 @@ pub struct SourceView {
     pub is_folder: bool,
     /// Copy only what's inside the folder (FR-4b) instead of the folder itself.
     pub contents_only: bool,
+    /// The picked folder, to scan again when "folder itself / only what's inside" changes.
+    pub folder: Option<String>,
+    /// The failed files of the last job ("Retry failed"): nothing to choose but the
+    /// destination.
+    pub is_retry: bool,
     /// The folder created for "copy the folder itself", e.g. "CLIP".
     pub root_dir: Option<String>,
     pub files: u32,
