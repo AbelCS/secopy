@@ -55,6 +55,9 @@
       <li>{formatCount(summary.notStarted)} not started</li>
     {/if}
   </ul>
+  {#if summary.checksumOff}
+    <p class="muted">No checksum file (off in Settings)</p>
+  {/if}
   {#if summary.checksumError}
     <p class="danger" role="alert">The checksum file could not be written: {summary.checksumError}</p>
   {/if}

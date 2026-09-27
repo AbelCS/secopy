@@ -1,7 +1,15 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import App from "./App.svelte";
-import { fakeApi, progressView, readyView, sessionView, summaryView } from "./test/fake-api";
+import {
+  fakeApi,
+  profile,
+  progressView,
+  readyView,
+  sessionView,
+  startView,
+  summaryView,
+} from "./test/fake-api";
 
 function app(view = readyView()) {
   const { api, state } = fakeApi(view);
@@ -72,5 +80,47 @@ describe("App", () => {
     await waitFor(() => expect(state.close).not.toBeNull());
     await state.close!(() => {});
     expect(api.confirm).not.toHaveBeenCalled();
+  });
+  test("the start-up load fills the window", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.start = startView({ session: readyView(), verify: false, profiles: [profile()] });
+    render(App, { props: { api } });
+    await screen.findByRole("button", { name: /^Copy 1,284 files/ });
+    screen.getByRole("option", { name: "Sony FX3" });
+  });
+
+  test("Settings opens from the gear and from the menu, and Done goes back", async () => {
+    const { state } = app();
+    await fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Settings" });
+    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await startButton();
+    await waitFor(() => expect(state.openSettings).not.toBeNull());
+    state.openSettings!();
+    await screen.findByRole("heading", { name: "Settings" });
+  });
+
+  test("the menu doesn't open Settings during a copy", async () => {
+    const { state } = app();
+    await fireEvent.click(await startButton());
+    await screen.findByRole("heading", { name: "Copying & verifying" });
+    expect(screen.queryByRole("button", { name: "Settings" })).toBeNull();
+    state.openSettings!();
+    expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
+  });
+
+  test("a saved file that couldn't be read is shown once", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.start = startView({ session: readyView(), warnings: ["settings.json couldn't be read (…)."] });
+    render(App, { props: { api } });
+    await screen.findByText("settings.json couldn't be read (…).");
+    await fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText("settings.json couldn't be read (…).")).toBeNull();
+  });
+
+  test("the mode is remembered", async () => {
+    const { api } = app();
+    await fireEvent.click(await screen.findByLabelText("Copy"));
+    await waitFor(() => expect(api.setMode).toHaveBeenCalledWith(false));
   });
 });

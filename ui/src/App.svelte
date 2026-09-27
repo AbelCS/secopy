@@ -4,6 +4,7 @@
   import { provideApi, tauriApi, type Api } from "./lib/api";
   import type { Profile, ProgressView, SessionView, Settings, SummaryView } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
+  import SettingsScreen from "./components/SettingsScreen.svelte";
   import Setup from "./components/Setup.svelte";
   import Summary from "./components/Summary.svelte";
 
@@ -12,7 +13,11 @@
   // svelte-ignore state_referenced_locally
   provideApi(api);
 
-  let screen: "setup" | "progress" | "summary" = $state("setup");
+  let screen: "setup" | "progress" | "summary" | "settings" = $state("setup");
+  /** Where Settings' Done goes back to. */
+  let back: "setup" | "summary" = "setup";
+  /** Saved files that couldn't be read, shown once. */
+  let warnings: string[] = $state([]);
   let view: SessionView = $state({
     source: null,
     selectedFiles: 0,
@@ -73,6 +78,17 @@
       }),
     );
     if (started === undefined) screen = "setup";
+    else recent = (await run(() => api.recentDestinations())) ?? recent;
+  }
+
+  function openSettings() {
+    if (screen === "progress" || screen === "settings") return; // not during a copy
+    back = screen;
+    screen = "settings";
+  }
+
+  function saveMode(v: boolean) {
+    void api.setMode(v).catch(() => {}); // remembered for next time; not worth an error
   }
 
   async function finish() {
@@ -97,7 +113,16 @@
   }
 
   onMount(() => {
-    void run(() => api.sessionView()).then((v) => v && (view = v));
+    void run(() => api.appStart()).then((start) => {
+      if (!start) return;
+      view = start.session;
+      settings = start.settings;
+      profiles = start.profiles;
+      verify = start.verify;
+      recent = start.recentDestinations;
+      warnings = start.warnings;
+    });
+    const unlistenSettings = api.onOpenSettings(openSettings);
     // Closing during a copy asks first; if closed anyway, the app stops the copy cleanly.
     const unlisten = api.onCloseRequested(async (prevent) => {
       if (!(await api.jobRunning())) return;
@@ -109,13 +134,25 @@
     });
     return () => {
       unlisten.then((stop) => stop());
+      unlistenSettings.then((stop) => stop());
     };
   });
 </script>
 
 <main>
-  <h1>Secopy</h1>
+  <header>
+    <h1>Secopy</h1>
+    {#if screen === "setup" || screen === "summary"}
+      <button type="button" class="gear" aria-label="Settings" onclick={openSettings}>⚙</button>
+    {/if}
+  </header>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
+  {#if warnings.length > 0 && screen === "setup"}
+    <div class="warnings" role="alert">
+      {#each warnings as w (w)}<p>{w}</p>{/each}
+      <button type="button" onclick={() => (warnings = [])}>Dismiss</button>
+    </div>
+  {/if}
   {#if screen === "setup"}
     <Setup
       bind:view
@@ -125,13 +162,22 @@
       {recent}
       onStart={start}
       onProfiles={(p) => (profiles = p)}
-      onManageProfiles={() => {}}
-      onMode={() => {}}
+      onManageProfiles={openSettings}
+      onMode={saveMode}
     />
   {:else if screen === "progress" && progress}
     <JobProgress {progress} />
   {:else if screen === "summary" && summary}
     <Summary {summary} onRetry={retry} onNewCopy={newCopy} />
+  {:else if screen === "settings"}
+    <SettingsScreen
+      {settings}
+      {profiles}
+      onSettings={(s) => (settings = s)}
+      onProfiles={(p) => (profiles = p)}
+      onView={(v) => (view = v)}
+      onDone={() => (screen = back)}
+    />
   {/if}
 </main>
 
@@ -142,9 +188,21 @@
     padding: 20px 24px;
   }
 
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
   h1 {
-    margin: 0 0 14px;
+    margin: 0;
     font-size: 18px;
+  }
+
+  .warnings {
+    color: var(--warning);
+    margin-bottom: var(--gap);
   }
 
   .error {

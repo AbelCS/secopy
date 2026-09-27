@@ -100,4 +100,9 @@ describe("Summary", () => {
     screen.getByText(/checksum file could not be written: Permission denied/);
     expect(screen.queryByRole("button", { name: "Open checksum file" })).toBeNull();
   });
+  test("no checksum file when it's off in Settings", () => {
+    show(summaryView({ checksumFile: null, checksumOff: true }));
+    screen.getByText("No checksum file (off in Settings)");
+    expect(screen.queryByRole("button", { name: "Open checksum file" })).toBeNull();
+  });
 });
