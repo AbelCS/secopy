@@ -191,8 +191,8 @@ pub enum RowStatus {
 #[serde(rename_all = "camelCase")]
 pub struct SummaryView {
     pub outcome: JobOutcome,
-    /// "All 1,000 files copied and verified", "3 files failed", …
-    pub headline: String,
+    /// Why the job stopped, for `JobOutcome::Stopped`.
+    pub stopped_because: Option<String>,
     pub verify: bool,
     pub files: u32,
     pub copied: u32,
