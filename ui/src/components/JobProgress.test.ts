@@ -152,4 +152,11 @@ describe("JobProgress", () => {
     expect(container.querySelector('[aria-live="polite"]')?.textContent).toContain("Copying & verifying");
     expect(container.querySelector(".viewport")?.getAttribute("tabindex")).toBe("0");
   });
+
+  test("Space scrolls the focused file list, and Shift+Space doesn't pause", async () => {
+    const { api, container } = show(progressView());
+    await fireEvent.keyDown(container.querySelector(".viewport")!, { key: " " });
+    await fireEvent.keyDown(window, { key: " ", shiftKey: true });
+    expect(api.pauseJob).not.toHaveBeenCalled();
+  });
 });

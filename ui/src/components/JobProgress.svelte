@@ -76,11 +76,15 @@
     if (stop) await api.cancelJob();
   }
 
-  /** Space pauses and resumes; not while a field or button has focus (Space is theirs). */
+  /**
+   * Space pauses and resumes; not while a field, button or the file list has focus (Space is
+   * theirs), and not with a modifier.
+   */
   function onKey(e: KeyboardEvent) {
     if (e.key !== " " || e.repeat || progress.phase === "done") return;
+    if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
-    if (t?.closest?.("input, textarea, select, button, [contenteditable]")) return;
+    if (t?.closest?.('input, textarea, select, button, [contenteditable], [tabindex="0"]')) return;
     e.preventDefault();
     void (progress.paused ? api.resumeJob() : api.pauseJob());
   }

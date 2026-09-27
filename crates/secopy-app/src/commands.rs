@@ -252,9 +252,31 @@ impl AppState {
         Ok(())
     }
 
+    /// "Retry failed": the failed files of the last job become the source.
+    pub fn retry_failed(&self) -> Result<SessionView, String> {
+        let (source, selection) = self.jobs.retry().ok_or("No files failed.")?;
+        // After Eject, or with the card pulled out: say so instead of failing every file.
+        if let Some(path) = crate::jobs::source_path(&source)
+            && !path.exists()
+        {
+            return Err(format!(
+                "The source isn't there any more ({}). Connect the card again to retry.",
+                path.display()
+            ));
+        }
+        Ok(session(self).install_retry(source, selection))
+    }
+
     /// Eject the finished copy's source or destination drive (never another one).
     pub fn eject(&self, mount_point: &str) -> Result<(), String> {
         let summary = self.jobs.summary().ok_or("There is no finished copy.")?;
+        let path = Path::new(mount_point);
+        if !path.exists() {
+            let name = path
+                .file_name()
+                .map_or(mount_point.into(), |n| n.to_string_lossy());
+            return Err(format!("{name} is no longer connected."));
+        }
         let ours = [summary.source_drive, summary.destination_drive]
             .into_iter()
             .flatten()
@@ -441,11 +463,7 @@ pub fn set_menu_state(app: AppHandle, setup: bool, can_start: bool, copying: boo
 #[tauri::command]
 #[specta::specta]
 pub async fn retry_failed(app: AppHandle) -> Result<SessionView, String> {
-    blocking(app, |state| {
-        let (source, selection) = state.jobs.retry().ok_or("No files failed.")?;
-        Ok(session(state).install_retry(source, selection))
-    })
-    .await?
+    blocking(app, |state| state.retry_failed()).await?
 }
 
 /// Everything the window needs at start; load problems are handed out once.
@@ -535,7 +553,6 @@ mod tests {
     use std::sync::{Arc, Mutex as StdMutex};
 
     use super::*;
-    use crate::dto::JobOutcome;
     use crate::store::{PROFILES, REMEMBERED, SETTINGS};
 
     #[derive(Clone, Default)]
@@ -747,9 +764,45 @@ mod tests {
         state.start(false, Sink::default()).unwrap();
         state.jobs.wait();
         assert_eq!(
-            state.eject("/Volumes/Other").unwrap_err(),
+            state.eject(&dir.path().to_string_lossy()).unwrap_err(),
             "Secopy only ejects the copy's source or destination drive."
         );
+        // A drive that has gone away since (ejected in Finder, or pulled out).
+        assert_eq!(
+            state.eject("/Volumes/CARD_A_gone").unwrap_err(),
+            "CARD_A_gone is no longer connected."
+        );
+    }
+
+    #[test]
+    fn looking_up_drives_doesnt_hold_up_quitting() {
+        fn slow(_: &Path) -> Option<crate::volumes::DriveRef> {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            None
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = AppState::new(dir.path().join("data"));
+        state.jobs.drive_lookup = slow;
+        let card = dir.path().join("CARD");
+        fs::create_dir_all(&card).unwrap();
+        fs::write(card.join("a.mov"), b"a").unwrap();
+        let dest = dir.path().join("dest");
+        fs::create_dir_all(&dest).unwrap();
+        state.rescan(Change::Pick(vec![card]));
+        state.session.lock().unwrap().set_destination(Some(dest));
+        state.start(false, Sink::default()).unwrap();
+        state.jobs.wait();
+        std::thread::scope(|s| {
+            s.spawn(|| state.jobs.summary());
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            let asked = std::time::Instant::now();
+            state.jobs.is_running(); // what ⌘Q and closing the window ask
+            assert!(
+                asked.elapsed() < std::time::Duration::from_millis(200),
+                "{:?}",
+                asked.elapsed()
+            );
+        });
     }
 
     #[cfg(unix)]
@@ -774,18 +827,11 @@ mod tests {
         state.jobs.wait();
         fs::set_permissions(card.join("b.mov"), fs::Permissions::from_mode(0o644)).unwrap();
         fs::remove_dir_all(&card).unwrap(); // the card was ejected
-        let (source, selection) = state.jobs.retry().unwrap();
-        state
-            .session
-            .lock()
-            .unwrap()
-            .install_retry(source, selection);
-        let started = state.start(false, Sink::default());
-        state.jobs.wait();
-        let summary = state.jobs.summary().unwrap();
+        let error = state.retry_failed().unwrap_err();
         assert!(
-            started.is_err() || summary.outcome != JobOutcome::Complete,
-            "a retry without its card must not report a complete copy"
+            error.starts_with("The source isn't there any more"),
+            "{error}"
         );
+        assert!(!state.jobs.is_running(), "nothing started");
     }
 }

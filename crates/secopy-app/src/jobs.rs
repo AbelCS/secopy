@@ -26,7 +26,7 @@ use crate::dto::{
 };
 use crate::session::Ready;
 use crate::store::Settings;
-use crate::volumes;
+use crate::volumes::{self, DriveRef};
 
 /// Progress reaches the UI twice a second (NFR-5).
 pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
@@ -67,6 +67,8 @@ pub struct Jobs {
     reports_dir: PathBuf,
     current: Mutex<Option<Arc<Job>>>,
     thread: Mutex<Option<JoinHandle<()>>>,
+    /// The ejectable drive holding a path; tests replace it with a slow one.
+    pub(crate) drive_lookup: fn(&Path) -> Option<DriveRef>,
 }
 
 struct Job {
@@ -100,6 +102,7 @@ impl Jobs {
             reports_dir,
             current: Mutex::new(None),
             thread: Mutex::new(None),
+            drive_lookup: volumes::ejectable_drive,
         }
     }
 
@@ -184,6 +187,15 @@ impl Jobs {
     /// The summary once the job has ended; `None` while it runs.
     pub fn summary(&self) -> Option<SummaryView> {
         let job = self.job()?;
+        let mut view = self.summary_of(&job)?;
+        // Asked after the job's locks are released: a slow drive mustn't hold up quitting.
+        view.source_drive = source_path(&job.ready.source).and_then(|p| (self.drive_lookup)(&p));
+        view.destination_drive = (self.drive_lookup)(&job.ready.plan.dest);
+        Some(view)
+    }
+
+    /// The summary without the drives.
+    fn summary_of(&self, job: &Job) -> Option<SummaryView> {
         let done = job.done.lock().expect("job lock poisoned");
         let done = done.as_ref()?;
         let report = job.report(done);
@@ -233,8 +245,8 @@ impl Jobs {
                     .collect();
                 (!errors.is_empty()).then(|| errors.join("; "))
             },
-            source_drive: source_path(&job.ready.source).and_then(|p| volumes::ejectable_drive(&p)),
-            destination_drive: volumes::ejectable_drive(&job.ready.plan.dest),
+            source_drive: None,
+            destination_drive: None,
         })
     }
 
@@ -452,7 +464,7 @@ fn sentence(text: &str) -> String {
 }
 
 /// A path on the source's drive: the directory, or the first file.
-fn source_path(s: &Source) -> Option<PathBuf> {
+pub(crate) fn source_path(s: &Source) -> Option<PathBuf> {
     match s {
         Source::Directory { path, .. } => Some(path.clone()),
         Source::Files(files) => files.first().cloned(),
