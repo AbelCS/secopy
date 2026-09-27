@@ -3,6 +3,7 @@
   import { onMount } from "svelte";
   import { provideApi, tauriApi, type Api } from "./lib/api";
   import { stopMessage } from "./lib/stopping";
+  import { notificationFor } from "./lib/summaryText";
   import type { Profile, ProgressView, SessionView, Settings, SummaryView } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
   import ProfilesScreen from "./components/ProfilesScreen.svelte";
@@ -37,7 +38,7 @@
   });
   let verify = $state(true);
   let profiles: Profile[] = $state([]);
-  let settings: Settings = $state({ writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false });
+  let settings: Settings = $state({ writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true });
   let recent: string[] = $state([]);
   let progress: ProgressView | null = $state(null);
   let summary: SummaryView | null = $state(null);
@@ -100,7 +101,12 @@
 
   async function finish() {
     summary = (await run(() => api.jobSummary())) ?? null;
-    if (summary) screen = "summary";
+    if (!summary) return;
+    screen = "summary";
+    if (settings.notifyWhenDone && !api.windowFocused()) {
+      const { title, body } = notificationFor(summary);
+      void api.notify(title, body).catch(() => {}); // a notification is a courtesy, never an error
+    }
   }
 
   async function retry() {

@@ -150,4 +150,27 @@ describe("App", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     await screen.findByRole("button", { name: /^Copy & verify 1,284 files/ });
   });
+  test("a finished copy notifies only when the window is in the background", async () => {
+    const { api, state } = app();
+    api.windowFocused.mockReturnValue(false);
+    await fireEvent.click(await startButton());
+    state.progress!(progressView({ phase: "done" }));
+    await waitFor(() =>
+      expect(api.notify).toHaveBeenCalledWith(
+        "✓ All 1,284 files copied and verified",
+        "1,284 files · 212.4 GB written · took 4:12",
+      ),
+    );
+  });
+
+  test("no notification when the window is in front, or when it's turned off", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.start = startView({ session: readyView(), settings: settingsView({ notifyWhenDone: false }) });
+    render(App, { props: { api } });
+    api.windowFocused.mockReturnValue(false);
+    await fireEvent.click(await startButton());
+    state.progress!(progressView({ phase: "done" }));
+    await screen.findByText(/All 1,284 files copied and verified/);
+    expect(api.notify).not.toHaveBeenCalled();
+  });
 });
