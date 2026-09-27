@@ -12,7 +12,7 @@
 
 ## 1. Summary
 
-Secopy is a cross-platform desktop app (macOS, Linux, Windows) that copies files from a
+Secopy is a macOS desktop app that copies files from a
 source to a destination **as fast as the hardware allows**. It can optionally **verify**
 every copy by comparing the xxHash64 of the original with the xxHash64 of the copy read
 back from disk. For every job it writes an **xxHash64 checksum file** into the destination
@@ -52,8 +52,9 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Choose between copying **the folder itself** (`SOURCE/…`) or **only its contents** (`…`).
 - Skip hidden files and folders, with the design ready to include them later.
 - Get close to the throughput of the slower of the two devices.
-- Run natively on macOS (Apple Silicon + Intel), Windows 10/11 (x64, ARM64 nice-to-have)
-  and mainstream Linux (x64).
+- Run natively on macOS (Apple Silicon + Intel). v1 is macOS only (§14, 2026-09-27). The
+  engine stays portable: it is built and tested on Linux and Windows in CI, so apps for
+  those can follow after v1 (§11).
 
 ### Non-goals (v1)
 
@@ -65,6 +66,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Copying hidden files, extended attributes, ACLs, resource forks.
 - Encryption or compression.
 - Telemetry of any kind. The app never talks to the network (updates excepted, see NFR-9).
+- Linux and Windows apps (planned after v1, §11).
 
 ## 4. Glossary
 
@@ -392,7 +394,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
 | NFR-6 | **Correctness over speed:** no optimization may weaken FR-18/25/26. |
 | NFR-7 | **Paths:** full Unicode (names are preserved byte-for-byte as the OS reports them; no NFC/NFD rewriting). Windows long paths (> 260 chars) are supported. Files > 4 GiB are supported. |
 | NFR-8 | **No elevated privileges** needed. No network access, no telemetry. |
-| NFR-9 | **Distribution:** macOS universal binary, signed and notarized (`.dmg`). Windows signed installer (MSI or NSIS) plus a portable `.exe`. Linux AppImage + `.deb` (Flatpak nice-to-have). An optional auto-updater, off by default, is the only network access. |
+| NFR-9 | **Distribution:** macOS universal binary, signed and notarized (`.dmg`). An optional auto-updater, off by default, is the only network access. Windows and Linux packages come with those apps, after v1 (§11). |
 | NFR-10 | **Accessibility:** full keyboard operation, screen-reader labels on every control, WCAG AA contrast on the dark palette, respects "reduce motion". |
 | NFR-11 | **i18n-ready:** all strings externalized. English first. |
 | NFR-12 | **Look and feel:** dark theme only in v1 (§5.6), built on design tokens so a light theme can be added later. Native file pickers, notifications and menus. |
@@ -408,7 +410,8 @@ derives speeds, ETAs and smoothing from them (§5.3).
   that flips a byte) to prove verification catches it.
 - **Benchmarks** in CI against `cp`, `rsync`, `robocopy` on reference trees. Regressions
   fail the build.
-- **CI matrix:** macOS (arm64), Windows (x64), Ubuntu (x64).
+- **CI matrix:** macOS (arm64) for the app and the engine. The engine is also built,
+  linted and tested on Windows (x64) and Ubuntu (x64), so it stays portable.
 
 ## 10. Milestones
 
@@ -417,9 +420,9 @@ derives speeds, ETAs and smoothing from them (§5.3).
 2. **M1 — Engine complete:** filters, conflicts, atomic writes, metadata, pause/cancel,
    error model, report, full test suite including fault injection.
 3. **M2 — UI:** main window, progress, summary, drag and drop, pre-flight messages.
-4. **M3 — Performance:** benchmarks vs. native tools on real hardware (SSD→SSD, card
-   reader→SSD, SSD→USB HDD, Windows), then tuning until NFR-1..NFR-4 pass.
-5. **M4 — Packaging:** signing, notarization, installers, CI release pipeline.
+4. **M3 — Performance:** benchmarks vs. native tools on real Macs (SSD→SSD, card
+   reader→SSD, SSD→USB HDD), then tuning until NFR-1..NFR-4 pass.
+5. **M4 — Packaging:** macOS signing, notarization, `.dmg`, CI release pipeline.
 6. **M5 — Beta** with real users and real media. Fix what they find.
 
 ## 11. Future work
@@ -429,6 +432,10 @@ derives speeds, ETAs and smoothing from them (§5.3).
 - **Multiple destinations** in one job: read the source once, write and verify N copies.
 - **ASC MHL** output (the media-industry standard, which supports xxHash64), alongside the
   `.xxh64` file.
+
+**After v1 — other platforms:** Windows and Linux apps. The engine already builds and
+passes its tests there; the work is the UI on WebView2 / WebKitGTK, installers and signing,
+and Windows small-file speed (`bench.ps1`).
 
 **Later:** include hidden files (setting) · light theme · paranoid verify (a second,
 independent read of the source) · XXH3-64/XXH128 options · resume interrupted jobs ·
@@ -460,7 +467,8 @@ The stack meets these constraints:
 1. Give direct access to low-level file APIs (cache bypass, preallocation, fadvise, Windows
    long paths, file flags/attributes) on all three OSes.
 2. Run the engine off the UI thread with true parallelism and zero-copy buffers.
-3. Produce small, signed, native installers for all three OSes from one codebase.
+3. Produce small, signed, native installers from one codebase: macOS for v1, the other
+   OSes later.
 4. Allow a polished, themeable UI with native file dialogs, drag and drop and notifications.
 5. Keep the engine as a separate library, usable headless (tests, benchmarks, future CLI).
 
@@ -487,3 +495,4 @@ The stack meets these constraints:
 | 2026-09-27 | Fatal errors are detected by re-checking the source and destination roots (existence and device id) after any per-file I/O error (FR-21). |
 | 2026-09-27 | Engine M1 design: [2026-09-27-engine-complete-design.md](../superpowers/specs/2026-09-27-engine-complete-design.md). |
 | 2026-09-27 | Plans 1 and 2 (M0 and M1) ship together as the first release, 0.1.0: plan 2 was merged before plan 1's release PR. Later plans move up one minor version: desktop app 0.2.0, performance 0.3.0, packaging 0.4.0, betas 0.5.x, then 1.0.0. |
+| 2026-09-27 | v1 is a macOS app. Design, testing, polish, signing and packaging target macOS only until 1.0; Linux and Windows apps come after v1. The engine stays portable and keeps building and testing on all three OSes in CI. Supporting three OSes mostly costs testing and packaging work, and the main audience (media offload) is largely on Macs. |
