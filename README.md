@@ -28,8 +28,8 @@ launch needs **Open Anyway** once more.
 ## Development
 
 Requirements: Rust via [rustup](https://rustup.rs) (the toolchain is pinned in
-`rust-toolchain.toml`), Node 24 for the UI, and `xxhsum` for the checksum compatibility
-test (`brew install xxhash`).
+`rust-toolchain.toml`), Node 24 for the UI (`nvm use` picks it from `.nvmrc`), and
+`xxhsum` for the checksum compatibility test (`brew install xxhash`).
 
 ```sh
 cargo test --workspace
