@@ -106,17 +106,9 @@ format exactly.
   released yet, so the first `feat` releases `0.1.0`).
 - Every manifest that carries a version must be listed under `extra-files` in
   `release-please-config.json` when the manifest is created, so all versions stay identical.
-  Today that is only the root `Cargo.toml`; the UI and Tauri manifests join in plan 3:
-
-  ```json
-  "extra-files": [
-    { "type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.package.version" },
-    { "type": "json", "path": "ui/package.json", "jsonpath": "$.version" },
-    { "type": "json", "path": "src-tauri/tauri.conf.json", "jsonpath": "$.version" }
-  ]
-  ```
-
-  Use the real paths when the files are created.
+  That is only the root `Cargo.toml`. `ui/package.json` is private and has no version, and
+  `crates/secopy-app/tauri.conf.json` has none either, so Tauri takes the app's version from
+  the crate. Keep it that way; a manifest that gets a version must join `extra-files`.
 - To force a specific version (e.g. `1.0.0`), add a commit with the footer
   `Release-As: 1.0.0`.
 
