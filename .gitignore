@@ -12,3 +12,6 @@ dist/
 # Editors
 .idea/
 *.swp
+
+# Tauri
+crates/secopy-app/gen/
