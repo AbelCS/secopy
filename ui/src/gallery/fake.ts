@@ -1,0 +1,143 @@
+// Fake data and a fake Api for the gallery: every screen without Tauri. Dev only.
+import type { Api } from "../lib/api";
+import type { FinishedRow, Profile, ProgressView, SessionView, Settings, SummaryView } from "../lib/bindings";
+
+export const profiles: Profile[] = [
+  { id: "fx3", name: "Sony FX3", folder: "PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
+  { id: "dji", name: "DJI Mini 4", folder: "DCIM", includeFolder: false, extensions: null },
+];
+
+export const settings: Settings = { writeChecksumFile: true, showHiddenCount: true, reportNextToChecksum: false };
+
+export const session: SessionView = {
+  source: {
+    label: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
+    isFolder: true,
+    contentsOnly: false,
+    folder: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
+    isRetry: false,
+    rootDir: "CLIP",
+    files: 212,
+    bytes: 180_400_000_000,
+    extensions: [
+      { key: "mp4", label: ".mp4", files: 106, bytes: 180_000_000_000 },
+      { key: "xml", label: ".xml", files: 106, bytes: 400_000 },
+    ],
+    selectedExtensions: ["mp4"],
+    skippedHidden: 4,
+    skippedSymlinks: 0,
+    problems: [],
+    problemCount: 0,
+  },
+  selectedFiles: 106,
+  selectedBytes: 180_000_000_000,
+  destination: {
+    path: "/Volumes/V001/Day01",
+    copyRoot: "/Volumes/V001/Day01/CLIP",
+    blocker: null,
+    freeBytes: 1_800_000_000_000,
+    fsKind: "APFS",
+    existingItems: 12,
+    problems: [],
+    problemCount: 0,
+    identical: 0,
+    differs: 2,
+    stalePartials: 0,
+  },
+  conflicts: "keepBoth",
+  plan: { filesToWrite: 106, bytesToWrite: 180_000_000_000, blocker: null },
+  profileId: "fx3",
+  profileChanged: true,
+  pickProblem: null,
+  suggestedFolder: "PRIVATE/M4ROOT/CLIP",
+  stale: false,
+};
+
+export const progress: ProgressView = {
+  phase: "copying",
+  elapsedMs: 60_000,
+  paused: false,
+  verify: true,
+  totalFiles: 106,
+  totalBytes: 180_000_000_000,
+  copiedBytes: 72_000_000_000,
+  verifiedBytes: 60_000_000_000,
+  filesDone: 40,
+  filesSkipped: 0,
+  filesFailed: 1,
+  active: [
+    { id: 41, name: "C0041.MP4", path: "CLIP/C0041.MP4", verifying: false, size: 2_300_000_000, bytesDone: 1_100_000_000 },
+    { id: 39, name: "C0039.MP4", path: "CLIP/C0039.MP4", verifying: true, size: 2_100_000_000, bytesDone: 900_000_000 },
+  ],
+  smallFiles: null,
+  fatal: null,
+};
+
+function row(i: number, status: FinishedRow["status"] = "verified"): FinishedRow {
+  const name = `CLIP/DJI_20260919113404_00${String(i).padStart(2, "0")}_D_LITOX1.MP4`;
+  return {
+    id: i,
+    path: name,
+    finalPath: name,
+    size: 2_300_000_000,
+    millis: 2_100,
+    hash: `d78a9dd8afc9649${i % 10}`,
+    status,
+    reason: status === "failed" ? "Cannot read source: permission denied" : null,
+  };
+}
+
+export const summary: SummaryView = {
+  outcome: "failures",
+  stoppedBecause: null,
+  verify: true,
+  files: 106,
+  copied: 0,
+  verified: 105,
+  skippedIdentical: 0,
+  skippedDifferent: 0,
+  failed: 1,
+  notStarted: 0,
+  bytesWritten: 180_000_000_000,
+  millis: 252_000,
+  failures: [row(17, "failed")],
+  finished: 40,
+  copyRoot: "/Volumes/V001/Day01/CLIP",
+  checksumFile: "/Volumes/V001/Day01/secopy_2026-09-27_140302.xxh64",
+  checksumError: null,
+  checksumOff: false,
+  reportFile: "/x/r.txt",
+  reportError: null,
+};
+
+const ok =
+  <T>(value: T) =>
+  () =>
+    Promise.resolve(value);
+
+/** Answers every call with the fake data above. */
+export function fakeApi(start: Partial<{ profiles: Profile[] }> = {}): Api {
+  const table: Record<string, unknown> = {
+    appStart: ok({
+      session,
+      settings,
+      profiles: start.profiles ?? profiles,
+      verify: true,
+      recentDestinations: ["/Volumes/V001/Day01", "/Volumes/V001/Day00"],
+      warnings: [],
+    }),
+    listDrives: ok([
+      { name: "CARD_A", path: "/Volumes/CARD_A", totalBytes: 128e9, freeBytes: 2e9 },
+      { name: "V001", path: "/Volumes/V001", totalBytes: 2e12, freeBytes: 1.8e12 },
+    ]),
+    finishedPage: (offset: number, limit: number) =>
+      Promise.resolve(Array.from({ length: Math.max(0, Math.min(limit, 40 - offset)) }, (_, i) => row(offset + i + 1))),
+    onDrop: ok(() => {}),
+    onCloseRequested: ok(() => {}),
+    onOpenSettings: ok(() => {}),
+    jobRunning: ok(false),
+    recentDestinations: ok([]),
+    confirm: ok(true),
+  };
+  return new Proxy({} as Api, { get: (_target, key: string) => table[key] ?? ok(session) });
+}
