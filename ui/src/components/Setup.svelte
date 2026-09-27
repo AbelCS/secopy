@@ -2,19 +2,35 @@
   // The main window (RFD §5.2): FROM, TO, what pre-flight found, mode, Start.
   import { onMount } from "svelte";
   import { useApi } from "../lib/api";
-  import type { ConflictPolicy, SessionView } from "../lib/bindings";
+  import type { ConflictPolicy, Profile, ProfilesView, SessionView, Settings } from "../lib/bindings";
   import { formatBytes, formatCount, plural } from "../lib/format";
+  import DrivesRow from "./DrivesRow.svelte";
   import ExtensionChips from "./ExtensionChips.svelte";
   import PreflightPanel from "./PreflightPanel.svelte";
+  import ProfileBar from "./ProfileBar.svelte";
 
   let {
     view = $bindable(),
     verify = $bindable(true),
+    profiles,
+    settings,
+    recent,
     onStart,
+    onProfiles,
+    onManageProfiles,
+    onMode,
   }: {
     view: SessionView;
     verify: boolean;
+    profiles: Profile[];
+    settings: Settings;
+    /** Recent destinations that still exist (spec B7). */
+    recent: string[];
     onStart: () => void;
+    onProfiles: (profiles: Profile[]) => void;
+    onManageProfiles: () => void;
+    /** Copy or Copy & Verify was chosen; remembered for next time (FR-36). */
+    onMode: (verify: boolean) => void;
   } = $props();
 
   const api = useApi();
@@ -30,7 +46,7 @@
   const sourceSummary = $derived.by(() => {
     if (!source) return "";
     const parts = [plural(source.files, "file"), formatBytes(source.bytes)];
-    if (source.skippedHidden > 0) parts.push(`${formatCount(source.skippedHidden)} hidden items skipped`);
+    if (settings.showHiddenCount && source.skippedHidden > 0) parts.push(`${formatCount(source.skippedHidden)} hidden items skipped`);
     if (source.skippedSymlinks > 0) parts.push(`${plural(source.skippedSymlinks, "symlink")} skipped`);
     return parts.join(" · ");
   });
@@ -70,6 +86,21 @@
 
   function setIncludeFolder(include: boolean) {
     return update(() => api.setIncludeFolder(include), (e) => (sourceError = e), "scan");
+  }
+
+  function selectProfile(id: string | null) {
+    return update(() => api.selectProfile(id), (e) => (sourceError = e), "scan");
+  }
+
+  function profilesApplied(result: ProfilesView) {
+    onProfiles(result.profiles);
+    view = result.session;
+  }
+
+  function chooseRecent(menu: HTMLSelectElement) {
+    const path = menu.value;
+    menu.value = "";
+    if (path) void setDestination(path);
   }
 
   /** The last part of a path: "/Volumes/CARD/DCIM" → "DCIM". */
@@ -112,6 +143,8 @@
 
 <section class="card" data-drop="from" aria-labelledby="from-title">
   <h2 id="from-title">From</h2>
+  <DrivesRow source={source?.folder ?? null} onPick={(path) => scan([path])} />
+  <ProfileBar {view} {profiles} onSelect={selectProfile} onApplied={profilesApplied} onManage={onManageProfiles} />
   {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
   {#if view.pickProblem}<p class="danger" role="alert">{view.pickProblem}</p>{/if}
   {#if source}
@@ -168,6 +201,12 @@
   {/if}
   <div class="actions">
     <button type="button" onclick={chooseDestination}>Choose…</button>
+    {#if recent.length > 0}
+      <select aria-label="Recent destinations" value="" onchange={(e) => chooseRecent(e.currentTarget)}>
+        <option value="" disabled>Recent…</option>
+        {#each recent as r (r)}<option value={r}>{r}</option>{/each}
+      </select>
+    {/if}
   </div>
   {#if destError}<p class="danger" role="alert">{destError}</p>{/if}
   {#if destination && source}
@@ -186,11 +225,17 @@
 <footer class="start">
   <div class="segmented" role="radiogroup" aria-label="Mode">
     <label class:on={!verify}>
-      <input type="radio" name="mode" checked={!verify} onchange={() => (verify = false)} />
+      <input type="radio" name="mode" checked={!verify} onchange={() => {
+          verify = false;
+          onMode(false);
+        }} />
       Copy
     </label>
     <label class:on={verify}>
-      <input type="radio" name="mode" checked={verify} onchange={() => (verify = true)} />
+      <input type="radio" name="mode" checked={verify} onchange={() => {
+          verify = true;
+          onMode(true);
+        }} />
       Copy & Verify
     </label>
   </div>

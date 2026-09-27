@@ -5,9 +5,15 @@ import { vi } from "vitest";
 import type { Api } from "../lib/api";
 import type {
   DestinationView,
+  DriveView,
+  Profile,
+  ProfileInput,
+  ProfilesView,
   ProgressView,
   SessionView,
+  Settings,
   SourceView,
+  StartView,
   SummaryView,
 } from "../lib/bindings";
 
@@ -127,6 +133,37 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
   };
 }
 
+export function profile(over: Partial<Profile> = {}): Profile {
+  return {
+    id: "fx3",
+    name: "Sony FX3",
+    folder: "PRIVATE/M4ROOT/CLIP",
+    includeFolder: true,
+    extensions: ["mp4"],
+    ...over,
+  };
+}
+
+export function settingsView(over: Partial<Settings> = {}): Settings {
+  return { writeChecksumFile: true, showHiddenCount: true, reportNextToChecksum: false, ...over };
+}
+
+export function drive(over: Partial<DriveView> = {}): DriveView {
+  return { name: "CARD_A", path: "/Volumes/CARD_A", totalBytes: 64_000_000_000, freeBytes: 20_000_000_000, ...over };
+}
+
+export function startView(over: Partial<StartView> = {}): StartView {
+  return {
+    session: sessionView(),
+    settings: settingsView(),
+    profiles: [],
+    verify: true,
+    recentDestinations: [],
+    warnings: [],
+    ...over,
+  };
+}
+
 /** Every method is a spy; `session` is what the session commands answer. */
 export function fakeApi(session: SessionView = sessionView()) {
   const state = {
@@ -134,8 +171,12 @@ export function fakeApi(session: SessionView = sessionView()) {
     progress: null as ((p: ProgressView) => void) | null,
     drop: null as ((paths: string[], target: Element | null) => void) | null,
     close: null as ((prevent: () => void) => Promise<void>) | null,
+    start: startView({ session }),
+    openSettings: null as (() => void) | null,
   };
   const answer = () => Promise.resolve(state.session);
+  const profilesAnswer = () =>
+    Promise.resolve({ profiles: state.start.profiles, session: state.session } as ProfilesView);
   const api = {
     scanSource: vi.fn(answer),
     setIncludeFolder: vi.fn((_include: boolean) => answer()),
@@ -156,10 +197,25 @@ export function fakeApi(session: SessionView = sessionView()) {
     jobSummary: vi.fn(() => Promise.resolve(summaryView() as SummaryView | null)),
     saveReport: vi.fn((_p: string) => Promise.resolve(null)),
     retryFailed: vi.fn(answer),
+    appStart: vi.fn(() => Promise.resolve(state.start)),
+    recentDestinations: vi.fn(() => Promise.resolve(state.start.recentDestinations)),
+    listDrives: vi.fn(() => Promise.resolve([drive()] as DriveView[])),
+    selectProfile: vi.fn((_id: string | null) => answer()),
+    updateProfile: vi.fn(profilesAnswer),
+    saveProfileAs: vi.fn((_name: string, _folder: string) => profilesAnswer()),
+    createProfile: vi.fn((_input: ProfileInput) => Promise.resolve(state.start.profiles)),
+    editProfile: vi.fn((_id: string, _input: ProfileInput) => profilesAnswer()),
+    deleteProfile: vi.fn((_id: string) => profilesAnswer()),
+    setSettings: vi.fn((s: Settings) => Promise.resolve(s)),
+    setMode: vi.fn((_verify: boolean) => Promise.resolve(null)),
+    onOpenSettings: vi.fn((handler: () => void) => {
+      state.openSettings = handler;
+      return Promise.resolve(() => {});
+    }),
     pickSource: vi.fn(() => Promise.resolve(["/Volumes/CARD/DCIM"] as string[] | null)),
     pickDestination: vi.fn(() => Promise.resolve("/Volumes/RAID/Day01" as string | null)),
     pickReportPath: vi.fn((_s: string) => Promise.resolve("/tmp/report.txt" as string | null)),
-    confirm: vi.fn((_m: string, _t: string) => Promise.resolve(true)),
+    confirm: vi.fn((_m: string, _t: string, _ok?: string, _cancel?: string) => Promise.resolve(true)),
     reveal: vi.fn((_p: string) => Promise.resolve()),
     openFile: vi.fn((_p: string) => Promise.resolve()),
     onDrop: vi.fn((handler: (paths: string[], target: Element | null) => void) => {

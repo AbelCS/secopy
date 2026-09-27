@@ -2,6 +2,7 @@
 // context (`useApi`), so tests can pass a fake instead of talking to Tauri.
 
 import { Channel } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
@@ -10,9 +11,15 @@ import { getContext, setContext } from "svelte";
 import {
   commands,
   type ConflictPolicy,
+  type DriveView,
   type FinishedRow,
+  type Profile,
+  type ProfileInput,
+  type ProfilesView,
   type ProgressView,
   type SessionView,
+  type Settings,
+  type StartView,
   type SummaryView,
 } from "./bindings";
 
@@ -57,6 +64,21 @@ export const tauriApi = {
   jobSummary: (): Promise<SummaryView | null> => unwrap(commands.jobSummary()),
   saveReport: (path: string): Promise<null> => unwrap(commands.saveReport(path)),
   retryFailed: (): Promise<SessionView> => unwrap(commands.retryFailed()),
+  appStart: (): Promise<StartView> => unwrap(commands.appStart()),
+  recentDestinations: (): Promise<string[]> => unwrap(commands.recentDestinations()),
+  listDrives: (): Promise<DriveView[]> => unwrap(commands.listDrives()),
+  selectProfile: (id: string | null): Promise<SessionView> => unwrap(commands.selectProfile(id)),
+  updateProfile: (): Promise<ProfilesView> => unwrap(commands.updateProfile()),
+  saveProfileAs: (name: string, folder: string): Promise<ProfilesView> =>
+    unwrap(commands.saveProfileAs(name, folder)),
+  createProfile: (input: ProfileInput): Promise<Profile[]> => unwrap(commands.createProfile(input)),
+  editProfile: (id: string, input: ProfileInput): Promise<ProfilesView> =>
+    unwrap(commands.editProfile(id, input)),
+  deleteProfile: (id: string): Promise<ProfilesView> => unwrap(commands.deleteProfile(id)),
+  setSettings: (settings: Settings): Promise<Settings> => unwrap(commands.setSettings(settings)),
+  setMode: (verify: boolean): Promise<null> => unwrap(commands.setMode(verify)),
+  /** Secopy → Settings… (⌘,). */
+  onOpenSettings: (handler: () => void): Promise<() => void> => listen("open-settings", handler),
 
   /** FROM's Choose…: a folder or files, in one panel. */
   pickSource: (): Promise<string[] | null> => unwrap(commands.pickSource()),
@@ -64,8 +86,8 @@ export const tauriApi = {
     asList(await open({ directory: true, multiple: false, title: "Copy to" }))?.[0] ?? null,
   pickReportPath: (suggested: string): Promise<string | null> =>
     save({ defaultPath: suggested, filters: [{ name: "Text", extensions: ["txt"] }] }),
-  confirm: (message: string, title: string): Promise<boolean> =>
-    ask(message, { title, kind: "warning", okLabel: "Stop copying", cancelLabel: "Keep copying" }),
+  confirm: (message: string, title: string, ok = "Stop copying", cancel = "Keep copying"): Promise<boolean> =>
+    ask(message, { title, kind: "warning", okLabel: ok, cancelLabel: cancel }),
   reveal: (path: string): Promise<void> => revealItemInDir(path),
   openFile: (path: string): Promise<void> => openPath(path),
 

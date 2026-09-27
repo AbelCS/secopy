@@ -2,7 +2,7 @@
   // The app's screens: set up a copy, follow it, read the summary (RFD §5.2–§5.4).
   import { onMount } from "svelte";
   import { provideApi, tauriApi, type Api } from "./lib/api";
-  import type { ProgressView, SessionView, SummaryView } from "./lib/bindings";
+  import type { Profile, ProgressView, SessionView, Settings, SummaryView } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
   import Setup from "./components/Setup.svelte";
   import Summary from "./components/Summary.svelte";
@@ -27,6 +27,9 @@
     stale: false,
   });
   let verify = $state(true);
+  let profiles: Profile[] = $state([]);
+  let settings: Settings = $state({ writeChecksumFile: true, showHiddenCount: true, reportNextToChecksum: false });
+  let recent: string[] = $state([]);
   let progress: ProgressView | null = $state(null);
   let summary: SummaryView | null = $state(null);
   let error: string | null = $state(null);
@@ -114,7 +117,17 @@
   <h1>Secopy</h1>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if screen === "setup"}
-    <Setup bind:view bind:verify onStart={start} />
+    <Setup
+      bind:view
+      bind:verify
+      {profiles}
+      {settings}
+      {recent}
+      onStart={start}
+      onProfiles={(p) => (profiles = p)}
+      onManageProfiles={() => {}}
+      onMode={() => {}}
+    />
   {:else if screen === "progress" && progress}
     <JobProgress {progress} />
   {:else if screen === "summary" && summary}
