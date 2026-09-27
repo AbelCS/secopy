@@ -12,8 +12,36 @@
   --warning: #f5a524;
   --danger: #f25f5c;
 
+  /* Derived colours. */
+  --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface-raised));
+  --on-accent: #fff;
+
+  /* Spacing scale (docs/design/design-system.md). */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Type scale: section labels, help, body, screen titles, status headlines. */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+
+  /* Shapes. */
+  --radius-control: 6px;
   --radius: 8px;
-  --gap: 12px;
+  --radius-pill: 999px;
+  --control-height: 30px;
+
+  /* Motion: short, and none when reduced motion is asked for. */
+  --duration: 150ms;
+  --ease: ease-out;
+
+  --gap: var(--space-3);
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
   color-scheme: dark;
