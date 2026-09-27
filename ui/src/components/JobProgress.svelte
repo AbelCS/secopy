@@ -1,6 +1,7 @@
 <script lang="ts">
   // The progress view (RFD §5.3): phase and time, one bar per phase, active files, finished
   // files, Pause / Resume and Cancel.
+  import { stopMessage } from "../lib/stopping";
   import { useApi } from "../lib/api";
   import type { ProgressView } from "../lib/bindings";
   import { formatBytes, formatCount, formatDuration, formatPercent, plural } from "../lib/format";
@@ -8,7 +9,14 @@
   import FinishedList from "./FinishedList.svelte";
   import ProgressBar from "./ProgressBar.svelte";
 
-  let { progress }: { progress: ProgressView } = $props();
+  let {
+    progress,
+    checksumFile = true,
+  }: {
+    progress: ProgressView;
+    /** The running job writes a checksum file (Settings). */
+    checksumFile?: boolean;
+  } = $props();
 
   const api = useApi();
   // The meters aren't reactive; each update recomputes the figures from them.
@@ -54,10 +62,7 @@
   });
 
   async function cancel() {
-    const stop = await api.confirm(
-      "Files already copied stay and are listed in the checksum file; the file in progress is removed.",
-      "Stop copying?",
-    );
+    const stop = await api.confirm(stopMessage(checksumFile), "Stop copying?");
     if (stop) await api.cancelJob();
   }
 </script>

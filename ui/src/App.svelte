@@ -2,6 +2,7 @@
   // The app's screens: set up a copy, follow it, read the summary (RFD §5.2–§5.4).
   import { onMount } from "svelte";
   import { provideApi, tauriApi, type Api } from "./lib/api";
+  import { stopMessage } from "./lib/stopping";
   import type { Profile, ProgressView, SessionView, Settings, SummaryView } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
   import SettingsScreen from "./components/SettingsScreen.svelte";
@@ -126,10 +127,8 @@
     // Closing during a copy asks first; if closed anyway, the app stops the copy cleanly.
     const unlisten = api.onCloseRequested(async (prevent) => {
       if (!(await api.jobRunning())) return;
-      const stop = await api.confirm(
-        "Files already copied stay and are listed in the checksum file; the file in progress is removed.",
-        "Stop copying and quit?",
-      );
+      // Settings can't change during a copy, so these are the running job's.
+      const stop = await api.confirm(stopMessage(settings.writeChecksumFile), "Stop copying and quit?");
       if (!stop) prevent();
     });
     return () => {
@@ -166,7 +165,7 @@
       onMode={saveMode}
     />
   {:else if screen === "progress" && progress}
-    <JobProgress {progress} />
+    <JobProgress {progress} checksumFile={settings.writeChecksumFile} />
   {:else if screen === "summary" && summary}
     <Summary {summary} onRetry={retry} onNewCopy={newCopy} />
   {:else if screen === "settings"}

@@ -70,6 +70,8 @@ pub struct Report {
     pub cache_bypass: Option<bool>,
     pub checksum_file: Option<String>,
     pub checksum_error: Option<String>,
+    /// The checksum file was turned off for this job.
+    pub checksum_off: bool,
     /// Partial files left by interrupted jobs that were removed (FR-18).
     pub removed_partials: u64,
     /// In plan order.
@@ -153,6 +155,7 @@ impl Report {
             cache_bypass: job.cache_bypass.map(|b| b == CacheBypass::Active),
             checksum_file: job.checksum_file.as_ref().map(|p| p.display().to_string()),
             checksum_error: job.checksum_error.clone(),
+            checksum_off: job.checksum_off,
             removed_partials: job.removed_partials,
             counts,
             files,
@@ -216,6 +219,9 @@ impl Report {
             }
             (None, Some(e)) => {
                 let _ = writeln!(t, "Checksum file NOT written: {e}");
+            }
+            (None, None) if self.checksum_off => {
+                let _ = writeln!(t, "Checksum file: off (not written)");
             }
             (None, None) => {}
         }

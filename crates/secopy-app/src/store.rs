@@ -22,12 +22,40 @@ pub const REMEMBERED: &str = "state.json";
 pub const RECENT: usize = 5;
 
 /// The Settings screen (RFD §5.5).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase", default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub write_checksum_file: bool,
     pub show_hidden_count: bool,
     pub report_next_to_checksum: bool,
+}
+
+/// `settings.json` as read: missing fields take their defaults. Kept apart from
+/// [`Settings`] so the UI's type has every field.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsOnDisk {
+    #[serde(default = "yes")]
+    write_checksum_file: bool,
+    #[serde(default = "yes")]
+    show_hidden_count: bool,
+    #[serde(default)]
+    report_next_to_checksum: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+impl<'de> Deserialize<'de> for Settings {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = SettingsOnDisk::deserialize(d)?;
+        Ok(Self {
+            write_checksum_file: s.write_checksum_file,
+            show_hidden_count: s.show_hidden_count,
+            report_next_to_checksum: s.report_next_to_checksum,
+        })
+    }
 }
 
 impl Default for Settings {

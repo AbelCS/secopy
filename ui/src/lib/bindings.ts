@@ -235,9 +235,9 @@ export type SessionView = {
 
 /**  The Settings screen (RFD §5.5). */
 export type Settings = {
-	writeChecksumFile?: boolean,
-	showHiddenCount?: boolean,
-	reportNextToChecksum?: boolean,
+	writeChecksumFile: boolean,
+	showHiddenCount: boolean,
+	reportNextToChecksum: boolean,
 };
 
 export type SmallFilesView = {

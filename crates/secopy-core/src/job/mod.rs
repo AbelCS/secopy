@@ -122,6 +122,8 @@ pub struct JobReport {
     pub not_started: u64,
     pub checksum_file: Option<PathBuf>,
     pub checksum_error: Option<String>,
+    /// The checksum file was turned off (`JobOptions::write_checksum_file`).
+    pub checksum_off: bool,
     /// `None` when not verifying.
     pub cache_bypass: Option<CacheBypass>,
     /// Partial files left by interrupted jobs that were removed (FR-18).
@@ -242,6 +244,7 @@ pub fn run_job(
         outcomes,
         checksum_file,
         checksum_error,
+        checksum_off: !opts.write_checksum_file,
         cache_bypass: opts.verify.then_some(if bypass_unavailable {
             CacheBypass::Unavailable
         } else {

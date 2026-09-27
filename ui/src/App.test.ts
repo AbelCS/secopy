@@ -7,6 +7,7 @@ import {
   progressView,
   readyView,
   sessionView,
+  settingsView,
   startView,
   summaryView,
 } from "./test/fake-api";
@@ -122,5 +123,19 @@ describe("App", () => {
     const { api } = app();
     await fireEvent.click(await screen.findByLabelText("Copy"));
     await waitFor(() => expect(api.setMode).toHaveBeenCalledWith(false));
+  });
+
+  test("with the checksum file off, quitting during a copy doesn't mention one", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.start = startView({ session: readyView(), settings: settingsView({ writeChecksumFile: false }) });
+    render(App, { props: { api } });
+    await waitFor(() => expect(state.close).not.toBeNull());
+    await screen.findByRole("button", { name: /^Copy & verify 1,284 files/ });
+    api.jobRunning.mockResolvedValue(true);
+    await state.close!(() => {});
+    expect(api.confirm).toHaveBeenCalledWith(
+      "Files already copied stay; the file in progress is removed.",
+      "Stop copying and quit?",
+    );
   });
 });

@@ -235,13 +235,26 @@ fn checksum_file_can_be_turned_off() {
     let f = fixture();
     let mut o = opts(false);
     o.write_checksum_file = false;
-    let (report, _) = run(&plan(&f.src, &f.dest), &o);
+    let plan = plan(&f.src, &f.dest);
+    let (report, _) = run(&plan, &o);
     assert_eq!(report.checksum_file, None);
     assert!(
         fs::read_dir(&f.dest)
             .unwrap()
             .all(|e| { e.unwrap().path().extension().is_none_or(|x| x != "xxh64") })
     );
+    // Nothing may suggest a checksum file that wasn't written.
+    assert!(report.checksum_off);
+    assert!(report.outcomes.iter().all(|o| !o.in_checksum_file));
+    let meta = secopy_core::report::JobMeta {
+        app_version: "test".into(),
+        source: "CARD".into(),
+        verify: false,
+        started: chrono::Local::now(),
+        finished: chrono::Local::now(),
+    };
+    let text = secopy_core::report::Report::new(&plan, &report, &meta).to_text();
+    assert!(text.contains("Checksum file: off (not written)"), "{text}");
 }
 
 #[test]
