@@ -228,6 +228,8 @@ pub struct SummaryView {
     pub checksum_error: Option<String>,
     /// The text report saved in the app's data folder (FR-35).
     pub report_file: Option<String>,
+    /// Why the report couldn't be saved there.
+    pub report_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]

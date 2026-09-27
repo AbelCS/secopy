@@ -43,6 +43,8 @@ export const commands = {
 	checksumError: string | null,
 	/**  The text report saved in the app's data folder (FR-35). */
 	reportFile: string | null,
+	/**  Why the report couldn't be saved there. */
+	reportError: string | null,
 } | null, string>(__TAURI_INVOKE("job_summary")),
 	saveReport: (path: string) => typedError<null, string>(__TAURI_INVOKE("save_report", { path })),
 	/**  "Retry failed": only the failed files, checked again (RFD §5.4). */
@@ -213,6 +215,8 @@ export type SummaryView = {
 	checksumError: string | null,
 	/**  The text report saved in the app's data folder (FR-35). */
 	reportFile: string | null,
+	/**  Why the report couldn't be saved there. */
+	reportError: string | null,
 };
 
 /* Tauri Specta runtime */

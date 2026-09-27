@@ -53,6 +53,8 @@ struct Job {
     clock: Instant,
     /// In the order files finished.
     outcomes: Mutex<Vec<FileOutcome>>,
+    /// The engine's latest progress; the final view is built from it.
+    last: Mutex<Progress>,
     failed: AtomicU32,
     done: Mutex<Option<Done>>,
 }
@@ -60,7 +62,8 @@ struct Job {
 struct Done {
     report: JobReport,
     finished: DateTime<Local>,
-    report_file: Option<PathBuf>,
+    /// The report saved in the reports folder, or why it couldn't be.
+    report_file: Result<PathBuf, String>,
 }
 
 impl Jobs {
@@ -75,7 +78,9 @@ impl Jobs {
 
     /// Starts copying `ready`. Fails if a job is already running.
     pub fn start(&self, ready: Ready, verify: bool, sink: impl ProgressSink) -> Result<(), String> {
-        if self.is_running() {
+        // Held until the job is in place, so two starts can't both get past the check.
+        let mut current = self.current.lock().expect("jobs lock poisoned");
+        if current.as_ref().is_some_and(|job| job.running()) {
             return Err("A copy is already running.".into());
         }
         let job = Arc::new(Job {
@@ -85,10 +90,11 @@ impl Jobs {
             started: Local::now(),
             clock: Instant::now(),
             outcomes: Mutex::new(Vec::new()),
+            last: Mutex::new(Progress::default()),
             failed: AtomicU32::new(0),
             done: Mutex::new(None),
         });
-        *self.current.lock().expect("jobs lock poisoned") = Some(job.clone());
+        *current = Some(job.clone());
         let reports_dir = self.reports_dir.clone();
         let handle = std::thread::spawn(move || job.run(&sink, &reports_dir));
         *self.thread.lock().expect("jobs lock poisoned") = Some(handle);
@@ -96,8 +102,7 @@ impl Jobs {
     }
 
     pub fn is_running(&self) -> bool {
-        self.job()
-            .is_some_and(|j| j.done.lock().expect("job lock poisoned").is_none())
+        self.job().is_some_and(|job| job.running())
     }
 
     pub fn pause(&self) {
@@ -180,7 +185,8 @@ impl Jobs {
             copy_root: show(&job.ready.copy_root),
             checksum_file: done.report.checksum_file.as_deref().map(show),
             checksum_error: done.report.checksum_error.clone(),
-            report_file: done.report_file.as_deref().map(show),
+            report_file: done.report_file.as_deref().ok().map(show),
+            report_error: done.report_file.as_ref().err().cloned(),
         })
     }
 
@@ -224,6 +230,10 @@ impl Jobs {
 }
 
 impl Job {
+    fn running(&self) -> bool {
+        self.done.lock().expect("job lock poisoned").is_none()
+    }
+
     fn run(&self, sink: &impl ProgressSink, reports_dir: &Path) {
         let opts = JobOptions {
             verify: self.verify,
@@ -232,7 +242,10 @@ impl Job {
         };
         let plan: &Plan = &self.ready.plan;
         let report = run_job(plan, &opts, &self.control, &|event| match event {
-            Event::Progress(p) => sink.send(self.progress(&p, false, None)),
+            Event::Progress(p) => {
+                sink.send(self.progress(&p, false, None));
+                *self.last.lock().expect("job lock poisoned") = p;
+            }
             Event::FileFinished(o) => {
                 if matches!(o.status, FileStatus::Failed(_)) {
                     self.failed.fetch_add(1, Relaxed);
@@ -242,18 +255,14 @@ impl Job {
         });
         let mut done = Done {
             finished: Local::now(),
-            report_file: None,
+            report_file: Err(String::new()),
             report,
         };
         done.report_file = self.save(&done, reports_dir);
         let fatal = done.report.fatal.as_ref().map(|f| sentence(&f.to_string()));
-        let last = Progress {
-            total_files: count(plan.files.len()).into(),
-            ..Progress::default()
-        };
+        // The engine's last progress, so a stopped job's bars stay where it stopped.
+        let last = self.last.lock().expect("job lock poisoned").clone();
         let mut view = self.progress(&last, true, fatal);
-        view.copied_bytes = view.total_bytes;
-        view.verified_bytes = if self.verify { view.total_bytes } else { 0 };
         view.files_done = count(done.report.outcomes.len());
         view.files_skipped = count(done.report.skipped().count());
         *self.done.lock().expect("job lock poisoned") = Some(done);
@@ -330,16 +339,22 @@ impl Job {
     }
 
     /// Saves the report in the app's data folder, named like the checksum file (FR-35).
-    fn save(&self, done: &Done, reports_dir: &Path) -> Option<PathBuf> {
-        fs::create_dir_all(reports_dir).ok()?;
-        let stem = match &done.report.checksum_file {
-            Some(path) => path.file_stem()?.to_string_lossy().into_owned(),
+    fn save(&self, done: &Done, reports_dir: &Path) -> Result<PathBuf, String> {
+        let failed = |e: std::io::Error| format!("{}: {e}", show(reports_dir));
+        fs::create_dir_all(reports_dir).map_err(failed)?;
+        let stem = match done
+            .report
+            .checksum_file
+            .as_deref()
+            .and_then(Path::file_stem)
+        {
+            Some(stem) => stem.to_string_lossy().into_owned(),
             None => checksum_file::file_name(self.started).replace(".xxh64", ""),
         };
         self.report(done)
             .write(reports_dir, &stem)
-            .ok()
             .map(|(text, _)| text)
+            .map_err(failed)
     }
 }
 
@@ -505,7 +520,53 @@ mod tests {
         f.jobs.wait();
         let s = f.jobs.summary().unwrap();
         assert_eq!(s.outcome, JobOutcome::Cancelled);
-        assert_eq!(sink.last().phase, JobPhase::Done);
+        let last = sink.last();
+        assert_eq!(last.phase, JobPhase::Done);
+        assert!(
+            last.copied_bytes < last.total_bytes && last.verified_bytes < last.total_bytes,
+            "a cancelled job doesn't show full bars: {} / {} / {}",
+            last.copied_bytes,
+            last.verified_bytes,
+            last.total_bytes
+        );
+    }
+
+    #[test]
+    fn a_report_that_cant_be_saved_says_why() {
+        let mut f = fixture(1, 10);
+        let blocked = f.dir.path().join("not-a-folder");
+        fs::write(&blocked, b"").unwrap();
+        f.jobs = Jobs::new(blocked);
+        run(&f, false);
+        let s = f.jobs.summary().unwrap();
+        assert_eq!(s.report_file, None);
+        assert!(s.report_error.is_some());
+    }
+
+    #[test]
+    fn two_starts_at_once_run_one_job() {
+        for _ in 0..5 {
+            let f = fixture(2, 10);
+            let barrier = std::sync::Barrier::new(2);
+            let started = std::thread::scope(|s| {
+                let tries: Vec<_> = (0..2)
+                    .map(|_| {
+                        s.spawn(|| {
+                            let ready = f.session.ready().unwrap();
+                            barrier.wait();
+                            f.jobs.start(ready, true, Collect::default()).is_ok()
+                        })
+                    })
+                    .collect();
+                tries
+                    .into_iter()
+                    .map(|t| t.join().unwrap())
+                    .filter(|ok| *ok)
+                    .count()
+            });
+            f.jobs.wait();
+            assert_eq!(started, 1);
+        }
     }
 
     #[test]
