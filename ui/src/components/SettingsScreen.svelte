@@ -5,6 +5,7 @@
   import type { Settings } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
+  import Button from "../lib/ui/Button.svelte";
   import Checkbox from "../lib/ui/Checkbox.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
@@ -45,7 +46,7 @@
 <svelte:window onkeydown={(e) => e.key === "Escape" && onDone()} />
 
 <AppShell>
-  {#snippet header()}<ScreenHeader title="Settings" onBack={onDone} />{/snippet}
+  {#snippet header()}<ScreenHeader title="Settings" />{/snippet}
 
   <Section title="Every copy">
     <div class="options">
@@ -91,6 +92,7 @@
 
   {#snippet actions()}
     <ActionBar>
+      {#snippet start()}<Button icon="chevron-left" onclick={onDone}>Back</Button>{/snippet}
       {#snippet status()}
         {#if saved}<span class="saved">Saved</span>{:else}Changes are saved as you make them.{/if}
       {/snippet}

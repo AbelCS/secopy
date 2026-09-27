@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import { apiContext } from "../lib/api";
 import type { Settings } from "../lib/bindings";
@@ -48,9 +48,9 @@ describe("SettingsScreen", () => {
     expect(screen.queryByText(/profile/i)).toBeNull();
   });
 
-  test("Back goes back", async () => {
+  test("Back goes back, from the action bar", async () => {
     const { calls } = show();
-    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await fireEvent.click(within(screen.getByRole("group", { name: "Actions" })).getByRole("button", { name: "Back" }));
     expect(calls.done).toBe(1);
   });
 

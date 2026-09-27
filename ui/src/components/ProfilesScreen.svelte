@@ -92,7 +92,7 @@
 <svelte:window onkeydown={(e) => e.key === "Escape" && void back()} />
 
 <AppShell>
-  {#snippet header()}<ScreenHeader title="Profiles" onBack={back} />{/snippet}
+  {#snippet header()}<ScreenHeader title="Profiles" />{/snippet}
 
   <div class="panes">
     <Section title="All profiles">
@@ -143,6 +143,7 @@
   {#snippet actions()}
     <ActionBar status={changed ? "Unsaved changes" : ""}>
       {#snippet start()}
+        <Button icon="chevron-left" onclick={back}>Back</Button>
         {#if selected && selectedId !== NEW}
           <Button variant="danger" onclick={() => remove(selected)}>Delete…</Button>
         {/if}
