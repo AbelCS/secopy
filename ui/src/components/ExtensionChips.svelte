@@ -2,6 +2,8 @@
   // The file-type filter (FR-7..FR-9): one chip per extension, largest first, with All / None.
   import type { ExtensionView } from "../lib/bindings";
   import { formatBytes, formatCount } from "../lib/format";
+  import Button from "../lib/ui/Button.svelte";
+  import Chip from "../lib/ui/Chip.svelte";
 
   let {
     extensions,
@@ -26,50 +28,22 @@
 
 <div class="chips" role="group" aria-label="File types">
   {#each extensions as ext (ext.key)}
-    <button
-      type="button"
-      class="chip"
-      class:on={isOn(ext.key)}
-      class:selected-fill={isOn(ext.key)}
-      aria-pressed={isOn(ext.key)}
-      onclick={() => toggle(ext.key)}
-    >
-      {#if isOn(ext.key)}<span class="tick" aria-hidden="true">✓</span>{/if}{ext.label} <span class="muted">{formatCount(ext.files)} · {formatBytes(ext.bytes)}</span>
-    </button>
+    <Chip
+      label={ext.label}
+      meta="{formatCount(ext.files)} · {formatBytes(ext.bytes)}"
+      selected={isOn(ext.key)}
+      onToggle={() => toggle(ext.key)}
+    />
   {/each}
-  <button type="button" class="link" onclick={() => onChange(null)}>All</button>
-  <button type="button" class="link" onclick={() => onChange([])}>None</button>
+  <Button variant="link" onclick={() => onChange(null)}>All</Button>
+  <Button variant="link" onclick={() => onChange([])}>None</Button>
 </div>
 
 <style>
   .chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .chip {
-    padding: 3px 10px;
-    border-radius: 999px;
-    color: var(--text-muted);
-  }
-
-  .chip.on {
-    color: var(--text);
-  }
-
-  .tick {
-    margin-right: 4px;
-  }
-
-  .muted {
-    color: var(--text-muted);
-  }
-
-  .link {
-    background: none;
-    border: none;
-    color: var(--accent);
-    padding: 3px 6px;
+    align-items: center;
+    gap: var(--space-2);
   }
 </style>

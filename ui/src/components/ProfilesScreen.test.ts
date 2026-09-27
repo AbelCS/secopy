@@ -95,11 +95,22 @@ describe("ProfilesScreen", () => {
     api.editProfile.mockRejectedValueOnce(new Error("There is already a profile called “DJI Mini 4”."));
     await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "DJI Mini 4" } });
     await fireEvent.click(save());
-    const name = await screen.findByText("There is already a profile called “DJI Mini 4”.");
-    expect(name.id).toBe("name-problem");
+    const nameError = await screen.findByText("There is already a profile called “DJI Mini 4”.");
+    expect(screen.getByLabelText("Name").getAttribute("aria-describedby")).toBe(nameError.id);
     api.editProfile.mockRejectedValueOnce(new Error("The directory can't contain “..” or “.”."));
     await fireEvent.click(save());
-    expect((await screen.findByText("The directory can't contain “..” or “.”.")).id).toBe("folder-problem");
+    const folderError = await screen.findByText("The directory can't contain “..” or “.”.");
+    expect(screen.getByLabelText("Directory on the card").getAttribute("aria-describedby")).toBe(folderError.id);
+  });
+
+  test("Revert undoes unsaved changes", async () => {
+    show();
+    const revert = () => screen.getByRole("button", { name: "Revert" });
+    expect(revert()).toHaveProperty("disabled", true);
+    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3 A-cam" } });
+    await fireEvent.click(revert());
+    expect(screen.getByLabelText("Name")).toHaveProperty("value", "Sony FX3");
+    expect(save()).toHaveProperty("disabled", true);
   });
 
   test("a new profile is created and selected", async () => {

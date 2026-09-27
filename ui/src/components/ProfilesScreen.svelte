@@ -2,6 +2,13 @@
   // Source profiles (FR-38): the list on the left, the selected one's editor on the right.
   import { useApi } from "../lib/api";
   import type { Profile, ProfileInput, SessionView } from "../lib/bindings";
+  import ActionBar from "../lib/ui/ActionBar.svelte";
+  import AppShell from "../lib/ui/AppShell.svelte";
+  import Button from "../lib/ui/Button.svelte";
+  import EmptyState from "../lib/ui/EmptyState.svelte";
+  import Notice from "../lib/ui/Notice.svelte";
+  import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
+  import Section from "../lib/ui/Section.svelte";
   import ProfileEditor from "./ProfileEditor.svelte";
 
   let {
@@ -23,7 +30,10 @@
   let selectedId: string | null = $state(profiles[0]?.id ?? null);
   let error: string | null = $state(null);
   /** The editor has unsaved changes. */
-  let changed = false;
+  let changed = $state(false);
+  let canSave = $state(false);
+  let editor: ReturnType<typeof ProfileEditor> | undefined = $state();
+  const FORM = "profile-editor";
 
   const selected = $derived(profiles.find((p) => p.id === selectedId) ?? null);
   /** Recreates the editor for another profile, or after this one was saved. */
@@ -79,121 +89,114 @@
   }
 </script>
 
-<nav class="bar">
-  <button type="button" class="back" onclick={back}><span aria-hidden="true">‹</span> Back</button>
-</nav>
+<AppShell>
+  {#snippet header()}<ScreenHeader title="Profiles" onBack={back} />{/snippet}
 
-<section class="card" aria-labelledby="profiles-title">
-  <h2 id="profiles-title">Profiles</h2>
   <div class="panes">
-    <nav class="list" aria-label="Profiles">
-      {#each profiles as p (p.id)}
-        <button
-          type="button"
-          class="item"
-          class:on={p.id === selectedId}
-          aria-label={p.name}
-          aria-current={p.id === selectedId}
-          onclick={() => select(p.id)}
-        >
-          <span class="name">{p.name}</span>
-          <span class="muted mono">{p.folder || "(what you pick)"}</span>
-        </button>
-      {/each}
-      <button type="button" class="new" class:on={selectedId === NEW} onclick={() => select(NEW)}>
-        + New profile
-      </button>
-    </nav>
-    <div class="detail">
+    <Section title="All profiles">
+      <nav class="list" aria-label="Profiles">
+        {#each profiles as p (p.id)}
+          <button
+            type="button"
+            class="item"
+            class:on={p.id === selectedId}
+            aria-label={p.name}
+            aria-current={p.id === selectedId}
+            onclick={() => select(p.id)}
+          >
+            <span>{p.name}</span>
+            <span class="muted mono">{p.folder || "(what you pick)"}</span>
+          </button>
+        {/each}
+        <Button variant="link" onclick={() => select(NEW)}>+ New profile</Button>
+      </nav>
+    </Section>
+
+    <Section title={selectedId === NEW ? "New profile" : (selected?.name ?? "About profiles")}>
       {#if selectedId === NEW || selected}
         {#key editorKey}
           <ProfileEditor
+            bind:this={editor}
+            bind:changed
+            bind:canSave
+            formId={FORM}
             profile={selectedId === NEW ? null : selected}
             onSave={save}
-            onDelete={selected ? () => remove(selected) : null}
-            onChanged={(c) => (changed = c)}
           />
         {/key}
       {:else}
-        <p class="muted">
-          A profile remembers where the clips are on a card of a given camera (for example
-          <span class="mono">PRIVATE/M4ROOT/CLIP</span>), whether that directory itself is copied, and
-          which file types. Pick it in the main window and a card is set up in one click.
-        </p>
-        <p class="muted">Create one here with “+ New profile”, or with “Save as new…” in the main window.</p>
+        <EmptyState>
+          <p>
+            A profile remembers where the clips are on a card of a given camera (for example
+            <span class="mono">PRIVATE/M4ROOT/CLIP</span>), whether that directory itself is copied, and which
+            file types. Pick it in the main window and a card is set up in one click.
+          </p>
+          <p>Create one with “+ New profile”, or with “Save as new…” in the main window.</p>
+        </EmptyState>
       {/if}
-      {#if error}<p class="danger" role="alert">{error}</p>{/if}
-    </div>
+      {#if error}<Notice tone="danger">{error}</Notice>{/if}
+    </Section>
   </div>
-</section>
+
+  {#snippet actions()}
+    <ActionBar status={changed ? "Unsaved changes" : ""}>
+      {#snippet start()}
+        {#if selected && selectedId !== NEW}
+          <Button variant="danger" onclick={() => remove(selected)}>Delete…</Button>
+        {/if}
+      {/snippet}
+      {#snippet end()}
+        {#if selectedId === NEW || selected}
+          <Button disabled={!changed} onclick={() => editor?.revert()}>Revert</Button>
+          <Button variant="primary" type="submit" form={FORM} disabled={!canSave}>Save</Button>
+        {/if}
+      {/snippet}
+    </ActionBar>
+  {/snippet}
+</AppShell>
 
 <style>
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-  }
-
-  .bar {
-    margin: -6px 0 8px;
-  }
-
-  h2 {
-    margin: 0 0 12px;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
   .panes {
     display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: 16px;
-    min-height: 320px;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: start;
   }
 
   .list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    border-right: 1px solid var(--border);
-    padding-right: 12px;
+    align-items: stretch;
+    gap: var(--space-1);
   }
 
-  .item,
-  .new {
+  .list :global(.link) {
+    align-self: flex-start;
+    margin-top: var(--space-2);
+  }
+
+  .item {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
     text-align: left;
-    border: 1px solid transparent;
+    font: inherit;
+    color: var(--text);
     background: none;
-    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    padding: var(--space-2);
+    cursor: pointer;
   }
 
-  .item.on,
-  .new.on {
+  .item.on {
     border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
-  }
-
-  .item .muted {
-    font-size: 11px;
-  }
-
-  .new {
-    color: var(--accent);
-    margin-top: 4px;
+    background: var(--accent-soft);
   }
 
   .muted {
     color: var(--text-muted);
-  }
-
-  .danger {
-    color: var(--danger);
+    font-size: var(--text-xs);
   }
 </style>

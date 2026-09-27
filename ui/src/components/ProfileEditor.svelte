@@ -4,20 +4,29 @@
   import { useApi } from "../lib/api";
   import type { Profile, ProfileInput } from "../lib/bindings";
   import { relativeToDrive } from "../lib/drive";
+  import Button from "../lib/ui/Button.svelte";
+  import Checkbox from "../lib/ui/Checkbox.svelte";
+  import Chip from "../lib/ui/Chip.svelte";
+  import Notice from "../lib/ui/Notice.svelte";
+  import RadioGroup from "../lib/ui/RadioGroup.svelte";
+  import TextField from "../lib/ui/TextField.svelte";
 
   let {
     profile,
+    formId,
     onSave,
-    onDelete,
-    onChanged,
+    changed = $bindable(false),
+    canSave = $bindable(false),
   }: {
     /** `null` for a new profile. */
     profile: Profile | null;
+    /** The action bar's Save submits this form. */
+    formId: string;
     /** Throws the app's message when the profile can't be saved. */
     onSave: (input: ProfileInput) => Promise<void>;
-    onDelete: (() => void) | null;
-    /** Whether there are unsaved changes, so leaving can ask first. */
-    onChanged: (changed: boolean) => void;
+    /** There are unsaved changes (so leaving asks, and Revert is on). */
+    changed?: boolean;
+    canSave?: boolean;
   } = $props();
 
   const api = useApi();
@@ -44,7 +53,7 @@
   let otherProblem: string | null = $state(null);
 
   const folderName = $derived(folder.split("/").filter(Boolean).pop() ?? "");
-  const changed = $derived(
+  const isChanged = $derived(
     profile === null
       ? name.trim() !== ""
       : name !== start.name ||
@@ -54,8 +63,21 @@
           (!all && types.join("\n") !== start.types.join("\n")),
   );
   const noTypes = $derived(!all && types.length === 0);
-  $effect(() => onChanged(changed));
-  const canSave = $derived(changed && !noTypes && !saving);
+  $effect(() => {
+    changed = isChanged;
+    canSave = isChanged && !noTypes && !saving;
+  });
+
+  /** Back to the saved profile. */
+  export function revert() {
+    name = start.name;
+    folder = start.folder;
+    includeFolder = start.includeFolder;
+    all = start.all;
+    types = [...start.types];
+    newType = "";
+    nameProblem = folderProblem = otherProblem = null;
+  }
 
   const label = (key: string | null) => (key === null ? NO_EXTENSION : `.${key}`);
 
@@ -94,51 +116,39 @@
   }
 </script>
 
-<form class="editor" onsubmit={save}>
-  <label class="field">
-    <span>Name</span>
-    <input bind:value={name} aria-describedby="name-problem" placeholder="e.g. Sony FX3" />
-  </label>
-  {#if nameProblem}<p id="name-problem" class="danger" role="alert">{nameProblem}</p>{/if}
+<form id={formId} class="editor" onsubmit={save}>
+  <TextField label="Name" bind:value={name} error={nameProblem} placeholder="e.g. Sony FX3" />
 
-  <div class="field">
-    <label for="profile-folder">Directory on the card</label>
-    <div class="row">
-      <input
-        id="profile-folder"
-        class="mono"
-        bind:value={folder}
-        aria-describedby="folder-problem"
-        placeholder="empty = the directory or card you pick"
-      />
-      <button type="button" onclick={chooseFolder}>Choose…</button>
-    </div>
-  </div>
-  {#if folderProblem}<p id="folder-problem" class="danger" role="alert">{folderProblem}</p>{/if}
+  <TextField
+    label="Directory on the card"
+    bind:value={folder}
+    error={folderProblem}
+    mono
+    placeholder="empty = the directory or card you pick"
+  >
+    {#snippet trailing()}<Button onclick={chooseFolder}>Choose…</Button>{/snippet}
+  </TextField>
 
-  <label class="check">
-    <input type="checkbox" bind:checked={includeFolder} />
-    {#if folderName}Include the “{folderName}” directory{:else}Include the picked directory itself{/if}
-  </label>
+  <Checkbox
+    label={folderName ? `Include the “${folderName}” directory` : "Include the picked directory itself"}
+    checked={includeFolder}
+    onChange={(on) => (includeFolder = on)}
+  />
 
-  <fieldset class="field">
-    <legend>File types</legend>
-    <div class="row">
-      <label class="check"><input type="radio" bind:group={all} value={true} /> All types</label>
-      <label class="check"><input type="radio" bind:group={all} value={false} /> Only these</label>
-    </div>
+  <div>
+    <RadioGroup
+      legend="File types"
+      options={[
+        { value: true, label: "All types" },
+        { value: false, label: "Only these" },
+      ]}
+      value={all}
+      onChange={(v) => (all = v)}
+    />
     {#if !all}
       <div class="chips">
         {#each types as key (key)}
-          <span class="chip">
-            {label(key)}
-            <button
-              type="button"
-              class="remove"
-              aria-label={`Remove ${label(key)}`}
-              onclick={() => (types = types.filter((k) => k !== key))}>×</button
-            >
-          </span>
+          <Chip label={label(key)} onRemove={() => (types = types.filter((k) => k !== key))} />
         {/each}
         <input
           class="add"
@@ -156,108 +166,34 @@
       </div>
       {#if noTypes}<p class="muted">Add at least one file type.</p>{/if}
     {/if}
-  </fieldset>
-
-  {#if otherProblem}<p class="danger" role="alert">{otherProblem}</p>{/if}
-  <div class="actions">
-    {#if onDelete}
-      <button type="button" class="danger-button" onclick={onDelete}>Delete…</button>
-    {/if}
-    <span class="spacer"></span>
-    <button type="submit" class="primary" disabled={!canSave}>Save</button>
   </div>
+
+  {#if otherProblem}<Notice tone="danger">{otherProblem}</Notice>{/if}
 </form>
 
 <style>
   .editor {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-  }
-
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    border: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  .field > span,
-  .field > label,
-  legend {
-    font-size: 12px;
-    color: var(--text-muted);
-    padding: 0;
-  }
-
-  .row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .row input {
-    flex: 1;
-  }
-
-  .check {
-    display: flex;
-    gap: 6px;
-    align-items: center;
+    gap: var(--space-4);
   }
 
   .chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--space-2);
     align-items: center;
-    margin-top: 6px;
-  }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 4px 2px 10px;
-    border: 1px solid var(--accent);
-    border-radius: 999px;
-  }
-
-  .remove {
-    border: none;
-    background: none;
-    padding: 0 6px;
-    color: var(--text-muted);
+    margin-top: var(--space-2);
   }
 
   .add {
-    width: 110px;
-  }
-
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 4px;
-  }
-
-  .spacer {
-    flex: 1;
-  }
-
-  .danger,
-  .danger-button {
-    color: var(--danger);
-  }
-
-  .danger {
-    margin: -6px 0 0;
+    width: 120px;
+    min-height: 26px;
   }
 
   .muted {
     color: var(--text-muted);
-    margin: 4px 0 0;
+    font-size: var(--text-sm);
+    margin: var(--space-1) 0 0;
   }
 </style>

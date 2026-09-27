@@ -8,10 +8,8 @@
   const icons: Record<string, IconName> = { info: "info", success: "check", warning: "alert", danger: "alert" };
 </script>
 
-<div class="notice {tone}" role={tone === "danger" ? "alert" : "status"}>
-  <Icon name={icons[tone]} />
-  <div class="text">{@render children()}</div>
-</div>
+<!-- No whitespace between the icon and the text: the notice's text is exactly the message. -->
+<div class="notice {tone}" role={tone === "danger" ? "alert" : "status"}><Icon name={icons[tone]} /><div class="text">{@render children()}</div></div>
 
 <style>
   .notice {

@@ -57,32 +57,9 @@ body {
   margin: 0;
 }
 
+/* Only the design system's components style buttons; a bare one just keeps the font. */
 button {
   font: inherit;
-  color: var(--text);
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 6px 12px;
-  cursor: pointer;
-}
-
-button:disabled {
-  color: var(--text-faint);
-  cursor: default;
-}
-
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-/* A primary button that can't be used must not look like one that can. */
-button.primary:disabled {
-  background: var(--surface-raised);
-  border-color: var(--border);
-  color: var(--text-faint);
 }
 
 /* Text fields and menus, one look everywhere. */
@@ -93,8 +70,9 @@ select {
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  padding: 0 var(--space-3);
+  min-height: var(--control-height);
 }
 
 select {
@@ -107,20 +85,6 @@ select {
 
 input::placeholder {
   color: var(--text-faint);
-}
-
-/* "‹ Back" at the top of Settings and Profiles. */
-button.back {
-  background: none;
-  border: none;
-  color: var(--accent);
-  padding: 4px 0;
-}
-
-/* A chosen option: filled, not only outlined. */
-.selected-fill {
-  background: color-mix(in srgb, var(--accent) 22%, var(--surface-raised));
-  border-color: var(--accent);
 }
 
 :focus-visible {

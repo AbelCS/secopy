@@ -4,6 +4,7 @@
   import { useApi } from "../lib/api";
   import type { FinishedRow } from "../lib/bindings";
   import { formatBytes, formatDuration, formatSpeed } from "../lib/format";
+  import Section from "../lib/ui/Section.svelte";
 
   let {
     title = "Finished",
@@ -77,17 +78,17 @@
     ({ verified: "✓ Verified", copied: "✓ Copied", skipped: "Skipped", failed: "✗ Failed" })[r.status];
 </script>
 
-<div class="head">
-  <h3>{title}</h3>
-  <label>
-    <input
-      type="checkbox"
-      checked={failedOnly}
-      onchange={(e) => showFailedOnly(e.currentTarget.checked)}
-    />
-    Failed only
-  </label>
-</div>
+<Section {title}>
+  {#snippet aside()}
+    <label class="only">
+      <input
+        type="checkbox"
+        checked={failedOnly}
+        onchange={(e) => showFailedOnly(e.currentTarget.checked)}
+      />
+      Failed only
+    </label>
+  {/snippet}
 <div
   bind:this={viewport}
   class="viewport"
@@ -115,27 +116,27 @@
     {/each}
   </div>
 </div>
+</Section>
 
 <style>
-  .head {
+  .only {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
   }
 
-  h3 {
-    margin: 12px 0 6px;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
+  .only input {
+    margin: 0;
+    accent-color: var(--accent);
   }
 
   .viewport {
     overflow-y: auto;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: var(--surface);
+    background: var(--bg);
   }
 
   .spacer {
@@ -148,7 +149,8 @@
     right: 0;
     height: 28px;
     display: grid;
-    grid-template-columns: 1fr 80px 60px 90px 150px 120px;
+    /* The name gets whatever is left; its full path is in the tooltip. */
+    grid-template-columns: minmax(0, 1fr) 70px 44px 80px 136px 96px;
     gap: 8px;
     align-items: center;
     padding: 0 10px;
