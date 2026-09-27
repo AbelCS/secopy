@@ -66,7 +66,7 @@
     if (path === null) return;
     const relative = relativeToDrive(path);
     if (relative === null) {
-      folderProblem = "Choose a folder on a card or drive.";
+      folderProblem = "Choose a directory on a card or drive.";
     } else {
       folder = relative;
       folderProblem = null;
@@ -81,7 +81,7 @@
       await onSave({ name, folder, includeFolder, extensions: all ? null : types });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      if (message.startsWith("The folder")) folderProblem = message;
+      if (message.startsWith("The directory")) folderProblem = message;
       else if (/name|profile called/.test(message)) nameProblem = message;
       else otherProblem = message;
     } finally {
@@ -98,14 +98,14 @@
   {#if nameProblem}<p id="name-problem" class="danger" role="alert">{nameProblem}</p>{/if}
 
   <div class="field">
-    <label for="profile-folder">Folder on the card</label>
+    <label for="profile-folder">Directory on the card</label>
     <div class="row">
       <input
         id="profile-folder"
         class="mono"
         bind:value={folder}
         aria-describedby="folder-problem"
-        placeholder="empty = the folder or card you pick"
+        placeholder="empty = the directory or card you pick"
       />
       <button type="button" onclick={chooseFolder}>Choose…</button>
     </div>
@@ -114,7 +114,7 @@
 
   <label class="check">
     <input type="checkbox" bind:checked={includeFolder} />
-    {#if folderName}Include the “{folderName}” folder{:else}Include the picked folder itself{/if}
+    {#if folderName}Include the “{folderName}” directory{:else}Include the picked directory itself{/if}
   </label>
 
   <fieldset class="field">

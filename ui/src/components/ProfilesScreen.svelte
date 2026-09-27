@@ -96,7 +96,7 @@
       {:else}
         <p class="muted">
           A profile remembers where the clips are on a card of a given camera (for example
-          <span class="mono">PRIVATE/M4ROOT/CLIP</span>), whether that folder itself is copied, and
+          <span class="mono">PRIVATE/M4ROOT/CLIP</span>), whether that directory itself is copied, and
           which file types. Pick it in the main window and a card is set up in one click.
         </p>
         <p class="muted">Create one here with “+ New profile”, or with “Save as new…” in the main window.</p>

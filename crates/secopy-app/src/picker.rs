@@ -26,7 +26,7 @@ pub fn pick_source<R: Runtime>(
         panel.setAllowsMultipleSelection(true);
         panel.setCanCreateDirectories(false);
         panel.setMessage(Some(&NSString::from_str(
-            "Choose a folder, or one or more files",
+            "Choose a directory, or one or more files",
         )));
         panel.setPrompt(Some(&NSString::from_str("Choose")));
         let answered = panel.clone();

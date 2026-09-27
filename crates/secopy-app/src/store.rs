@@ -244,11 +244,11 @@ impl Profiles {
 pub fn folder(text: &str) -> Result<String, String> {
     let text = text.trim();
     if text.starts_with('/') {
-        return Err("The folder is inside the card, so it can't start with “/”.".into());
+        return Err("The directory is inside the card, so it can't start with “/”.".into());
     }
     let parts: Vec<&str> = text.split('/').filter(|p| !p.is_empty()).collect();
     if parts.iter().any(|p| *p == ".." || *p == ".") {
-        return Err("The folder can't contain “..” or “.”.".into());
+        return Err("The directory can't contain “..” or “.”.".into());
     }
     Ok(parts.join("/"))
 }
@@ -489,8 +489,14 @@ mod tests {
             err(profiles.add(input("sony fx3", ""))),
             "There is already a profile called “sony fx3”."
         );
-        assert!(err(profiles.add(input("A", "/Volumes/CARD"))).contains("can't start with"));
-        assert!(err(profiles.add(input("B", "DCIM/../x"))).contains("“..”"));
+        assert_eq!(
+            err(profiles.add(input("A", "/Volumes/CARD"))),
+            "The directory is inside the card, so it can't start with “/”."
+        );
+        assert_eq!(
+            err(profiles.add(input("B", "DCIM/../x"))),
+            "The directory can't contain “..” or “.”."
+        );
         assert_eq!(profiles.profiles.len(), 1);
     }
 

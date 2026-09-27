@@ -159,7 +159,7 @@
       </details>
     {/if}
   {:else}
-    <p class="muted">Drop a folder or files here, or choose them.</p>
+    <p class="muted">Drop a directory or files here, or choose them.</p>
   {/if}
   <div class="actions">
     <button type="button" onclick={chooseSource}>Choose…</button>
@@ -177,7 +177,7 @@
         disabled={scanning > 0}
         onchange={(e) => setIncludeFolder(e.currentTarget.checked)}
       />
-      Include the “{baseName(folder)}” folder
+      Include the “{baseName(folder)}” directory
     </label>
     {#if source.extensions.length > 0}
       <ExtensionChips
@@ -198,7 +198,7 @@
       <p class="muted">{formatBytes(destination.freeBytes)} free · {destination.fsKind}</p>
     {/if}
   {:else}
-    <p class="muted">Drop the destination folder here, or choose it.</p>
+    <p class="muted">Drop the destination directory here, or choose it.</p>
   {/if}
   <div class="actions">
     <button type="button" onclick={chooseDestination}>Choose…</button>

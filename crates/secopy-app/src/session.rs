@@ -122,7 +122,7 @@ impl Session {
                 },
             }),
             _ if paths.iter().any(|p| p.is_dir()) => {
-                Err("Pick one folder, or only files — not both.".into())
+                Err("Pick one directory, or only files — not both.".into())
             }
             _ => Ok(Source::Files(paths.to_vec())),
         }
@@ -1013,7 +1013,10 @@ mod tests {
             Change::Pick(vec![f.card.clone(), f.card.join("A001.mov")]),
         );
         assert!(view.source.is_none());
-        assert!(view.pick_problem.unwrap().contains("not both"));
+        assert_eq!(
+            view.pick_problem.as_deref(),
+            Some("Pick one directory, or only files — not both.")
+        );
     }
 
     #[test]
@@ -1083,7 +1086,7 @@ mod tests {
         let view = s.set_destination(Some(inside));
         let blocker = view.destination.unwrap().blocker.unwrap();
         assert!(
-            blocker.starts_with("The destination is the source"),
+            blocker == "The destination is the source directory or inside it",
             "{blocker}"
         );
         assert!(view.plan.is_none());
@@ -1102,7 +1105,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             missing.blocker.as_deref(),
-            Some("The destination is not an existing folder")
+            Some("The destination is not an existing directory")
         );
     }
 

@@ -26,10 +26,10 @@ pub enum Blocker {
 impl fmt::Display for Blocker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Blocker::DestMissing => write!(f, "the destination is not an existing folder"),
+            Blocker::DestMissing => write!(f, "the destination is not an existing directory"),
             Blocker::DestNotWritable(e) => write!(f, "can't write to the destination: {e}"),
             Blocker::DestInsideSource => {
-                write!(f, "the destination is the source folder or inside it")
+                write!(f, "the destination is the source directory or inside it")
             }
             Blocker::NotEnoughSpace { needed, free } => write!(
                 f,

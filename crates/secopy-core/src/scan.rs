@@ -276,7 +276,7 @@ fn folder_name(root: &Path) -> io::Result<std::ffi::OsString> {
     named.file_name().map(ToOwned::to_owned).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            "a drive root has no folder name; copy only its contents instead",
+            "a drive root has no directory name; copy only its contents instead",
         )
     })
 }
