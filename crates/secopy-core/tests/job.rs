@@ -1026,3 +1026,39 @@ fn leftover_partial_files_of_skipped_files_are_removed() {
     assert!(!leftover.exists());
     assert_eq!(report.removed_partials, 1);
 }
+
+/// A pulled card can't be read any more, but what was already copied only needs the
+/// destination: those files are still verified and kept (FR-21, FR-25).
+#[cfg(unix)]
+#[test]
+fn files_copied_before_the_source_disappears_are_still_verified() {
+    let f = long_fixture();
+    // A big file just before the fault: its verification is still running when the
+    // next file finds the card gone.
+    write_files(&f.src, &[("f04.bin", &pattern(4 << 20))]);
+    let mut o = one_lane(true);
+    o.hooks = Hooks {
+        before_copy: Some(|source| {
+            if source.to_string_lossy().contains("f05") {
+                let card = source.parent().unwrap();
+                fs::rename(card, card.with_extension("gone")).unwrap();
+            }
+        }),
+        after_copy: None,
+    };
+    let (report, _) = run(&plan(&f.src, &f.dest), &o);
+
+    assert_eq!(report.fatal, Some(FatalError::SourceGone));
+    let verified: Vec<_> = report
+        .outcomes
+        .iter()
+        .filter(|o| o.status == FileStatus::Verified)
+        .map(|o| o.rel.file_name().unwrap().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(
+        verified,
+        ["f00.bin", "f01.bin", "f02.bin", "f03.bin", "f04.bin"],
+        "{report:?}"
+    );
+    assert!(!report.cancelled);
+}
