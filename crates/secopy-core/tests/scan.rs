@@ -210,10 +210,10 @@ fn file_and_folder_mtimes_are_recorded() {
     file.set_times(fs::FileTimes::new().set_modified(t))
         .unwrap();
     drop(file);
-    let clips = fs::File::open(card.join("clips")).unwrap();
-    // Directories can't be opened for writing on every OS; skip where setting fails.
-    let dir_set = clips
-        .set_times(fs::FileTimes::new().set_modified(t))
+    // Windows can't open a folder with `File::open`; skip the folder check where
+    // setting its time fails.
+    let dir_set = fs::File::open(card.join("clips"))
+        .and_then(|d| d.set_times(fs::FileTimes::new().set_modified(t)))
         .is_ok();
 
     let sel = scan_card(&card, DirMode::FolderItself, false).select(&ExtensionFilter::All);
