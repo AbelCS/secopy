@@ -6,16 +6,26 @@
   import type { ProgressView } from "../lib/bindings";
   import { formatBytes, formatCount, formatDuration, formatPercent, plural } from "../lib/format";
   import { RateMeter } from "../lib/rate";
+  import type { Snippet } from "svelte";
+  import ActionBar from "../lib/ui/ActionBar.svelte";
+  import AppShell from "../lib/ui/AppShell.svelte";
+  import Button from "../lib/ui/Button.svelte";
+  import Notice from "../lib/ui/Notice.svelte";
+  import ProgressBar from "../lib/ui/ProgressBar.svelte";
+  import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
+  import Section from "../lib/ui/Section.svelte";
   import FinishedList from "./FinishedList.svelte";
-  import ProgressBar from "./ProgressBar.svelte";
 
   let {
     progress,
     checksumFile = true,
+    banner,
   }: {
     progress: ProgressView;
     /** The running job writes a checksum file (Settings). */
     checksumFile?: boolean;
+    /** App-wide messages, shown first. */
+    banner?: Snippet;
   } = $props();
 
   const api = useApi();
@@ -67,123 +77,81 @@
   }
 </script>
 
-<section class="card" aria-labelledby="phase">
-  <header>
-    <h2 id="phase">{phase}</h2>
-    <span class="muted">{formatDuration(progress.elapsedMs)} elapsed</span>
-  </header>
+<AppShell>
+  {#snippet header()}
+    <ScreenHeader title={phase}>
+      {#snippet trailing()}{formatDuration(progress.elapsedMs)} elapsed{/snippet}
+    </ScreenHeader>
+  {/snippet}
 
-  {#if progress.fatal}
-    <p class="banner" role="alert">Stopped: {progress.fatal}</p>
-  {/if}
+  {@render banner?.()}
+  {#if progress.fatal}<Notice tone="danger">Stopped: {progress.fatal}</Notice>{/if}
 
-  <ProgressBar label="Copied" done={progress.copiedBytes} total={progress.totalBytes} {...copy} />
-  {#if progress.verify}
-    <ProgressBar label="Verified" done={progress.verifiedBytes} total={progress.totalBytes} {...verify} />
-  {/if}
-  <p class="muted files">{files}</p>
-
-  <div class="controls">
-    {#if progress.paused}
-      <button type="button" onclick={() => api.resumeJob()}>Resume</button>
-    {:else}
-      <button type="button" onclick={() => api.pauseJob()} disabled={progress.phase === "done"}>Pause</button>
+  <Section title="Progress">
+    <ProgressBar label="Copied" done={progress.copiedBytes} total={progress.totalBytes} {...copy} />
+    {#if progress.verify}
+      <ProgressBar label="Verified" done={progress.verifiedBytes} total={progress.totalBytes} {...verify} />
     {/if}
-    <button type="button" onclick={cancel} disabled={progress.phase === "done"}>Cancel</button>
-  </div>
-</section>
+  </Section>
 
-<section class="card" aria-labelledby="active-title">
-  <h3 id="active-title">Active</h3>
-  {#if progress.active.length === 0 && !progress.smallFiles}
-    <p class="muted">—</p>
-  {/if}
-  <table>
-    <tbody>
-      {#each progress.active as f (f.id)}
-        <tr>
-          <td class="name" title={f.path}>{f.name}</td>
-          <td>{f.verifying ? "Verifying" : "Copying"}</td>
-          <td>{formatBytes(f.size)}</td>
-          <td>{formatBytes(f.bytesDone)}</td>
-          <td>{formatPercent(f.bytesDone, f.size)}</td>
-        </tr>
-      {/each}
-      {#if progress.smallFiles}
-        <tr>
-          <td class="name">+ {plural(progress.smallFiles.count, "small file")}</td>
-          <td></td>
-          <td>{formatBytes(progress.smallFiles.size)}</td>
-          <td>{formatBytes(progress.smallFiles.bytesDone)}</td>
-          <td>{formatPercent(progress.smallFiles.bytesDone, progress.smallFiles.size)}</td>
-        </tr>
-      {/if}
-    </tbody>
-  </table>
-  <FinishedList
-    total={progress.filesDone}
-    failedTotal={progress.filesFailed}
-    updated={progress.elapsedMs}
-  />
-</section>
+  <Section title="Active">
+    {#if progress.active.length === 0 && !progress.smallFiles}
+      <p class="muted">—</p>
+    {/if}
+    <table>
+      <tbody>
+        {#each progress.active as f (f.id)}
+          <tr>
+            <td class="name" title={f.path}>{f.name}</td>
+            <td>{f.verifying ? "Verifying" : "Copying"}</td>
+            <td>{formatBytes(f.size)}</td>
+            <td>{formatBytes(f.bytesDone)}</td>
+            <td>{formatPercent(f.bytesDone, f.size)}</td>
+          </tr>
+        {/each}
+        {#if progress.smallFiles}
+          <tr>
+            <td class="name">+ {plural(progress.smallFiles.count, "small file")}</td>
+            <td></td>
+            <td>{formatBytes(progress.smallFiles.size)}</td>
+            <td>{formatBytes(progress.smallFiles.bytesDone)}</td>
+            <td>{formatPercent(progress.smallFiles.bytesDone, progress.smallFiles.size)}</td>
+          </tr>
+        {/if}
+      </tbody>
+    </table>
+  </Section>
+
+  <FinishedList total={progress.filesDone} failedTotal={progress.filesFailed} updated={progress.elapsedMs} />
+
+  {#snippet actions()}
+    <ActionBar status={files}>
+      {#snippet start()}
+        {#if progress.paused}
+          <Button onclick={() => api.resumeJob()}>Resume</Button>
+        {:else}
+          <Button onclick={() => api.pauseJob()} disabled={progress.phase === "done"}>Pause</Button>
+        {/if}
+        <Button variant="danger" onclick={cancel} disabled={progress.phase === "done"}>Cancel</Button>
+      {/snippet}
+    </ActionBar>
+  {/snippet}
+</AppShell>
 
 <style>
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    margin-bottom: var(--gap);
-  }
-
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 16px;
-  }
-
-  h3 {
-    margin: 0 0 6px;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
   .muted {
     color: var(--text-muted);
-  }
-
-  .banner {
-    color: var(--danger);
-    border: 1px solid var(--danger);
-    border-radius: var(--radius);
-    padding: 8px 12px;
-  }
-
-  .files {
-    margin: 4px 0 0 82px;
-  }
-
-  .controls {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
+    margin: 0;
   }
 
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
 
   td {
-    padding: 3px 6px;
+    padding: 3px var(--space-2) 3px 0;
     white-space: nowrap;
   }
 

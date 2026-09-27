@@ -4,6 +4,15 @@
   import { useApi } from "../lib/api";
   import type { ConflictPolicy, Profile, ProfilesView, SessionView, Settings } from "../lib/bindings";
   import { formatBytes, formatCount, plural } from "../lib/format";
+  import type { Snippet } from "svelte";
+  import ActionBar from "../lib/ui/ActionBar.svelte";
+  import AppShell from "../lib/ui/AppShell.svelte";
+  import Button from "../lib/ui/Button.svelte";
+  import Checkbox from "../lib/ui/Checkbox.svelte";
+  import Notice from "../lib/ui/Notice.svelte";
+  import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
+  import Section from "../lib/ui/Section.svelte";
+  import SegmentedControl from "../lib/ui/SegmentedControl.svelte";
   import DrivesRow from "./DrivesRow.svelte";
   import ExtensionChips from "./ExtensionChips.svelte";
   import PreflightPanel from "./PreflightPanel.svelte";
@@ -19,6 +28,8 @@
     onProfiles,
     onManageProfiles,
     onMode,
+    onSettings,
+    banner,
   }: {
     view: SessionView;
     verify: boolean;
@@ -31,6 +42,9 @@
     onManageProfiles: () => void;
     /** Copy or Copy & Verify was chosen; remembered for next time (FR-36). */
     onMode: (verify: boolean) => void;
+    onSettings?: () => void;
+    /** App-wide messages, shown first. */
+    banner?: Snippet;
   } = $props();
 
   const api = useApi();
@@ -59,6 +73,22 @@
       !destination?.blocker &&
       view.plan.filesToWrite > 0,
   );
+
+  /** Why Start can't be used yet, or where the files will go. */
+  const startStatus = $derived.by(() => {
+    if (scanning > 0) return "Waiting for the scan…";
+    if (checking > 0) return "Waiting for the destination check…";
+    if (!source) return "Pick what to copy.";
+    if (!destination) return "Choose where to copy to.";
+    if (destination.blocker || view.plan?.blocker) return "Something above blocks the copy.";
+    if (!view.plan || view.plan.filesToWrite === 0) return "Nothing to copy.";
+    return `To ${destination.copyRoot}`;
+  });
+
+  function setMode(mode: "copy" | "verify") {
+    verify = mode === "verify";
+    onMode(verify);
+  }
 
   /** Runs a session command; a newer scan's result replaces this one (`stale`). */
   async function update(
@@ -141,134 +171,143 @@
   });
 </script>
 
-<section class="card" data-drop="from" aria-labelledby="from-title">
-  <h2 id="from-title">From</h2>
-  <div class="pick" role="group" aria-label="Source">
-    <DrivesRow source={source?.folder ?? null} onPick={(path) => scan([path])} />
-    <button type="button" onclick={chooseSource}>Choose…</button>
-  </div>
-  <ProfileBar {view} {profiles} busy={scanning > 0} onSelect={selectProfile} onApplied={profilesApplied} onManage={onManageProfiles} />
-  {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
-  {#if view.pickProblem}<p class="danger" role="alert">{view.pickProblem}</p>{/if}
-  {#if source}
-    <p class="path mono">{source.label}</p>
-    <p class="muted">{sourceSummary}</p>
-    {#if source.problemCount > 0}
-      <details class="warning">
-        <summary>{plural(source.problemCount, "item")} couldn't be read</summary>
-        <ul>
-          {#each source.problems as p (p)}<li class="mono">{p}</li>{/each}
-        </ul>
-      </details>
-    {/if}
-  {:else}
-    <p class="muted">Drop a directory or files here, or choose them.</p>
-  {/if}
-  {#if sourceError}<p class="danger" role="alert">{sourceError}</p>{/if}
+<AppShell>
+  {#snippet header()}
+    <ScreenHeader title="New copy">
+      {#snippet trailing()}
+        {#if onSettings}<Button icon="settings" onclick={onSettings}>Settings</Button>{/if}
+      {/snippet}
+    </ScreenHeader>
+  {/snippet}
 
-  <!-- A retry copies exactly the files that failed: nothing to choose there. -->
-  {#if source?.folder && !source.isRetry}
-    {@const folder = source.folder}
-    <!-- On: DEST/DCIM/…; off: only what's inside, straight into DEST (FR-4). -->
-    <label class="include">
-      <input
-        type="checkbox"
-        checked={!source.contentsOnly}
-        disabled={scanning > 0}
-        onchange={(e) => setIncludeFolder(e.currentTarget.checked)}
+  {@render banner?.()}
+
+  <Section title="From" data-drop="from">
+    <div class="rows">
+      <div class="pick" role="group" aria-label="Source">
+        <DrivesRow source={source?.folder ?? null} onPick={(path) => scan([path])} />
+        <Button onclick={chooseSource}>Choose…</Button>
+      </div>
+      <ProfileBar
+        {view}
+        {profiles}
+        busy={scanning > 0}
+        onSelect={selectProfile}
+        onApplied={profilesApplied}
+        onManage={onManageProfiles}
       />
-      Include the “{baseName(folder)}” directory
-    </label>
-    {#if source.extensions.length > 0}
-      <ExtensionChips
-        extensions={source.extensions}
-        selected={source.selectedExtensions}
-        onChange={setFilter}
-      />
-    {/if}
-  {/if}
-</section>
+      <div>
+        {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
+        {#if view.pickProblem}<Notice tone="danger">{view.pickProblem}</Notice>{/if}
+        {#if source}
+          <p class="path mono">{source.label}</p>
+          <p class="muted">{sourceSummary}</p>
+          {#if source.problemCount > 0}
+            <details class="unreadable">
+              <summary>{plural(source.problemCount, "item")} couldn't be read</summary>
+              <ul>
+                {#each source.problems as p (p)}<li class="mono">{p}</li>{/each}
+              </ul>
+            </details>
+          {/if}
+        {:else}
+          <p class="muted">Drop a directory or files here, or choose them.</p>
+        {/if}
+        {#if sourceError}<Notice tone="danger">{sourceError}</Notice>{/if}
+      </div>
 
-<section class="card" data-drop="to" aria-labelledby="to-title">
-  <h2 id="to-title">To</h2>
-  {#if checking > 0}<p class="muted" role="status">Checking…</p>{/if}
-  {#if destination}
-    <p class="path mono">{destination.path}</p>
-    {#if !destination.blocker}
-      <p class="muted">{formatBytes(destination.freeBytes)} free · {destination.fsKind}</p>
-    {/if}
-  {:else}
-    <p class="muted">Drop the destination directory here, or choose it.</p>
-  {/if}
-  <div class="actions">
-    <button type="button" onclick={chooseDestination}>Choose…</button>
-    {#if recent.length > 0}
-      <select aria-label="Recent destinations" value="" onchange={(e) => chooseRecent(e.currentTarget)}>
-        <option value="" disabled>Recent…</option>
-        {#each recent as r (r)}<option value={r}>{r}</option>{/each}
-      </select>
-    {/if}
-  </div>
-  {#if destError}<p class="danger" role="alert">{destError}</p>{/if}
-  {#if destination && source}
-    <p>Files will go to: <span class="mono">{destination.copyRoot}</span></p>
-    <PreflightPanel
-      {destination}
-      plan={view.plan}
-      conflicts={view.conflicts}
-      onConflicts={setConflicts}
-    />
-  {:else if destination?.blocker}
-    <p class="danger" role="alert">{destination.blocker}</p>
-  {/if}
-</section>
+      <!-- A retry copies exactly the files that failed: nothing to choose there. -->
+      {#if source?.folder && !source.isRetry}
+        {@const folder = source.folder}
+        <!-- On: DEST/DCIM/…; off: only what's inside, straight into DEST (FR-4). -->
+        <Checkbox
+          label="Include the “{baseName(folder)}” directory"
+          checked={!source.contentsOnly}
+          disabled={scanning > 0}
+          onChange={setIncludeFolder}
+        />
+        {#if source.extensions.length > 0}
+          <ExtensionChips extensions={source.extensions} selected={source.selectedExtensions} onChange={setFilter} />
+        {/if}
+      {/if}
+    </div>
+  </Section>
 
-<footer class="start">
-  <div class="segmented" role="radiogroup" aria-label="Mode">
-    <label class:on={!verify}>
-      <input type="radio" name="mode" checked={!verify} onchange={() => {
-          verify = false;
-          onMode(false);
-        }} />
-      Copy
-    </label>
-    <label class:on={verify}>
-      <input type="radio" name="mode" checked={verify} onchange={() => {
-          verify = true;
-          onMode(true);
-        }} />
-      Copy & Verify
-    </label>
-  </div>
-  <button type="button" class="primary" disabled={!canStart} onclick={onStart}>
-    {#if view.plan && view.plan.filesToWrite > 0}
-      {verify ? "Copy & verify" : "Copy"}
-      {plural(view.plan.filesToWrite, "file")} · {formatBytes(view.plan.bytesToWrite)}
-    {:else}
-      Start copy
-    {/if}
-  </button>
-</footer>
+  <Section title="To" data-drop="to">
+    <div class="rows">
+      <div>
+        {#if checking > 0}<p class="muted" role="status">Checking…</p>{/if}
+        {#if destination}
+          <p class="path mono">{destination.path}</p>
+          {#if !destination.blocker}
+            <p class="muted">{formatBytes(destination.freeBytes)} free · {destination.fsKind}</p>
+          {/if}
+        {:else}
+          <p class="muted">Drop the destination directory here, or choose it.</p>
+        {/if}
+      </div>
+      <div class="pick">
+        <Button onclick={chooseDestination}>Choose…</Button>
+        {#if recent.length > 0}
+          <select aria-label="Recent destinations" value="" onchange={(e) => chooseRecent(e.currentTarget)}>
+            <option value="" disabled>Recent…</option>
+            {#each recent as r (r)}<option value={r}>{r}</option>{/each}
+          </select>
+        {/if}
+      </div>
+      {#if destError}<Notice tone="danger">{destError}</Notice>{/if}
+      {#if destination && source}
+        <p>Files will go to: <span class="mono">{destination.copyRoot}</span></p>
+        <PreflightPanel {destination} plan={view.plan} conflicts={view.conflicts} onConflicts={setConflicts} />
+      {:else if destination?.blocker}
+        <Notice tone="danger">{destination.blocker}</Notice>
+      {/if}
+    </div>
+  </Section>
+
+  {#snippet actions()}
+    <ActionBar status={startStatus}>
+      {#snippet start()}
+        <SegmentedControl
+          label="Mode"
+          options={[
+            { value: "copy", label: "Copy" },
+            { value: "verify", label: "Copy & Verify" },
+          ]}
+          value={verify ? "verify" : "copy"}
+          onChange={setMode}
+        />
+      {/snippet}
+      {#snippet end()}
+        <Button variant="primary" disabled={!canStart} onclick={onStart}>
+          {#if view.plan && view.plan.filesToWrite > 0}
+            {verify ? "Copy & verify" : "Copy"}
+            {plural(view.plan.filesToWrite, "file")} · {formatBytes(view.plan.bytesToWrite)}
+          {:else}
+            Start copy
+          {/if}
+        </Button>
+      {/snippet}
+    </ActionBar>
+  {/snippet}
+</AppShell>
 
 <style>
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    margin-bottom: var(--gap);
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
   }
 
-  h2 {
-    margin: 0 0 6px;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
+  .pick {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   p {
-    margin: 4px 0;
+    margin: 0 0 var(--space-1);
   }
 
   .path {
@@ -279,69 +318,8 @@
     color: var(--text-muted);
   }
 
-  .danger {
-    color: var(--danger);
-  }
-
-  .warning {
+  .unreadable summary {
     color: var(--warning);
-  }
-
-  .pick {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 0 0 10px;
-  }
-
-  .actions {
-    display: flex;
-    gap: 8px;
-    margin: 8px 0;
-  }
-
-  .include {
-    display: block;
-    margin: 8px 0;
-  }
-
-  .start {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  /* One control, the chosen mode filled. */
-  .segmented {
-    display: inline-flex;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-
-  .segmented label {
-    position: relative;
-    padding: 6px 14px;
-    color: var(--text-muted);
     cursor: pointer;
-  }
-
-  .segmented label + label {
-    border-left: 1px solid var(--border);
-  }
-
-  .segmented label.on {
-    background: var(--accent);
-    color: #fff;
-  }
-
-  .segmented label:focus-within {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
-  }
-
-  .segmented input {
-    position: absolute;
-    opacity: 0;
   }
 </style>

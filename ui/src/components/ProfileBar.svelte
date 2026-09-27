@@ -3,6 +3,10 @@
   // the difference with Update profile or Save as new….
   import { useApi } from "../lib/api";
   import type { Profile, ProfilesView, SessionView } from "../lib/bindings";
+  import Button from "../lib/ui/Button.svelte";
+  import Notice from "../lib/ui/Notice.svelte";
+  import Select from "../lib/ui/Select.svelte";
+  import TextField from "../lib/ui/TextField.svelte";
 
   let {
     view,
@@ -46,13 +50,19 @@
     }
   }
 
-  function choose(menu: HTMLSelectElement) {
-    if (menu.value === MANAGE) {
+  const options = $derived([
+    { value: "", label: "None" },
+    ...profiles.map((p) => ({ value: p.id, label: p.name })),
+    { value: MANAGE, label: "Manage profiles…" },
+  ]);
+
+  function choose(value: string, menu: HTMLSelectElement) {
+    if (value === MANAGE) {
       menu.value = view.profileId ?? "";
       onManage();
       return;
     }
-    onSelect(menu.value === "" ? null : menu.value);
+    onSelect(value === "" ? null : value);
   }
 
   function openSaveAs() {
@@ -69,47 +79,52 @@
 </script>
 
 <div class="profile">
-  <label>
-    Profile
-    <select value={view.profileId ?? ""} disabled={forFiles} onchange={(e) => choose(e.currentTarget)}>
-      <option value="">None</option>
-      {#each profiles as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
-      <option value={MANAGE}>Manage profiles…</option>
-    </select>
-  </label>
+  <Select label="Profile" value={view.profileId ?? ""} {options} disabled={forFiles} onChange={choose} />
   {#if selected && view.profileChanged}
     <span class="muted">Changed for this run</span>
-    <button type="button" disabled={busy} onclick={() => act(() => api.updateProfile())}>Update profile</button>
+    <Button disabled={busy} onclick={() => act(() => api.updateProfile())}>Update profile</Button>
   {/if}
   {#if canSaveAs}
-    <button type="button" disabled={busy} onclick={openSaveAs}>Save as new…</button>
+    <Button disabled={busy} onclick={openSaveAs}>Save as new…</Button>
   {/if}
 </div>
 {#if savingAs}
   <form class="save-as" onsubmit={saveAs}>
-    <label>Name <input bind:value={name} /></label>
-    <label>Directory on the card <input bind:value={folder} placeholder="e.g. PRIVATE/M4ROOT/CLIP" /></label>
-    <button type="submit" class="primary" disabled={busy}>Save</button>
-    <button type="button" onclick={() => (savingAs = false)}>Cancel</button>
+    <TextField label="Name" bind:value={name} placeholder="e.g. Sony FX3" />
+    <TextField label="Directory on the card" bind:value={folder} mono placeholder="e.g. PRIVATE/M4ROOT/CLIP" />
+    <div class="buttons">
+      <Button onclick={() => (savingAs = false)}>Cancel</Button>
+      <Button variant="primary" type="submit" disabled={busy}>Save</Button>
+    </div>
   </form>
 {/if}
-{#if error}<p class="danger" role="alert">{error}</p>{/if}
+{#if error}<Notice tone="danger">{error}</Notice>{/if}
 
 <style>
-  .profile,
-  .save-as {
+  .profile {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    margin: 0 0 8px;
+    gap: var(--space-2);
+  }
+
+  .save-as {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    align-items: end;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .buttons {
+    display: flex;
+    gap: var(--space-2);
   }
 
   .muted {
     color: var(--text-muted);
-  }
-
-  .danger {
-    color: var(--danger);
   }
 </style>

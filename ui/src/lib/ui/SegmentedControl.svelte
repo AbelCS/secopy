@@ -27,6 +27,7 @@
 <style>
   .segmented {
     display: inline-flex;
+    align-self: flex-start;
     border: 1px solid var(--border);
     border-radius: var(--radius-control);
     overflow: hidden;

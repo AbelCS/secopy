@@ -1,7 +1,7 @@
 <script lang="ts">
   // One phase's bar (RFD §5.3): bytes, percent, current and average speed, ETA. The fill
   // animates for as long as the gap between updates, so two updates a second look smooth.
-  import { formatBytes, formatDuration, formatPercent, formatSpeed } from "../lib/format";
+  import { formatBytes, formatDuration, formatPercent, formatSpeed } from "../format";
 
   let {
     label,

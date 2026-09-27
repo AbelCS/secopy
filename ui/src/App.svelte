@@ -7,6 +7,8 @@
   import JobProgress from "./components/JobProgress.svelte";
   import ProfilesScreen from "./components/ProfilesScreen.svelte";
   import SettingsScreen from "./components/SettingsScreen.svelte";
+  import Button from "./lib/ui/Button.svelte";
+  import Notice from "./lib/ui/Notice.svelte";
   import Setup from "./components/Setup.svelte";
   import Summary from "./components/Summary.svelte";
 
@@ -142,85 +144,48 @@
   });
 </script>
 
-<main>
-  <header>
-    <h1>Secopy</h1>
-    {#if screen === "setup" || screen === "summary"}
-      <button type="button" class="settings" onclick={openSettings}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-          <circle cx="12" cy="12" r="3" />
-        </svg>
-        Settings
-      </button>
-    {/if}
-  </header>
-  {#if error}<p class="error" role="alert">{error}</p>{/if}
-  {#if warnings.length > 0 && screen === "setup"}
-    <div class="warnings" role="alert">
-      {#each warnings as w (w)}<p>{w}</p>{/each}
-      <button type="button" onclick={() => (warnings = [])}>Dismiss</button>
-    </div>
+<!-- App-wide messages, shown at the top of the screen's content. -->
+{#snippet banner()}
+  {#if error}<Notice tone="danger">{error}</Notice>{/if}
+  {#if warnings.length > 0}
+    <Notice tone="warning">
+      {#each warnings as w (w)}<p class="warning">{w}</p>{/each}
+      <Button variant="link" onclick={() => (warnings = [])}>Dismiss</Button>
+    </Notice>
   {/if}
-  {#if screen === "setup"}
-    <Setup
-      bind:view
-      bind:verify
-      {profiles}
-      {settings}
-      {recent}
-      onStart={start}
-      onProfiles={(p) => (profiles = p)}
-      onManageProfiles={() => open("profiles")}
-      onMode={saveMode}
-    />
-  {:else if screen === "progress" && progress}
-    <JobProgress {progress} checksumFile={settings.writeChecksumFile} />
-  {:else if screen === "summary" && summary}
-    <Summary {summary} onRetry={retry} onNewCopy={newCopy} />
-  {:else if screen === "settings"}
-    <SettingsScreen {settings} onSettings={(s) => (settings = s)} onDone={() => (screen = back)} />
-  {:else if screen === "profiles"}
-    <ProfilesScreen
-      {profiles}
-      onProfiles={(p) => (profiles = p)}
-      onView={(v) => (view = v)}
-      onDone={() => (screen = back)}
-    />
-  {/if}
-</main>
+{/snippet}
+
+{#if screen === "setup"}
+  <Setup
+    bind:view
+    bind:verify
+    {profiles}
+    {settings}
+    {recent}
+    {banner}
+    onStart={start}
+    onProfiles={(p) => (profiles = p)}
+    onManageProfiles={() => open("profiles")}
+    onMode={saveMode}
+    onSettings={openSettings}
+  />
+{:else if screen === "progress" && progress}
+  <JobProgress {progress} checksumFile={settings.writeChecksumFile} {banner} />
+{:else if screen === "summary" && summary}
+  <Summary {summary} {banner} onRetry={retry} onNewCopy={newCopy} onSettings={openSettings} />
+{:else if screen === "settings"}
+  <SettingsScreen {settings} onSettings={(s) => (settings = s)} onDone={() => (screen = back)} />
+{:else if screen === "profiles"}
+  <ProfilesScreen
+    {profiles}
+    onProfiles={(p) => (profiles = p)}
+    onView={(v) => (view = v)}
+    onDone={() => (screen = back)}
+  />
+{/if}
 
 <style>
-  main {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 20px 24px;
-  }
-
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 14px;
-  }
-
-  h1 {
-    margin: 0;
-    font-size: 18px;
-  }
-
-  .settings {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .warnings {
-    color: var(--warning);
-    margin-bottom: var(--gap);
-  }
-
-  .error {
-    color: var(--danger);
+  .warning {
+    margin: 0 0 var(--space-1);
   }
 </style>

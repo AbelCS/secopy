@@ -21,9 +21,9 @@ function app(view = readyView()) {
 const startButton = () => screen.findByRole("button", { name: /^Copy & verify 1,284 files/ });
 
 describe("App", () => {
-  test("shows the app name", () => {
+  test("the main screen is New copy", () => {
     app(sessionView());
-    expect(screen.getByRole("heading", { name: "Secopy" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "New copy" })).toBeTruthy();
   });
 
   test("a job goes from setup to progress to the summary", async () => {

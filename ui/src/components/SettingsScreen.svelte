@@ -3,6 +3,12 @@
   // saved at once; there is nothing to apply or cancel. Source profiles have their own screen.
   import { useApi } from "../lib/api";
   import type { Settings } from "../lib/bindings";
+  import ActionBar from "../lib/ui/ActionBar.svelte";
+  import AppShell from "../lib/ui/AppShell.svelte";
+  import Checkbox from "../lib/ui/Checkbox.svelte";
+  import Notice from "../lib/ui/Notice.svelte";
+  import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
+  import Section from "../lib/ui/Section.svelte";
 
   let {
     settings,
@@ -36,117 +42,61 @@
   }
 </script>
 
-<nav class="bar">
-  <button type="button" class="back" onclick={onDone}><span aria-hidden="true">‹</span> Back</button>
-</nav>
+<AppShell>
+  {#snippet header()}<ScreenHeader title="Settings" onBack={onDone} />{/snippet}
 
-<section class="card" aria-labelledby="settings-title">
-  <div class="head">
-    <h2 id="settings-title">Settings</h2>
-    <span class="saved" role="status">{saved ? "Saved" : ""}</span>
-  </div>
-
-  <div class="option">
-    <label class="check">
-      <input
-        type="checkbox"
+  <Section title="Every copy">
+    <div class="options">
+      <Checkbox
+        label="Write the checksum file to the destination"
         checked={settings.writeChecksumFile}
-        onchange={(e) => toggle("writeChecksumFile", e.currentTarget.checked)}
-      />
-      Write the checksum file to the destination
-    </label>
-    <p class="help">
-      A <span class="mono">secopy_….xxh64</span> file lists every copied file with its checksum, so the
-      copy can be checked again later, for example with <span class="mono">xxhsum -c</span>.
-    </p>
-  </div>
-
-  <div class="option">
-    <label class="check">
-      <input
-        type="checkbox"
+        onChange={(on) => toggle("writeChecksumFile", on)}
+      >
+        {#snippet help()}
+          A <span class="mono">secopy_….xxh64</span> file lists every copied file with its checksum, so the copy
+          can be checked again later, for example with <span class="mono">xxhsum -c</span>.
+        {/snippet}
+      </Checkbox>
+      <Checkbox
+        label="Show the count of skipped hidden items"
         checked={settings.showHiddenCount}
-        onchange={(e) => toggle("showHiddenCount", e.currentTarget.checked)}
-      />
-      Show the count of skipped hidden items
-    </label>
-    <p class="help">
-      Hidden items (names starting with “.”, like <span class="mono">.DS_Store</span>) are never copied;
-      this only shows how many were skipped.
-    </p>
-  </div>
-
-  <div class="option">
-    <label class="check">
-      <input
-        type="checkbox"
+        onChange={(on) => toggle("showHiddenCount", on)}
+      >
+        {#snippet help()}
+          Hidden items (names starting with “.”, like <span class="mono">.DS_Store</span>) are never copied; this
+          only shows how many were skipped.
+        {/snippet}
+      </Checkbox>
+      <Checkbox
+        label="Also save the job report next to the checksum file"
         checked={settings.reportNextToChecksum}
         disabled={!settings.writeChecksumFile}
-        onchange={(e) => toggle("reportNextToChecksum", e.currentTarget.checked)}
-      />
-      Also save the job report next to the checksum file
-    </label>
-    <p class="help">Every job's report is also kept in the app; this adds a copy next to the checksum file.</p>
-  </div>
+        onChange={(on) => toggle("reportNextToChecksum", on)}
+      >
+        {#snippet help()}Every job's report is also kept in the app; this adds a copy next to the checksum file.{/snippet}
+      </Checkbox>
+    </div>
+    {#if settingsError}<Notice tone="danger">{settingsError}</Notice>{/if}
+  </Section>
 
-  {#if settingsError}<p class="danger" role="alert">{settingsError}</p>{/if}
-</section>
+  {#snippet actions()}
+    <ActionBar>
+      {#snippet status()}
+        {#if saved}<span class="saved">Saved</span>{:else}Changes are saved as you make them.{/if}
+      {/snippet}
+    </ActionBar>
+  {/snippet}
+</AppShell>
 
 <style>
-  .bar {
-    margin: -6px 0 8px;
-  }
-
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    margin-bottom: var(--gap);
-  }
-
-  .head {
+  .options {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 6px;
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
+    flex-direction: column;
+    gap: var(--space-4);
+    padding-top: var(--space-1);
   }
 
   .saved {
     color: var(--success);
-    font-size: 12px;
-  }
-
-  .option {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .option:last-of-type {
-    border-bottom: none;
-  }
-
-  .check {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .help {
-    margin: 4px 0 0 24px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-
-  .danger {
-    color: var(--danger);
   }
 </style>

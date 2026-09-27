@@ -5,12 +5,13 @@
   import { useApi } from "../lib/api";
   import type { DriveView } from "../lib/bindings";
   import { formatBytes } from "../lib/format";
+  import Chip from "../lib/ui/Chip.svelte";
 
   let {
     source,
     onPick,
   }: {
-    /** The current source folder, to show which drive it is on. */
+    /** The current source directory, to show which drive it is on. */
     source: string | null;
     onPick: (path: string) => void;
   } = $props();
@@ -37,20 +38,5 @@
 </script>
 
 {#each drives as d (d.path)}
-  <button
-    type="button"
-    class="drive"
-    class:selected-fill={isOn(d)}
-    aria-pressed={isOn(d)}
-    onclick={() => onPick(d.path)}
-  >
-    {d.name} <span class="muted">{formatBytes(d.totalBytes)}</span>
-  </button>
+  <Chip label={d.name} meta={formatBytes(d.totalBytes)} selected={isOn(d)} onToggle={() => onPick(d.path)} />
 {/each}
-
-<style>
-
-  .muted {
-    color: var(--text-muted);
-  }
-</style>
