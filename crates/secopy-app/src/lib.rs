@@ -7,6 +7,7 @@ mod migrate;
 mod picker;
 pub mod session;
 pub mod store;
+pub mod volumes;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Manager, RunEvent, Runtime};
