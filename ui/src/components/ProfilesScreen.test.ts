@@ -34,12 +34,13 @@ describe("ProfilesScreen", () => {
   test("the first profile is shown in the editor, and the list switches it", async () => {
     show();
     expect(screen.getByLabelText("Name")).toHaveProperty("value", "Sony FX3");
-    expect(screen.getByLabelText("Folder on the card")).toHaveProperty("value", "PRIVATE/M4ROOT/CLIP");
+    expect(screen.getByLabelText("Directory on the card")).toHaveProperty("value", "PRIVATE/M4ROOT/CLIP");
     expect(screen.getByLabelText("Only these")).toHaveProperty("checked", true);
     screen.getByText(".mp4");
     await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
     expect(screen.getByLabelText("Name")).toHaveProperty("value", "DJI Mini 4");
     expect(screen.getByLabelText("All types")).toHaveProperty("checked", true);
+    screen.getByLabelText("Include the “DCIM” directory");
   });
 
   test("Save is only active once something changed", async () => {
@@ -83,10 +84,10 @@ describe("ProfilesScreen", () => {
     const { api } = show();
     api.pickCardFolder.mockResolvedValueOnce("/Volumes/CARD_A/DCIM/100MSDCF");
     await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
-    await waitFor(() => expect(screen.getByLabelText("Folder on the card")).toHaveProperty("value", "DCIM/100MSDCF"));
+    await waitFor(() => expect(screen.getByLabelText("Directory on the card")).toHaveProperty("value", "DCIM/100MSDCF"));
     api.pickCardFolder.mockResolvedValueOnce("/Users/me/Desktop");
     await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
-    await screen.findByText("Choose a folder on a card or drive.");
+    await screen.findByText("Choose a directory on a card or drive.");
   });
 
   test("a problem is shown next to its field", async () => {
@@ -96,16 +97,16 @@ describe("ProfilesScreen", () => {
     await fireEvent.click(save());
     const name = await screen.findByText("There is already a profile called “DJI Mini 4”.");
     expect(name.id).toBe("name-problem");
-    api.editProfile.mockRejectedValueOnce(new Error("The folder can't contain “..” or “.”."));
+    api.editProfile.mockRejectedValueOnce(new Error("The directory can't contain “..” or “.”."));
     await fireEvent.click(save());
-    expect((await screen.findByText("The folder can't contain “..” or “.”.")).id).toBe("folder-problem");
+    expect((await screen.findByText("The directory can't contain “..” or “.”.")).id).toBe("folder-problem");
   });
 
   test("a new profile is created and selected", async () => {
     const { api, calls } = show();
     await fireEvent.click(screen.getByRole("button", { name: "+ New profile" }));
     await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "GoPro" } });
-    await fireEvent.input(screen.getByLabelText("Folder on the card"), { target: { value: "DCIM" } });
+    await fireEvent.input(screen.getByLabelText("Directory on the card"), { target: { value: "DCIM" } });
     await fireEvent.click(save());
     await waitFor(() =>
       expect(api.createProfile).toHaveBeenCalledWith({ name: "GoPro", folder: "DCIM", includeFolder: true, extensions: null }),

@@ -41,11 +41,13 @@ function setup(
 const start = () => screen.getByRole("button", { name: /copy & verify|start copy/i });
 const from = () => within(screen.getByRole("region", { name: "From" }));
 const to = () => within(screen.getByRole("region", { name: "To" }));
-const includeFolder = () => screen.getByLabelText("Include the “DCIM” folder");
+const includeFolder = () => screen.getByLabelText("Include the “DCIM” directory");
 
 describe("Setup", () => {
   test("Start stays disabled until there is something to copy", () => {
     setup();
+    screen.getByText("Drop a directory or files here, or choose them.");
+    screen.getByText("Drop the destination directory here, or choose it.");
     expect(start()).toHaveProperty("disabled", true);
   });
 
@@ -100,7 +102,7 @@ describe("Setup", () => {
   test("a blocker is shown and Start stays disabled", () => {
     setup(
       readyView({
-        destination: destinationView({ blocker: "The destination is the source folder or inside it" }),
+        destination: destinationView({ blocker: "The destination is the source directory or inside it" }),
         plan: null,
       }),
     );
@@ -245,7 +247,7 @@ describe("Setup", () => {
   test("Save as new… suggests the folder and saves under a new name", async () => {
     const { api } = setup(readyView({ suggestedFolder: "PRIVATE/M4ROOT/CLIP" }));
     await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
-    expect(screen.getByLabelText("Folder on the card")).toHaveProperty("value", "PRIVATE/M4ROOT/CLIP");
+    expect(screen.getByLabelText("Directory on the card")).toHaveProperty("value", "PRIVATE/M4ROOT/CLIP");
     await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3" } });
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(api.saveProfileAs).toHaveBeenCalledWith("FX3", "PRIVATE/M4ROOT/CLIP"));

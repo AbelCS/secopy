@@ -88,7 +88,7 @@
 {#if savingAs}
   <form class="save-as" onsubmit={saveAs}>
     <label>Name <input bind:value={name} /></label>
-    <label>Folder on the card <input bind:value={folder} placeholder="e.g. PRIVATE/M4ROOT/CLIP" /></label>
+    <label>Directory on the card <input bind:value={folder} placeholder="e.g. PRIVATE/M4ROOT/CLIP" /></label>
     <button type="submit" class="primary" disabled={busy}>Save</button>
     <button type="button" onclick={() => (savingAs = false)}>Cancel</button>
   </form>
