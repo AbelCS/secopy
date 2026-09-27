@@ -57,6 +57,15 @@ describe("JobProgress", () => {
     expect(api.resumeJob).toHaveBeenCalled();
   });
 
+  test("with the checksum file off, Cancel doesn't mention one", async () => {
+    const { api } = fakeApi();
+    render(JobProgress, { props: { progress: progressView(), checksumFile: false }, context: apiContext(api) });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(api.confirm).toHaveBeenCalledWith("Files already copied stay; the file in progress is removed.", "Stop copying?"),
+    );
+  });
+
   test("cancel asks first and only stops when confirmed", async () => {
     const { api } = show(progressView());
     api.confirm.mockResolvedValueOnce(false);

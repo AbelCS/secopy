@@ -349,7 +349,10 @@ impl<'a> Runner<'a> {
             final_rel: landed.unwrap_or_else(|| file.final_rel().to_path_buf()),
             size: file.entry.size,
             hash,
-            in_checksum_file: ok && hash.is_some() && file.in_checksum_file,
+            in_checksum_file: ok
+                && hash.is_some()
+                && file.in_checksum_file
+                && self.opts.write_checksum_file,
             status,
             elapsed: started.elapsed(),
         }
