@@ -8,11 +8,14 @@
   let {
     total,
     failedTotal,
+    updated,
   }: {
     /** Finished files so far. */
     total: number;
     /** Failed files so far. */
     failedTotal: number;
+    /** Changes with every progress update. */
+    updated: number;
   } = $props();
 
   const api = useApi();
@@ -23,8 +26,15 @@
 
   let failedOnly = $state(false);
   let scrollTop = $state(0);
+  let viewport: HTMLElement;
   /** Fetched pages by page number; a page is refetched until it is full. */
   let pages: Map<number, FinishedRow[]> = $state(new Map());
+  /**
+   * The update each page was last asked for in. A page can come back short for a moment
+   * (a file counted as finished just before it's listed); it's asked again on the next
+   * update, not in a loop.
+   */
+  const asked = new Map<number, number>();
 
   const count = $derived(failedOnly ? failedTotal : total);
   const first = $derived(Math.max(0, Math.floor(scrollTop / ROW) - OVERSCAN));
@@ -39,11 +49,13 @@
   $effect(() => {
     // Fetch the pages the visible rows need; incomplete pages again as more files finish.
     const only = failedOnly;
+    const now = updated;
     const wanted = new Set(visible.map((v) => Math.floor(v.index / PAGE)));
     for (const page of wanted) {
       const have = pages.get(page);
       const expected = Math.min(PAGE, count - page * PAGE);
-      if (have && have.length >= expected) continue;
+      if ((have && have.length >= expected) || asked.get(page) === now) continue;
+      asked.set(page, now);
       api.finishedPage(page * PAGE, PAGE, only).then((rows) => {
         if (only !== failedOnly) return;
         pages = new Map(pages).set(page, rows);
@@ -54,7 +66,9 @@
   function showFailedOnly(on: boolean) {
     failedOnly = on;
     pages = new Map();
+    asked.clear();
     scrollTop = 0;
+    viewport.scrollTop = 0;
   }
 
   const statusText = (r: FinishedRow) =>
@@ -73,6 +87,7 @@
   </label>
 </div>
 <div
+  bind:this={viewport}
   class="viewport"
   style:height="{HEIGHT}px"
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
