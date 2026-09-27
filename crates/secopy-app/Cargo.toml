@@ -1,0 +1,31 @@
+[package]
+name = "secopy-app"
+description = "Secopy desktop app: the Tauri shell around secopy-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "secopy_app"
+
+[[bin]]
+name = "secopy"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+chrono.workspace = true
+secopy-core.workspace = true
+serde.workspace = true
+specta.workspace = true
+specta-typescript.workspace = true
+tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-opener.workspace = true
+tauri-specta.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
