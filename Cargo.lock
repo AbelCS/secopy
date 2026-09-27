@@ -438,7 +438,7 @@ dependencies = [
 
 [[package]]
 name = "secopy-cli"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",
@@ -449,7 +449,7 @@ dependencies = [
 
 [[package]]
 name = "secopy-core"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "libc",
