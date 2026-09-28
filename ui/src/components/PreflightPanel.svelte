@@ -59,7 +59,7 @@
     </FormRow>
   {/if}
   {#if destination.differs > 0}
-    <FormRow label="Different">
+    <FormRow label="Existing files">
       <RadioGroup
         legend="{plural(destination.differs, 'file')} {destination.differs === 1 ? 'differs' : 'differ'} from what's there"
         options={choices}

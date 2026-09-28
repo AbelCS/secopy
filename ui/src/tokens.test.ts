@@ -25,4 +25,6 @@ describe("colour tokens (WCAG AA, RFD §5.6)", () => {
   }
   test("on-accent on accent-strong (filled buttons)", () =>
     expect(contrast("on-accent", "accent-strong")).toBeGreaterThanOrEqual(4.5));
+  test("on-accent on accent-strong-hover (a filled button under the pointer)", () =>
+    expect(contrast("on-accent", "accent-strong-hover")).toBeGreaterThanOrEqual(4.5));
 });

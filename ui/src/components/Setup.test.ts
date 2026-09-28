@@ -313,4 +313,30 @@ describe("Setup", () => {
     await fireEvent.keyDown(form, { key: "Escape" });
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
   });
+
+  test("files that differ are under Existing files", () => {
+    setup(readyView({ destination: destinationView({ differs: 12 }) }));
+    within(screen.getByRole("group", { name: "Existing files" })).getByLabelText("Keep both");
+  });
+
+  test("the status only explains why Start is off; it doesn't repeat Files go to", () => {
+    setup(readyView());
+    expect(screen.queryByText(/^To \//)).toBeNull();
+    screen.getByText("/Volumes/RAID/Day01/DCIM");
+  });
+
+  test("with no profiles, Profile offers to create one instead of an empty menu", async () => {
+    const { calls } = setup();
+    expect(screen.queryByRole("combobox", { name: "Profile" })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Create a profile…" }));
+    expect(calls.manage).toBe(1);
+  });
+
+  test("closing Save as new… puts focus back on its button", async () => {
+    setup(readyView());
+    const open = screen.getByRole("button", { name: "Save as new…" });
+    await fireEvent.click(open);
+    await fireEvent.keyDown(screen.getByRole("textbox", { name: "Name" }), { key: "Escape" });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Save as new…" }));
+  });
 });
