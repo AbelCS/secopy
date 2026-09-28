@@ -71,5 +71,14 @@ section says, which also checks those first-launch steps), then:
     Run again and quit during a job: on reopening, the queue still has the jobs not finished.
     Cancel while a job is being checked (just after "Job 2 of 3" appears, before files
     move): job 2 doesn't start. ⌘Q between two jobs asks first.
+25. **Mirror.** Create "SSD → NAS" (origin on an SSD, destination on the SMB share). Preview:
+    counts match; Run mirror. Change a file, add one, delete one in the origin; Preview shows
+    them; Run: the NAS matches, the deleted file is in `.secopy-archive/<date>/` (Finder,
+    ⇧⌘. shows hidden files). Run again: "Already in sync".
+26. **Mirror safety.** Point a preset's origin at an empty directory: Preview warns, Run asks.
+    Queue that preset: the job fails with the reason, nothing removed. Pull the destination
+    mid-run: files fail and "Nothing was removed".
+27. **Mirror in the queue.** Queue a copy and a mirror; Run queue; both complete; the queue
+    summary opens the mirror's summary.
 
 Record the macOS version, the card reader and anything odd in the release PR.

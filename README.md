@@ -3,6 +3,8 @@
 Fast, verified file copies for macOS. Copy a directory or a set of
 files, optionally verify every copy with xxHash64, and get an `xxhsum`-compatible
 checksum file in the destination. Queue several copies and let them run one after another.
+Mirror a directory to a backup: new and changed files copied and verified, deleted ones
+archived or removed.
 
 > **Status:** early development, Apple Silicon Macs only. Design:
 > [RFD 0001](docs/rfd/0001-secopy.md).
@@ -28,7 +30,7 @@ downloaded with `curl` aren't flagged. If you did download the `.dmg` from the
 
 File menu: **⌘O** choose the source, **⌘D** choose the destination, **⌘↩** start,
 **⌘.** cancel. While copying, **Space** pauses and resumes. **Esc** goes back from Settings
-and Profiles; **⌘,** opens Settings. **⌘1** Copy, **⌘3** Queue.
+and Profiles; **⌘,** opens Settings. **⌘1** Copy, **⌘2** Mirror, **⌘3** Queue.
 
 ## Development
 
@@ -57,4 +59,6 @@ cargo run --release -p secopy-cli -- /path/to/CARD --to /path/to/backup --verify
 cargo run --release -p secopy-cli -- /path/to/CARD --to /path/to/backup --on-conflict skip
 # also write the job report (text and JSON)
 cargo run --release -p secopy-cli -- /path/to/CARD --to /path/to/backup --report /tmp
+# make the backup a mirror of the directory; --dry-run shows what would change first
+cargo run --release -p secopy-cli -- /path/to/Footage --to /path/to/backup --mirror --dry-run
 ```
