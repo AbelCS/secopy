@@ -6,7 +6,9 @@ How the app's screens are built, so they look and behave the same. The colours c
 To see every component and screen: `cd ui && npm run dev`, then open
 <http://localhost:5173/gallery.html> (add `#setup`, `#progress`, `#summary`, `#settings`,
 `#presets`, `#presets-empty`, `#queue`, `#queue-summary`, `#mirror`, `#mirror-preview`,
-`#mirror-summary`, `#mirroring`, `#verify`, `#verify-summary`, `#tabs` or `#cancel` for a screen; `?tips` shows every `Hint`). The
+`#mirror-summary`, `#mirroring`, `#verify`, `#verify-summary`, `#tabs` or `#cancel` for a screen; `?tips` shows every `Hint`
+and every button's help, `?help` only the buttons' help, `?help=primary` only the primary button's, as in
+`gallery.html?help=primary#setup`). The
 gallery is dev only and not in the app.
 
 ## Layout
@@ -70,7 +72,7 @@ Components use tokens only, never raw colours or sizes.
 | `ActionBar` | The bottom bar: `start`, `status`, `end` |
 | `Section` | A titled part of a screen; the only card style |
 | `FormRow` | One labelled line inside a section: the label column on the left, the content, the row's own actions on the right (Choose…, All · None) |
-| `Button` | `primary` (one per screen), `secondary`, `danger`, `link`; optional icon |
+| `Button` | `primary` (one per screen), `secondary`, `danger`, `link`; optional icon; optional `help`: one sentence in a tip above the button, on hover (after half a second, like a macOS help tag) and keyboard focus, read by VoiceOver as its description; lined up with the button's right edge when it would run off the window; none while the button is disabled. Pass `""` while the words aren't known yet, so the button isn't rebuilt when they come |
 | `SegmentedControl` | A small exclusive choice shown as one control (Copy / Copy & Verify) |
 | `Checkbox` | An option, with an optional line of help |
 | `RadioGroup` | Exclusive options under a legend |
@@ -101,4 +103,10 @@ Components use tokens only, never raw colours or sizes.
 - The user-facing words are "directory" and "file".
 - No emoji as icons.
 - A `Hint` only where a word isn't clear on its own (Small files, Existing files, Identical, system files, Copy & Verify, archived, not started), in one or two plain sentences. Not for what a help line under an option already says.
+- A button's `help` only where its short label hides the detail: Start (what it copies, where, the
+  shortcut), Update, Save as…, Add to queue, Retry, Clear…, Pause / Resume, Cancel. One plain
+  sentence, with the screen's real figures ("Copies 106 files (180.0 GB) to /Volumes/V001/Day01/CLIP
+  and verifies them (⌘↩).") and a shortcut only where it works there (⌘↩ on New copy, ⌘. and Space
+  while a job runs). Not on buttons that say it all: Back, Done, Choose…, Show in Finder, Save
+  report…, Preview….
 - Yes/no questions use the system dialog (`api.confirm`); `Dialog` only when the question needs more than two buttons.
