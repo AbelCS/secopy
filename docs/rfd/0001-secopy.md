@@ -247,9 +247,10 @@ These values are a starting point and will be refined during M2.
 
 ### 5.7 Sections and the job queue
 
-Tabs at the top hold the app's sections: **Copy** (the main window above), **Mirror** (§5.8),
-**Verify** (FR-34) and **Queue**, with the number of queued jobs, and Settings on the right. They are hidden
-while jobs run and on Settings and Profiles.
+Tabs at the top hold the kinds of job: **Copy** (the main window above), **Mirror** (§5.8) and
+**Verify** (FR-34). On the right of the bar, apart from them, a **Queue** button with the number
+of queued jobs (highlighted while the Queue is open) and Settings. The bar is hidden while jobs
+run and on Settings and Profiles.
 
 - **Add to queue** next to Start copy (and on a mirror preset) saves the job as set up; the
   Queue screen lists the jobs (reorder, remove, clear), the choice for failures (continue with
@@ -574,3 +575,4 @@ The stack meets these constraints:
 | 2026-09-28 | **macOS only by design** (#60): no Linux or Windows apps are planned. The engine's Linux and Windows code is removed, and building it for another OS is a compile error. This replaces the 2026-09-27 plan to keep the engine portable. |
 | 2026-09-28 | **Sections as tabs at the top** (#64), not a sidebar: three items don't need 180 px of width, and paths and file lists do. Settings sits on the tab bar, once for the app. |
 | 2026-09-28 | **Verify an existing copy** (#67): a directory, and every checksum file inside it; files nothing lists are "not checked" (shown, not a failure); mirrors keep a hidden checksum file so their backups can be verified. A separate check engine; the copy engine is unchanged. |
+| 2026-09-28 | **The Queue apart from the tabs** (#67): the tabs are the kinds of job (Copy, Mirror, Verify), underlined when selected; the Queue, where any of them waits and runs, is a button with its count on the right, next to Settings. |

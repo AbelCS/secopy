@@ -6,19 +6,22 @@ How the app's screens are built, so they look and behave the same. The colours c
 To see every component and screen: `cd ui && npm run dev`, then open
 <http://localhost:5173/gallery.html> (add `#setup`, `#progress`, `#summary`, `#settings`,
 `#profiles`, `#profiles-empty`, `#queue`, `#queue-summary`, `#mirror`, `#mirror-preview`,
-`#mirror-summary`, `#mirroring`, `#verify`, `#verify-summary` or `#cancel` for a screen; `?tips` shows every `Hint`). The
+`#mirror-summary`, `#mirroring`, `#verify`, `#verify-summary`, `#tabs` or `#cancel` for a screen; `?tips` shows every `Hint`). The
 gallery is dev only and not in the app.
 
 ## Layout
 
-The app's sections (Copy, Mirror, Verify, Queue) are tabs in a `TabBar` at the top of the section
-screens, with Settings on its right, once for the whole app; the bar is hidden while jobs run
-and on Settings and Profiles, so the width goes to paths and file lists. Below it, every
-screen is an `AppShell` with three parts, always in the same place:
+The kinds of job (Copy, Mirror, Verify) are tabs in a `TabBar` at the top of the section
+screens: plain words, the selected one underlined in the accent. On its right, apart from the
+tabs, the Queue (a button with its job count, highlighted while it's open) and Settings, once
+for the whole app. The bar is hidden while jobs run and on Settings and Profiles, so the width
+goes to paths and file lists. Below it, every screen is an `AppShell` with three parts,
+always in the same place:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ [ Copy | Mirror | Verify | Queue 3 ]            [⚙ Settings] │  tab bar (sections)
+│  Copy   Mirror   Verify             [☰ Queue 3] [⚙ Settings] │  tab bar (sections)
+│  ‾‾‾‾                                                        │
 ├──────────────────────────────────────────────────────────────┤
 │ Screen title                                                 │  header
 ├──────────────────────────────────────────────────────────────┤
@@ -63,7 +66,7 @@ Components use tokens only, never raw colours or sizes.
 |---|---|
 | `AppShell` | Every screen's frame: `header`, content, `actions` |
 | `ScreenHeader` | Title and optional trailing controls |
-| `TabBar` | The app's sections as tabs at the top (Copy, Mirror, Verify, Queue), with a count, and Settings on the right; hidden while jobs run and on Settings/Profiles |
+| `TabBar` | The kinds of job as underlined tabs at the top (Copy, Mirror, Verify); on the right the Queue button (its count, highlighted while open) and Settings; hidden while jobs run and on Settings/Profiles |
 | `ActionBar` | The bottom bar: `start`, `status`, `end` |
 | `Section` | A titled part of a screen; the only card style |
 | `FormRow` | One labelled line inside a section: the label column on the left, the content, the row's own actions on the right (Choose…, All · None) |

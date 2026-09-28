@@ -156,11 +156,11 @@ describe("design system", () => {
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Summary" }));
   });
 
-  test("TabBar: sections at the top, the selected one, a count, and what goes on the right", async () => {
+  test("TabBar: the kinds of job as tabs, the selected one, and what goes on the right", async () => {
     const onSelect = vi.fn();
     render(TabBar, {
       props: {
-        items: [{ id: "copy", label: "Copy" }, { id: "queue", label: "Queue", count: 3 }],
+        items: [{ id: "copy", label: "Copy" }, { id: "mirror", label: "Mirror" }],
         selected: "copy",
         onSelect,
         trailing: text("Settings"),
@@ -169,8 +169,24 @@ describe("design system", () => {
     screen.getByText("Settings");
     const nav = screen.getByRole("navigation", { name: "Sections" });
     expect(within(nav).getByRole("button", { name: "Copy" }).getAttribute("aria-current")).toBe("page");
-    await fireEvent.click(within(nav).getByRole("button", { name: "Queue, 3 jobs" }));
+    await fireEvent.click(within(nav).getByRole("button", { name: "Mirror" }));
+    expect(onSelect).toHaveBeenCalledWith("mirror");
+  });
+
+  test("TabBar: the Queue is apart from the tabs, with its count, and marked while open", async () => {
+    const onSelect = vi.fn();
+    const props = { items: [{ id: "copy", label: "Copy" }], selected: "copy", onSelect, queue: { count: 3 } };
+    const { rerender } = render(TabBar, { props });
+    const nav = screen.getByRole("navigation", { name: "Sections" });
+    expect(within(nav).queryByRole("button", { name: /Queue/ })).toBeNull();
+    const queue = screen.getByRole("button", { name: "Queue, 3 jobs" });
+    expect(queue.getAttribute("aria-current")).toBeNull();
+    await fireEvent.click(queue);
     expect(onSelect).toHaveBeenCalledWith("queue");
+    await rerender({ ...props, selected: "queue", queue: { count: 1 } });
+    expect(screen.getByRole("button", { name: "Queue, 1 job" }).getAttribute("aria-current")).toBe("page");
+    await rerender({ ...props, queue: { count: 0 } });
+    screen.getByRole("button", { name: "Queue" });
   });
 
   test("Hint: a term or an ⓘ mark explains itself on hover and keyboard focus", () => {
