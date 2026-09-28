@@ -21,7 +21,7 @@ function app(view = readyView()) {
   return { api, state };
 }
 
-const startButton = () => screen.findByRole("button", { name: "Start copy" });
+const startButton = () => screen.findByRole("button", { name: "Start" });
 
 describe("App", () => {
   test("the main screen is New copy", () => {
@@ -47,12 +47,12 @@ describe("App", () => {
     await startButton();
   });
 
-  test("Retry failed goes back to setup with the failed files", async () => {
+  test("Retry goes back to setup with the failed files", async () => {
     const { api, state } = app();
     api.jobSummary.mockResolvedValue(summaryView({ outcome: "failures", failed: 2, verified: 1282 }));
     await fireEvent.click(await startButton());
     state.progress!(progressView({ phase: "done" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Retry failed" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
     await waitFor(() => expect(api.retryFailed).toHaveBeenCalled());
     await startButton();
   });
@@ -89,7 +89,7 @@ describe("App", () => {
     const { api, state } = fakeApi(readyView());
     state.start = startView({ session: readyView(), verify: false, copyPresets: [copyPreset()] });
     render(App, { props: { api } });
-    await screen.findByRole("button", { name: "Start copy" });
+    await screen.findByRole("button", { name: "Start" });
     expect(screen.getByRole("radio", { name: "Copy" })).toHaveProperty("checked", true);
     screen.getByRole("option", { name: "Sony FX3" });
   });
@@ -149,7 +149,7 @@ describe("App", () => {
     state.start = startView({ session: readyView(), settings: settingsView({ writeChecksumFile: false }) });
     render(App, { props: { api } });
     await waitFor(() => expect(state.close).not.toBeNull());
-    await screen.findByRole("button", { name: "Start copy" });
+    await screen.findByRole("button", { name: "Start" });
     api.jobRunning.mockResolvedValue(true);
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenCalledWith(
@@ -167,7 +167,7 @@ describe("App", () => {
     state.menu!("show-verify");
     api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
     await fireEvent.click(await screen.findByRole("button", { name: "Choose…" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Start verify" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByRole("heading", { level: 1, name: "Verifying" });
     api.jobRunning.mockResolvedValue(true);
     await state.close!(() => {});
@@ -185,7 +185,7 @@ describe("App", () => {
     await waitFor(() => expect(state.menu).not.toBeNull());
     state.menu!("show-mirror");
     await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByRole("heading", { level: 1, name: "Mirroring" });
     api.jobRunning.mockResolvedValue(true);
     await state.close!(() => {});
@@ -203,7 +203,7 @@ describe("App", () => {
     await waitFor(() => expect(state.menu).not.toBeNull());
     state.menu!("show-mirror");
     await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByRole("heading", { level: 1, name: "Mirroring" });
     api.jobRunning.mockResolvedValue(true);
     state.progress!(progressView({ phase: "removing", removing: 3, archiving: true }));
@@ -229,7 +229,7 @@ describe("App", () => {
     state.queue = queueView({ jobs: [queuedJob({ kind: "check" })] });
     render(App, { props: { api } });
     await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
     api.jobRunning.mockResolvedValue(true);
     state.queueEvent!({ type: "jobChecking", index: 0, count: 1 });
@@ -261,7 +261,7 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "Copy presets" });
     expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
     await fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    await screen.findByRole("button", { name: "Start copy" });
+    await screen.findByRole("button", { name: "Start" });
   });
   test("a finished copy notifies only when the window is in the background", async () => {
     const { api, state } = app();
@@ -323,7 +323,7 @@ describe("App", () => {
     await waitFor(() => expect(state.menu).not.toBeNull());
     state.menu!("show-mirror");
     await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true));
     state.progress!(progressView({ phase: "removing", removing: 3, archiving: true }));
     await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, false));
@@ -368,7 +368,7 @@ describe("App", () => {
     api.windowFocused.mockReturnValue(false);
     render(App, { props: { api } });
     await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
     state.queueEvent!({ type: "jobChecking", index: 0, count: 2 });
     state.queueEvent!({ type: "jobStarted", index: 0, count: 2, job: queuedJob() });
@@ -391,7 +391,7 @@ describe("App", () => {
     ]);
     render(App, { props: { api } });
     await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
     state.queueEvent!({ type: "jobChecking", index: 0, count: 2 });
     state.queueEvent!({ type: "jobStarted", index: 0, count: 2, job: queuedJob() });
@@ -409,7 +409,7 @@ describe("App", () => {
     state.queue = queueView({ jobs: [queuedJob(), queuedJob({ kind: "mirror", name: "Footage" })] });
     render(App, { props: { api } });
     await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
     state.queueEvent!({ type: "jobChecking", index: 1, count: 2 });
     await screen.findByRole("heading", { level: 1, name: "Checking…" });
@@ -423,7 +423,7 @@ describe("App", () => {
     state.queue = queueView({ jobs: [queuedJob({ kind: "mirror", name: "Footage" })] });
     render(App, { props: { api } });
     await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
     state.queueEvent!({ type: "jobChecking", index: 0, count: 1 });
     state.queueEvent!({ type: "compared", index: 0, done: 1, total: 3 });
@@ -453,7 +453,7 @@ describe("App", () => {
     state.progress!(progressView({ phase: "done" }));
     await screen.findByRole("heading", { level: 1, name: "Summary" });
     state.menu!("show-queue");
-    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
     state.queueEvent!({ type: "done", summary: { complete: 1, count: 1, millis: 1000, results: [
       { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
@@ -481,7 +481,7 @@ describe("App", () => {
     state.menu!("show-verify");
     api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
     await fireEvent.click(await screen.findByRole("button", { name: "Choose…" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Start verify" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByRole("heading", { level: 1, name: "Verifying" });
     state.progress!(progressView({ phase: "done" }));
     await screen.findByText("All 2 files intact");
@@ -498,7 +498,7 @@ describe("App", () => {
     screen.getByRole("button", { name: "Mirror" });
   });
 
-  test("a mirror: Preview…, Run mirror, its summary, and Done back to Mirror", async () => {
+  test("a mirror: Preview…, Start, its summary, and Done back to Mirror", async () => {
     const { api, state } = app();
     const mirror = { new: 2, updated: 1, removed: 1, archived: true, removalFailures: [], nothingRemoved: null };
     api.jobSummary.mockResolvedValue(summaryView({ mirror }));
@@ -506,7 +506,7 @@ describe("App", () => {
     await waitFor(() => expect(state.menu).not.toBeNull());
     state.menu!("show-mirror");
     await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByRole("heading", { level: 1, name: "Mirroring" });
     expect(api.runMirror).toHaveBeenCalledWith("m1", expect.any(Function));
     state.progress!(progressView({ phase: "done" }));
@@ -528,7 +528,7 @@ describe("App", () => {
     await waitFor(() => expect(state.menu).not.toBeNull());
     state.menu!("show-mirror");
     await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     state.progress!(progressView({ phase: "done" }));
     await screen.findByText("Mirrored: 2 new, 1 updated, 1 archived");
     state.menu!("show-copy");

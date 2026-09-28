@@ -328,7 +328,7 @@
       {#snippet end()}
         <!-- The mode is chosen next to it; the figures are in the status. -->
         <Button disabled={!canStart || !!source?.isRetry} onclick={addToQueue}>Add to queue</Button>
-        <Button variant="primary" disabled={!canStart} onclick={onStart}>Start copy</Button>
+        <Button variant="primary" disabled={!canStart} onclick={onStart}>Start</Button>
       {/snippet}
     </ActionBar>
   {/snippet}

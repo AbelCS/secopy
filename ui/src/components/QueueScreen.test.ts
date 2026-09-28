@@ -82,19 +82,19 @@ describe("QueueScreen", () => {
     );
   });
 
-  test("Clear queue asks first", async () => {
+  test("Clear asks first", async () => {
     const { api } = show();
     api.confirm.mockResolvedValueOnce(false);
-    await fireEvent.click(screen.getByRole("button", { name: "Clear queue…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Clear…" }));
     await waitFor(() => expect(api.confirm).toHaveBeenCalled());
     expect(api.clearQueue).not.toHaveBeenCalled();
   });
 
-  test("the failure choice is saved, and Run queue runs", async () => {
+  test("the failure choice is saved, and Start runs the queue", async () => {
     const { api, calls } = show();
     await fireEvent.click(screen.getByLabelText("Stop the queue"));
     expect(api.setQueueOnFailure).toHaveBeenCalledWith("stop");
-    await fireEvent.click(screen.getByRole("button", { name: "Run queue" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(calls.run).toBe(1);
   });
 
@@ -107,6 +107,6 @@ describe("QueueScreen", () => {
   test("an empty queue explains how to add jobs, and Run is off", () => {
     show(queueView());
     screen.getByText(/Add to queue/);
-    expect(screen.getByRole("button", { name: "Run queue" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Start" })).toHaveProperty("disabled", true);
   });
 });

@@ -80,7 +80,7 @@
       verifyScreens.includes(screen),
   );
   let mirrorPresets: MirrorPreset[] = $state([]);
-  /** The preview the Mirror section's Preview… worked out; Run mirror runs it. */
+  /** The preview the Mirror section's Preview… worked out; the preview's Start runs it. */
   let mirrorPreview: MirrorPreviewView | null = $state(null);
   /** The last mirror run's summary, shown in the Mirror section. */
   let mirrorSummary: SummaryView | null = $state(null);

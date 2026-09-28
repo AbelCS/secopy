@@ -22,7 +22,7 @@ function show(preview: MirrorPreviewView) {
 }
 
 describe("MirrorPreview", () => {
-  test("counts, the list by kind, and Run mirror", async () => {
+  test("counts, the list by kind, and Start", async () => {
     const { api, calls } = show(
       mirrorPreview({ newFiles: 12, newBytes: 38_200_000_000, changedFiles: 3, removedFiles: 5, unchanged: 2410 }),
     );
@@ -33,7 +33,7 @@ describe("MirrorPreview", () => {
     await waitFor(() => expect(api.mirrorPreviewPage).toHaveBeenLastCalledWith(null, 0, expect.any(Number)));
     await fireEvent.click(screen.getByRole("radio", { name: "Deleted" }));
     await waitFor(() => expect(api.mirrorPreviewPage).toHaveBeenLastCalledWith("removed", 0, expect.any(Number)));
-    await fireEvent.click(screen.getByRole("button", { name: "Run mirror" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(calls.run).toBe(1);
   });
 
@@ -65,7 +65,7 @@ describe("MirrorPreview", () => {
   test("nothing to do: Already in sync, Run off", () => {
     show(mirrorPreview({ newFiles: 0, changedFiles: 0, removedFiles: 0, unchanged: 10 }));
     screen.getByText("Already in sync.");
-    expect(screen.getByRole("button", { name: "Run mirror" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Start" })).toHaveProperty("disabled", true);
   });
 
   test("a tripped guard is shown and Run asks first", async () => {
@@ -74,7 +74,7 @@ describe("MirrorPreview", () => {
     );
     screen.getByText("3 of the destination's 3 files would be removed.");
     api.confirm.mockResolvedValueOnce(false);
-    await fireEvent.click(screen.getByRole("button", { name: "Run mirror" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(api.confirm).toHaveBeenCalled());
     expect(calls.run).toBe(0);
   });

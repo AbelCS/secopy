@@ -280,7 +280,7 @@ impl Jobs {
         self.job().map(JobHandle)
     }
 
-    /// The failed files of the last job, for "Retry failed" (RFD §5.4).
+    /// The failed files of the last job, for "Retry" (RFD §5.4).
     pub fn retry(&self) -> Option<(Source, Selection)> {
         let job = self.job()?;
         let ids: Vec<usize> = lock(&job.outcomes)

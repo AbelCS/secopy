@@ -88,6 +88,11 @@ Components use tokens only, never raw colours or sizes.
 ## Rules
 
 - One primary button per screen, in the action bar on the right.
+- Button labels use the fewest words that can't be read two ways: **Start** for every job
+  (the tab or screen says which), **Update**, **Save as…**, **Clear…**, **Retry**. Keep the
+  object when one word would be ambiguous (**Add to queue** next to the Queue button,
+  **Save report…**) or when macOS has a standard phrase (**Show in Finder**). Dialog buttons
+  name the action ("Stop copying" / "Keep copying"), never Yes / No.
 - Colour never carries meaning alone: every status has an icon or a word.
 - Chosen items are filled (`accent-soft`), not only outlined.
 - White text sits on `accent-strong`, never on `accent` (3.2:1 fails WCAG AA); `accent` is for links, borders, focus rings and bars.

@@ -18,7 +18,7 @@
     onQueue,
     banner,
   }: {
-    /** Start verify: check `path`. */
+    /** Verify's Start: check `path`. */
     onStart: (path: string) => void;
     onQueue: (queue: QueueView) => void;
     /** App-wide messages, shown first. */
@@ -112,7 +112,7 @@
     <ActionBar>
       {#snippet end()}
         <Button disabled={!ready} onclick={queue}>Add to queue</Button>
-        <Button variant="primary" disabled={!ready} onclick={() => view && onStart(view.directory)}>Start verify</Button>
+        <Button variant="primary" disabled={!ready} onclick={() => view && onStart(view.directory)}>Start</Button>
       {/snippet}
     </ActionBar>
   {/snippet}

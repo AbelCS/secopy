@@ -1,6 +1,6 @@
 <script lang="ts">
   // The queue (RFD §5.7): the jobs saved with Add to queue, in the order they run, what to do
-  // when one fails, and Run queue.
+  // when one fails, and Start.
   import { tick, type Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { OnFailure, QueueView } from "../lib/bindings";
@@ -123,10 +123,10 @@
   {#snippet actions()}
     <ActionBar status={count > 0 ? plural(count, "job") : ""}>
       {#snippet start()}
-        <Button variant="danger" disabled={count === 0} onclick={clear}>Clear queue…</Button>
+        <Button variant="danger" disabled={count === 0} onclick={clear}>Clear…</Button>
       {/snippet}
       {#snippet end()}
-        <Button variant="primary" disabled={count === 0} onclick={onRun}>Run queue</Button>
+        <Button variant="primary" disabled={count === 0} onclick={onRun}>Start</Button>
       {/snippet}
     </ActionBar>
   {/snippet}

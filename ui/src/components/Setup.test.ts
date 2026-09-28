@@ -40,7 +40,7 @@ function setup(
   return { api, state, started, calls, ...result };
 }
 
-const start = () => screen.getByRole("button", { name: /copy & verify|start copy/i });
+const start = () => screen.getByRole("button", { name: "Start" });
 const from = () => within(screen.getByRole("region", { name: "From" }));
 const to = () => within(screen.getByRole("region", { name: "To" }));
 const includeFolder = () => screen.getByLabelText("Include the “DCIM” directory");
@@ -55,7 +55,7 @@ describe("Setup", () => {
 
   test("a ready session enables Start and says what it will do", async () => {
     const { started } = setup(readyView());
-    const button = screen.getByRole("button", { name: "Start copy" });
+    const button = screen.getByRole("button", { name: "Start" });
     screen.getByText("1,284 files · 212.4 GB");
     expect(button).toHaveProperty("disabled", false);
     await fireEvent.click(button);
@@ -160,7 +160,7 @@ describe("Setup", () => {
     const { calls } = setup(readyView());
     await fireEvent.click(screen.getByLabelText("Copy"));
     expect(calls.modes).toEqual([false]);
-    screen.getByRole("button", { name: "Start copy" });
+    screen.getByRole("button", { name: "Start" });
     expect(screen.queryByRole("button", { name: /^Copy/ })).toBeNull();
   });
 
@@ -225,19 +225,19 @@ describe("Setup", () => {
     expect(calls.manage).toBe(1);
   });
 
-  test("a preset changed for this run offers Update preset", async () => {
+  test("a preset changed for this run offers Update", async () => {
     const { api, calls } = setup(readyView({ presetId: "fx3", presetChanged: true }), readyView(), {
       presets: [copyPreset()],
     });
     screen.getByText("Changed for this run");
-    await fireEvent.click(screen.getByRole("button", { name: "Update preset" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Update" }));
     await waitFor(() => expect(api.updateCopyPreset).toHaveBeenCalled());
     expect(calls.presets).toHaveLength(1);
   });
 
-  test("Save as new… asks only for a name; the source and settings are what's on screen", async () => {
+  test("Save as… asks only for a name; the source and settings are what's on screen", async () => {
     const { api } = setup(readyView());
-    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as…" }));
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
     await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3" } });
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -247,15 +247,15 @@ describe("Setup", () => {
   test("a preset that can't be saved says why", async () => {
     const { api } = setup(readyView());
     api.saveCopyPresetAs.mockRejectedValueOnce(new Error("There is already a preset called “FX3”."));
-    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as…" }));
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("There is already a preset called “FX3”.");
   });
 
-  test("choosing another preset drops Save as new… and its error", async () => {
+  test("choosing another preset drops Save as… and its error", async () => {
     const { api } = setup(readyView(), readyView({ presetId: "fx3" }), { presets: [copyPreset()] });
     api.saveCopyPresetAs.mockRejectedValueOnce(new Error("There is already a preset called “FX3”."));
-    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as…" }));
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("There is already a preset called “FX3”.");
     await fireEvent.change(screen.getByRole("combobox", { name: "Preset" }), { target: { value: "fx3" } });
@@ -263,10 +263,10 @@ describe("Setup", () => {
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
   });
 
-  test("another source drops Save as new… and its error", async () => {
+  test("another source drops Save as… and its error", async () => {
     const { api, rerender } = setup(readyView());
     api.saveCopyPresetAs.mockRejectedValueOnce(new Error("There is already a preset called “FX3”."));
-    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as…" }));
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("There is already a preset called “FX3”.");
     const other = "/Volumes/CARD_B/DCIM";
@@ -275,9 +275,9 @@ describe("Setup", () => {
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
   });
 
-  test("a new scan of the same source keeps Save as new… open", async () => {
+  test("a new scan of the same source keeps Save as… open", async () => {
     const { rerender } = setup(readyView());
-    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as…" }));
     await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3" } });
     await rerender({ view: readyView({ source: sourceView({ selectedExtensions: ["mov"] }) }) });
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "FX3");
@@ -288,7 +288,7 @@ describe("Setup", () => {
       presets: [copyPreset()],
     });
     expect(screen.getByRole("combobox", { name: "Preset" })).toHaveProperty("disabled", true);
-    expect(screen.queryByRole("button", { name: "Save as new…" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save as…" })).toBeNull();
   });
 
   test("the terms that need it explain themselves", () => {
@@ -329,7 +329,7 @@ describe("Setup", () => {
     api.selectCopyPreset.mockImplementationOnce(() => new Promise((resolve) => (finishScan = resolve)));
     await fireEvent.change(screen.getByRole("combobox", { name: "Preset" }), { target: { value: "" } });
     await screen.findByText("Scanning…");
-    expect(screen.getByRole("button", { name: "Update preset" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Update" })).toHaveProperty("disabled", true);
     expect(includeFolder()).toHaveProperty("disabled", true);
     finishScan(readyView());
     await waitFor(() => expect(screen.queryByText("Scanning…")).toBeNull());
@@ -350,9 +350,9 @@ describe("Setup", () => {
     within(screen.getByRole("group", { name: "Source" })).getByText("Drop a directory or files here, or choose them.");
   });
 
-  test("Esc closes Save as new…", async () => {
+  test("Esc closes Save as…", async () => {
     setup(readyView());
-    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as…" }));
     const form = screen.getByRole("textbox", { name: "Name" }).closest("form")!;
     await fireEvent.keyDown(form, { key: "Escape" });
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
@@ -372,16 +372,16 @@ describe("Setup", () => {
   test("with no presets, Preset offers to create one instead of an empty menu", async () => {
     const { calls } = setup();
     expect(screen.queryByRole("combobox", { name: "Preset" })).toBeNull();
-    await fireEvent.click(screen.getByRole("button", { name: "Create a preset…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "New preset…" }));
     expect(calls.manage).toBe(1);
   });
 
-  test("closing Save as new… puts focus back on its button", async () => {
+  test("closing Save as… puts focus back on its button", async () => {
     setup(readyView());
-    const open = screen.getByRole("button", { name: "Save as new…" });
+    const open = screen.getByRole("button", { name: "Save as…" });
     await fireEvent.click(open);
     await fireEvent.keyDown(screen.getByRole("textbox", { name: "Name" }), { key: "Escape" });
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Save as new…" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Save as…" }));
   });
 
   test("Add to queue saves the setup, says so, and clears the source", async () => {

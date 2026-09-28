@@ -25,7 +25,7 @@ pub struct SessionView {
     pub plan: Option<PlanView>,
     /// The selected copy preset's id (FR-38).
     pub preset_id: Option<String>,
-    /// This run's choices differ from the preset's: offer Update preset / Save as new….
+    /// This run's choices differ from the preset's: offer Update / Save as….
     pub preset_changed: bool,
     /// Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP".
     pub pick_problem: Option<String>,
@@ -43,7 +43,7 @@ pub struct SourceView {
     pub contents_only: bool,
     /// The picked folder, to scan again when "folder itself / only what's inside" changes.
     pub folder: Option<String>,
-    /// The failed files of the last job ("Retry failed"): nothing to choose but the
+    /// The failed files of the last job ("Retry"): nothing to choose but the
     /// destination.
     pub is_retry: bool,
     /// The folder created for "copy the folder itself", e.g. "CLIP".
@@ -514,7 +514,7 @@ pub struct MirrorPreviewView {
     /// Files that will fail (a name the destination can't take, something in the way).
     pub failing: u32,
     pub unchanged: u32,
-    /// Why the run looks wrong (FR-50): Run mirror asks first.
+    /// Why the run looks wrong (FR-50): the preview's Start asks first.
     pub guard: Option<String>,
 }
 

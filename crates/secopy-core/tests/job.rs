@@ -796,7 +796,7 @@ fn failed_files_can_be_retried() {
     let failed: Vec<usize> = report.failed().map(|o| o.id).collect();
     assert_eq!(failed.len(), 1);
 
-    // "Retry failed": the same selection, only the failed files, checked again.
+    // "Retry": the same selection, only the failed files, checked again.
     let retry = sel.subset(&failed);
     let pf = preflight(&source, &retry, &f.dest).unwrap();
     let second = Plan::resolve(&retry, &pf, DiffersPolicy::KeepBoth);

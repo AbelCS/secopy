@@ -18,11 +18,11 @@ function show() {
 describe("VerifyScreen", () => {
   test("choosing a directory says what it will check", async () => {
     const { api, calls } = show();
-    expect(screen.getByRole("button", { name: "Start verify" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Start" })).toHaveProperty("disabled", true);
     api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
     await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
     await screen.findByText("3 checksum files · 1,284 files listed · 212.4 GB · 12 files not listed");
-    await fireEvent.click(screen.getByRole("button", { name: "Start verify" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(calls.start).toEqual(["/Volumes/Backup/Day01"]);
   });
 
@@ -32,7 +32,7 @@ describe("VerifyScreen", () => {
     api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup");
     await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
     await screen.findByText(/No checksum files here/);
-    expect(screen.getByRole("button", { name: "Start verify" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Start" })).toHaveProperty("disabled", true);
   });
 
   test("problems in checksum files are shown before starting", async () => {

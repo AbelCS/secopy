@@ -43,12 +43,12 @@ pub struct AppState {
     pub(crate) queue: Mutex<Queue>,
     /// Saved mirror presets (plan 7).
     pub(crate) mirrors: Mutex<MirrorPresets>,
-    /// The mirror last previewed, with its preset as it was: Run mirror runs exactly this, once
+    /// The mirror last previewed, with its preset as it was: the preview's Start runs exactly this, once
     /// (FR-47).
     preview: Mutex<Option<(MirrorPreset, MirrorJob)>>,
     /// Stops a mirror being planned (its deep check), for Preview's Cancel and the queue's.
     planning: Mutex<Vec<Arc<JobControl>>>,
-    /// The directory last chosen on Verify, planned: Start verify runs exactly this, once.
+    /// The directory last chosen on Verify, planned: Verify's Start runs exactly this, once.
     checking: Mutex<Option<(PathBuf, Arc<CheckPlan>)>>,
     pub(crate) queue_run: Mutex<QueueRun>,
 }
@@ -207,7 +207,7 @@ impl AppState {
         }
     }
 
-    /// Update preset: this run's choices go into the selected copy preset.
+    /// Update: this run's choices go into the selected copy preset.
     pub fn update_copy_preset(&self) -> Result<CopyPresetsView, String> {
         let updated = {
             let s = session(self);
@@ -224,7 +224,7 @@ impl AppState {
         Ok(self.copy_presets_view(view))
     }
 
-    /// Save as new…: this run's source and choices under a new name, then selected.
+    /// Save as…: this run's source and choices under a new name, then selected.
     pub fn save_copy_preset_as(&self, name: String) -> Result<CopyPresetsView, String> {
         let (source, (include_folder, extensions)) = {
             let s = session(self);
@@ -316,7 +316,7 @@ impl AppState {
         Ok(())
     }
 
-    /// "Retry failed": the failed files of the last job become the source.
+    /// "Retry": the failed files of the last job become the source.
     pub fn retry_failed(&self) -> Result<SessionView, String> {
         let (source, selection) = self.jobs.retry().ok_or("No files failed.")?;
         // With the card pulled out: say so instead of failing every file.
@@ -493,7 +493,7 @@ impl AppState {
         Ok(self.run_claimed(sink))
     }
 
-    /// Marks the queue as running, so a second Run queue is refused before any thread starts.
+    /// Marks the queue as running, so starting it again is refused before any thread starts.
     pub fn claim_queue_run(&self) -> Result<(), String> {
         let mut run = lock(&self.queue_run);
         if run.running || self.jobs.is_running() {
@@ -1101,7 +1101,7 @@ impl AppState {
         })
     }
 
-    /// Works out what the preset would do now and keeps it for Run mirror (FR-47).
+    /// Works out what the preset would do now and keeps it for the preview's Start (FR-47).
     pub fn preview_mirror(
         &self,
         id: &str,
@@ -1189,7 +1189,7 @@ impl AppState {
             .collect()
     }
 
-    /// Run mirror: the previewed plan, through the job runner (FR-47).
+    /// Start on the preview: the previewed plan, through the job runner (FR-47).
     /// Runs the preview of preset `id`, as it was previewed; a preview runs once.
     pub fn run_mirror(&self, id: &str, sink: impl ProgressSink) -> Result<(), String> {
         if lock(&self.queue_run).running {
@@ -1210,7 +1210,7 @@ impl AppState {
         Ok(())
     }
 
-    /// Verify's Choose…: plans a check of `path` and keeps it for Start verify.
+    /// Verify's Choose…: plans a check of `path` and keeps it for Verify's Start.
     pub fn check_directory(&self, path: &Path) -> Result<CheckView, String> {
         let plan = plan_check(path)?;
         let view = CheckView {
@@ -1232,7 +1232,7 @@ impl AppState {
         Ok(view)
     }
 
-    /// Start verify: runs the plan made for `path`, once.
+    /// Verify's Start: runs the plan made for `path`, once.
     pub fn start_check(&self, path: &str, sink: impl ProgressSink) -> Result<(), String> {
         if lock(&self.queue_run).running {
             return Err("A copy or the queue is already running.".into());
@@ -1409,7 +1409,7 @@ pub async fn delete_mirror_preset(app: AppHandle, id: String) -> Result<Vec<Mirr
     blocking(app, move |state| state.delete_mirror_preset(&id)).await?
 }
 
-/// A mirror's preview (FR-47); Run mirror then runs it.
+/// A mirror's preview (FR-47); the preview's Start then runs it.
 #[tauri::command]
 #[specta::specta]
 pub async fn preview_mirror(
@@ -1473,7 +1473,7 @@ pub async fn check_directory(app: AppHandle, path: String) -> Result<CheckView, 
     blocking(app, move |state| state.check_directory(Path::new(&path))).await?
 }
 
-/// Start verify: checks the directory chosen last; progress arrives on `on_progress`.
+/// Verify's Start: checks the directory chosen last; progress arrives on `on_progress`.
 #[tauri::command]
 #[specta::specta]
 pub async fn start_check(
@@ -1490,7 +1490,7 @@ pub async fn add_check_to_queue(app: AppHandle, path: String) -> Result<QueueVie
     blocking(app, move |state| state.add_check_to_queue(&path)).await?
 }
 
-/// "Retry failed": only the failed files, checked again (RFD §5.4).
+/// "Retry": only the failed files, checked again (RFD §5.4).
 #[tauri::command]
 #[specta::specta]
 pub async fn retry_failed(app: AppHandle) -> Result<SessionView, String> {
@@ -2446,7 +2446,7 @@ mod tests {
         assert_eq!((p.failing, p.unchanged, p.new_files), (1, 0, 0));
     }
 
-    /// #57: Run mirror runs the preview of that preset, as it was previewed, once.
+    /// #57: the preview's Start runs the preview of that preset, as it was previewed, once.
     #[test]
     fn run_mirror_runs_only_the_preview_of_that_preset() {
         let dir = tempfile::tempdir().unwrap();

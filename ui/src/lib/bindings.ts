@@ -81,7 +81,7 @@ export const commands = {
 	check: CheckSummaryView | null,
 } | null, string>(__TAURI_INVOKE("job_summary")),
 	saveReport: (path: string) => typedError<null, string>(__TAURI_INVOKE("save_report", { path })),
-	/**  "Retry failed": only the failed files, checked again (RFD §5.4). */
+	/**  "Retry": only the failed files, checked again (RFD §5.4). */
 	retryFailed: () => typedError<SessionView, string>(__TAURI_INVOKE("retry_failed")),
 	/**  The UI says which File menu items apply. */
 	setMenuState: (setup: boolean, canStart: boolean, copying: boolean) => __TAURI_INVOKE<void>("set_menu_state", { setup, canStart, copying }),
@@ -99,7 +99,7 @@ export const commands = {
 	createMirrorPreset: (input: MirrorPresetInput) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("create_mirror_preset", { input })),
 	editMirrorPreset: (id: string, input: MirrorPresetInput) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("edit_mirror_preset", { id, input })),
 	deleteMirrorPreset: (id: string) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("delete_mirror_preset", { id })),
-	/**  A mirror's preview (FR-47); Run mirror then runs it. */
+	/**  A mirror's preview (FR-47); the preview's Start then runs it. */
 	previewMirror: (id: string, onCompared: Channel<ComparedView>) => typedError<MirrorPreviewView, string>(__TAURI_INVOKE("preview_mirror", { id, onCompared })),
 	mirrorPreviewPage: (kind: "new" | "changed" | "removed" | null, offset: number, limit: number) => typedError<PreviewRow[], string>(__TAURI_INVOKE("mirror_preview_page", { kind, offset, limit })),
 	/**  Runs the previewed mirror; progress arrives on `on_progress`. */
@@ -109,7 +109,7 @@ export const commands = {
 	addMirrorToQueue: (id: string) => typedError<QueueView, string>(__TAURI_INVOKE("add_mirror_to_queue", { id })),
 	/**  Verify's Choose…: what `path`'s checksum files list (plan 8). */
 	checkDirectory: (path: string) => typedError<CheckView, string>(__TAURI_INVOKE("check_directory", { path })),
-	/**  Start verify: checks the directory chosen last; progress arrives on `on_progress`. */
+	/**  Verify's Start: checks the directory chosen last; progress arrives on `on_progress`. */
 	startCheck: (path: string, onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("start_check", { path, onProgress })),
 	addCheckToQueue: (path: string) => typedError<QueueView, string>(__TAURI_INVOKE("add_check_to_queue", { path })),
 };
@@ -174,7 +174,7 @@ export type CopyPreset = {
 	extensions: (string | null)[] | null,
 };
 
-/**  A copy preset as typed in a form (Save as new…, the Copy presets screen). */
+/**  A copy preset as typed in a form (Save as…, the Copy presets screen). */
 export type CopyPresetInput = {
 	name: string,
 	/**  A full path, or empty. */
@@ -291,7 +291,7 @@ export type MirrorPreviewView = {
 	/**  Files that will fail (a name the destination can't take, something in the way). */
 	failing: number,
 	unchanged: number,
-	/**  Why the run looks wrong (FR-50): Run mirror asks first. */
+	/**  Why the run looks wrong (FR-50): the preview's Start asks first. */
 	guard: string | null,
 };
 
@@ -434,7 +434,7 @@ export type SessionView = {
 	plan: PlanView | null,
 	/**  The selected copy preset's id (FR-38). */
 	presetId: string | null,
-	/**  This run's choices differ from the preset's: offer Update preset / Save as new…. */
+	/**  This run's choices differ from the preset's: offer Update / Save as…. */
 	presetChanged: boolean,
 	/**  Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP". */
 	pickProblem: string | null,
@@ -466,7 +466,7 @@ export type SourceView = {
 	/**  The picked folder, to scan again when "folder itself / only what's inside" changes. */
 	folder: string | null,
 	/**
-	 *  The failed files of the last job ("Retry failed"): nothing to choose but the
+	 *  The failed files of the last job ("Retry"): nothing to choose but the
 	 *  destination.
 	 */
 	isRetry: boolean,

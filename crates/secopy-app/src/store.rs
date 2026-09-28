@@ -126,7 +126,7 @@ impl<'de> Deserialize<'de> for CopyPreset {
     }
 }
 
-/// A copy preset as typed in a form (Save as new…, the Copy presets screen).
+/// A copy preset as typed in a form (Save as…, the Copy presets screen).
 #[derive(Debug, Clone, PartialEq, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CopyPresetInput {
@@ -217,7 +217,7 @@ impl CopyPresets {
         Ok(preset.clone())
     }
 
-    /// Stores `preset` over the one with its id (Update preset).
+    /// Stores `preset` over the one with its id (Update).
     pub fn replace(&mut self, preset: CopyPreset) {
         if let Some(old) = self.presets.iter_mut().find(|p| p.id == preset.id) {
             *old = preset;

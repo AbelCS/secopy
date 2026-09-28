@@ -144,7 +144,7 @@
             A copy preset saves a source and its settings (whether that directory itself is copied, and which
             file types), so a copy you do often is set up in one step: choose the preset in the main window.
           </p>
-          <p>Create one with “+ New preset”, or with “Save as new…” in the main window.</p>
+          <p>Create one with “+ New preset”, or with “Save as…” in the main window.</p>
         </EmptyState>
       {/if}
       {#if error}<Notice tone="danger">{error}</Notice>{/if}
