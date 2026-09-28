@@ -66,9 +66,9 @@
         onChange={(on) => (draft.showSystemCount = on)}
       >
         {#snippet help()}
-          Files computers leave on a card (<span class="mono">.DS_Store</span>, <span class="mono">._*</span>,
-          <span class="mono">Thumbs.db</span>…) are never copied; this only shows how many were skipped. Hidden
-          files the camera wrote are copied.
+          Files computers leave behind (<span class="mono">.DS_Store</span>, <span class="mono">._*</span>,
+          <span class="mono">Thumbs.db</span>…) are never copied; this only shows how many were skipped. Every
+          other file is copied, hidden or not.
         {/snippet}
       </Checkbox>
       <Checkbox

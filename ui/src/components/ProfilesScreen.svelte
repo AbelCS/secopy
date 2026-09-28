@@ -72,7 +72,7 @@
 
   async function remove(p: Profile) {
     const sure = await api.confirm(
-      `The profile “${p.name}” is deleted. Cards and copies are not touched.`,
+      `The profile “${p.name}” is deleted. Its source and the copies are not touched.`,
       "Delete profile?",
       "Delete",
       "Keep",
