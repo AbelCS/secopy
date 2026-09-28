@@ -58,7 +58,7 @@ Components use tokens only, never raw colours or sizes.
 |---|---|
 | `AppShell` | Every screen's frame: `header`, content, `actions` |
 | `ScreenHeader` | Title and optional trailing controls |
-| `Sidebar` | The app's sections (Copy, Queue; Mirror later), with a count; hidden while jobs run and on Settings/Profiles |
+| `Sidebar` | The app's sections (Copy, Mirror, Queue), with a count; hidden while jobs run and on Settings/Profiles |
 | `ActionBar` | The bottom bar: `start`, `status`, `end` |
 | `Section` | A titled part of a screen; the only card style |
 | `FormRow` | One labelled line inside a section: the label column on the left, the content, the row's own actions on the right (Choose…, All · None) |
@@ -74,6 +74,7 @@ Components use tokens only, never raw colours or sizes.
 | `ProgressBar` | One phase's progress with speed and ETA |
 | `EmptyState` | What an empty part is for and how to fill it |
 | `Icon` | A few Lucide icons, always next to words |
+| `Dialog` | A question over the screen, only when a system dialog can't hold it (a checkbox): safe answer first and focused, the other on the right; Esc is the safe answer |
 
 ## Rules
 
@@ -85,3 +86,4 @@ Components use tokens only, never raw colours or sizes.
 - Every field has a visible label; its error appears right under it and is linked to it.
 - The user-facing words are "directory" and "file".
 - No emoji as icons.
+- Yes/no questions use the system dialog (`api.confirm`); `Dialog` only when the question needs more than two buttons.
