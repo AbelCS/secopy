@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/AbelCS/secopy/compare/v0.10.1...v0.11.0) (2026-09-28)
+
+
+### Features
+
+* **ui:** help on buttons whose short label hides the detail ([1c740c1](https://github.com/AbelCS/secopy/commit/1c740c1d01074fa0ed42177e21d4aad2cf6bc328)), closes [#75](https://github.com/AbelCS/secopy/issues/75)
+* **ui:** shorter button labels ([a6320f8](https://github.com/AbelCS/secopy/commit/a6320f80bb3ad4e029e53eff75cd1edbea9e5638)), closes [#72](https://github.com/AbelCS/secopy/issues/72)
+
 ## [0.10.1](https://github.com/AbelCS/secopy/compare/v0.10.0...v0.10.1) (2026-09-28)
 
 
