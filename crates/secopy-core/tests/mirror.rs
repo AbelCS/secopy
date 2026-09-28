@@ -426,3 +426,17 @@ fn the_deep_check_reports_progress_and_can_be_cancelled() {
         "Cancelled."
     );
 }
+
+/// #57 review: a destination reached through a symlink into the origin is refused too.
+#[cfg(unix)]
+#[test]
+fn a_symlink_into_the_origin_is_refused() {
+    let (dir, o, _) = pair();
+    write(&o, &[("a.mov", b"a"), ("sub/b.mov", b"b")]);
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(o.join("sub"), &link).unwrap();
+    assert_eq!(
+        mirror::plan(&o, &link.join("new"), &opts()).unwrap_err(),
+        "The destination can't be inside the origin."
+    );
+}

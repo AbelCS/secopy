@@ -12,6 +12,7 @@ import {
   summaryView,
   queuedJob,
   queueView,
+  mirrorPreview,
 } from "./test/fake-api";
 
 function app(view = readyView()) {
@@ -280,6 +281,33 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Pause" })).toHaveProperty("disabled", true);
     state.queueEvent!({ type: "jobStarted", index: 1, count: 2, job: queuedJob({ kind: "mirror", name: "Footage" }) });
     await screen.findByRole("heading", { level: 1, name: "Mirroring" });
+  });
+
+  test("a queued mirror's deep check says how far it is", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.queue = queueView({ jobs: [queuedJob({ kind: "mirror", name: "Footage" })] });
+    render(App, { props: { api } });
+    await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await waitFor(() => expect(state.queueEvent).not.toBeNull());
+    state.queueEvent!({ type: "jobChecking", index: 0, count: 1 });
+    state.queueEvent!({ type: "compared", index: 0, done: 1, total: 3 });
+    await screen.findByText("Comparing contents: 1 of 3 files");
+  });
+
+  test("a preview that ends after you left Mirror doesn't pull you back", async () => {
+    const { api, state } = app();
+    let finish: ((v: ReturnType<typeof mirrorPreview>) => void) | undefined;
+    api.previewMirror.mockImplementation(() => new Promise((r) => (finish = r)));
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-mirror");
+    await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
+    state.menu!("show-queue");
+    await screen.findByRole("heading", { level: 1, name: "Queue" });
+    finish!(mirrorPreview());
+    await new Promise((r) => setTimeout(r, 20));
+    screen.getByRole("heading", { level: 1, name: "Queue" });
   });
 
   test("after a queue run, Copy opens New copy, not an older summary", async () => {

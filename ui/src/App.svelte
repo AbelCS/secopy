@@ -76,7 +76,14 @@
   });
   /** The queue run in progress: this job's place, the number of jobs, and whether it is still
    * being checked; `kind` is the job's ("copy", "mirror") once it starts. */
-  let queueRun: { index: number; count: number; checking: boolean; kind: string | null } | null = $state(null);
+  let queueRun: {
+    index: number;
+    count: number;
+    checking: boolean;
+    kind: string | null;
+    /** A queued mirror's deep check: files compared, of how many. */
+    compared?: { done: number; total: number };
+  } | null = $state(null);
   let queueSummary: QueueSummaryView | null = $state(null);
   /** The job running is a mirror. */
   let mirrorRunning = $state(false);
@@ -258,6 +265,8 @@
         if (e.type === "jobChecking") {
           queueRun = { index: e.index, count: e.count, checking: true, kind: null };
           progress = queueWaiting(false);
+        } else if (e.type === "compared") {
+          if (queueRun) queueRun = { ...queueRun, compared: { done: e.done, total: e.total } };
         } else if (e.type === "jobStarted") {
           queueRun = { index: e.index, count: e.count, checking: false, kind: e.job.kind };
           progress = queueWaiting(e.job.kind === "mirror" || e.job.verify);
@@ -390,6 +399,7 @@
           {banner}
           queue={queueRun ?? undefined}
           checking={queueRun?.checking ?? false}
+          compared={queueRun?.compared}
           title={mirrorRunning || queueRun?.kind === "mirror" ? "Mirroring" : undefined}
         />
       {/key}
@@ -410,6 +420,8 @@
         {banner}
         onPresets={(p) => (mirrorPresets = p)}
         onPreview={(v) => {
+          // Only if still here: a long preview may end after you went elsewhere.
+          if (screen !== "mirror") return;
           mirrorPreview = v;
           screen = "mirror-preview";
         }}

@@ -42,7 +42,7 @@ pub struct AppState {
     /// (FR-47).
     preview: Mutex<Option<(MirrorPreset, MirrorJob)>>,
     /// Stops a mirror being planned (its deep check), for Preview's Cancel and the queue's.
-    planning: Mutex<Option<Arc<JobControl>>>,
+    planning: Mutex<Vec<Arc<JobControl>>>,
     pub(crate) queue_run: Mutex<QueueRun>,
 }
 
@@ -79,7 +79,7 @@ impl AppState {
             warnings: Mutex::new([w1, w2, w3, w4, w5].into_iter().flatten().collect()),
             mirrors: Mutex::new(mirrors),
             preview: Mutex::new(None),
-            planning: Mutex::new(None),
+            planning: Mutex::new(Vec::new()),
             queue: Mutex::new(queue),
             queue_run: Mutex::new(QueueRun::default()),
         }
@@ -430,7 +430,7 @@ impl AppState {
 
     /// Stops a mirror being planned: Preview's Cancel, or a queued mirror's deep check.
     pub fn cancel_preview(&self) {
-        if let Some(control) = lock(&self.planning).as_ref() {
+        for control in lock(&self.planning).iter() {
             control.cancel();
         }
     }
@@ -442,9 +442,9 @@ impl AppState {
         on_compared: &(dyn Fn(u64, u64) + Sync),
     ) -> Result<MirrorJob, String> {
         let control = Arc::new(JobControl::new());
-        *lock(&self.planning) = Some(control.clone());
+        lock(&self.planning).push(control.clone());
         let job = crate::mirrors::prepare(preset, &control, on_compared);
-        *lock(&self.planning) = None;
+        lock(&self.planning).retain(|c| !Arc::ptr_eq(c, &control));
         job
     }
 
@@ -573,12 +573,12 @@ impl AppState {
     fn run_one(
         &self,
         entry: &Entry,
-        (index, count): (u32, u32),
+        (index, jobs): (u32, u32),
         sink: &impl QueueSink,
     ) -> (QueueResult, Option<String>, Option<JobHandle>) {
         let started = QueueEvent::JobStarted {
             index,
-            count,
+            count: jobs,
             job: job_view(entry, &lock(&self.mirrors)),
         };
         match &entry.job {
@@ -598,8 +598,19 @@ impl AppState {
                 let Some(preset) = lock(&self.mirrors).get(preset).cloned() else {
                     return (QueueResult::Failed, Some(PRESET_GONE.into()), None);
                 };
-                let job = match self.plan_mirror(&preset, &|_, _| {}) {
+                let compared = |done, total| {
+                    sink.send(QueueEvent::Compared {
+                        index,
+                        done: count(done),
+                        total: count(total),
+                    })
+                };
+                let job = match self.plan_mirror(&preset, &compared) {
                     Ok(job) => job,
+                    // Cancel during the deep check: the queue was cancelled, not the job failed.
+                    Err(_) if lock(&self.queue_run).cancelled => {
+                        return (QueueResult::Cancelled, Some("Cancelled.".into()), None);
+                    }
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
                 // Nobody is there to confirm: a run that looks wrong doesn't start (FR-50).
@@ -627,8 +638,6 @@ impl AppState {
         started: QueueEvent,
         sink: &impl QueueSink,
     ) -> (QueueResult, Option<String>, Option<JobHandle>) {
-        // The checks passed: the window shows this job's Copying screen from here.
-        sink.send(started);
         {
             // A cancel during the checks stops the job before it starts: the check and the
             // start happen under the lock `cancel` takes.
@@ -636,6 +645,8 @@ impl AppState {
             if run.cancelled {
                 return (QueueResult::Cancelled, Some("Cancelled.".into()), None);
             }
+            // The checks passed: the window shows this job's Copying screen from here.
+            sink.send(started);
             if let Err(reason) = self
                 .jobs
                 .start(ready, verify, settings, Forward(sink.clone()))
@@ -1928,6 +1939,104 @@ mod tests {
             .preview_mirror(&id, &|done, _| {
                 if done == 0 {
                     state.cancel(false);
+                }
+            })
+            .unwrap_err();
+        assert_eq!(err, "Cancelled.");
+    }
+
+    /// A mirror state whose preset compares contents, with one unchanged file to compare, and
+    /// a guard that lets it run.
+    fn deep_mirror_state(dir: &Path) -> (AppState, String) {
+        let (state, id, o, d) = mirror_state(dir);
+        for f in ["a.mov", "x.mov", "y.mov"] {
+            fs::write(o.join(f), f).unwrap();
+            fs::write(d.join(f), f).unwrap();
+            let t = fs::metadata(o.join(f)).unwrap().modified().unwrap();
+            fs::File::options()
+                .write(true)
+                .open(d.join(f))
+                .unwrap()
+                .set_modified(t)
+                .unwrap();
+        }
+        let p = state.mirror_presets()[0].clone();
+        state
+            .edit_mirror_preset(
+                &id,
+                crate::store::MirrorPresetInput {
+                    name: p.name,
+                    origin: p.origin,
+                    destination: p.destination,
+                    deleted: p.deleted,
+                    deep_check: true,
+                },
+            )
+            .unwrap();
+        (state, id)
+    }
+
+    /// #57 review: a queued mirror's deep check shows how far it is, and Cancel there reads
+    /// as cancelled, not failed.
+    #[test]
+    fn a_queued_deep_check_reports_progress_and_cancels_as_cancelled() {
+        #[derive(Clone)]
+        struct CancelOnCompare(Events, Arc<AppState>);
+        impl QueueSink for CancelOnCompare {
+            fn send(&self, e: QueueEvent) {
+                if matches!(e, QueueEvent::Compared { done: 0, .. }) {
+                    self.1.cancel(false);
+                }
+                self.0.send(e);
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id) = deep_mirror_state(dir.path());
+        state.add_mirror_to_queue(&id).unwrap();
+        let state = Arc::new(state);
+        let events = Events::default();
+        let summary = state
+            .run_queue(CancelOnCompare(events.clone(), state.clone()))
+            .unwrap();
+        assert_eq!(summary.results[0].result, QueueResult::Cancelled);
+        assert_eq!(
+            state.queue_view().jobs[0].last_error.as_deref(),
+            Some("Stopped.")
+        );
+        assert!(events.0.lock().unwrap().iter().any(|e| matches!(
+            e,
+            QueueEvent::Compared {
+                index: 0,
+                done: 0,
+                total: 3
+            }
+        )));
+    }
+
+    /// #57 review: a job cancelled while it was checked never shows a Copying screen.
+    #[test]
+    fn a_job_cancelled_while_checked_is_never_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        let entry = lock(&state.queue).jobs[0].clone();
+        lock(&state.queue_run).cancelled = true;
+        let events = Events::default();
+        let (result, ..) = state.run_one(&entry, (0, 1), &events);
+        assert_eq!(result, QueueResult::Cancelled);
+        assert!(events.0.lock().unwrap().is_empty(), "no JobStarted");
+    }
+
+    /// #57 review: a second plan finishing doesn't take Cancel away from the first.
+    #[test]
+    fn cancel_reaches_every_mirror_being_planned() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id) = deep_mirror_state(dir.path());
+        let err = state
+            .preview_mirror(&id, &|done, _| {
+                if done == 0 {
+                    // Another preview, start to end, while this one runs.
+                    state.preview_mirror(&id, &|_, _| {}).unwrap();
+                    state.cancel_preview();
                 }
             })
             .unwrap_err();

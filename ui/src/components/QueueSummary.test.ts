@@ -62,4 +62,20 @@ describe("QueueSummary", () => {
     screen.getByText("Couldn't save the queue: permission denied");
     expect(screen.getByRole("list")).toBeTruthy();
   });
+
+  test("a queued mirror whose preset was deleted says so", () => {
+    render(QueueSummary, {
+      props: {
+        summary: {
+          complete: 0, count: 1, millis: 1000,
+          results: [{ job: queuedJob({ kind: "mirror", supported: false, name: null }), result: "failed", reason: "The mirror preset no longer exists.", summary: null }],
+          saveError: null,
+        },
+        onOpen: () => {},
+        onDone: () => {},
+      },
+    });
+    screen.getByText("A mirror that was deleted");
+    expect(screen.queryByText("A job for a newer Secopy")).toBeNull();
+  });
 });

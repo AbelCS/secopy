@@ -53,7 +53,7 @@
           <div class="what">
             <span class="word">{word[r.result]}</span>
             {#if !r.job.supported}
-              <span>A job for a newer Secopy</span>
+              <span>{r.job.kind === "mirror" ? "A mirror that was deleted" : "A job for a newer Secopy"}</span>
             {:else}
               {#if r.job.kind === "mirror"}<span>Mirror · {r.job.name ?? ""}</span>{/if}
               <span class="mono path"><bdi>{r.job.source}</bdi></span>

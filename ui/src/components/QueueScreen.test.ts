@@ -48,6 +48,22 @@ describe("QueueScreen", () => {
     expect(screen.getByRole("button", { name: "Move job 1 up" })).toHaveProperty("disabled", true);
   });
 
+  test("a queued mirror whose preset was deleted says so", () => {
+    show(queueView({ jobs: [queuedJob({ kind: "mirror", supported: false, name: null, lastError: "The mirror preset no longer exists." })] }));
+    screen.getByText("A mirror that was deleted");
+    expect(screen.queryByText("A job for a newer Secopy")).toBeNull();
+  });
+
+  test("a move that fails leaves the focus where it was", async () => {
+    const { api } = show();
+    api.moveInQueue.mockRejectedValueOnce(new Error("The queue is running."));
+    const down = screen.getByRole("button", { name: "Move job 1 down" });
+    down.focus();
+    await fireEvent.click(down);
+    await screen.findByText("The queue is running.");
+    expect(document.activeElement).toBe(down);
+  });
+
   test("for VoiceOver: a list, and focus follows a moved job", async () => {
     show();
     expect(screen.getByRole("list")).toBeTruthy();

@@ -34,18 +34,21 @@
   let error: string | null = $state(null);
   const count = $derived(queue.jobs.length);
 
-  async function change(call: () => Promise<QueueView>) {
+  /** Whether the change worked. */
+  async function change(call: () => Promise<QueueView>): Promise<boolean> {
     try {
       onQueue(await call());
       error = null;
+      return true;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+      return false;
     }
   }
 
   /** Moves a job and keeps the focus on it, in its new row (for the keyboard and VoiceOver). */
   async function move(from: number, to: number) {
-    await change(() => api.moveInQueue(from, to));
+    if (!(await change(() => api.moveInQueue(from, to)))) return;
     await tick();
     const row = document.querySelectorAll<HTMLElement>(".job")[to];
     const buttons = [...(row?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
@@ -90,7 +93,7 @@
                 <span class="arrow" aria-hidden="true">→</span>
                 <span class="path mono" title={job.destination}><bdi>{job.destination}</bdi></span>
               {:else}
-                <span class="mode">A job for a newer Secopy</span>
+                <span class="mode">{job.kind === "mirror" ? "A mirror that was deleted" : "A job for a newer Secopy"}</span>
               {/if}
               {#if job.lastError}<Notice tone="danger">{job.lastError}</Notice>{/if}
             </div>
