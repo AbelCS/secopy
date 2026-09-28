@@ -8,6 +8,7 @@
   import { notificationFor, queueNotification } from "./lib/summaryText";
   import type {
     CopyPreset,
+    ExportWhat,
     ProgressView,
     MirrorPreset,
     MirrorPreviewView,
@@ -19,6 +20,7 @@
   } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
   import CopyPresetsScreen from "./components/CopyPresetsScreen.svelte";
+  import ExportDialog from "./components/ExportDialog.svelte";
   import QueueScreen from "./components/QueueScreen.svelte";
   import QueueSummary from "./components/QueueSummary.svelte";
   import MirrorPreview from "./components/MirrorPreview.svelte";
@@ -150,6 +152,10 @@
   let progress: ProgressView | null = $state(null);
   let summary: SummaryView | null = $state(null);
   let error: string | null = $state(null);
+  /** A short confirmation ("Exported 3 copy presets."), shown on the screen it was said on. */
+  let info: { text: string; on: Screen } | null = $state(null);
+  /** File › Export…'s dialog is open. */
+  let exporting = $state(false);
   let setupScreen: Setup | undefined = $state();
   let progressScreen: JobProgress | undefined = $state();
   /** Start is enabled on New copy. */
@@ -172,6 +178,7 @@
     else if (item === "choose-destination" && screen === "setup") void setupScreen?.chooseDestination();
     else if (item === "start-copy" && screen === "setup") setupScreen?.startIfReady();
     else if (item === "cancel-copy" && screen === "progress") void progressScreen?.cancel();
+    else if (item === "export-file") exporting = true;
     else if (item === "show-copy") go("copy");
     else if (item === "show-mirror") go("mirror");
     else if (item === "show-verify") go("verify");
@@ -206,6 +213,16 @@
     totalFiles: 0,
     totalBytes: 0,
   });
+
+  /** Export's dialog answered: where to save, then save. */
+  async function exportChosen(what: ExportWhat) {
+    exporting = false;
+    const today = new Date().toISOString().slice(0, 10);
+    const path = await api.pickExportPath(`Secopy settings ${today}.secopy`);
+    if (!path) return;
+    const said = await run(() => api.exportAll(path, what));
+    if (said) info = { text: said, on: screen };
+  }
 
   async function run<T>(action: () => Promise<T>): Promise<T | undefined> {
     try {
@@ -431,6 +448,7 @@
 
 <!-- App-wide messages, shown at the top of the screen's content. -->
 {#snippet banner()}
+  {#if info && info.on === screen}<Notice tone="success">{info.text}</Notice>{/if}
   {#if error}<Notice tone="danger">{error}</Notice>{/if}
   {#if warnings.length > 0}
     <Notice tone="warning">
@@ -490,7 +508,13 @@
     {:else if screen === "summary" && summary}
       <Summary {summary} {banner} onRetry={retry} onNewCopy={newCopy} />
     {:else if screen === "settings"}
-      <SettingsScreen {settings} onSettings={(s) => (settings = s)} onDone={() => (screen = back)} />
+      <SettingsScreen
+        {settings}
+        {banner}
+        onSettings={(s) => (settings = s)}
+        onExport={() => (exporting = true)}
+        onDone={() => (screen = back)}
+      />
     {:else if screen === "copy-presets"}
       <CopyPresetsScreen
         presets={copyPresets}
@@ -545,6 +569,15 @@
     {/if}
   </div>
 </div>
+
+{#if exporting}
+  <ExportDialog
+    copyPresets={copyPresets.length}
+    mirrorPresets={mirrorPresets.length}
+    onExport={exportChosen}
+    onClose={() => (exporting = false)}
+  />
+{/if}
 
 <style>
   .app {

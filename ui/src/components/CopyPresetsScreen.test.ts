@@ -230,4 +230,23 @@ describe("CopyPresetsScreen", () => {
     answer!(true);
     await waitFor(() => expect(calls.done).toBe(1));
   });
+
+  test("Export… saves the selected preset under its name", async () => {
+    const { api } = show();
+    api.pickExportPath.mockResolvedValue("/Users/me/Sony FX3.secopy");
+    api.exportCopyPreset.mockResolvedValue("Exported “Sony FX3”.");
+    await fireEvent.click(screen.getByRole("button", { name: "Export…" }));
+    expect(api.pickExportPath).toHaveBeenCalledWith(`${copyPreset().name}.secopy`);
+    await waitFor(() => expect(api.exportCopyPreset).toHaveBeenCalledWith(copyPreset().id, "/Users/me/Sony FX3.secopy"));
+    await screen.findByText("Exported “Sony FX3”.");
+  });
+
+  test("Export… with unsaved changes asks first; Keep editing exports nothing", async () => {
+    const { api } = show();
+    api.confirm.mockResolvedValue(false);
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Export…" }));
+    await waitFor(() => expect(api.confirm).toHaveBeenCalled());
+    expect(api.pickExportPath).not.toHaveBeenCalled();
+  });
 });

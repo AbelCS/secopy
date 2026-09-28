@@ -105,4 +105,23 @@ describe("MirrorScreen: help on Add to queue", () => {
     );
     expect(helpOf(screen.getByRole("button", { name: "Preview…" }))).toBeNull();
   });
+
+  test("Export… saves the selected mirror under its name", async () => {
+    const { api } = show();
+    api.pickExportPath.mockResolvedValue("/Users/me/Footage.secopy");
+    api.exportMirrorPreset.mockResolvedValue("Exported “Footage”.");
+    await fireEvent.click(screen.getByRole("button", { name: "Export…" }));
+    expect(api.pickExportPath).toHaveBeenCalledWith(`${mirrorPreset().name}.secopy`);
+    await waitFor(() => expect(api.exportMirrorPreset).toHaveBeenCalledWith(mirrorPreset().id, "/Users/me/Footage.secopy"));
+    await screen.findByText("Exported “Footage”.");
+  });
+
+  test("Export… with unsaved changes asks first; Keep editing exports nothing", async () => {
+    const { api } = show();
+    api.confirm.mockResolvedValue(false);
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Other" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Export…" }));
+    await waitFor(() => expect(api.confirm).toHaveBeenCalled());
+    expect(api.pickExportPath).not.toHaveBeenCalled();
+  });
 });
