@@ -77,13 +77,13 @@ section says, which also checks those first-launch steps), then:
     ⇧⌘. shows hidden files). Run again: "Already in sync".
 26. **Mirror safety.** Point a preset's origin at an empty directory: Preview warns, Run asks.
     Queue that preset: the job fails with the reason, nothing removed. Pull the destination
-    mid-run: files fail and "Nothing was removed".
+    mid-run: files fail and "Files deleted in the origin were left in the destination".
 27. **Mirror in the queue.** Queue a copy and a mirror; Run queue; both complete; the queue
     summary opens the mirror's summary.
 28. **Cancel and remove.** Start a copy into a directory with a file already in it; Cancel:
     Continue (and Esc) keep copying. Cancel again, tick "Also remove the files already
     copied", Stop: the destination is as before (the old file stays, no checksum file, no new
-    directories) and the summary says "Cancelled: the copied files were removed". Cancel
+    directories) and the summary says "Cancelled: the destination is back as it was". Cancel
     without ticking: the copied files stay.
 
 Record the macOS version, the card reader and anything odd in the release PR.

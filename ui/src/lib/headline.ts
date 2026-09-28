@@ -20,7 +20,10 @@ export function headline(s: SummaryView): string {
     case "stopped":
       return `Stopped: ${s.stoppedBecause ?? "the copy could not continue"}`;
     case "cancelled":
-      return s.undone ? "Cancelled: the copied files were removed" : "Cancelled";
+      if (!s.undone) return "Cancelled";
+      return s.undone.notRestored === 0 && s.undone.failed === 0
+        ? "Cancelled: the destination is back as it was"
+        : "Cancelled: the copied files were removed";
     case "failures":
       return `${plural(s.failed, "file")} failed`;
     case "complete": {

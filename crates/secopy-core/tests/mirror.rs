@@ -246,7 +246,10 @@ fn nothing_is_removed_after_a_failure() {
     fs::remove_file(o.join("a.mov")).unwrap(); // vanished between plan and run
     let (report, removed) = run(&p, None);
     assert!(!report.is_success());
-    assert_eq!(removed.unwrap_err(), "Nothing was removed: 1 file failed.");
+    assert_eq!(
+        removed.unwrap_err(),
+        "Files deleted in the origin were left in the destination: 1 file failed."
+    );
     assert!(d.join("gone.mov").exists());
 }
 
