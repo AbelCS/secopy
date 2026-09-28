@@ -15,7 +15,7 @@ import ScreenHeader from "./ScreenHeader.svelte";
 import Section from "./Section.svelte";
 import SegmentedControl from "./SegmentedControl.svelte";
 import Select from "./Select.svelte";
-import Sidebar from "./Sidebar.svelte";
+import TabBar from "./TabBar.svelte";
 import Stats from "./Stats.svelte";
 import TextField from "./TextField.svelte";
 
@@ -156,11 +156,17 @@ describe("design system", () => {
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Summary" }));
   });
 
-  test("Sidebar: sections, the selected one, and a count", async () => {
+  test("TabBar: sections at the top, the selected one, a count, and what goes on the right", async () => {
     const onSelect = vi.fn();
-    render(Sidebar, {
-      props: { items: [{ id: "copy", label: "Copy" }, { id: "queue", label: "Queue", count: 3 }], selected: "copy", onSelect },
+    render(TabBar, {
+      props: {
+        items: [{ id: "copy", label: "Copy" }, { id: "queue", label: "Queue", count: 3 }],
+        selected: "copy",
+        onSelect,
+        trailing: text("Settings"),
+      },
     });
+    screen.getByText("Settings");
     const nav = screen.getByRole("navigation", { name: "Sections" });
     expect(within(nav).getByRole("button", { name: "Copy" }).getAttribute("aria-current")).toBe("page");
     await fireEvent.click(within(nav).getByRole("button", { name: "Queue, 3 jobs" }));

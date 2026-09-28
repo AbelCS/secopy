@@ -29,7 +29,6 @@
     onProfiles,
     onManageProfiles,
     onMode,
-    onSettings,
     banner,
     ready = $bindable(false),
     onQueued,
@@ -45,7 +44,6 @@
     onManageProfiles: () => void;
     /** Copy or Copy & Verify was chosen; remembered for next time (FR-36). */
     onMode: (verify: boolean) => void;
-    onSettings?: () => void;
     /** App-wide messages, shown first. */
     banner?: Snippet;
     /** Start is enabled (for the File menu's Start Copy). */
@@ -212,11 +210,7 @@
 
 <AppShell>
   {#snippet header()}
-    <ScreenHeader title="New copy">
-      {#snippet trailing()}
-        {#if onSettings}<Button icon="settings" onclick={onSettings}>Settings</Button>{/if}
-      {/snippet}
-    </ScreenHeader>
+    <ScreenHeader title="New copy" />
   {/snippet}
 
   {@render banner?.()}

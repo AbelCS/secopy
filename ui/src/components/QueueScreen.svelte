@@ -18,14 +18,12 @@
     queue,
     onQueue,
     onRun,
-    onSettings,
     banner,
   }: {
     queue: QueueView;
     /** The queue changed (and was saved). */
     onQueue: (queue: QueueView) => void;
     onRun: () => void;
-    onSettings?: () => void;
     /** App-wide messages, shown first. */
     banner?: Snippet;
   } = $props();
@@ -64,11 +62,7 @@
 
 <AppShell>
   {#snippet header()}
-    <ScreenHeader title="Queue">
-      {#snippet trailing()}
-        {#if onSettings}<Button icon="settings" onclick={onSettings}>Settings</Button>{/if}
-      {/snippet}
-    </ScreenHeader>
+    <ScreenHeader title="Queue" />
   {/snippet}
 
   {@render banner?.()}

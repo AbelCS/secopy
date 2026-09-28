@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import App from "./App.svelte";
 import {
@@ -92,6 +92,19 @@ describe("App", () => {
     await screen.findByRole("button", { name: "Start copy" });
     expect(screen.getByRole("radio", { name: "Copy" })).toHaveProperty("checked", true);
     screen.getByRole("option", { name: "Sony FX3" });
+  });
+
+  test("the sections are tabs at the top, with one Settings button for the whole app", async () => {
+    const { state } = app();
+    await startButton();
+    const tabs = screen.getByRole("navigation", { name: "Sections" });
+    for (const name of ["Copy", "Mirror", /^Queue/]) within(tabs).getByRole("button", { name });
+    const inBar = () => screen.getByRole("button", { name: "Settings" }).closest(".tabbar");
+    expect(inBar()).not.toBeNull();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-queue");
+    await screen.findByRole("heading", { level: 1, name: "Queue" });
+    expect(inBar()).not.toBeNull();
   });
 
   test("Settings opens from the gear and from the menu, and Cancel goes back", async () => {
@@ -215,7 +228,7 @@ describe("App", () => {
     await waitFor(() => expect(api.selectProfile).toHaveBeenCalledWith("fx3"));
   });
 
-  test("the sidebar switches between Copy and Queue, and hides while copying", async () => {
+  test("the tabs switch between Copy and Queue, and hide while copying", async () => {
     const { state } = app();
     await startButton();
     await fireEvent.click(screen.getByRole("button", { name: /^Queue/ }));
@@ -328,7 +341,7 @@ describe("App", () => {
     await screen.findByRole("heading", { level: 1, name: "New copy" });
   });
 
-  test("the sidebar and ⌘2 open Mirror", async () => {
+  test("the Mirror tab and ⌘2 open Mirror", async () => {
     const { state } = app();
     await startButton();
     await waitFor(() => expect(state.menu).not.toBeNull());

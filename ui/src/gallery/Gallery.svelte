@@ -51,23 +51,23 @@
 {:else if page === "progress"}
   <JobProgress {progress} />
 {:else if page === "summary"}
-  <Summary {summary} onRetry={() => {}} onNewCopy={() => {}} onSettings={() => {}} />
+  <Summary {summary} onRetry={() => {}} onNewCopy={() => {}} />
 {:else if page === "settings"}
   <SettingsScreen {settings} onSettings={() => {}} onDone={() => {}} />
 {:else if page === "mirror"}
-  <MirrorScreen presets={mirrors} onPresets={() => {}} onPreview={() => {}} onQueue={() => {}} onSettings={() => {}} />
+  <MirrorScreen presets={mirrors} onPresets={() => {}} onPreview={() => {}} onQueue={() => {}} />
 {:else if page === "cancel"}
   <JobProgress bind:this={progressScreen} {progress} />
 {:else if page === "mirror-preview"}
   <MirrorPreview preview={mirrorPreview} onRun={() => {}} onQueue={() => {}} onCancel={() => {}} />
 {:else if page === "mirror-summary"}
-  <Summary summary={mirrorSummary} onDone={() => {}} onSettings={() => {}} />
+  <Summary summary={mirrorSummary} onDone={() => {}} />
 {:else if page === "mirroring"}
   <JobProgress progress={{ ...progress, phase: "removing", removing: 5, archiving: true }} title="Mirroring" checksumFile={false} />
 {:else if page === "queue-summary"}
   <QueueSummary summary={queueSummary} onOpen={() => {}} onDone={() => {}} />
 {:else if page === "queue"}
-  <QueueScreen {queue} onQueue={() => {}} onRun={() => {}} onSettings={() => {}} />
+  <QueueScreen {queue} onQueue={() => {}} onRun={() => {}} />
 {:else if page === "profiles" || page === "profiles-empty"}
   <ProfilesScreen profiles={page === "profiles" ? profiles : []} onProfiles={() => {}} onView={() => {}} onDone={() => {}} />
 {:else}

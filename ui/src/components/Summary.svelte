@@ -20,7 +20,6 @@
     summary,
     onRetry,
     onNewCopy,
-    onSettings,
     banner,
     queueIndex,
     onBack,
@@ -34,7 +33,6 @@
     onBack?: () => void;
     /** A mirror's summary: Done goes back to Mirror instead of New copy. */
     onDone?: () => void;
-    onSettings?: () => void;
     /** App-wide messages, shown first. */
     banner?: Snippet;
   } = $props();
@@ -62,11 +60,7 @@
 
 <AppShell>
   {#snippet header()}
-    <ScreenHeader title="Summary">
-      {#snippet trailing()}
-        {#if onSettings}<Button icon="settings" onclick={onSettings}>Settings</Button>{/if}
-      {/snippet}
-    </ScreenHeader>
+    <ScreenHeader title="Summary" />
   {/snippet}
 
   {@render banner?.()}
