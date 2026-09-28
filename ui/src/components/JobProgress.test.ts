@@ -78,20 +78,52 @@ describe("JobProgress", () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), checksumFile: false }, context: apiContext(api) });
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() =>
-      expect(api.confirm).toHaveBeenCalledWith("Files already copied stay; the file in progress is removed.", "Stop copying?"),
-    );
+    const dialog = screen.getByRole("dialog", { name: "Stop copying?" });
+    within(dialog).getByText("Files already copied stay; the file in progress is removed.");
   });
 
-  test("cancel asks first and only stops when confirmed", async () => {
+  test("Cancel asks in a dialog: Continue keeps copying", async () => {
     const { api } = show(progressView());
-    api.confirm.mockResolvedValueOnce(false);
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(api.confirm).toHaveBeenCalledTimes(1));
+    const dialog = screen.getByRole("dialog", { name: "Stop copying?" });
+    within(dialog).getByText(/the file in progress is removed/);
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Continue" }));
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(api.cancelJob).not.toHaveBeenCalled();
+  });
+
+  test("Stop keeps the files already copied unless asked to remove them", async () => {
+    const { api } = show(progressView());
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(api.cancelJob).toHaveBeenCalled());
-    expect(api.confirm.mock.calls[0][0]).toContain("the file in progress is removed");
+    let dialog = screen.getByRole("dialog");
+    const remove = within(dialog).getByRole("checkbox", { name: "Also remove the files already copied" });
+    expect(remove).toHaveProperty("checked", false);
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Stop" }));
+    expect(api.cancelJob).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    dialog = screen.getByRole("dialog");
+    await fireEvent.click(within(dialog).getByRole("checkbox", { name: "Also remove the files already copied" }));
+    within(dialog).getByText("The file in progress and the files already copied are removed.");
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Stop" }));
+    expect(api.cancelJob).toHaveBeenLastCalledWith(true);
+  });
+
+  test("Esc closes the dialog and keeps copying", async () => {
+    const { api } = show(progressView());
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.cancelJob).not.toHaveBeenCalled();
+  });
+
+  test("a mirror asks Stop mirroring?", async () => {
+    const { api } = fakeApi();
+    render(JobProgress, { props: { progress: progressView(), title: "Mirroring" }, context: apiContext(api) });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    screen.getByRole("dialog", { name: "Stop mirroring?" });
   });
 
   test("big files get a row, small ones are grouped", () => {
@@ -213,6 +245,7 @@ describe("JobProgress", () => {
     render(JobProgress, { props: { progress: progressView(), queue: { index: 1, count: 3 } }, context: apiContext(api) });
     screen.getByText("Job 2 of 3");
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(api.confirm).toHaveBeenCalledWith(expect.any(String), "Stop copying and stop the queue?"));
+    screen.getByRole("dialog", { name: "Stop copying and stop the queue?" });
+    expect(api.confirm).not.toHaveBeenCalled();
   });
 });

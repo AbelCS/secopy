@@ -256,6 +256,22 @@ pub struct SummaryView {
     pub report_error: Option<String>,
     /// A mirror's own figures (plan 7); `None` for a copy.
     pub mirror: Option<MirrorSummaryView>,
+    /// What Cancel's "Also remove the files already copied" did (#54).
+    pub undone: Option<UndoneView>,
+}
+
+/// The files a cancelled job removed again (#54).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UndoneView {
+    /// Files it had created, removed.
+    pub removed: u32,
+    /// Files it had replaced, put back from the archive.
+    pub restored: u32,
+    /// Files it had replaced that couldn't be put back: the new version stays.
+    pub not_restored: u32,
+    /// Files that couldn't be removed or put back (the report lists them).
+    pub failed: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]

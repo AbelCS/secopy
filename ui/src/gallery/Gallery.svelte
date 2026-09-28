@@ -1,7 +1,7 @@
 <script lang="ts">
   // Pick a page with the hash: #components (default), #setup, #progress, #summary,
   // #settings, #profiles, #profiles-empty, #queue, #queue-summary, #mirror, #mirror-preview,
-  // #mirror-summary, #mirroring.
+  // #mirror-summary, #mirroring, #cancel.
   import { createRawSnippet } from "svelte";
   import App from "../App.svelte";
   import JobProgress from "../components/JobProgress.svelte";
@@ -36,6 +36,10 @@
   let mode: "copy" | "verify" = $state("verify");
   let all = $state(false);
   let on = $state(true);
+  let progressScreen: JobProgress | undefined = $state();
+  $effect(() => {
+    if (page === "cancel") progressScreen?.cancel();
+  });
   const help = createRawSnippet(() => ({ render: () => "<span>A line of help under the option.</span>" }));
 </script>
 
@@ -49,6 +53,8 @@
   <SettingsScreen {settings} onSettings={() => {}} onDone={() => {}} />
 {:else if page === "mirror"}
   <MirrorScreen presets={mirrors} onPresets={() => {}} onPreview={() => {}} onQueue={() => {}} onSettings={() => {}} />
+{:else if page === "cancel"}
+  <JobProgress bind:this={progressScreen} {progress} />
 {:else if page === "mirror-preview"}
   <MirrorPreview preview={mirrorPreview} onRun={() => {}} onQueue={() => {}} onCancel={() => {}} />
 {:else if page === "mirror-summary"}

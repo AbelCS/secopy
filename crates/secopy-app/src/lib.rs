@@ -146,7 +146,7 @@ pub fn run() {
             if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
                 let state = app.state::<AppState>();
                 state.remember(|_| {}); // writes the window size
-                state.cancel();
+                state.cancel(false); // quitting keeps the files already copied
                 state.jobs.wait();
                 if let Some(thread) = state
                     .queue_run

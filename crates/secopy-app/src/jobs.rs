@@ -4,7 +4,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering::Relaxed};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering::Relaxed};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -13,7 +13,8 @@ use chrono::{DateTime, Local};
 use secopy_core::checksum_file;
 use secopy_core::control::JobControl;
 use secopy_core::job::{
-    Event, FileOutcome, FileStatus, JobOptions, JobReport, Progress, SkipReason, run_job,
+    Event, FileOutcome, FileStatus, JobOptions, JobReport, Progress, SkipReason, Undone, run_job,
+    undo,
 };
 use secopy_core::mirror::{self, Change, Deleted, MirrorPlan, Removal};
 use secopy_core::plan::Plan;
@@ -23,7 +24,7 @@ use secopy_core::source::Source;
 
 use crate::dto::{
     ActiveFileView, FinishedRow, JobOutcome, JobPhase, MirrorSummaryView, ProgressView, RowStatus,
-    SmallFilesView, SummaryView, count, show,
+    SmallFilesView, SummaryView, UndoneView, count, show,
 };
 use crate::mirrors::MirrorJob;
 use crate::session::Ready;
@@ -111,6 +112,8 @@ struct Job {
     /// The engine's latest progress; the final view is built from it.
     last: Mutex<Progress>,
     failed: AtomicU32,
+    /// Cancel asked to remove the files already copied (#54).
+    remove_copied: AtomicBool,
     done: Mutex<Option<Done>>,
 }
 
@@ -123,6 +126,8 @@ struct Done {
     next_to_error: Option<String>,
     /// A mirror's removals, or why nothing was removed (plan 7).
     removals: Option<Result<Vec<Removal>, String>>,
+    /// What a cancel with "Also remove the files already copied" removed (#54).
+    undone: Option<Undone>,
 }
 
 impl Jobs {
@@ -158,6 +163,7 @@ impl Jobs {
             outcomes: Mutex::new(Vec::new()),
             last: Mutex::new(Progress::default()),
             failed: AtomicU32::new(0),
+            remove_copied: AtomicBool::new(false),
             done: Mutex::new(None),
         });
         *current = Some(job.clone());
@@ -183,9 +189,11 @@ impl Jobs {
         }
     }
 
-    /// Stops the job: the file in progress is removed, finished files stay (FR-23).
-    pub fn cancel(&self) {
+    /// Stops the job: the file in progress is removed; finished files stay (FR-23) unless
+    /// `remove_copied` (#54).
+    pub fn cancel(&self, remove_copied: bool) {
         if let Some(job) = self.job() {
+            job.remove_copied.store(remove_copied, Relaxed);
             job.control.cancel();
         }
     }
@@ -342,6 +350,12 @@ impl Job {
                 (!errors.is_empty()).then(|| errors.join("; "))
             },
             mirror,
+            undone: done.undone.as_ref().map(|u| UndoneView {
+                removed: count(u.removed),
+                restored: count(u.restored),
+                not_restored: count(u.not_restored),
+                failed: count(u.failed.len()),
+            }),
         })
     }
 
@@ -376,7 +390,7 @@ impl Job {
             ..JobOptions::default()
         };
         let plan: &Plan = &self.ready.plan;
-        let report = run_job(plan, &opts, &self.control, &|event| match event {
+        let mut report = run_job(plan, &opts, &self.control, &|event| match event {
             Event::Progress(p) => {
                 sink.send(self.progress(&p, false, None));
                 *self.last.lock().expect("job lock poisoned") = p;
@@ -388,14 +402,22 @@ impl Job {
                 self.outcomes.lock().expect("job lock poisoned").push(o);
             }
         });
+        // Cancel with "Also remove the files already copied": the destination as it was.
+        let undone = (report.cancelled && self.remove_copied.load(Relaxed)).then(|| {
+            let undone = undo(plan, &report, mirroring.and_then(|m| m.archive.as_deref()));
+            report.checksum_file = None;
+            undone
+        });
         // A mirror removes what's gone from its origin, only after a clean copy phase.
         let removals = mirroring.map(|m| {
-            let last = self.last.lock().expect("job lock poisoned").clone();
-            let mut view = self.progress(&last, false, None);
-            view.phase = JobPhase::Removing;
-            view.removing = count(m.plan.removals.len());
-            view.archiving = m.archive.is_some();
-            sink.send(view);
+            if !report.cancelled {
+                let last = self.last.lock().expect("job lock poisoned").clone();
+                let mut view = self.progress(&last, false, None);
+                view.phase = JobPhase::Removing;
+                view.removing = count(m.plan.removals.len());
+                view.archiving = m.archive.is_some();
+                sink.send(view);
+            }
             mirror::finish(&m.plan, &report, m.archive.as_deref())
         });
         let mut done = Done {
@@ -404,6 +426,7 @@ impl Job {
             next_to_error: None,
             report,
             removals,
+            undone,
         };
         done.report_file = self.save(&done, reports_dir);
         if self.settings.report_next_to_checksum
@@ -522,6 +545,9 @@ impl Job {
                 .is_some_and(|m| m.archive.is_some());
             append_removals(&text, removals, archived).map_err(failed)?;
         }
+        if let Some(undone) = &done.undone {
+            append_undone(&text, undone).map_err(failed)?;
+        }
         Ok(text)
     }
 }
@@ -597,6 +623,21 @@ fn append_removals(
             }
         }
         Err(why) => writeln!(out, "\n{why}")?,
+    }
+    Ok(())
+}
+
+/// What Cancel's "Also remove the files already copied" did, at the end of the text report.
+fn append_undone(text: &Path, u: &Undone) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut out = fs::OpenOptions::new().append(true).open(text)?;
+    writeln!(
+        out,
+        "\nRemoved after cancelling: {} copied, {} put back from the archive, {} replaced files not put back",
+        u.removed, u.restored, u.not_restored
+    )?;
+    for (path, why) in &u.failed {
+        writeln!(out, "  {} — NOT REMOVED: {why}", path.display())?;
     }
     Ok(())
 }
@@ -779,7 +820,7 @@ mod tests {
                 sink.clone(),
             )
             .unwrap();
-        f.jobs.cancel();
+        f.jobs.cancel(false);
         f.jobs.wait();
         let s = f.jobs.summary().unwrap();
         assert_eq!(s.outcome, JobOutcome::Cancelled);
@@ -792,6 +833,61 @@ mod tests {
             last.verified_bytes,
             last.total_bytes
         );
+    }
+
+    /// #54: Cancel with "Also remove the files already copied".
+    #[test]
+    fn cancelling_can_remove_what_was_copied() {
+        let f = fixture(200, 50_000);
+        f.jobs
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                Collect::default(),
+            )
+            .unwrap();
+        while f.jobs.finished_page(0, 1, false).is_empty() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        f.jobs.pause();
+        f.jobs.cancel(true);
+        f.jobs.wait();
+        let s = f.jobs.summary().unwrap();
+        assert_eq!(s.outcome, JobOutcome::Cancelled);
+        let undone = s.undone.expect("what was removed");
+        assert!(undone.removed >= 1, "{undone:?}");
+        assert_eq!((undone.not_restored, undone.failed), (0, 0));
+        assert_eq!(s.checksum_file, None);
+        assert_eq!(
+            fs::read_dir(&f.dest).unwrap().count(),
+            0,
+            "the destination is as it was"
+        );
+        let report = fs::read_to_string(s.report_file.unwrap()).unwrap();
+        assert!(report.contains("Removed after cancelling"), "{report}");
+    }
+
+    #[test]
+    fn cancelling_keeps_what_was_copied_by_default() {
+        let f = fixture(200, 50_000);
+        f.jobs
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                Collect::default(),
+            )
+            .unwrap();
+        while f.jobs.finished_page(0, 1, false).is_empty() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        f.jobs.pause();
+        f.jobs.cancel(false);
+        f.jobs.wait();
+        let s = f.jobs.summary().unwrap();
+        assert_eq!(s.undone, None);
+        assert!(f.dest.join("CARD").read_dir().unwrap().count() >= 1);
     }
 
     #[test]
@@ -856,7 +952,7 @@ mod tests {
             )
             .unwrap_err();
         assert!(err.contains("already running"));
-        f.jobs.cancel();
+        f.jobs.cancel(false);
         f.jobs.wait();
     }
 

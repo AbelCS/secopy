@@ -67,6 +67,8 @@ pub(super) struct Runner<'a> {
     stop_copying: AtomicBool,
     /// Folders already created, so each one costs one system call (FR-10).
     created_dirs: Mutex<HashSet<PathBuf>>,
+    /// Folders this job made that weren't there before.
+    pub(super) made_dirs: Mutex<Vec<PathBuf>>,
 }
 
 impl<'a> Runner<'a> {
@@ -98,6 +100,7 @@ impl<'a> Runner<'a> {
             removed_partials: AtomicU64::new(0),
             stop_copying: AtomicBool::new(false),
             created_dirs: Mutex::new(HashSet::new()),
+            made_dirs: Mutex::new(Vec::new()),
         }
     }
 
@@ -210,7 +213,16 @@ impl<'a> Runner<'a> {
         {
             return Ok(());
         }
+        let missing: Vec<PathBuf> = parent
+            .ancestors()
+            .take_while(|d| fs::symlink_metadata(d).is_err())
+            .map(Path::to_path_buf)
+            .collect();
         fs::create_dir_all(parent).map_err(FileError::write_dest)?;
+        self.made_dirs
+            .lock()
+            .expect("dirs lock poisoned")
+            .extend(missing);
         self.created_dirs
             .lock()
             .expect("dirs lock poisoned")

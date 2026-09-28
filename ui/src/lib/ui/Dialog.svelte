@@ -1,0 +1,86 @@
+<script lang="ts">
+  // A question over the screen, for choices a system dialog can't hold (a checkbox). The
+  // element marked data-autofocus gets the focus (the safe answer); Esc is `onClose`.
+  import { onMount, type Snippet } from "svelte";
+
+  let {
+    title,
+    children,
+    actions,
+    onClose,
+  }: {
+    title: string;
+    children: Snippet;
+    /** The answers, safe one first. */
+    actions: Snippet;
+    onClose: () => void;
+  } = $props();
+  const id = $props.id();
+  let panel: HTMLElement;
+
+  onMount(() => {
+    const before = document.activeElement as HTMLElement | null;
+    (panel.querySelector<HTMLElement>("[data-autofocus]") ?? panel).focus();
+    return () => before?.focus?.();
+  });
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    }
+  }
+</script>
+
+<svelte:window onkeydown={onKey} />
+
+<div class="backdrop">
+  <div bind:this={panel} class="dialog" role="dialog" aria-modal="true" aria-labelledby="{id}-title" tabindex="-1">
+    <h2 id="{id}-title">{title}</h2>
+    <div class="body">{@render children()}</div>
+    <div class="actions">{@render actions()}</div>
+  </div>
+</div>
+
+<style>
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--bg) 60%, transparent);
+  }
+
+  .dialog {
+    width: min(440px, calc(100vw - 2 * var(--space-4)));
+    padding: var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 40px rgb(0 0 0 / 45%);
+    outline: none;
+  }
+
+  h2 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-lg);
+  }
+
+  .body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .body :global(p) {
+    margin: 0;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+  }
+</style>

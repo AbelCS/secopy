@@ -2,6 +2,7 @@
 
 mod progress;
 mod runner;
+mod undo;
 
 use std::collections::HashSet;
 use std::fs;
@@ -24,6 +25,7 @@ use crate::{metadata, os};
 pub use crate::control::JobControl;
 pub use progress::{ActiveFile, Phase, Progress};
 use runner::{Queue, Runner, VERIFY_QUEUE_PER_LANE, VerifyTask};
+pub use undo::{Undone, undo};
 
 #[derive(Debug, Clone)]
 pub struct JobOptions {
@@ -135,6 +137,8 @@ pub struct JobReport {
     pub fatal: Option<FatalError>,
     pub cancelled: bool,
     pub elapsed: Duration,
+    /// Directories this job created (full paths), so `undo` removes only those.
+    pub created_dirs: Vec<PathBuf>,
 }
 
 impl JobReport {
@@ -233,6 +237,7 @@ pub fn run_job(
         .into_inner()
         .expect("outcomes lock poisoned");
     let fatal = runner.fatal.into_inner().expect("fatal lock poisoned");
+    let created_dirs = runner.made_dirs.into_inner().expect("dirs lock poisoned");
     let mut removed_partials = runner.removed_partials.load(Relaxed);
     if !control.is_stopped() && fatal.is_none() {
         // Before the folder times: removing a file changes its folder's time.
@@ -261,6 +266,7 @@ pub fn run_job(
         cancelled: control.is_stopped() && fatal.is_none(),
         fatal,
         elapsed: started.elapsed(),
+        created_dirs,
     }
 }
 

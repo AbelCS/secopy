@@ -66,7 +66,8 @@ export const tauriApi = {
   },
   pauseJob: (): Promise<void> => commands.pauseJob(),
   resumeJob: (): Promise<void> => commands.resumeJob(),
-  cancelJob: (): Promise<void> => commands.cancelJob(),
+  /** Stops the job; `removeCopied` also removes the files it already copied (#54). */
+  cancelJob: (removeCopied: boolean): Promise<void> => commands.cancelJob(removeCopied),
   jobRunning: (): Promise<boolean> => commands.jobRunning(),
   finishedPage: (offset: number, limit: number, failedOnly: boolean): Promise<FinishedRow[]> =>
     unwrap(commands.finishedPage(offset, limit, failedOnly)),
