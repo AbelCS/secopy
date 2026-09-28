@@ -58,6 +58,10 @@ pub(crate) struct QueueRun {
     pub running: bool,
     pub cancelled: bool,
     pub handles: Vec<Option<JobHandle>>,
+    /// Each job's result, recorded as soon as it ends, for a run that panics (#69).
+    pub done: Vec<(QueueResult, Option<String>)>,
+    /// The job after the last in `done` was started.
+    pub job_started: bool,
     /// The thread running the queue, joined at quit.
     pub thread: Option<std::thread::JoinHandle<()>>,
 }
@@ -493,6 +497,8 @@ impl AppState {
         run.running = true;
         run.cancelled = false;
         run.handles.clear();
+        run.done.clear();
+        run.job_started = false;
         Ok(())
     }
 
@@ -500,32 +506,81 @@ impl AppState {
     /// the window gets its `Done` (#69).
     pub fn run_claimed_to_done(&self, sink: impl QueueSink) {
         let clock = std::time::Instant::now();
-        let count = lock(&self.queue).jobs.len() as u32;
+        let entries = lock(&self.queue).jobs.clone();
         let ran = std::panic::catch_unwind(AssertUnwindSafe(|| self.run_claimed(sink.clone())));
         if ran.is_ok() {
             return;
         }
-        // Complete jobs leave the queue as they end: the ones still in it didn't complete.
-        let results: Vec<QueueResultView> = {
-            let (q, mirrors) = (lock(&self.queue), lock(&self.mirrors));
-            q.jobs
-                .iter()
-                .map(|entry| QueueResultView {
-                    job: job_view(entry, &mirrors),
-                    result: QueueResult::Failed,
-                    reason: Some(QUEUE_STOPPED.into()),
-                    summary: None,
-                })
-                .collect()
+        let summary =
+            std::panic::catch_unwind(AssertUnwindSafe(|| self.after_panic(&entries, clock)))
+                .unwrap_or_else(|_| {
+                    // The recovery hit the same bug: only what is recorded.
+                    let done = lock(&self.queue_run).done.clone();
+                    QueueSummaryView {
+                        complete: done.iter().filter(|d| d.0 == QueueResult::Complete).count()
+                            as u32,
+                        count: entries.len() as u32,
+                        millis: clock.elapsed().as_millis() as u64,
+                        results: Vec::new(),
+                        save_error: Some(QUEUE_STOPPED.into()),
+                    }
+                });
+        sink.send(QueueEvent::Done { summary });
+    }
+
+    /// The summary of a queue run that panicked: the results recorded, the job that was
+    /// running as its own summary says, the rest failed; the queue keeps all but the
+    /// complete ones, so none runs twice.
+    fn after_panic(&self, entries: &[Entry], clock: std::time::Instant) -> QueueSummaryView {
+        let (done, job_started, handles) = {
+            let run = lock(&self.queue_run);
+            (run.done.clone(), run.job_started, run.handles.clone())
         };
-        let summary = QueueSummaryView {
-            complete: count.saturating_sub(results.len() as u32),
-            count,
+        let mut results = Vec::new();
+        let mut keep = Vec::new();
+        for (index, entry) in entries.iter().enumerate() {
+            let running = index == done.len() && job_started;
+            let handle = match handles.get(index) {
+                Some(handle) => handle.clone(),
+                None if running => self.jobs.current_handle(),
+                None => None,
+            };
+            let summary = handle.as_ref().and_then(JobHandle::summary);
+            let (result, reason) = match done.get(index) {
+                Some(recorded) => recorded.clone(),
+                None if running
+                    && summary.as_ref().map(|s| s.outcome) == Some(JobOutcome::Complete) =>
+                {
+                    (QueueResult::Complete, None)
+                }
+                None => (QueueResult::Failed, Some(QUEUE_STOPPED.to_string())),
+            };
+            if result != QueueResult::Complete {
+                let last_error = match result {
+                    QueueResult::Failed => reason.clone(),
+                    QueueResult::Cancelled => Some("Stopped.".into()),
+                    _ => None,
+                };
+                keep.push(Entry {
+                    last_error,
+                    ..entry.clone()
+                });
+            }
+            results.push(QueueResultView {
+                job: job_view(entry, &lock(&self.mirrors)),
+                result,
+                reason,
+                summary,
+            });
+        }
+        let save_error = self.leave_in_queue(keep).err();
+        QueueSummaryView {
+            complete: count_of(&results, QueueResult::Complete),
+            count: entries.len() as u32,
             millis: clock.elapsed().as_millis() as u64,
             results,
-            save_error: None,
-        };
-        sink.send(QueueEvent::Done { summary });
+            save_error,
+        }
     }
 
     /// Runs the queue claimed by `claim_queue_run`; it is released however this ends.
@@ -551,7 +606,11 @@ impl AppState {
         let mut save_error = None;
         for (index, entry) in entries.iter().enumerate() {
             if stop || lock(&self.queue_run).cancelled {
-                lock(&self.queue_run).handles.push(None);
+                {
+                    let mut run = lock(&self.queue_run);
+                    run.handles.push(None);
+                    run.done.push((QueueResult::NotRun, None));
+                }
                 results.push(QueueResultView {
                     job: job_view(entry, &lock(&self.mirrors)),
                     result: QueueResult::NotRun,
@@ -570,8 +629,12 @@ impl AppState {
                 count,
             });
             let (result, reason, handle) = self.run_one(entry, (index as u32, count), &sink);
-            let summary = handle.as_ref().and_then(JobHandle::summary);
-            lock(&self.queue_run).handles.push(handle);
+            {
+                let mut run = lock(&self.queue_run);
+                run.done.push((result, reason.clone()));
+                run.job_started = false;
+                run.handles.push(handle.clone());
+            }
             let failed = matches!(result, QueueResult::Failed);
             if result != QueueResult::Complete {
                 keep.push(Entry {
@@ -584,13 +647,8 @@ impl AppState {
                 });
             }
             stop |= result == QueueResult::Cancelled || (failed && on_failure == OnFailure::Stop);
-            results.push(QueueResultView {
-                job: job_view(entry, &lock(&self.mirrors)),
-                result,
-                reason,
-                summary,
-            });
-            // Saved after every job: completed ones gone, the rest kept (Review focus 3).
+            // Saved after every job, first thing: completed ones gone, the rest kept (Review
+            // focus 3).
             let remaining: Vec<Entry> = keep
                 .iter()
                 .cloned()
@@ -599,6 +657,12 @@ impl AppState {
             if let Err(e) = self.leave_in_queue(remaining) {
                 save_error = Some(e);
             }
+            results.push(QueueResultView {
+                job: job_view(entry, &lock(&self.mirrors)),
+                result,
+                reason,
+                summary: handle.as_ref().and_then(JobHandle::summary),
+            });
         }
         // Once more with the jobs not run, whose reasons were cleared.
         if let Err(e) = self.leave_in_queue(keep) {
@@ -717,7 +781,7 @@ impl AppState {
         {
             // A cancel during the checks stops the job before it starts: the check and the
             // start happen under the lock `cancel` takes.
-            let run = lock(&self.queue_run);
+            let mut run = lock(&self.queue_run);
             if run.cancelled {
                 return (QueueResult::Cancelled, Some("Cancelled.".into()), None);
             }
@@ -726,6 +790,7 @@ impl AppState {
             if let Err(reason) = self.jobs.start_work(work, Forward(sink.clone())) {
                 return (QueueResult::Failed, Some(reason), None);
             }
+            run.job_started = true;
         }
         self.jobs.wait();
         let handle = self.jobs.current_handle();
@@ -1946,12 +2011,37 @@ mod tests {
         assert_eq!(
             reasons,
             [
+                (QueueResult::Complete, None),
                 (QueueResult::Failed, Some(QUEUE_STOPPED)),
                 (QueueResult::Failed, Some(QUEUE_STOPPED)),
             ],
-            "the two jobs left"
+            "every job, A's result included"
         );
+        assert!(summary.results[0].summary.is_some(), "A's summary opens");
         assert_eq!(state.queue_view().jobs.len(), 2, "B and C stay queued");
+    }
+
+    /// #69 review: a job that completed, with the panic before it left the queue, is
+    /// complete, and isn't run again.
+    #[test]
+    fn a_job_complete_just_before_a_panic_leaves_the_queue() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        let entries = lock(&state.queue).jobs.clone();
+        state.claim_queue_run().unwrap();
+        state.run_claimed(Events::default());
+        // As if the panic came right after A ended: still queued, its result not recorded.
+        lock(&state.queue).jobs = entries.clone();
+        {
+            let mut run = lock(&state.queue_run);
+            run.done.clear();
+            run.handles.clear();
+            run.job_started = true;
+        }
+        let summary = state.after_panic(&entries, std::time::Instant::now());
+        assert_eq!(summary.results[0].result, QueueResult::Complete);
+        assert_eq!(summary.complete, 1);
+        assert!(state.queue_view().jobs.is_empty(), "A isn't run again");
     }
 
     /// #69: a panic while a lock was held doesn't fail every later command.
