@@ -11,13 +11,16 @@ gallery is dev only and not in the app.
 
 ## Layout
 
-The app's sections (Copy, Mirror, Queue) are in a `Sidebar` on the left of the section screens; it
-is hidden while jobs run and on Settings and Profiles. Every screen is an `AppShell` with
-three parts, always in the same place:
+The app's sections (Copy, Mirror, Queue) are tabs in a `TabBar` at the top of the section
+screens, with Settings on its right, once for the whole app; the bar is hidden while jobs run
+and on Settings and Profiles, so the width goes to paths and file lists. Below it, every
+screen is an `AppShell` with three parts, always in the same place:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Screen title                                   [⚙ Settings] │  header
+│ [ Copy | Mirror | Queue 3 ]                     [⚙ Settings] │  tab bar (sections)
+├──────────────────────────────────────────────────────────────┤
+│ Screen title                                                 │  header
 ├──────────────────────────────────────────────────────────────┤
 │  Sections (FROM, TO, Files…): the only part that scrolls     │  content
 ├──────────────────────────────────────────────────────────────┤
@@ -25,8 +28,8 @@ three parts, always in the same place:
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **Header** (`ScreenHeader`): the screen's title (the window's title bar already says Secopy); screen-wide controls
-  on the right (Settings on New copy and Summary).
+- **Header** (`ScreenHeader`): the screen's title (the window's title bar already says Secopy), so you
+  know where you are inside a tab (New copy, Summary, Preview…); a screen's own controls on the right.
 - **Content**: `Section`s, one per part of the screen, and app-wide messages first.
   Inside a section, one `FormRow` per kind of thing (Source, Profile, Options,
   File types…), with a hairline between rows; a control whose row already names it hides
@@ -60,7 +63,7 @@ Components use tokens only, never raw colours or sizes.
 |---|---|
 | `AppShell` | Every screen's frame: `header`, content, `actions` |
 | `ScreenHeader` | Title and optional trailing controls |
-| `Sidebar` | The app's sections (Copy, Mirror, Queue), with a count; hidden while jobs run and on Settings/Profiles |
+| `TabBar` | The app's sections as tabs at the top (Copy, Mirror, Queue), with a count, and Settings on the right; hidden while jobs run and on Settings/Profiles |
 | `ActionBar` | The bottom bar: `start`, `status`, `end` |
 | `Section` | A titled part of a screen; the only card style |
 | `FormRow` | One labelled line inside a section: the label column on the left, the content, the row's own actions on the right (Choose…, All · None) |

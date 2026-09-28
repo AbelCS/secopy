@@ -247,9 +247,9 @@ These values are a starting point and will be refined during M2.
 
 ### 5.7 Sections and the job queue
 
-A sidebar holds the app's sections: **Copy** (the main window above), **Mirror** (§5.8) and
-**Queue**, with the number of queued jobs. It is hidden while jobs run and on Settings and
-Profiles.
+Tabs at the top hold the app's sections: **Copy** (the main window above), **Mirror** (§5.8)
+and **Queue**, with the number of queued jobs, and Settings on the right. They are hidden
+while jobs run and on Settings and Profiles.
 
 - **Add to queue** next to Start copy (and on a mirror preset) saves the job as set up; the
   Queue screen lists the jobs (reorder, remove, clear), the choice for failures (continue with
@@ -572,3 +572,4 @@ The stack meets these constraints:
 | 2026-09-28 | **Job queue and mirror in the same app** (#50, #51): a sidebar with Copy · Mirror · Queue. One engine and one look; the queue holds every kind of job. A separate mirror app was rejected (a duplicated engine, no shared queue). Queue first (0.7.0), mirror next (0.8.0); performance and packaging move after them. |
 | 2026-09-28 | **Mirror safety:** one way only; a manual run previews first; deletions happen last and only after every copy succeeded; deleted files are archived (kept N days) or deleted per preset; a guard stops runs with a missing or empty origin or that would remove more than half of the destination. Changed = size or date (2 s tolerance), with an optional deep check by checksum. |
 | 2026-09-28 | **macOS only by design** (#60): no Linux or Windows apps are planned. The engine's Linux and Windows code is removed, and building it for another OS is a compile error. This replaces the 2026-09-27 plan to keep the engine portable. |
+| 2026-09-28 | **Sections as tabs at the top** (#64), not a sidebar: three items don't need 180 px of width, and paths and file lists do. Settings sits on the tab bar, once for the app. |

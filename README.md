@@ -1,10 +1,18 @@
 # Secopy
 
-Fast, verified file copies for macOS. Copy a directory or a set of
-files, optionally verify every copy with xxHash64, and get an `xxhsum`-compatible
-checksum file in the destination. Queue several copies and let them run one after another.
-Mirror a directory to a backup: new and changed files copied and verified, deleted ones
-archived or removed.
+Fast, verified file copies for macOS: a camera card, a whole volume, any directory or a set
+of files. Secopy is built to never lose a file and never say "done" when something wasn't
+copied.
+
+- **Copy & Verify:** every copy is read back from the destination and checked against the
+  source's xxHash64 before it gets its final name; an `xxhsum`-compatible checksum file and a
+  job report are written.
+- **Profiles:** a saved source and its settings, loaded in one click.
+- **Queue:** set up several copies or mirrors and let them run one after another.
+- **Mirror:** keep a backup identical to a directory. New and changed files are copied and
+  verified; files deleted in the origin are archived for N days (or deleted), only after a
+  clean copy and a preview.
+- **Cancel** can also remove the files already copied, leaving the destination as it was.
 
 > **Status:** early development, Apple Silicon Macs only. Secopy is macOS only by design:
 > there are no Windows or Linux versions. Design:
@@ -31,7 +39,8 @@ downloaded with `curl` aren't flagged. If you did download the `.dmg` from the
 
 File menu: **⌘O** choose the source, **⌘D** choose the destination, **⌘↩** start,
 **⌘.** cancel. While copying, **Space** pauses and resumes. **Esc** goes back from Settings
-and Profiles; **⌘,** opens Settings. **⌘1** Copy, **⌘2** Mirror, **⌘3** Queue.
+and Profiles; **⌘,** opens Settings. The tabs at the top: **⌘1** Copy, **⌘2** Mirror,
+**⌘3** Queue.
 
 ## Development
 

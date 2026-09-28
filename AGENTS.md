@@ -1,9 +1,14 @@
 # Secopy
 
-macOS desktop app for fast file copies with optional
-xxHash64 verification and a checksum file written to the destination. Secopy is macOS only
-(Apple Silicon) by design, engine included; building for another OS is a compile error (RFD §14).
+macOS desktop app for fast, verified copies of directories (a camera card, a volume, any
+directory): Copy & Verify with xxHash64 and a checksum file, profiles, a job queue and one-way
+mirrors. Secopy is macOS only (Apple Silicon) by design, engine included; building for another
+OS is a compile error (RFD §14).
 
+- **Reliability first:** users copy irreplaceable footage. Secopy must never lose, corrupt or
+  silently skip data, and never report success when something wasn't copied, read, verified,
+  saved or removed as planned. Every change to the engine or to how a result is reported is
+  judged by that, and gets a test that fails without it.
 - **Source of truth:** [docs/rfd/0001-secopy.md](docs/rfd/0001-secopy.md). Read it before designing or
   changing behaviour. Requirement IDs (FR-x, NFR-x) are used in code comments, commits and
   tests when relevant.
@@ -128,6 +133,8 @@ format exactly.
   `cfg` code for other platforms.
 - UI checks, from `ui/` (`npm ci` once): `npm run check` (svelte-check) and `npm test`
   (Vitest). Both must pass before every commit that touches `ui/` or `crates/secopy-app`.
+- UI copy: "directory", never "folder"; "source" and "destination", not "card" (a card is
+  only one kind of source).
 - UI design: follow [docs/design/design-system.md](docs/design/design-system.md). Build
   screens from the components in `ui/src/lib/ui/` (AppShell, Section, Button…) and the
   tokens in `ui/src/app.css`; don't style one-off cards, buttons or fields. Check changes in
