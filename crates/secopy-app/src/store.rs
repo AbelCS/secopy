@@ -127,7 +127,7 @@ impl<'de> Deserialize<'de> for CopyPreset {
 }
 
 /// A copy preset as typed in a form (Save as…, the Copy presets screen).
-#[derive(Debug, Clone, PartialEq, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CopyPresetInput {
     pub name: String,
@@ -230,21 +230,12 @@ impl CopyPresets {
         self.presets.len() < before
     }
 
-    /// Validates and normalizes `input`; `editing` is the id of the preset being edited.
-    fn check(
-        &self,
-        input: CopyPresetInput,
-        editing: Option<&str>,
-    ) -> Result<CopyPresetInput, String> {
+    /// `input` checked and put right like a preset typed by hand, except for its name being
+    /// taken: trimmed name, full-path source, file types in lowercase without dots.
+    pub fn normalized(input: CopyPresetInput) -> Result<CopyPresetInput, String> {
         let name = input.name.trim().to_string();
         if name.is_empty() {
             return Err("The preset needs a name.".into());
-        }
-        let taken = self.presets.iter().any(|p| {
-            Some(p.id.as_str()) != editing && p.name.to_lowercase() == name.to_lowercase()
-        });
-        if taken {
-            return Err(format!("There is already a preset called “{name}”."));
         }
         Ok(CopyPresetInput {
             name,
@@ -252,6 +243,31 @@ impl CopyPresets {
             include_folder: input.include_folder,
             extensions: extensions(input.extensions),
         })
+    }
+
+    /// The preset called `name`, in any letter case.
+    pub fn named(&self, name: &str) -> Option<&CopyPreset> {
+        let name = name.to_lowercase();
+        self.presets.iter().find(|p| p.name.to_lowercase() == name)
+    }
+
+    /// Validates and normalizes `input`; `editing` is the id of the preset being edited.
+    fn check(
+        &self,
+        input: CopyPresetInput,
+        editing: Option<&str>,
+    ) -> Result<CopyPresetInput, String> {
+        let input = Self::normalized(input)?;
+        if self
+            .named(&input.name)
+            .is_some_and(|p| Some(p.id.as_str()) != editing)
+        {
+            return Err(format!(
+                "There is already a preset called “{}”.",
+                input.name
+            ));
+        }
+        Ok(input)
     }
 
     fn new_id(&self) -> String {
@@ -307,20 +323,32 @@ impl CopyPresets {
     }
 
     /// `name`, or else `name (2)`, `name (3)`…: the first no preset has, in any letter case.
-    fn free_name(&self, name: &str) -> String {
-        let taken = |n: &str| {
-            self.presets
-                .iter()
-                .any(|p| p.name.to_lowercase() == n.to_lowercase())
-        };
-        if !taken(name) {
-            return name.to_string();
-        }
-        (2..)
-            .map(|i| format!("{name} ({i})"))
-            .find(|n| !taken(n))
-            .expect("a free name")
+    pub fn free_name(&self, name: &str) -> String {
+        free_name(name, |n| self.named(n).is_some())
     }
+}
+
+impl CopyPreset {
+    /// The preset as a form would hold it: everything but its id.
+    pub fn input(&self) -> CopyPresetInput {
+        CopyPresetInput {
+            name: self.name.clone(),
+            source: self.source.clone(),
+            include_folder: self.include_folder,
+            extensions: self.extensions.clone(),
+        }
+    }
+}
+
+/// `name`, or else `name (2)`, `name (3)`…: the first `taken` says no to.
+fn free_name(name: &str, taken: impl Fn(&str) -> bool) -> String {
+    if !taken(name) {
+        return name.to_string();
+    }
+    (2..)
+        .map(|i| format!("{name} ({i})"))
+        .find(|n| !taken(n))
+        .expect("a free name")
 }
 
 /// A copy preset's file types: lowercase, without leading dots, sorted and without duplicates.
@@ -395,7 +423,7 @@ pub struct MirrorPreset {
 }
 
 /// A mirror preset as typed in its editor.
-#[derive(Debug, Clone, PartialEq, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MirrorPresetInput {
     pub name: String,
@@ -451,21 +479,42 @@ impl MirrorPresets {
         self.presets.len() < before
     }
 
+    /// The mirror called `name`, in any letter case.
+    pub fn named(&self, name: &str) -> Option<&MirrorPreset> {
+        let name = name.to_lowercase();
+        self.presets.iter().find(|p| p.name.to_lowercase() == name)
+    }
+
+    /// `name`, or else `name (2)`, `name (3)`…: the first no mirror has, in any letter case.
+    pub fn free_name(&self, name: &str) -> String {
+        free_name(name, |n| self.named(n).is_some())
+    }
+
     /// Validates and normalizes `input`; `editing` is the id of the preset being edited.
     fn check(
         &self,
         input: MirrorPresetInput,
         editing: Option<&str>,
     ) -> Result<MirrorPresetInput, String> {
+        let input = Self::normalized(input)?;
+        if self
+            .named(&input.name)
+            .is_some_and(|p| Some(p.id.as_str()) != editing)
+        {
+            return Err(format!(
+                "There is already a mirror called “{}”.",
+                input.name
+            ));
+        }
+        Ok(input)
+    }
+
+    /// `input` checked and put right like a mirror typed by hand, except for its name being
+    /// taken.
+    pub fn normalized(input: MirrorPresetInput) -> Result<MirrorPresetInput, String> {
         let name = input.name.trim().to_string();
         if name.is_empty() {
             return Err("The mirror needs a name.".into());
-        }
-        let taken = self.presets.iter().any(|p| {
-            Some(p.id.as_str()) != editing && p.name.to_lowercase() == name.to_lowercase()
-        });
-        if taken {
-            return Err(format!("There is already a mirror called “{name}”."));
         }
         let origin = full_path(&input.origin, "origin", "/Volumes/SSD/Footage")?;
         let destination = full_path(&input.destination, "destination", "/Volumes/NAS/Footage")?;
@@ -488,6 +537,19 @@ impl MirrorPresets {
             destination,
             ..input
         })
+    }
+}
+
+impl MirrorPreset {
+    /// The mirror as its editor would hold it: everything but its id.
+    pub fn input(&self) -> MirrorPresetInput {
+        MirrorPresetInput {
+            name: self.name.clone(),
+            origin: self.origin.clone(),
+            destination: self.destination.clone(),
+            deleted: self.deleted,
+            deep_check: self.deep_check,
+        }
     }
 }
 
@@ -905,5 +967,69 @@ mod tests {
         m.add(mirror_input("N", "/a", "/b")).unwrap();
         store.save(MIRRORS, &m).unwrap();
         assert_eq!(store.load::<MirrorPresets>(MIRRORS), (m, None));
+    }
+
+    #[test]
+    fn normalized_checks_a_preset_without_its_name_clashing() {
+        let input = CopyPresetInput {
+            name: "  Sony FX3 ".into(),
+            source: "/Volumes/CARD_A/CLIP/".into(),
+            include_folder: true,
+            extensions: Some(vec![Some(".MP4".into())]),
+        };
+        let n = CopyPresets::normalized(input).unwrap();
+        assert_eq!(
+            (n.name.as_str(), n.source.as_str()),
+            ("Sony FX3", "/Volumes/CARD_A/CLIP")
+        );
+        assert_eq!(n.extensions, Some(vec![Some("mp4".into())]));
+        let bad = CopyPresetInput {
+            name: " ".into(),
+            ..n.clone()
+        };
+        assert_eq!(
+            CopyPresets::normalized(bad).unwrap_err(),
+            "The preset needs a name."
+        );
+        let mirror = MirrorPresetInput {
+            name: "Footage".into(),
+            origin: "/Volumes/SSD/Footage".into(),
+            destination: "/Volumes/SSD/Footage/Backup".into(),
+            deleted: DeletedFiles {
+                mode: DeletedMode::Archive,
+                days: 30,
+            },
+            deep_check: false,
+        };
+        assert_eq!(
+            MirrorPresets::normalized(mirror).unwrap_err(),
+            "The destination can't be inside the origin."
+        );
+    }
+
+    #[test]
+    fn free_names_skip_taken_ones_in_any_case() {
+        let mut presets = CopyPresets::default();
+        presets.add(input("Sony FX3", "")).unwrap();
+        presets.add(input("sony fx3 (2)", "")).unwrap();
+        assert_eq!(presets.free_name("Sony FX3"), "Sony FX3 (3)");
+        assert_eq!(presets.free_name("DJI"), "DJI");
+        assert_eq!(
+            presets.named("SONY FX3").map(|p| p.name.as_str()),
+            Some("Sony FX3")
+        );
+    }
+
+    #[test]
+    fn a_preset_gives_back_its_input() {
+        let mut presets = CopyPresets::default();
+        let p = presets.add(input("Sony FX3", "/Volumes/CARD_A")).unwrap();
+        let back = p.input();
+        assert_eq!(
+            (back.name, back.source),
+            ("Sony FX3".to_string(), "/Volumes/CARD_A".to_string())
+        );
+        let json = serde_json::to_value(p.input()).unwrap();
+        assert!(json.get("includeFolder").is_some(), "{json}");
     }
 }
