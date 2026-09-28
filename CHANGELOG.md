@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.12.0](https://github.com/AbelCS/secopy/compare/v0.11.0...v0.12.0) (2026-09-28)
+
+
+### Features
+
+* **app:** export and import commands ([25544ea](https://github.com/AbelCS/secopy/commit/25544ea9d0f38fe4721289f0b5d5275f8399a925)), closes [#77](https://github.com/AbelCS/secopy/issues/77)
+* **app:** Import… and Export… in the File menu; open .secopy from Finder ([7958928](https://github.com/AbelCS/secopy/commit/795892883da9022c7debc73d411af15bd06bf6ca)), closes [#77](https://github.com/AbelCS/secopy/issues/77)
+* **app:** work out and apply an import ([2477ddd](https://github.com/AbelCS/secopy/commit/2477dddbeadf570160903299b34da47c734a12a2)), closes [#77](https://github.com/AbelCS/secopy/issues/77)
+* **app:** write and read .secopy files ([aa183bf](https://github.com/AbelCS/secopy/commit/aa183bf9ce71867314c6f7306069c409d8f24ba1)), closes [#77](https://github.com/AbelCS/secopy/issues/77)
+* **ui:** export settings and presets ([d875ec4](https://github.com/AbelCS/secopy/commit/d875ec41769a421369c4d4b0da42405f10b243dc)), closes [#77](https://github.com/AbelCS/secopy/issues/77)
+* **ui:** the Import screen ([d115f18](https://github.com/AbelCS/secopy/commit/d115f18bc0cd2df33921ccd47a77ccb2f089829a)), closes [#77](https://github.com/AbelCS/secopy/issues/77)
+
+
+### Bug Fixes
+
+* **app:** findings from reviewing export and import ([cdf0a45](https://github.com/AbelCS/secopy/commit/cdf0a45e431d47aa8cb8a8bc773f9ddcd6311cad)), closes [#77](https://github.com/AbelCS/secopy/issues/77)
+* **ui:** findings from reviewing export and import ([dcc4b4d](https://github.com/AbelCS/secopy/commit/dcc4b4dfe19b3d49698d288597eef804cf201a56)), closes [#77](https://github.com/AbelCS/secopy/issues/77)
+
 ## [0.11.0](https://github.com/AbelCS/secopy/compare/v0.10.1...v0.11.0) (2026-09-28)
 
 
