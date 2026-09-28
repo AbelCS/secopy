@@ -4,6 +4,7 @@ import { apiContext } from "../lib/api";
 import type { QueueView } from "../lib/bindings";
 import { checkView, fakeApi } from "../test/fake-api";
 import VerifyScreen from "./VerifyScreen.svelte";
+import { helpOf } from "../test/hint";
 
 function show() {
   const { api } = fakeApi();
@@ -51,5 +52,21 @@ describe("VerifyScreen", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Add to queue" }));
     await waitFor(() => expect(calls.queue).toHaveLength(1));
     expect(api.addCheckToQueue).toHaveBeenCalledWith("/Volumes/Backup/Day01");
+  });
+});
+
+describe("VerifyScreen: help on the buttons", () => {
+  test("Start says how many files it reads; Add to queue that it runs later", async () => {
+    const { api } = show();
+    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBeNull();
+    api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await screen.findByText(/checksum files ·/);
+    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe(
+      "Reads the 1,284 listed files (212.4 GB) and compares each with its checksum; nothing is written.",
+    );
+    expect(helpOf(screen.getByRole("button", { name: "Add to queue" }))).toBe(
+      "Adds this directory to the Queue; it's verified when the queue gets to it.",
+    );
   });
 });

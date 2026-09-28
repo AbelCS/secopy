@@ -4,7 +4,7 @@ import { apiContext } from "../lib/api";
 import type { MirrorPreviewView, QueueView } from "../lib/bindings";
 import { fakeApi, mirrorPreview } from "../test/fake-api";
 import MirrorPreview from "./MirrorPreview.svelte";
-import { hintOf } from "../test/hint";
+import { helpOf, hintOf } from "../test/hint";
 
 function show(preview: MirrorPreviewView) {
   const { api } = fakeApi();
@@ -86,5 +86,29 @@ describe("MirrorPreview", () => {
     expect(api.addMirrorToQueue).toHaveBeenCalledWith("m1");
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(calls.cancel).toBe(1);
+  });
+});
+
+describe("MirrorPreview: help on the buttons", () => {
+  test("Start says what it copies and what it does with deleted files", () => {
+    show(mirrorPreview());
+    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe(
+      "Copies and verifies 2 new and 1 changed files, then archives 1 file gone from the origin.",
+    );
+    expect(helpOf(screen.getByRole("button", { name: "Add to queue" }))).toBe(
+      "Adds this mirror to the Queue; what to copy and remove is worked out again when it runs.",
+    );
+  });
+
+  test("parts that are 0 are left out; a preset that deletes says so", () => {
+    show(mirrorPreview({ newFiles: 1, changedFiles: 0, removedFiles: 4, archiveDays: null }));
+    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe(
+      "Copies and verifies 1 new file, then deletes 4 files gone from the origin.",
+    );
+  });
+
+  test("only removals", () => {
+    show(mirrorPreview({ newFiles: 0, changedFiles: 0, removedFiles: 1 }));
+    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe("Archives 1 file gone from the origin.");
   });
 });

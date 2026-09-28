@@ -261,11 +261,22 @@
     <ActionBar status={files}>
       {#snippet start()}
         {#if progress.paused}
-          <Button onclick={() => api.resumeJob()}>Resume</Button>
+          <Button help="Carries on from where it paused (Space)." onclick={() => api.resumeJob()}>Resume</Button>
         {:else}
-          <Button onclick={() => api.pauseJob()} disabled={finishing || checking}>Pause</Button>
+          <!-- Pause holds the job at the next buffer it reads or writes (FR-22). -->
+          <Button
+            help="Stops {check ? 'reading' : 'reading and writing'} until you resume (Space)."
+            onclick={() => api.pauseJob()}
+            disabled={finishing || checking}>Pause</Button
+          >
         {/if}
-        <Button variant="danger" onclick={cancel} disabled={finishing}>Cancel</Button>
+        <!-- ⌘. asks the same question (App's File menu). -->
+        <Button
+          variant="danger"
+          help="Asks first, then stops {queue ? 'this job and the queue' : 'the job'} (⌘.)."
+          onclick={cancel}
+          disabled={finishing}>Cancel</Button
+        >
       {/snippet}
     </ActionBar>
   {/snippet}

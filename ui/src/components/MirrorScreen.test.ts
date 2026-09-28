@@ -4,6 +4,7 @@ import { apiContext } from "../lib/api";
 import type { MirrorPreset, MirrorPreviewView, QueueView } from "../lib/bindings";
 import { fakeApi, mirrorPreset } from "../test/fake-api";
 import MirrorScreen from "./MirrorScreen.svelte";
+import { helpOf } from "../test/hint";
 
 function show(presets: MirrorPreset[] = [mirrorPreset()]) {
   const { api } = fakeApi();
@@ -93,5 +94,15 @@ describe("MirrorScreen", () => {
     screen.getByText(/keeps a copy of a directory identical/);
     await fireEvent.click(screen.getByRole("button", { name: "+ New mirror" }));
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "");
+  });
+});
+
+describe("MirrorScreen: help on Add to queue", () => {
+  test("says the mirror is worked out again when it runs; Preview… has none", () => {
+    show();
+    expect(helpOf(screen.getByRole("button", { name: "Add to queue" }))).toBe(
+      "Adds this mirror to the Queue; what to copy and remove is worked out again when it runs.",
+    );
+    expect(helpOf(screen.getByRole("button", { name: "Preview…" }))).toBeNull();
   });
 });

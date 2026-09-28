@@ -114,6 +114,13 @@
     return `${plural(view.plan.filesToWrite, "file")} · ${formatBytes(view.plan.bytesToWrite)}`;
   });
 
+  /** Start's help: the figures and the path the screen shows, and the File menu's shortcut. */
+  const startHelp = $derived(
+    view.plan && destination
+      ? `Copies ${plural(view.plan.filesToWrite, "file")} (${formatBytes(view.plan.bytesToWrite)}) to ${destination.copyRoot}${verify ? " and verifies them" : ""} (⌘↩).`
+      : "",
+  );
+
   function setMode(mode: "copy" | "verify") {
     verify = mode === "verify";
     onMode(verify);
@@ -327,8 +334,12 @@
       {/snippet}
       {#snippet end()}
         <!-- The mode is chosen next to it; the figures are in the status. -->
-        <Button disabled={!canStart || !!source?.isRetry} onclick={addToQueue}>Add to queue</Button>
-        <Button variant="primary" disabled={!canStart} onclick={onStart}>Start</Button>
+        <Button
+          disabled={!canStart || !!source?.isRetry}
+          help="Adds this copy, as set up now, to the Queue; it runs when you start the queue."
+          onclick={addToQueue}>Add to queue</Button
+        >
+        <Button variant="primary" disabled={!canStart} help={startHelp} onclick={onStart}>Start</Button>
       {/snippet}
     </ActionBar>
   {/snippet}

@@ -26,6 +26,8 @@
   } = $props();
 
   const api = useApi();
+  /** A queued mirror is only its preset: it's previewed again at its turn. */
+  const QUEUE_HELP = "Adds this mirror to the Queue; what to copy and remove is worked out again when it runs.";
   const PAGE = 500;
   type Shown = "all" | PreviewKind;
   let shown = $state<Shown>("all");
@@ -54,6 +56,24 @@
         if ((shown === "all" ? null : shown) === kind) rows = r;
       })
       .catch((e) => (error = messageOf(e)));
+  });
+
+  /** Start's help: what it copies, then what it does with files gone from the origin (FR-48, FR-49). */
+  const startHelp = $derived.by(() => {
+    const copied = [
+      preview.newFiles > 0 ? `${formatCount(preview.newFiles)} new` : "",
+      preview.changedFiles > 0 ? `${formatCount(preview.changedFiles)} changed` : "",
+    ].filter(Boolean);
+    const copies = preview.newFiles + preview.changedFiles;
+    const parts = [
+      copies > 0 ? `copies and verifies ${copied.join(" and ")} ${copies === 1 ? "file" : "files"}` : "",
+      preview.removedFiles > 0
+        ? `${preview.archiveDays === null ? "deletes" : "archives"} ${plural(preview.removedFiles, "file")} gone from the origin`
+        : "",
+    ].filter(Boolean);
+    if (parts.length === 0) return "";
+    const text = parts.join(", then ");
+    return `${text[0].toUpperCase()}${text.slice(1)}.`;
   });
 
   async function run() {
@@ -152,8 +172,8 @@
     <ActionBar>
       {#snippet start()}<Button onclick={onCancel}>Cancel</Button>{/snippet}
       {#snippet end()}
-        <Button disabled={busy} onclick={queue}>Add to queue</Button>
-        <Button variant="primary" disabled={inSync} onclick={run}>Start</Button>
+        <Button disabled={busy} help={QUEUE_HELP} onclick={queue}>Add to queue</Button>
+        <Button variant="primary" disabled={inSync} help={startHelp} onclick={run}>Start</Button>
       {/snippet}
     </ActionBar>
   {/snippet}

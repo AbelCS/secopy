@@ -8,7 +8,7 @@ import Checkbox from "./Checkbox.svelte";
 import Chip from "./Chip.svelte";
 import FormRow from "./FormRow.svelte";
 import Hint from "./Hint.svelte";
-import { hintOf } from "../../test/hint";
+import { helpOf, hintOf } from "../../test/hint";
 import Notice from "./Notice.svelte";
 import RadioGroup from "./RadioGroup.svelte";
 import ScreenHeader from "./ScreenHeader.svelte";
@@ -29,6 +29,59 @@ describe("design system", () => {
     expect(button.className).toContain("primary");
     await fireEvent.click(button);
     expect(onclick).not.toHaveBeenCalled();
+  });
+
+  test("Button: help is its description, in a tip that opens above it", () => {
+    render(Button, { props: { variant: "primary", help: "Copies 3 files (7.0 GB).", children: text("Start") } });
+    const button = screen.getByRole("button", { name: "Start" });
+    expect(helpOf(button)).toBe("Copies 3 files (7.0 GB).");
+    const tip = document.getElementById(button.getAttribute("aria-describedby")!)!;
+    expect(tip.getAttribute("role")).toBe("tooltip");
+    // Read once, as the description; never part of the button's name.
+    expect(tip.getAttribute("aria-hidden")).toBe("true");
+    expect(button.contains(tip)).toBe(false);
+  });
+
+  test("Button: without help, no tip and no wrapper", () => {
+    const { container } = render(Button, { props: { children: text("Back") } });
+    const button = screen.getByRole("button", { name: "Back" });
+    expect(button.hasAttribute("aria-describedby")).toBe(false);
+    expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
+    expect(button.parentElement).toBe(container);
+  });
+
+  test("Button: a disabled button gives no help (its figures aren't real yet)", () => {
+    render(Button, { props: { disabled: true, help: "Copies 0 files.", children: text("Start") } });
+    const button = screen.getByRole("button", { name: "Start" });
+    expect(helpOf(button)).toBeNull();
+    expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
+  });
+
+  test("Button: help that has no words yet keeps the button, so focus and clicks stay on it", async () => {
+    const { rerender } = render(Button, { props: { help: "", children: text("Start") } });
+    const button = screen.getByRole("button", { name: "Start" });
+    expect(helpOf(button)).toBeNull();
+    await rerender({ help: "Copies 3 files (7.0 GB).", children: text("Start") });
+    expect(screen.getByRole("button", { name: "Start" })).toBe(button);
+    expect(helpOf(button)).toBe("Copies 3 files (7.0 GB).");
+  });
+
+  test("Button: the tip lines up with the button's right edge when it would run off the window", async () => {
+    const { container } = render(Button, { props: { help: "A long sentence of help.", children: text("Start") } });
+    const button = screen.getByRole("button", { name: "Start" });
+    const tip = document.getElementById(button.getAttribute("aria-describedby")!)!;
+    const wrap = button.parentElement!;
+    expect(wrap).not.toBe(container);
+    expect(tip.classList.contains("end")).toBe(false);
+    // The button near the right edge of a 1024 px window, the tip 300 px wide.
+    wrap.getBoundingClientRect = () => ({ left: 900, right: 960, top: 500, bottom: 530, width: 60, height: 30 }) as DOMRect;
+    Object.defineProperty(tip, "offsetWidth", { configurable: true, value: 300 });
+    await fireEvent.pointerEnter(button);
+    expect(tip.classList.contains("end")).toBe(true);
+    // Back at the left: the tip lines up with the button's left edge again.
+    wrap.getBoundingClientRect = () => ({ left: 20, right: 80, top: 500, bottom: 530, width: 60, height: 30 }) as DOMRect;
+    await fireEvent.focus(button);
+    expect(tip.classList.contains("end")).toBe(false);
   });
 
   test("Section: a region named by its title", () => {
