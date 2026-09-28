@@ -85,5 +85,10 @@ section says, which also checks those first-launch steps), then:
     copied", Stop: the destination is as before (the old file stays, no checksum file, no new
     directories) and the summary says "Cancelled: the destination is back as it was". Cancel
     without ticking: the copied files stay.
+29. **Verify.** Copy a directory with Copy & Verify; Verify the destination: all intact. Change
+    one byte in one file (a hex editor), delete another, add a third: Verify says 1 changed,
+    1 missing, 1 not checked; the report lists them. Verify a whole drive with several copies.
+30. **Verify a mirror.** Run a mirror to the NAS; Verify its destination: all intact, and
+    `.secopy-checksums.xxh64` is there (⇧⌘. in Finder). Queue a verify of it with another job.
 
 Record the macOS version, the card reader and anything odd in the release PR.
