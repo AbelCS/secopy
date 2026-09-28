@@ -155,6 +155,73 @@ describe("App", () => {
     expect(api.confirm).toHaveBeenCalledWith(
       "Files already copied stay; the file in progress is removed.",
       "Stop copying and quit?",
+      "Stop copying",
+      "Keep copying",
+    );
+  });
+
+  test("quitting during a check says verifying, and that nothing was changed", async () => {
+    const { api, state } = app();
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-verify");
+    api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
+    await fireEvent.click(await screen.findByRole("button", { name: "Choose…" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start verify" }));
+    await screen.findByRole("heading", { level: 1, name: "Verifying" });
+    api.jobRunning.mockResolvedValue(true);
+    await state.close!(() => {});
+    expect(api.confirm).toHaveBeenCalledWith(
+      "Nothing was changed: a check only reads files.",
+      "Stop verifying and quit?",
+      "Stop verifying",
+      "Keep verifying",
+    );
+  });
+
+  test("quitting during a mirror says mirroring, and what a stopped mirror leaves", async () => {
+    const { api, state } = app();
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-mirror");
+    await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
+    await screen.findByRole("heading", { level: 1, name: "Mirroring" });
+    api.jobRunning.mockResolvedValue(true);
+    await state.close!(() => {});
+    expect(api.confirm).toHaveBeenCalledWith(
+      "Files already copied stay; the file in progress is removed. Files deleted in the origin are left in the destination.",
+      "Stop mirroring and quit?",
+      "Stop mirroring",
+      "Keep mirroring",
+    );
+  });
+
+  test("quitting during a queued check says verifying; while a job is checked, the queue", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.queue = queueView({ jobs: [queuedJob({ kind: "check" })] });
+    render(App, { props: { api } });
+    await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await waitFor(() => expect(state.queueEvent).not.toBeNull());
+    api.jobRunning.mockResolvedValue(true);
+    state.queueEvent!({ type: "jobChecking", index: 0, count: 1 });
+    await screen.findByRole("heading", { level: 1, name: "Checking…" });
+    await state.close!(() => {});
+    expect(api.confirm).toHaveBeenLastCalledWith(
+      "This job hasn't started yet: nothing was written for it.",
+      "Stop the queue and quit?",
+      "Stop the queue",
+      "Continue",
+    );
+    state.queueEvent!({ type: "jobStarted", index: 0, count: 1, job: queuedJob({ kind: "check" }) });
+    await screen.findByRole("heading", { level: 1, name: "Verifying" });
+    await state.close!(() => {});
+    expect(api.confirm).toHaveBeenLastCalledWith(
+      "Nothing was changed: a check only reads files.",
+      "Stop verifying and quit?",
+      "Stop verifying",
+      "Keep verifying",
     );
   });
 

@@ -303,4 +303,39 @@ describe("JobProgress", () => {
     screen.getByRole("dialog", { name: "Stop copying and stop the queue?" });
     expect(api.confirm).not.toHaveBeenCalled();
   });
+
+  test("in a queue, Cancel names what the job does", async () => {
+    const { api } = fakeApi();
+    const { rerender } = render(JobProgress, {
+      props: { progress: progressView(), queue: { index: 0, count: 2 }, check: true },
+      context: apiContext(api),
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    screen.getByRole("dialog", { name: "Stop verifying and stop the queue?" });
+    await fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await rerender({ check: false, title: "Mirroring" });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    screen.getByRole("dialog", { name: "Stop mirroring and stop the queue?" });
+  });
+
+  test("while a queue job is checked, Cancel stops the queue and nothing of the job was written", async () => {
+    const { api } = fakeApi();
+    render(JobProgress, {
+      props: { progress: progressView(), checking: true, queue: { index: 0, count: 2 } },
+      context: apiContext(api),
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const dialog = screen.getByRole("dialog", { name: "Stop the queue?" });
+    within(dialog).getByText("This job hasn't started yet: nothing was written for it.");
+  });
+
+  test("a mirror's Cancel says files deleted in the origin stay, and no checksum file", async () => {
+    const { api } = fakeApi();
+    render(JobProgress, { props: { progress: progressView(), title: "Mirroring" }, context: apiContext(api) });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const dialog = screen.getByRole("dialog", { name: "Stop mirroring?" });
+    within(dialog).getByText(
+      "Files already copied stay; the file in progress is removed. Files deleted in the origin are left in the destination.",
+    );
+  });
 });
