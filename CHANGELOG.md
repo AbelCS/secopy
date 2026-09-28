@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.10.0](https://github.com/AbelCS/secopy/compare/v0.9.0...v0.10.0) (2026-09-28)
+
+
+### Features
+
+* **app:** check a directory, run and queue it ([a0dcb30](https://github.com/AbelCS/secopy/commit/a0dcb30633772ee163fbc799af4e04ce0c21809a)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+* **app:** run a check as a job ([b417217](https://github.com/AbelCS/secopy/commit/b417217e8664dbdd9e239c9ab70ba06893ffc9ec)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+* **cli:** --check a directory ([4ab298c](https://github.com/AbelCS/secopy/commit/4ab298cd6237dcd6450c9b24b3ffd87fd5598352)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+* **core:** a report for a check ([f142556](https://github.com/AbelCS/secopy/commit/f1425564371583fc48073576c4b5b56996d3a8e2)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+* **core:** check a directory against its checksum files ([af1cab7](https://github.com/AbelCS/secopy/commit/af1cab79bd7bbfcb22c2cb5ce1ef6acbef57cbe1)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+* **core:** mirrors keep a checksum file ([8d50f92](https://github.com/AbelCS/secopy/commit/8d50f92ccac0d06719d12dcbaa5ede015b825449)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+* **core:** plan a check of a directory's checksum files ([dc81390](https://github.com/AbelCS/secopy/commit/dc813907cff71703771382668038c6ee2742e32c)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+* **core:** read checksum files ([96721b6](https://github.com/AbelCS/secopy/commit/96721b69dda7841596e1eb0925db1a5f0177d060)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+* **ui:** the sections are tabs at the top ([cbfa566](https://github.com/AbelCS/secopy/commit/cbfa566b4329b9bfc65c2b5df11963f615852c25)), closes [#64](https://github.com/AbelCS/secopy/issues/64)
+* **ui:** the Verify tab ([ca69235](https://github.com/AbelCS/secopy/commit/ca69235b65cb42c497eee34f84ec5ba73626da86)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+* **ui:** underlined tabs, the Queue apart on the right ([44e38e3](https://github.com/AbelCS/secopy/commit/44e38e392ee2b7978c9274763bf60fdb9dc3005e))
+
+
+### Bug Fixes
+
+* findings from reviewing Verify ([92cfbfd](https://github.com/AbelCS/secopy/commit/92cfbfdc4f501c7136eea88d089575f8731662c6)), closes [#67](https://github.com/AbelCS/secopy/issues/67)
+
 ## [0.9.0](https://github.com/AbelCS/secopy/compare/v0.8.0...v0.9.0) (2026-09-28)
 
 
