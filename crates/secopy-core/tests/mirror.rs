@@ -605,3 +605,82 @@ fn a_replaced_file_with_the_same_size_and_time_is_kept() {
     assert!(finished.unwrap().removals[0].result.is_err());
     assert_eq!(fs::read(d.join("gone.mov")).unwrap(), b"new");
 }
+
+#[test]
+fn a_mirror_keeps_a_checksum_file_a_check_can_use() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), ("new/b.mov", b"b")]);
+    write(&d, &[("gone.mov", b"g"), ("a.mov", b"old a")]);
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let (report, finished) = run(&p, None);
+    let finished = finished.unwrap();
+    mirror::write_checksums(&p, &report, &finished).unwrap();
+    let text = fs::read_to_string(d.join(secopy_core::check::MIRROR_CHECKSUMS)).unwrap();
+    let (entries, bad) = secopy_core::check::parse(&text);
+    assert!(bad.is_empty());
+    let mut names: Vec<_> = entries
+        .iter()
+        .map(|(p, _)| p.display().to_string())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["a.mov", "new/b.mov"]);
+    let plan = secopy_core::check::plan(&d).unwrap();
+    let r = secopy_core::check::run(
+        &plan,
+        &secopy_core::check::CheckOptions {
+            keep_awake: false,
+            ..Default::default()
+        },
+        &JobControl::new(),
+        &|_| {},
+    );
+    assert!(r.is_intact(), "{:?}", r.job.outcomes);
+    assert!(!d.join(".secopy-checksums.partial").exists());
+}
+
+/// Review focus 5.
+#[test]
+fn a_failed_mirror_keeps_the_previous_checksums() {
+    let (_dir, o, d) = pair();
+    write(
+        &d,
+        &[(".secopy-checksums.xxh64", b"0000000000000001  a.mov\n")],
+    );
+    write(&o, &[("a.mov", b"a")]);
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    fs::remove_file(o.join("a.mov")).unwrap(); // vanished: the copy phase fails
+    let (_, finished) = run(&p, None);
+    assert!(finished.is_err());
+    // The caller writes checksums only after Ok(finished); the file is as it was.
+    assert_eq!(
+        fs::read(d.join(".secopy-checksums.xxh64")).unwrap(),
+        b"0000000000000001  a.mov\n"
+    );
+}
+
+#[test]
+fn the_checksum_file_is_never_planned_for_removal() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    write(&d, &[("a.mov", b"a"), (".secopy-checksums.xxh64", b"x")]);
+    same_time(&o.join("a.mov"), &d.join("a.mov"));
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    assert!(p.removals.is_empty(), "{:?}", p.removals);
+}
+
+#[test]
+fn a_deep_check_records_the_hashes_it_compared() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    write(&d, &[("a.mov", b"a")]);
+    same_time(&o.join("a.mov"), &d.join("a.mov"));
+    let deep = MirrorOptions {
+        deep_check: true,
+        ..opts()
+    };
+    let p = mirror::plan(&o, &d, &deep).unwrap();
+    assert_eq!(
+        p.same.get(Path::new("a.mov")),
+        Some(&secopy_core::hash::hash_bytes(b"a"))
+    );
+}
