@@ -39,6 +39,14 @@ describe("QueueScreen", () => {
     expect(within(row).queryByText("Copy & Verify")).toBeNull();
   });
 
+  test("a check job shows Verify and its directory", () => {
+    show(queueView({ jobs: [queuedJob({ kind: "check", source: "/Volumes/Backup/Day01", destination: "" })] }));
+    const row = screen.getByRole("listitem");
+    within(row).getByText("Verify");
+    within(row).getByText("/Volumes/Backup/Day01");
+    expect(within(row).queryByText("→")).toBeNull();
+  });
+
   test("jobs move and are removed", async () => {
     const { api } = show();
     await fireEvent.click(screen.getByRole("button", { name: "Move job 1 down" }));

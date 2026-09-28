@@ -6,6 +6,16 @@ import { headline } from "./headline";
 import type { Stat } from "./ui/Stats.svelte";
 
 export function summaryStats(s: SummaryView): Stat[] {
+  // A check reads, it doesn't write: its files, its time, and what nothing lists.
+  if (s.check) {
+    const stats: Stat[] = [plural(s.files, "file"), `took ${formatDuration(s.millis)}`];
+    if (s.check.notChecked > 0)
+      stats.push({
+        text: `${formatCount(s.check.notChecked)} not checked`,
+        hint: "Files no checksum file lists: nothing to compare them with.",
+      });
+    return stats;
+  }
   const speed = formatSpeed(s.millis > 0 ? (s.bytesWritten * 1000) / s.millis : null);
   const items = [plural(s.files, "file"), `${formatBytes(s.bytesWritten)} written`, `took ${formatDuration(s.millis)}`, `${speed} average`];
   if (s.skippedIdentical > 0) items.push(`${formatCount(s.skippedIdentical)} already at the destination, not checked`);

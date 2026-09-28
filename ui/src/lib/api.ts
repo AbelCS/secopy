@@ -14,6 +14,7 @@ import {
   commands,
   type ConflictPolicy,
   type FinishedRow,
+  type CheckView,
   type ComparedView,
   type MirrorPreset,
   type MirrorPresetInput,
@@ -111,6 +112,15 @@ export const tauriApi = {
     return unwrap(commands.runMirror(id, channel));
   },
   addMirrorToQueue: (id: string): Promise<QueueView> => unwrap(commands.addMirrorToQueue(id)),
+  /** Verify's Choose…: what the directory's checksum files list (plan 8). */
+  checkDirectory: (path: string): Promise<CheckView> => unwrap(commands.checkDirectory(path)),
+  /** Start verify: checks the directory chosen last, once. */
+  startCheck: (path: string, onProgress: (p: ProgressView) => void): Promise<null> => {
+    const channel = new Channel<ProgressView>();
+    channel.onmessage = onProgress;
+    return unwrap(commands.startCheck(path, channel));
+  },
+  addCheckToQueue: (path: string): Promise<QueueView> => unwrap(commands.addCheckToQueue(path)),
   appStart: (): Promise<StartView> => unwrap(commands.appStart()),
   recentDestinations: (): Promise<string[]> => unwrap(commands.recentDestinations()),
   selectProfile: (id: string | null): Promise<SessionView> => unwrap(commands.selectProfile(id)),
