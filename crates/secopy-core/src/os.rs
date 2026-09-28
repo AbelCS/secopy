@@ -50,6 +50,15 @@ pub fn full_barrier(dir: &Path) -> io::Result<()> {
     sync_durable(&File::open(dir)?)
 }
 
+/// An error from the device while syncing, not a file system that can't sync a directory
+/// or flush its cache (#58).
+pub fn is_device_error(e: &io::Error) -> bool {
+    matches!(
+        e.raw_os_error(),
+        Some(libc::EIO | libc::ENXIO | libc::ENODEV | libc::ENOSPC | libc::EROFS)
+    )
+}
+
 /// Asks the OS not to keep this file's pages in cache (`F_NOCACHE`). Returns true if the
 /// request was accepted.
 pub fn set_nocache(file: &File) -> bool {
