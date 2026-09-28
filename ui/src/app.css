@@ -69,6 +69,7 @@ button {
 /* Text fields and menus, one look everywhere. */
 input:not([type]),
 input[type="text"],
+input[type="number"],
 select {
   font: inherit;
   color: var(--text);

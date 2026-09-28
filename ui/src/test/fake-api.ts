@@ -9,7 +9,12 @@ import type {
   ProfileInput,
   ProfilesView,
   FinishedRow,
+  MirrorPreset,
+  MirrorPresetInput,
+  MirrorPreviewView,
   OnFailure,
+  PreviewKind,
+  PreviewRow,
   ProgressView,
   QueuedJobView,
   QueueEvent,
@@ -180,6 +185,36 @@ export function queuedJob(over: Partial<QueuedJobView> = {}): QueuedJobView {
   };
 }
 
+export function mirrorPreset(over: Partial<MirrorPreset> = {}): MirrorPreset {
+  return {
+    id: "m1",
+    name: "Footage → NAS",
+    origin: "/Volumes/SSD/Footage",
+    destination: "/Volumes/Media/Footage",
+    deleted: { mode: "archive", days: 30 },
+    deepCheck: false,
+    ...over,
+  };
+}
+
+export function mirrorPreview(over: Partial<MirrorPreviewView> = {}): MirrorPreviewView {
+  return {
+    presetId: "m1",
+    name: "Footage → NAS",
+    origin: "/Volumes/SSD/Footage",
+    destination: "/Volumes/Media/Footage",
+    newFiles: 2,
+    newBytes: 4_000_000_000,
+    changedFiles: 1,
+    changedBytes: 2_000_000_000,
+    removedFiles: 1,
+    archiveDays: 30,
+    unchanged: 100,
+    guard: null,
+    ...over,
+  };
+}
+
 export function queueView(over: Partial<QueueView> = {}): QueueView {
   return { jobs: [], onFailure: "continue", running: false, ...over };
 }
@@ -234,6 +269,17 @@ export function fakeApi(session: SessionView = sessionView()) {
     }),
     queueFinishedPage: vi.fn((_i: number, _o: number, _l: number, _f: boolean) => Promise.resolve([] as FinishedRow[])),
     queueSaveReport: vi.fn((_i: number, _p: string) => Promise.resolve(null)),
+    mirrorPresets: vi.fn(() => Promise.resolve([mirrorPreset()])),
+    createMirrorPreset: vi.fn((_input: MirrorPresetInput) => Promise.resolve([mirrorPreset()])),
+    editMirrorPreset: vi.fn((_id: string, _input: MirrorPresetInput) => Promise.resolve([mirrorPreset()])),
+    deleteMirrorPreset: vi.fn((_id: string) => Promise.resolve([] as MirrorPreset[])),
+    previewMirror: vi.fn((_id: string) => Promise.resolve(mirrorPreview())),
+    mirrorPreviewPage: vi.fn((_kind: PreviewKind | null, _o: number, _l: number) => Promise.resolve([] as PreviewRow[])),
+    runMirror: vi.fn((onProgress: (p: ProgressView) => void) => {
+      state.progress = onProgress;
+      return Promise.resolve(null);
+    }),
+    addMirrorToQueue: vi.fn((_id: string) => queueAnswer()),
     appStart: vi.fn(() => Promise.resolve(state.start)),
     recentDestinations: vi.fn(() => Promise.resolve(state.start.recentDestinations)),
     selectProfile: vi.fn((_id: string | null) => answer()),

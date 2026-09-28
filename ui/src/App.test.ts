@@ -282,4 +282,13 @@ describe("App", () => {
     state.menu!("show-copy");
     await screen.findByRole("heading", { level: 1, name: "New copy" });
   });
+
+  test("the sidebar and ⌘2 open Mirror", async () => {
+    const { state } = app();
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-mirror");
+    await screen.findByRole("heading", { level: 1, name: "Mirror" });
+    screen.getByRole("button", { name: "Mirror" });
+  });
 });
