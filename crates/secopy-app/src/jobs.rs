@@ -167,10 +167,78 @@ impl Jobs {
 
     /// Rows of the finished list, in the order files finished.
     pub fn finished_page(&self, offset: u32, limit: u32, failed_only: bool) -> Vec<FinishedRow> {
-        let Some(job) = self.job() else {
-            return Vec::new();
+        self.job().map_or_else(Vec::new, |job| {
+            job.finished_page(offset, limit, failed_only)
+        })
+    }
+
+    /// The summary once the job has ended; `None` while it runs.
+    pub fn summary(&self) -> Option<SummaryView> {
+        self.job()?.summary()
+    }
+
+    /// "Save report…": the text report at `path` and the JSON next to it (FR-35).
+    pub fn save_report(&self, path: &Path) -> Result<(), String> {
+        self.job()
+            .ok_or("There is no report yet.")?
+            .save_report(path)
+    }
+
+    /// The current (or last) job, kept for the queue summary.
+    pub fn current_handle(&self) -> Option<JobHandle> {
+        self.job().map(JobHandle)
+    }
+
+    /// The failed files of the last job, for "Retry failed" (RFD §5.4).
+    pub fn retry(&self) -> Option<(Source, Selection)> {
+        let job = self.job()?;
+        let ids: Vec<usize> = job
+            .outcomes
+            .lock()
+            .expect("job lock poisoned")
+            .iter()
+            .filter(|o| matches!(o.status, FileStatus::Failed(_)))
+            .map(|o| o.id)
+            .collect();
+        if ids.is_empty() {
+            return None;
+        }
+        let plan = &job.ready.plan;
+        let all = Selection {
+            files: plan.files.iter().map(|f| f.entry.clone()).collect(),
+            dirs: plan.dirs.clone(),
+            total_bytes: plan.total_bytes(),
         };
-        let outcomes = job.outcomes.lock().expect("job lock poisoned");
+        Some((job.ready.source.clone(), all.subset(&ids)))
+    }
+
+    fn job(&self) -> Option<Arc<Job>> {
+        self.current.lock().expect("jobs lock poisoned").clone()
+    }
+}
+
+/// A job the app ran, kept for the queue summary (plan 6).
+#[derive(Clone)]
+pub struct JobHandle(Arc<Job>);
+
+impl JobHandle {
+    pub fn summary(&self) -> Option<SummaryView> {
+        self.0.summary()
+    }
+
+    pub fn finished_page(&self, offset: u32, limit: u32, failed_only: bool) -> Vec<FinishedRow> {
+        self.0.finished_page(offset, limit, failed_only)
+    }
+
+    pub fn save_report(&self, path: &Path) -> Result<(), String> {
+        self.0.save_report(path)
+    }
+}
+
+impl Job {
+    /// Rows of the finished list, in the order files finished.
+    fn finished_page(&self, offset: u32, limit: u32, failed_only: bool) -> Vec<FinishedRow> {
+        let outcomes = self.outcomes.lock().expect("job lock poisoned");
         outcomes
             .iter()
             .filter(|o| !failed_only || matches!(o.status, FileStatus::Failed(_)))
@@ -181,8 +249,8 @@ impl Jobs {
     }
 
     /// The summary once the job has ended; `None` while it runs.
-    pub fn summary(&self) -> Option<SummaryView> {
-        let job = self.job()?;
+    fn summary(&self) -> Option<SummaryView> {
+        let job = self;
         let done = job.done.lock().expect("job lock poisoned");
         let done = done.as_ref()?;
         let report = job.report(done);
@@ -236,8 +304,8 @@ impl Jobs {
     }
 
     /// "Save report…": the text report at `path` and the JSON next to it (FR-35).
-    pub fn save_report(&self, path: &Path) -> Result<(), String> {
-        let job = self.job().ok_or("There is no report yet.")?;
+    fn save_report(&self, path: &Path) -> Result<(), String> {
+        let job = self;
         let done = job.done.lock().expect("job lock poisoned");
         let done = done.as_ref().ok_or("The copy is still running.")?;
         let report = job.report(done);
@@ -246,35 +314,6 @@ impl Jobs {
         write(&path.with_extension("json"), report.to_json())
     }
 
-    /// The failed files of the last job, for "Retry failed" (RFD §5.4).
-    pub fn retry(&self) -> Option<(Source, Selection)> {
-        let job = self.job()?;
-        let ids: Vec<usize> = job
-            .outcomes
-            .lock()
-            .expect("job lock poisoned")
-            .iter()
-            .filter(|o| matches!(o.status, FileStatus::Failed(_)))
-            .map(|o| o.id)
-            .collect();
-        if ids.is_empty() {
-            return None;
-        }
-        let plan = &job.ready.plan;
-        let all = Selection {
-            files: plan.files.iter().map(|f| f.entry.clone()).collect(),
-            dirs: plan.dirs.clone(),
-            total_bytes: plan.total_bytes(),
-        };
-        Some((job.ready.source.clone(), all.subset(&ids)))
-    }
-
-    fn job(&self) -> Option<Arc<Job>> {
-        self.current.lock().expect("jobs lock poisoned").clone()
-    }
-}
-
-impl Job {
     fn running(&self) -> bool {
         self.done.lock().expect("job lock poisoned").is_none()
     }
@@ -769,5 +808,64 @@ mod tests {
         assert!(f.dest.join(format!("{stem}_report.txt")).is_file());
         assert!(f.dest.join(format!("{stem}_report.json")).is_file());
         assert!(!s.checksum_off && s.report_error.is_none());
+    }
+
+    /// Two ready jobs over temp dirs: one file, then two files.
+    fn two_small_jobs() -> (tempfile::TempDir, Jobs, Ready, Ready) {
+        let dir = tempfile::tempdir().unwrap();
+        let ready = |name: &str, files: &[&str]| {
+            let src = dir.path().join(name);
+            std::fs::create_dir_all(&src).unwrap();
+            for f in files {
+                std::fs::write(src.join(f), b"x").unwrap();
+            }
+            let dest = dir.path().join(format!("{name}-dest"));
+            std::fs::create_dir_all(&dest).unwrap();
+            crate::queue::prepare(&crate::queue::CopyJob {
+                sources: vec![src],
+                include_folder: true,
+                extensions: None,
+                destination: dest,
+                conflicts: crate::dto::ConflictPolicy::KeepBoth,
+                verify: false,
+            })
+            .ok()
+            .unwrap()
+        };
+        let one = ready("one", &["a"]);
+        let two = ready("two", &["a", "b"]);
+        let jobs = Jobs::new(dir.path().join("reports"));
+        (dir, jobs, one, two)
+    }
+
+    #[test]
+    fn a_finished_job_stays_readable_after_the_next_one() {
+        let (_dir, jobs, first_ready, second_ready) = two_small_jobs();
+        jobs.start(
+            first_ready,
+            false,
+            JobSettings::default(),
+            Collect::default(),
+        )
+        .unwrap();
+        jobs.wait();
+        let first = jobs.current_handle().unwrap();
+        jobs.start(
+            second_ready,
+            false,
+            JobSettings::default(),
+            Collect::default(),
+        )
+        .unwrap();
+        jobs.wait();
+        let second = jobs.current_handle().unwrap();
+        assert_eq!(first.summary().unwrap().files, 1);
+        assert_eq!(second.summary().unwrap().files, 2);
+        assert_eq!(first.finished_page(0, 10, false).len(), 1);
+        assert_eq!(
+            jobs.summary().unwrap().files,
+            2,
+            "the current job is the last one"
+        );
     }
 }
