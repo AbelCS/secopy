@@ -75,7 +75,7 @@
       </EmptyState>
     {:else}
       <!-- role="list": Safari drops list semantics when the bullets are hidden. -->
-      <ol class="jobs" role="list">
+      <ol class="jobs" role="list" aria-label="Queued jobs">
         {#each queue.jobs as job, i (i)}
           <li class="job">
             <span class="number">{i + 1}</span>
