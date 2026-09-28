@@ -106,6 +106,8 @@ export function progressView(over: Partial<ProgressView> = {}): ProgressView {
     active: [],
     smallFiles: null,
     fatal: null,
+    removing: 0,
+    archiving: false,
     ...over,
   };
 }
@@ -131,6 +133,7 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
     checksumOff: false,
     reportFile: "/Users/me/Library/Application Support/com.latecommits.secopy/reports/r.txt",
     reportError: null,
+    mirror: null,
     finished: 1284,
     ...over,
   };

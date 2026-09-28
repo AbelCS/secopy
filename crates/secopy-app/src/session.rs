@@ -618,7 +618,7 @@ fn label(source: &Source) -> String {
 }
 
 /// Why `path` can't be used: its drive isn't connected, or it is gone.
-fn gone(path: &Path) -> String {
+pub(crate) fn gone(path: &Path) -> String {
     if let Ok(rest) = path.strip_prefix(VOLUMES)
         && let Some(drive) = rest.components().next()
         && !Path::new(VOLUMES).join(drive).exists()
