@@ -252,3 +252,34 @@ fn an_unreadable_directory_is_not_a_success() {
         "{stdout}"
     );
 }
+
+#[test]
+fn check_says_intact_then_changed() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&src).unwrap();
+    fs::create_dir_all(&dest).unwrap();
+    fs::write(src.join("A001.mov"), b"movie").unwrap();
+    assert!(
+        cli()
+            .arg(&src)
+            .arg("--to")
+            .arg(&dest)
+            .arg("--verify")
+            .status()
+            .unwrap()
+            .success()
+    );
+    let out = cli().arg("--check").arg(&dest).output().unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("intact: 1"));
+    fs::write(dest.join("CARD/A001.mov"), b"movif").unwrap();
+    let out = cli().arg("--check").arg(&dest).output().unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stdout).contains("CHANGED CARD/A001.mov"));
+}
