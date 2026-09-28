@@ -43,7 +43,8 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && onDone()} />
+<!-- A held Esc repeats: only the first press counts. -->
+<svelte:window onkeydown={(e) => e.key === "Escape" && !e.repeat && onDone()} />
 
 <AppShell>
   {#snippet header()}<ScreenHeader title="Settings" />{/snippet}

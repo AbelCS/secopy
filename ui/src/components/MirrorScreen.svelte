@@ -50,16 +50,20 @@
   const editorKey = $derived(selectedId === NEW ? NEW : JSON.stringify(selected));
   const editing = $derived(selectedId === NEW || changed);
 
+  /** "Discard changes?" is open: another click doesn't ask a second time. */
+  let asking = false;
+
   async function select(id: string) {
-    if (id === selectedId) return;
+    if (id === selectedId || asking) return;
     if (changed) {
       const which = selectedId === NEW ? "the new mirror" : `“${selected?.name ?? ""}”`;
-      const discard = await api.confirm(
-        `Your changes to ${which} aren't saved.`,
-        "Discard changes?",
-        "Discard",
-        "Keep editing",
-      );
+      asking = true;
+      let discard: boolean;
+      try {
+        discard = await api.confirm(`Your changes to ${which} aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+      } finally {
+        asking = false;
+      }
       if (!discard) return;
     }
     changed = false;
