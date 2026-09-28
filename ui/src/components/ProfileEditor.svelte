@@ -82,10 +82,19 @@
 
   const label = (key: string | null) => (key === null ? NO_EXTENSION : `.${key}`);
 
+  /**
+   * Adds what was typed: several types split by commas or spaces ("mp4, mov"), each without
+   * its dots ("*.MP4" is mp4). `*` or `*.*` alone means All types.
+   */
   function addType() {
-    const key = newType.trim().replace(/^\.+/, "").toLowerCase();
+    const typed = newType.trim();
     newType = "";
-    if (key && !types.includes(key)) types = [...types, key];
+    if (typed === "*" || typed === "*.*") {
+      all = true;
+      return;
+    }
+    const keys = typed.split(/[\s,]+/).map((t) => t.replace(/^\*?\.+/, "").toLowerCase());
+    for (const key of keys) if (key && key !== "*" && !types.includes(key)) types = [...types, key];
   }
 
   async function chooseSource() {
