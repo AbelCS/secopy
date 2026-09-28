@@ -43,6 +43,7 @@ fn setup(dest: &Path) -> (Selection, Preflight) {
         ],
         dirs: vec![],
         total_bytes: 1000,
+        unread: vec![],
     };
     let pf = Preflight {
         dest: dest.to_path_buf(),

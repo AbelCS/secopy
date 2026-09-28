@@ -236,6 +236,8 @@ pub struct SummaryView {
     pub skipped_identical: u32,
     pub skipped_different: u32,
     pub failed: u32,
+    /// Items the scan couldn't read, so they weren't copied (#58).
+    pub unread: u32,
     pub not_started: u32,
     #[specta(type = specta_typescript::Number)]
     pub bytes_written: u64,

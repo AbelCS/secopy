@@ -9,7 +9,7 @@ use crate::error::FileError;
 use crate::fsinfo::FsInfo;
 use crate::names::numbered;
 use crate::preflight::{Blocker, ConflictKind, Preflight, SourceRoot, clash_key};
-use crate::scan::{DirEntry, ScanEntry, Selection};
+use crate::scan::{DirEntry, ScanEntry, ScanProblem, Selection};
 
 /// What to do with files that exist at the destination but differ (FR-17).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -77,6 +77,8 @@ pub struct Plan {
     pub fs: FsInfo,
     pub source_roots: Vec<SourceRoot>,
     pub stale_partials: Vec<PathBuf>,
+    /// What the scan couldn't read: not copied, so the job can't be complete (#58).
+    pub unread: Vec<ScanProblem>,
 }
 
 /// Free space kept on top of the bytes to write: 1 % of them, at least 64 MiB.
@@ -138,6 +140,7 @@ impl Plan {
             fs: pf.fs.clone(),
             source_roots: pf.source_roots.clone(),
             stale_partials: pf.stale_partials.clone(),
+            unread: sel.unread.clone(),
         }
     }
 

@@ -365,13 +365,20 @@ fn print_summary(report: &JobReport, total_bytes: u64) {
     let secs = report.elapsed.as_secs_f64().max(0.001);
     let failed = report.failed().count();
     let skipped = report.skipped().count();
+    let ok = report
+        .outcomes
+        .iter()
+        .filter(|o| matches!(o.status, FileStatus::Copied | FileStatus::Verified))
+        .count();
     println!(
-        "{} files ok, {} skipped, {} failed, {} not started",
-        report.outcomes.len() - failed - skipped,
-        skipped,
-        failed,
+        "{ok} files ok, {skipped} skipped, {failed} failed, {} not started",
         report.not_started
     );
+    match report.unread.len() {
+        0 => {}
+        1 => println!("1 item couldn't be read (not copied)"),
+        n => println!("{n} items couldn't be read (not copied)"),
+    }
     println!(
         "{} in {:.2} s ({}/s)",
         fmt_bytes(total_bytes),

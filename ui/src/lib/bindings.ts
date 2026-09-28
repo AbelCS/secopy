@@ -52,6 +52,8 @@ export const commands = {
 	skippedIdentical: number,
 	skippedDifferent: number,
 	failed: number,
+	/**  Items the scan couldn't read, so they weren't copied (#58). */
+	unread: number,
 	notStarted: number,
 	bytesWritten: number,
 	millis: number,
@@ -461,6 +463,8 @@ export type SummaryView = {
 	skippedIdentical: number,
 	skippedDifferent: number,
 	failed: number,
+	/**  Items the scan couldn't read, so they weren't copied (#58). */
+	unread: number,
 	notStarted: number,
 	bytesWritten: number,
 	millis: number,

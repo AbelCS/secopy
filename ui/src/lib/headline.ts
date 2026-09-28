@@ -5,8 +5,11 @@ import { formatCount, plural } from "./format";
 
 export function headline(s: SummaryView): string {
   const m = s.mirror;
-  if (m && s.outcome === "failures" && s.failed === 0) {
-    return `${plural(m.removalFailures.length, "file")} couldn't be removed`;
+  // Failures other than files: what couldn't be read, removals, the checksum file.
+  if (s.outcome === "failures" && s.failed === 0) {
+    if (s.unread > 0) return `${plural(s.unread, "item")} couldn't be read`;
+    if (m && m.removalFailures.length > 0) return `${plural(m.removalFailures.length, "file")} couldn't be removed`;
+    if (s.checksumError) return "The checksum file couldn't be written";
   }
   if (m && s.outcome === "complete") {
     const parts = [

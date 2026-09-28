@@ -18,7 +18,7 @@ use crate::checksum_file;
 use crate::copy::CopyConfig;
 use crate::error::{FatalError, FileError};
 use crate::plan::Plan;
-use crate::scan::DirEntry;
+use crate::scan::{DirEntry, ScanProblem};
 use crate::verify::CacheBypass;
 use crate::{metadata, os};
 
@@ -141,6 +141,8 @@ pub struct JobReport {
     pub elapsed: Duration,
     /// Directories this job created (full paths), so `undo` removes only those.
     pub created_dirs: Vec<PathBuf>,
+    /// What the scan couldn't read, from the plan: not copied (#58).
+    pub unread: Vec<ScanProblem>,
 }
 
 impl JobReport {
@@ -156,11 +158,15 @@ impl JobReport {
             .filter(|o| matches!(o.status, FileStatus::Skipped(_)))
     }
 
+    /// Every file copied (and verified), nothing left unread, and the checksum file written
+    /// when it was asked for.
     pub fn is_success(&self) -> bool {
         self.fatal.is_none()
             && !self.cancelled
             && self.not_started == 0
             && self.failed().next().is_none()
+            && self.unread.is_empty()
+            && self.checksum_error.is_none()
     }
 }
 
@@ -269,6 +275,7 @@ pub fn run_job(
         fatal,
         elapsed: started.elapsed(),
         created_dirs,
+        unread: plan.unread.clone(),
     }
 }
 
