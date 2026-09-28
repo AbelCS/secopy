@@ -54,16 +54,19 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Copy hidden files too (a camera can mark its own files hidden); skip only the files
   computers leave on a card, such as `.DS_Store` and `Thumbs.db`.
 - Get close to the throughput of the slower of the two devices.
+- **Queue** jobs and run them one after another, unattended (§5.7, 0.7.0).
+- **Mirror** a directory one way to a backup with saved presets: new and changed files
+  copied, deleted ones archived or removed (§5.8, 0.8.0).
 - Run natively on Apple Silicon Macs. v1 is macOS only, and Intel Macs are not supported
   (§14, 2026-09-27). The engine stays portable: it keeps building for Linux and
   Windows, so apps for those can follow after v1 (§11).
 
 ### Non-goals (v1)
 
-- Sync or mirroring (deleting files at the destination, two-way sync).
+- Two-way sync. (One-way mirroring is a goal, §5.8.)
 - Multiple destinations in one job (planned for v1.1, §11).
 - Network protocols (SFTP, S3…). Mounted network shares work as ordinary folders.
-- Scheduling, watch folders, background daemons.
+- Scheduling, watch folders, background daemons (the queue runs while the app is open).
 - Resuming a job after the app is closed or crashes (planned, §11).
 - Copying extended attributes, ACLs, resource forks.
 - Encryption or compression.
@@ -243,6 +246,30 @@ Rules:
 
 These values are a starting point and will be refined during M2.
 
+### 5.7 Sections and the job queue
+
+A sidebar holds the app's sections: **Copy** (the main window above), **Mirror** (§5.8) and
+**Queue**, with the number of queued jobs. It is hidden while jobs run and on Settings and
+Profiles.
+
+- **Add to queue** next to Start copy (and on a mirror preset) saves the job as set up; the
+  Queue screen lists the jobs (reorder, remove, clear), the choice for failures (continue with
+  the next job, or stop the queue) and **Run queue**.
+- A queue run uses the Copying screen with "Job n of m", then a queue summary with one row per
+  job that opens the job's own summary, and one notification. Finished jobs leave the queue;
+  failed and not-run ones stay with their reason.
+
+Design: [job queue](../superpowers/specs/2026-09-28-job-queue-design.md).
+
+### 5.8 Mirror
+
+Mirror presets (name, origin, destination, what to do with deleted files, deep check) live in
+the **Mirror** section. **Preview…** shows every change before anything is touched (new,
+changed, deleted in the origin, unchanged); **Run mirror** runs it on the Copying screen; a
+preset can also be added to the queue.
+
+Design: [mirror](../superpowers/specs/2026-09-28-mirror-design.md).
+
 ## 6. Functional requirements
 
 Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is future work.
@@ -325,6 +352,30 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-36 | The app remembers the mode, the window size and the last selected source profile, which is loaded again at launch when its source is there. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
 | FR-37 | Keyboard, in a File menu: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `⌘/Ctrl+.` cancel the copy (asks first); items greyed out when they don't apply. `Space` pauses and resumes a copy; `Esc` goes back from Settings and Profiles and cancels dialogs. | S |
 | FR-38 | **Source profiles**, chosen by hand: a saved copy setup for FROM. A name, the source (a full path, e.g. `/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one loads its source and settings (or says its card isn't connected); changes last for one run unless saved with "Update profile" or "Save as new…" (which asks only for a name). The destination is never part of a profile. No automatic card detection, and nothing is written to cards. | S |
+
+### 6.9 Job queue
+
+| ID | Req | Pri |
+|---|---|---|
+| FR-39 | Any job that can be run by hand (Copy, Copy & Verify, a mirror run) can be added to a queue, as set up at that moment. Queued jobs can be reordered and removed, not edited. | S |
+| FR-40 | **Run queue** runs the jobs one after another. Each job is scanned and checked when its turn comes; one that can't start fails with its reason. | S |
+| FR-41 | If a job fails (can't start, or ends with failed files), the queue continues with the next job or stops, as chosen for the queue. Cancel stops the current job and the queue. | S |
+| FR-42 | The queue is saved across launches. After a run, finished jobs leave it; failed and not-run jobs stay with their reason. | S |
+| FR-43 | A queue summary lists every job with its result and opens its summary; one notification for the whole queue; the system stays awake for the whole run. | S |
+
+### 6.10 Mirror
+
+| ID | Req | Pri |
+|---|---|---|
+| FR-44 | **Mirror presets:** a name, an origin and a destination (full paths that don't overlap), what to do with files deleted in the origin (archive for N days, default 30, or delete), and a deep check option. | S |
+| FR-45 | One way only: the origin is never written to. | M |
+| FR-46 | A file is new when it isn't in the destination, changed when its size or modification date differs (dates within 2 s count as equal), and, with the deep check, when its contents differ (xxHash64 of both sides). | S |
+| FR-47 | **Preview** before a manual run: counts, sizes and the list of new, changed and deleted files; "Already in sync" when there's nothing to do. A run executes the previewed plan. | S |
+| FR-48 | Everything Mirror writes is verified. A changed file is replaced atomically, and its old version archived (archive mode) only after the new copy is verified. | M |
+| FR-49 | Files deleted in the origin are archived to `<destination>/.secopy-archive/<date time>/…` or deleted, only after every copy succeeded; a failed or cancelled run removes nothing. Archives older than N days are removed at the start of a run. | M |
+| FR-50 | **Guard:** a missing or empty origin, or a run removing more than half of the destination's files, needs confirmation by hand and fails in the queue. | M |
+| FR-51 | System files, symlinks and the archive are ignored on both sides; names are compared after Unicode normalization, and a case-only rename on a case-insensitive destination is an update, not a delete and a copy. | S |
+| FR-52 | A mirror summary: what was copied, updated, archived or deleted, failures with reasons, and a report like a copy's. Mirror writes no checksum file. | S |
 
 ## 7. Engine design (performance)
 
@@ -449,7 +500,9 @@ and Windows small-file speed (`bench.ps1`).
 **Later:** include system files (setting) · light theme · paranoid verify (a second,
 independent read of the source) · XXH3-64/XXH128 options · resume interrupted jobs ·
 "Verify existing copy" as a full feature · CLI front-end on the same engine · extended
-attributes / Finder tags / ACLs · presets (saved source-destination-filter combos).
+attributes / Finder tags / ACLs · mirror: scheduling (intervals, when a drive connects),
+detecting moved and renamed files, several destinations, exclusions, restoring from the
+archive inside the app · the queue: skipping one job without stopping the queue.
 
 ## 12. Open questions
 
@@ -523,3 +576,5 @@ The stack meets these constraints:
 | 2026-09-28 | No drives row in FROM (was B8, plan 3b-1): Source shows the chosen source, as Destination does in TO; a card is picked by dropping it or with Choose…. |
 | 2026-09-28 | No Eject button and no "Safe to eject" line on the summary (were C1, C2 in plan 3b-2): macOS already ejects from Finder, the desktop and the menu bar, and a finished copy is already flushed. Retry failed still says when the card is gone. |
 | 2026-09-28 | A profile saves the full source path instead of a folder relative to the card (B3 in plan 3b-1): a profile is a saved copy setup you load in one step, which is what the user expected. The Start button says "Start copy"; the mode is chosen next to it. |
+| 2026-09-28 | **Job queue and mirror in the same app** (#50, #51): a sidebar with Copy · Mirror · Queue. One engine and one look; the queue holds every kind of job. A separate mirror app was rejected (a duplicated engine, no shared queue). Queue first (0.7.0), mirror next (0.8.0); performance and packaging move after them. |
+| 2026-09-28 | **Mirror safety:** one way only; a manual run previews first; deletions happen last and only after every copy succeeded; deleted files are archived (kept N days) or deleted per preset; a guard stops runs with a missing or empty origin or that would remove more than half of the destination. Changed = size or date (2 s tolerance), with an optional deep check by checksum. |
