@@ -32,6 +32,12 @@ pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
         commands::pick_source,
+        commands::export_all,
+        commands::export_copy_preset,
+        commands::export_mirror_preset,
+        commands::open_import,
+        commands::apply_import,
+        commands::take_opened_file,
         commands::scan_source,
         commands::set_include_folder,
         commands::app_start,

@@ -8,7 +8,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::store::{CopyPreset, Settings};
+use crate::store::{CopyPreset, MirrorPreset, Settings};
 
 /// Everything the main window shows. Every session command returns the whole view, so the
 /// UI never has to combine partial answers.
@@ -535,4 +535,25 @@ pub struct PreviewRow {
     pub size: u64,
     pub kind: PreviewKind,
     pub reason: String,
+}
+
+/// What goes in an export (#77).
+#[derive(Debug, Clone, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportWhat {
+    pub settings: bool,
+    pub copy_presets: bool,
+    pub mirror_presets: bool,
+}
+
+/// After Import: what to say, and everything the window shows, as saved (#77).
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportDone {
+    pub message: String,
+    /// Part of it couldn't be saved; `message` says what.
+    pub failed: bool,
+    pub settings: Settings,
+    pub copy_presets: Vec<CopyPreset>,
+    pub mirror_presets: Vec<MirrorPreset>,
 }

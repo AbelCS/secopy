@@ -8,6 +8,14 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 export const commands = {
 	/**  FROM's Choose…: a folder or files, in one panel (FR-1, FR-2). `None` when cancelled. */
 	pickSource: () => typedError<string[] | null, string>(__TAURI_INVOKE("pick_source")),
+	exportAll: (path: string, what: ExportWhat) => typedError<string, string>(__TAURI_INVOKE("export_all", { path, what })),
+	exportCopyPreset: (id: string, path: string) => typedError<string, string>(__TAURI_INVOKE("export_copy_preset", { id, path })),
+	exportMirrorPreset: (id: string, path: string) => typedError<string, string>(__TAURI_INVOKE("export_mirror_preset", { id, path })),
+	/**  Reads a `.secopy` file for the Import screen; changes nothing. */
+	openImport: (path: string) => typedError<ImportView, string>(__TAURI_INVOKE("open_import", { path })),
+	applyImport: (choices: ImportChoices) => typedError<ImportDone, string>(__TAURI_INVOKE("apply_import", { choices })),
+	/**  A `.secopy` file opened from Finder, once. */
+	takeOpenedFile: () => __TAURI_INVOKE<string | null>("take_opened_file"),
 	/**
 	 *  Scans a picked, dropped or chosen source (FR-1..FR-3). A newer scan replaces
 	 *  an older one.
@@ -222,6 +230,13 @@ export type DestinationView = {
 	stalePartials: number,
 };
 
+/**  What goes in an export (#77). */
+export type ExportWhat = {
+	settings: boolean,
+	copyPresets: boolean,
+	mirrorPresets: boolean,
+};
+
 export type ExtensionView = {
 	key: string | null,
 	/**  ".mov", or "(no extension)". */
@@ -247,6 +262,32 @@ export type FinishedRow = {
 	status: RowStatus,
 	/**  Why it failed or was skipped. */
 	reason: string | null,
+};
+
+/**  What the user ticked: presets by their index in the file. */
+export type ImportChoices = {
+	settings: boolean,
+	copyPresets: PresetChoice[],
+	mirrorPresets: PresetChoice[],
+};
+
+/**  After Import: what to say, and everything the window shows, as saved (#77). */
+export type ImportDone = {
+	message: string,
+	/**  Part of it couldn't be saved; `message` says what. */
+	failed: boolean,
+	settings: Settings,
+	copyPresets: CopyPreset[],
+	mirrorPresets: MirrorPreset[],
+};
+
+/**  What the Import screen shows: nothing is changed by making it. */
+export type ImportView = {
+	fileName: string,
+	/**  `None`: the file has no settings. */
+	settings: SettingsImport | null,
+	copyPresets: PresetImport[],
+	mirrorPresets: PresetImport[],
 };
 
 export type JobOutcome = "complete" | "failures" | "cancelled" | "stopped";
@@ -318,6 +359,26 @@ export type PlanView = {
 	bytesToWrite: number,
 	/**  Not enough free space (FR-16). */
 	blocker: string | null,
+};
+
+export type PresetChoice = {
+	index: number,
+	/**  Replace your preset with the same name; otherwise Keep both. */
+	replace: boolean,
+};
+
+export type PresetImport = {
+	name: string,
+	/**  A copy preset's source, or a mirror's origin and destination. */
+	paths: string[],
+	/**  The name of your preset it has, in any letter case. */
+	clash: string | null,
+	/**  The name Keep both gives it (its own when nothing clashes). */
+	newName: string,
+	/**  Paths that aren't on this Mac now: a note, not an error. */
+	missing: string[],
+	/**  Why it can't be imported. */
+	problem: string | null,
 };
 
 export type PreviewKind = "new" | "changed" | "removed";
@@ -449,6 +510,12 @@ export type Settings = {
 	reportNextToChecksum: boolean,
 	/**  A notification when a copy ends while the window isn't in front (3b-2). */
 	notifyWhenDone: boolean,
+};
+
+export type SettingsImport = {
+	/**  "Write the checksum file: on → off"; empty when they're the same as yours. */
+	changes: string[],
+	problem: string | null,
 };
 
 export type SmallFilesView = {
