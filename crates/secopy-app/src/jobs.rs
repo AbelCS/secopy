@@ -388,7 +388,7 @@ impl Job {
             .filter(|o| !failed_only || matches!(o.status, FileStatus::Failed(_)))
             .skip(offset as usize)
             .take(limit as usize)
-            .map(|o| row(o, self.check_plan().is_some()))
+            .map(|o| row(o, self.check_plan()))
             .collect()
     }
 
@@ -401,7 +401,6 @@ impl Job {
         let outcomes = lock(&job.outcomes);
         let c = &report.counts;
         let mirror = self.mirror().map(|m| mirror_summary(m, done, &outcomes));
-        let checking = self.check_plan().is_some();
         let check = match (self.check_plan(), &done.check) {
             (Some(plan), Some(checked)) => {
                 let n = checked.counts();
@@ -494,7 +493,7 @@ impl Job {
                     outcomes
                         .iter()
                         .filter(|o| matches!(o.status, FileStatus::Failed(_)))
-                        .map(|o| row(o, checking)),
+                        .map(|o| row(o, self.check_plan())),
                 )
                 .take(FAILURES_SHOWN)
                 .collect(),
@@ -901,10 +900,11 @@ fn append_undone(text: &Path, u: &Undone) -> std::io::Result<()> {
 }
 
 /// One row of the finished list; `check` for a check's files (intact, changed, missing).
-fn row(o: &FileOutcome, check: bool) -> FinishedRow {
-    let (status, reason) = match &o.status {
+/// A finished file as a row; `check` is the plan when the job is a check.
+fn row(o: &FileOutcome, check: Option<&CheckPlan>) -> FinishedRow {
+    let (status, mut reason) = match &o.status {
         FileStatus::Copied => (RowStatus::Copied, None),
-        FileStatus::Verified if check => (RowStatus::Intact, None),
+        FileStatus::Verified if check.is_some() => (RowStatus::Intact, None),
         FileStatus::Verified => (RowStatus::Verified, None),
         FileStatus::Failed(e @ FileError::Changed { .. }) => {
             (RowStatus::Changed, Some(sentence(&e.to_string())))
@@ -921,6 +921,16 @@ fn row(o: &FileOutcome, check: bool) -> FinishedRow {
         FileStatus::Failed(e) => (RowStatus::Failed, Some(sentence(&e.to_string()))),
         FileStatus::Cancelled => (RowStatus::Cancelled, None),
     };
+    // A check's problem file says which checksum file listed it (#69).
+    if let (Some(plan), FileStatus::Failed(_)) = (check, &o.status)
+        && let Some(file) = plan.files.get(o.id)
+    {
+        let listed = format!("Listed in {}.", show(&file.from));
+        reason = Some(match reason {
+            Some(why) => format!("{why} {listed}"),
+            None => listed,
+        });
+    }
     FinishedRow {
         id: count(o.id),
         path: show(&o.rel),
@@ -1585,6 +1595,34 @@ mod tests {
         assert_eq!(statuses, [RowStatus::Changed, RowStatus::Intact]);
         let report = fs::read_to_string(s.report_file.unwrap()).unwrap();
         assert!(report.contains("Result:       1 changed"), "{report}");
+    }
+
+    /// #69: a problem file says which checksum file listed it.
+    #[test]
+    fn a_check_row_names_the_checksum_file_that_listed_it() {
+        let (dir, root) = check_fixture();
+        fs::write(root.join("b.mov"), b"B").unwrap();
+        let plan = Arc::new(secopy_core::check::plan(&root).unwrap());
+        fs::remove_file(root.join("a.mov")).unwrap();
+        let sum = plan.checksum_files[0]
+            .file_name()
+            .unwrap()
+            .to_string_lossy();
+        let listed = format!("Listed in {sum}.");
+        let jobs = Jobs::new(dir.path().join("reports"));
+        jobs.start_work(Work::Check(plan.clone()), Collect::default())
+            .unwrap();
+        jobs.wait();
+        let rows = jobs.finished_page(0, 10, false);
+        let reason = |status| {
+            let row = rows.iter().find(|r| r.status == status).unwrap();
+            row.reason.clone().unwrap_or_default()
+        };
+        assert_eq!(reason(RowStatus::Missing), listed);
+        assert!(
+            reason(RowStatus::Changed).ends_with(&format!(" {listed}")),
+            "{rows:?}"
+        );
     }
 
     #[test]
