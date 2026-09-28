@@ -18,7 +18,6 @@ use crate::store::{
     PROFILES, Profile, ProfileInput, Profiles, REMEMBERED, Remembered, SETTINGS, Settings, Store,
     WindowSize,
 };
-use crate::volumes;
 
 /// Everything the app keeps between commands.
 pub struct AppState {
@@ -255,7 +254,7 @@ impl AppState {
     /// "Retry failed": the failed files of the last job become the source.
     pub fn retry_failed(&self) -> Result<SessionView, String> {
         let (source, selection) = self.jobs.retry().ok_or("No files failed.")?;
-        // After Eject, or with the card pulled out: say so instead of failing every file.
+        // With the card pulled out: say so instead of failing every file.
         if let Some(path) = crate::jobs::source_path(&source)
             && !path.exists()
         {
@@ -265,26 +264,6 @@ impl AppState {
             ));
         }
         Ok(session(self).install_retry(source, selection))
-    }
-
-    /// Eject the finished copy's source or destination drive (never another one).
-    pub fn eject(&self, mount_point: &str) -> Result<(), String> {
-        let summary = self.jobs.summary().ok_or("There is no finished copy.")?;
-        let path = Path::new(mount_point);
-        if !path.exists() {
-            let name = path
-                .file_name()
-                .map_or(mount_point.into(), |n| n.to_string_lossy());
-            return Err(format!("{name} is no longer connected."));
-        }
-        let ours = [summary.source_drive, summary.destination_drive]
-            .into_iter()
-            .flatten()
-            .any(|d| d.mount_point == mount_point);
-        if !ours {
-            return Err("Secopy only ejects the copy's source or destination drive.".into());
-        }
-        volumes::eject(Path::new(mount_point))
     }
 }
 
@@ -441,13 +420,6 @@ pub async fn save_report(app: AppHandle, path: String) -> Result<(), String> {
         state.jobs.save_report(&PathBuf::from(path))
     })
     .await?
-}
-
-/// Eject a drive of the finished copy (spec §2).
-#[tauri::command]
-#[specta::specta]
-pub async fn eject(app: AppHandle, mount_point: String) -> Result<(), String> {
-    blocking(app, move |state| state.eject(&mount_point)).await?
 }
 
 /// The UI says which File menu items apply.
@@ -732,66 +704,6 @@ mod tests {
         let saved = store.load::<Profiles>(PROFILES).0;
         assert_eq!(saved.profiles.len(), 16, "no profile lost");
         assert_eq!(saved, *state.profiles.lock().unwrap());
-    }
-
-    #[test]
-    fn eject_only_takes_the_copys_own_drives() {
-        let dir = tempfile::tempdir().unwrap();
-        let state = AppState::new(dir.path().join("data"));
-        assert_eq!(
-            state.eject("/Volumes/CARD_A").unwrap_err(),
-            "There is no finished copy."
-        );
-        // After a copy between folders on the Mac's own disk, nothing may be ejected.
-        let card = dir.path().join("CARD");
-        fs::create_dir_all(&card).unwrap();
-        fs::write(card.join("a.mov"), b"a").unwrap();
-        let dest = dir.path().join("dest");
-        fs::create_dir_all(&dest).unwrap();
-        state.rescan(Change::Pick(vec![card]));
-        state.session.lock().unwrap().set_destination(Some(dest));
-        state.start(false, Sink::default()).unwrap();
-        state.jobs.wait();
-        assert_eq!(
-            state.eject(&dir.path().to_string_lossy()).unwrap_err(),
-            "Secopy only ejects the copy's source or destination drive."
-        );
-        // A drive that has gone away since (ejected in Finder, or pulled out).
-        assert_eq!(
-            state.eject("/Volumes/CARD_A_gone").unwrap_err(),
-            "CARD_A_gone is no longer connected."
-        );
-    }
-
-    #[test]
-    fn looking_up_drives_doesnt_hold_up_quitting() {
-        fn slow(_: &Path) -> Option<crate::volumes::DriveRef> {
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            None
-        }
-        let dir = tempfile::tempdir().unwrap();
-        let mut state = AppState::new(dir.path().join("data"));
-        state.jobs.drive_lookup = slow;
-        let card = dir.path().join("CARD");
-        fs::create_dir_all(&card).unwrap();
-        fs::write(card.join("a.mov"), b"a").unwrap();
-        let dest = dir.path().join("dest");
-        fs::create_dir_all(&dest).unwrap();
-        state.rescan(Change::Pick(vec![card]));
-        state.session.lock().unwrap().set_destination(Some(dest));
-        state.start(false, Sink::default()).unwrap();
-        state.jobs.wait();
-        std::thread::scope(|s| {
-            s.spawn(|| state.jobs.summary());
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            let asked = std::time::Instant::now();
-            state.jobs.is_running(); // what ⌘Q and closing the window ask
-            assert!(
-                asked.elapsed() < std::time::Duration::from_millis(200),
-                "{:?}",
-                asked.elapsed()
-            );
-        });
     }
 
     #[cfg(unix)]

@@ -68,16 +68,10 @@ export const commands = {
 	reportFile: string | null,
 	/**  Why the report couldn't be saved there. */
 	reportError: string | null,
-	/**  The source's drive, when macOS can eject it (spec §2). */
-	sourceDrive: DriveRef | null,
-	/**  The destination's drive, when it is ejectable: "Safe to eject". */
-	destinationDrive: DriveRef | null,
 } | null, string>(__TAURI_INVOKE("job_summary")),
 	saveReport: (path: string) => typedError<null, string>(__TAURI_INVOKE("save_report", { path })),
 	/**  "Retry failed": only the failed files, checked again (RFD §5.4). */
 	retryFailed: () => typedError<SessionView, string>(__TAURI_INVOKE("retry_failed")),
-	/**  Eject a drive of the finished copy (spec §2). */
-	eject: (mountPoint: string) => typedError<null, string>(__TAURI_INVOKE("eject", { mountPoint })),
 	/**  The UI says which File menu items apply. */
 	setMenuState: (setup: boolean, canStart: boolean, copying: boolean) => __TAURI_INVOKE<void>("set_menu_state", { setup, canStart, copying }),
 };
@@ -117,12 +111,6 @@ export type DestinationView = {
 	differs: number,
 	/**  Partial files left by an interrupted copy, to be replaced (FR-18). */
 	stalePartials: number,
-};
-
-/**  A drive the summary can offer to eject. */
-export type DriveRef = {
-	name: string,
-	mountPoint: string,
 };
 
 export type ExtensionView = {
@@ -323,10 +311,6 @@ export type SummaryView = {
 	reportFile: string | null,
 	/**  Why the report couldn't be saved there. */
 	reportError: string | null,
-	/**  The source's drive, when macOS can eject it (spec §2). */
-	sourceDrive: DriveRef | null,
-	/**  The destination's drive, when it is ejectable: "Safe to eject". */
-	destinationDrive: DriveRef | null,
 };
 
 /* Tauri Specta runtime */

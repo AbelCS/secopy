@@ -55,9 +55,8 @@ section says, which also checks those first-launch steps), then:
     com.latecommits.secopy/reports/` holds the old reports.
 18. **Notification.** Start a copy, switch to another app: when it ends, a notification says
     the result. With "Notify when a copy finishes" off, none. With the window in front, none.
-19. **Eject.** After copying from a card, "Eject <card>" ejects it and says so. Open a file
-    from the card in QuickTime and try again: the reason is shown, the card stays mounted.
-    With a removable destination, "Safe to eject <drive>" shows.
+19. **Card gone before Retry.** After a copy with a failed file, eject the card in Finder
+    and press Retry failed: it says the source isn't there any more; nothing starts.
 20. **Keyboard.** ⌘O, ⌘D, ⌘↩ from the File menu (greyed out when they don't apply); Space
     pauses and resumes; ⌘. asks to cancel; Esc cancels Settings and leaves Profiles.
 21. **VoiceOver.** With VoiceOver on (⌘F5), do a whole copy with the keyboard: every control

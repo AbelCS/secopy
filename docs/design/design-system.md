@@ -66,7 +66,7 @@ Components use tokens only, never raw colours or sizes.
 | `TextField` | Labelled text input with help and an error tied to it; optional trailing button |
 | `Select` | A labelled menu |
 | `Chip` | A toggle with ✓ (file types) or a removable value |
-| `Notice` | A message with icon and words: `info`, `success`, `warning`, `danger` (only danger interrupts); `announce={false}` for notes that are there when the screen opens |
+| `Notice` | A message with icon and words: `info`, `success`, `warning`, `danger` (only danger interrupts) |
 | `Stats` | Figures in one line, "3 files · 7.0 GB written · took 0:06" |
 | `ProgressBar` | One phase's progress with speed and ETA |
 | `EmptyState` | What an empty part is for and how to fill it |

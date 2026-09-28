@@ -184,11 +184,9 @@ to files already copied). The OS is kept awake while the job runs.
 - Stats: file count, total size, duration, average speed. Files skipped because they were
   already at the destination are counted separately and marked as not checked (FR-17).
 - Failure list with the reason for each file (permission denied, hash mismatch, disk full…).
-- Actions, what you'd do next first: **Retry failed**, **Eject <card>** (when the source is
-  on an ejectable drive; never automatic, since Retry failed may still need the card),
-  **Show in Finder/Explorer/Files**, **Open checksum file**, **Save report…**, and
-  **New copy** on the right.
-- "Safe to eject <drive>" when the destination is on an ejectable drive.
+- Actions, what you'd do next first: **Retry failed**, **Show in Finder/Explorer/Files**,
+  **Open checksum file**, **Save report…**, and **New copy** on the right. Ejecting is left
+  to the OS (Finder, the desktop, the menu bar).
 - System notification when the job ends while the window is in the background (a setting,
   on by default).
 
@@ -388,8 +386,8 @@ derives speeds, ETAs and smoothing from them (§5.3).
   plain `fsync`, not `F_FULLFSYNC`: flushing the drive's cache per file made 20,000 small
   files take 80 s instead of 2.6 s in the M0 prototype.
 - At the end of the job: one `fsync` per created directory (makes the renames durable), then
-  one drive-cache flush for the whole volume (`F_FULLFSYNC` on macOS).
-- If the destination is removable, the summary says "Safe to eject" (§5.4).
+  one drive-cache flush for the whole volume (`F_FULLFSYNC` on macOS). When the summary
+  shows, the destination can be ejected.
 
 ## 8. Non-functional requirements
 
@@ -523,3 +521,4 @@ The stack meets these constraints:
 | 2026-09-28 | On macOS, keep-awake is an IOKit power assertion inside the app instead of a `caffeinate` process: macOS 27 reports an app whose helper process is running as "running in the background". |
 | 2026-09-28 | Settings are saved with Save and dropped with Cancel, instead of applying at once: simpler to predict, and the same as profiles. Back sits in the action bar with every other button. |
 | 2026-09-28 | No drives row in FROM (was B8, plan 3b-1): Source shows the chosen source, as Destination does in TO; a card is picked by dropping it or with Choose…. |
+| 2026-09-28 | No Eject button and no "Safe to eject" line on the summary (were C1, C2 in plan 3b-2): macOS already ejects from Finder, the desktop and the menu bar, and a finished copy is already flushed. Retry failed still says when the card is gone. |

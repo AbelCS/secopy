@@ -108,8 +108,6 @@ export const summary: SummaryView = {
   checksumOff: false,
   reportFile: "/x/r.txt",
   reportError: null,
-  sourceDrive: { name: "CARD_A", mountPoint: "/Volumes/CARD_A" },
-  destinationDrive: { name: "V001", mountPoint: "/Volumes/V001" },
 };
 
 const ok =

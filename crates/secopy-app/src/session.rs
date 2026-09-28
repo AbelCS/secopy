@@ -17,7 +17,9 @@ use crate::dto::{
     SessionView, SourceView, count, show,
 };
 use crate::store::Profile;
-use crate::volumes::VOLUMES;
+
+/// Where macOS mounts drives.
+const VOLUMES: &str = "/Volumes";
 
 /// Per-file problems sent to the UI; the rest are only counted.
 const PROBLEMS_SHOWN: usize = 100;
