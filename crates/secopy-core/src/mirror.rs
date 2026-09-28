@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::filter::ExtensionFilter;
-use crate::job::JobControl;
+use crate::job::{JobControl, JobReport};
 use crate::plan::{Action, DiffersPolicy, Plan};
 use crate::preflight::preflight;
 use crate::scan::{ScanOptions, scan};
@@ -228,4 +228,89 @@ fn guard(origin_files: u64, removals: u64, destination_files: u64) -> Option<Str
     (removals * 2 > destination_files).then(|| {
         format!("{removals} of the destination's {destination_files} files would be removed.")
     })
+}
+
+/// One file the mirror archived or deleted, or why it couldn't.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Removal {
+    pub rel: PathBuf,
+    pub result: Result<(), String>,
+}
+
+const STAMP: &str = "%Y-%m-%d %H.%M.%S";
+
+pub fn archive_dir(destination: &Path, now: chrono::DateTime<chrono::Local>) -> PathBuf {
+    destination
+        .join(ARCHIVE_DIR)
+        .join(now.format(STAMP).to_string())
+}
+
+/// The removals, once the copy phase is clean (FR-49); `archive` is `Some` in archive mode.
+pub fn finish(
+    plan: &MirrorPlan,
+    report: &JobReport,
+    archive: Option<&Path>,
+) -> Result<Vec<Removal>, String> {
+    let failed = report.failed().count();
+    if report.cancelled {
+        return Err("Nothing was removed: the mirror was cancelled.".into());
+    }
+    if report.fatal.is_some() {
+        return Err("Nothing was removed: the mirror stopped.".into());
+    }
+    if failed > 0 {
+        return Err(format!(
+            "Nothing was removed: {failed} {} failed.",
+            if failed == 1 { "file" } else { "files" }
+        ));
+    }
+    let dest = &plan.copy.dest;
+    let mut done = Vec::new();
+    for rel in &plan.removals {
+        // Back in the origin since the plan: it stays.
+        if fs::symlink_metadata(plan.origin.join(rel)).is_ok() {
+            continue;
+        }
+        let from = dest.join(rel);
+        let result = match archive {
+            Some(root) => {
+                let to = root.join(rel);
+                to.parent()
+                    .map_or(Ok(()), fs::create_dir_all)
+                    .and_then(|()| fs::rename(&from, &to))
+            }
+            None => fs::remove_file(&from),
+        };
+        done.push(Removal {
+            rel: rel.clone(),
+            result: result.map_err(|e| e.to_string()),
+        });
+    }
+    for dir in &plan.remove_dirs {
+        let _ = fs::remove_dir(dest.join(dir)); // only if it is empty now
+    }
+    for (from, to) in &plan.renames {
+        let _ = fs::rename(dest.join(from), dest.join(to)); // same file: only its letter case
+    }
+    Ok(done)
+}
+
+/// Removes archive run directories older than `days` (named by `archive_dir`).
+pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chrono::Local>) -> u32 {
+    let limit = now - chrono::Duration::days(i64::from(days));
+    let Ok(entries) = fs::read_dir(destination.join(ARCHIVE_DIR)) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for e in entries.filter_map(Result::ok) {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let old = chrono::NaiveDateTime::parse_from_str(&name, STAMP)
+            .ok()
+            .and_then(|t| t.and_local_timezone(chrono::Local).single())
+            .is_some_and(|t| t < limit);
+        if old && fs::remove_dir_all(e.path()).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
 }
