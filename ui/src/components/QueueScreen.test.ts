@@ -18,7 +18,7 @@ function show(queue: QueueView = queueView({ jobs: [queuedJob(), queuedJob({ sou
 describe("QueueScreen", () => {
   test("each job shows its mode, source and destination", () => {
     show();
-    const rows = screen.getAllByRole("listitem");
+    const rows = within(screen.getByRole("list", { name: "Queued jobs" })).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     within(rows[0]).getByText("Copy & Verify");
     within(rows[1]).getByText("Copy");
