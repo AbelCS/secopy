@@ -164,13 +164,20 @@
     {/if}
   </FormRow>
 
-  <FormRow label="Options">
+  <FormRow label="Checking">
+    <p class="note">
+      New and changed files are always verified after copying: read back from the destination and compared by
+      checksum.
+    </p>
     <Checkbox
-      label="Also compare every file's contents"
+      label="Also compare unchanged files byte for byte"
       checked={deepCheck}
       onChange={(on) => (deepCheck = on)}
     >
-      {#snippet help()}Reads both sides completely: slow on big libraries.{/snippet}
+      {#snippet help()}
+        Files with the same size and date are normally left alone. This reads both copies in full to catch a
+        damaged or silently changed file in the backup. Slow on big libraries.
+      {/snippet}
     </Checkbox>
   </FormRow>
 
@@ -185,6 +192,10 @@
 
   .days :global(input) {
     max-width: 96px;
+  }
+
+  .note {
+    margin: 0 0 var(--space-2);
   }
 
   .muted {
