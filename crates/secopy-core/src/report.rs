@@ -35,6 +35,8 @@ pub struct Counts {
     /// A different file has the name, and the user chose Skip.
     pub skipped_different: u64,
     pub failed: u64,
+    /// Stopped by Cancel while it was copied.
+    pub cancelled: u64,
     pub not_started: u64,
     pub bytes_written: u64,
 }
@@ -46,7 +48,7 @@ pub struct ReportFile {
     /// Set when the copy got another name (Keep both).
     pub copied_to: Option<String>,
     pub size: u64,
-    /// `copied`, `verified`, `skipped`, `failed` or `not started`.
+    /// `copied`, `verified`, `skipped`, `failed`, `cancelled` or `not started`.
     pub status: &'static str,
     /// Why it was skipped or failed.
     pub reason: Option<String>,
@@ -108,6 +110,7 @@ impl Report {
                     FileStatus::Verified => "verified",
                     FileStatus::Skipped(_) => "skipped",
                     FileStatus::Failed(_) => "failed",
+                    FileStatus::Cancelled => "cancelled",
                 };
                 let reason = match &o.status {
                     FileStatus::Failed(e) => Some(e.to_string()),
@@ -128,6 +131,7 @@ impl Report {
                     FileStatus::Skipped(SkipReason::Identical) => counts.skipped_identical += 1,
                     FileStatus::Skipped(SkipReason::Differs) => counts.skipped_different += 1,
                     FileStatus::Failed(_) => counts.failed += 1,
+                    FileStatus::Cancelled => counts.cancelled += 1,
                 }
                 if matches!(o.status, FileStatus::Copied | FileStatus::Verified) {
                     counts.bytes_written += o.size;
@@ -194,6 +198,7 @@ impl Report {
             ),
             ("skipped, a different file was kept", c.skipped_different),
             ("failed", c.failed),
+            ("cancelled", c.cancelled),
             ("not started", c.not_started),
         ] {
             if n > 0 {

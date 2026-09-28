@@ -364,7 +364,9 @@ export type QueuedJobView = {
 	name: string | null,
 };
 
-export type RowStatus = "copied" | "verified" | "skipped" | "failed";
+export type RowStatus = "copied" | "verified" | "skipped" | "failed" | 
+/**  Stopped by Cancel. */
+"cancelled";
 
 /**
  *  Everything the main window shows. Every session command returns the whole view, so the

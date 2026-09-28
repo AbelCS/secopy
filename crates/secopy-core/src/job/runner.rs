@@ -388,7 +388,11 @@ impl<'a> Runner<'a> {
         }
     }
 
-    fn finish(&self, slot: Option<&Arc<Slot>>, outcome: FileOutcome) {
+    fn finish(&self, slot: Option<&Arc<Slot>>, mut outcome: FileOutcome) {
+        // Stopped by Cancel: not a failure of the file.
+        if outcome.status == FileStatus::Failed(FileError::Cancelled) {
+            outcome.status = FileStatus::Cancelled;
+        }
         if let Some(slot) = slot {
             self.active
                 .lock()

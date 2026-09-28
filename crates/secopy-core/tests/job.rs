@@ -1193,3 +1193,54 @@ fn undo_says_what_it_could_not_put_back() {
     assert_eq!((undone.removed, undone.not_restored), (0, 1), "{undone:?}");
     assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"new version");
 }
+
+/// A file stopped by Cancel is cancelled, not failed: it isn't counted or reported as a
+/// failure.
+#[test]
+fn a_file_stopped_by_cancel_is_cancelled_not_failed() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    for i in 0..50 {
+        write_files(&src, &[(&format!("f{i:02}.bin"), &pattern(2000))]);
+    }
+    let mut o = opts(true);
+    o.small_file_lanes = 1;
+    o.large_file_lanes = 1;
+    let control = JobControl::new();
+    let plan = plan(&src, &dest);
+    let report = run_job(&plan, &o, &control, &|e| {
+        if let Event::FileFinished(_) = e {
+            control.cancel();
+        }
+    });
+    assert!(report.cancelled);
+    assert!(
+        report
+            .outcomes
+            .iter()
+            .any(|o| o.status == FileStatus::Cancelled),
+        "the file in progress: {:?}",
+        report
+            .outcomes
+            .iter()
+            .map(|o| &o.status)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(report.failed().count(), 0);
+    let r = secopy_core::report::Report::new(
+        &plan,
+        &report,
+        &secopy_core::report::JobMeta {
+            app_version: "test".into(),
+            source: "src".into(),
+            verify: true,
+            started: chrono::Local::now(),
+            finished: chrono::Local::now(),
+        },
+    );
+    assert_eq!(r.counts.failed, 0);
+    let text = r.to_text();
+    assert!(text.contains(" cancelled\n"), "{text}");
+}
