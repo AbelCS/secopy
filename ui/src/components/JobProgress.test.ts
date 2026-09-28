@@ -132,6 +132,26 @@ describe("JobProgress", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  test("the question closes when a mirror starts removing", async () => {
+    const { api } = fakeApi();
+    const { rerender } = render(JobProgress, { props: { progress: progressView() }, context: apiContext(api) });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    screen.getByRole("dialog");
+    await rerender({ progress: progressView({ phase: "removing", removing: 2, archiving: true }) });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("while a queue job is checked, nothing copied can be removed", async () => {
+    const { api } = fakeApi();
+    render(JobProgress, {
+      props: { progress: progressView(), checking: true, queue: { index: 0, count: 2 } },
+      context: apiContext(api),
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("checkbox", { name: "Also remove the files already copied" })).toBeNull();
+    expect(screen.queryByText(/elapsed/)).toBeNull();
+  });
+
   test("a mirror asks Stop mirroring?", async () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), title: "Mirroring" }, context: apiContext(api) });

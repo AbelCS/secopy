@@ -180,6 +180,7 @@ pub fn plan_watched(
 /// One of the two directories holds the other, or they are the same one, however the paths
 /// are written (letter case, symlinks): mirroring would copy or remove its own files.
 fn nested(origin: &Path, destination: &Path) -> Result<(), String> {
+    let (origin, destination) = (&resolved(origin), &resolved(destination));
     let same = |a: &Path, b: &Path| same_file::is_same_file(a, b).unwrap_or(false);
     if same(origin, destination) {
         return Err("The origin and the destination are the same directory.".into());
@@ -191,6 +192,26 @@ fn nested(origin: &Path, destination: &Path) -> Result<(), String> {
         return Err("The origin can't be inside the destination.".into());
     }
     Ok(())
+}
+
+/// `p` made absolute, with symlinks and `..` resolved as far as it exists (a destination may
+/// not exist yet).
+fn resolved(p: &Path) -> PathBuf {
+    let abs = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
+    let mut rest = Vec::new();
+    let mut at = abs.as_path();
+    loop {
+        if let Ok(real) = fs::canonicalize(at) {
+            return rest.iter().rev().fold(real, |acc, name| acc.join(name));
+        }
+        match (at.parent(), at.file_name()) {
+            (Some(parent), Some(name)) => {
+                rest.push(name.to_os_string());
+                at = parent;
+            }
+            _ => return abs,
+        }
+    }
 }
 
 /// Contents differ (the deep check): either side unreadable counts as different.

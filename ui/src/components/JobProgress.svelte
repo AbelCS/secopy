@@ -25,12 +25,15 @@
     queue,
     title,
     checking = false,
+    compared,
   }: {
     progress: ProgressView;
     /** What the job is called while it runs ("Mirroring"); by default Copying. */
     title?: string;
     /** A queue job is being checked before it starts: nothing is copied yet. */
     checking?: boolean;
+    /** While checking a mirror with the deep check: files compared, of how many. */
+    compared?: { done: number; total: number };
     /** The running job writes a checksum file (Settings). */
     checksumFile?: boolean;
     /** In a queue run: this job's place (0-based) and the number of jobs. */
@@ -95,9 +98,9 @@
   const question = $derived(
     queue ? "Stop copying and stop the queue?" : title === "Mirroring" ? "Stop mirroring?" : "Stop copying?",
   );
-  // A job that ends while the question is open has nothing left to stop.
+  // A job that ends (or starts removing) while the question is open has nothing to stop.
   $effect(() => {
-    if (progress.phase === "done") asking = false;
+    if (finishing) asking = false;
   });
 
   /** Asks, then stops the job (and the queue) as chosen. */
@@ -152,7 +155,7 @@
   {#snippet header()}
     <ScreenHeader title={phase}>
       {#snippet trailing()}
-        {formatDuration(progress.elapsedMs)} elapsed
+        {#if !checking}{formatDuration(progress.elapsedMs)} elapsed{/if}
       {/snippet}
     </ScreenHeader>
   {/snippet}
@@ -163,7 +166,11 @@
 
   {#if checking}
     <Section title="Progress">
-      <p class="muted">Looking at the source and the destination before this job starts…</p>
+      <p class="muted">
+        {compared
+          ? `Comparing contents: ${formatCount(compared.done)} of ${plural(compared.total, "file")}`
+          : "Looking at the source and the destination before this job starts…"}
+      </p>
     </Section>
   {:else}
     <Section title="Progress">
@@ -229,11 +236,13 @@
     <p>
       {removeCopied ? "The file in progress and the files already copied are removed." : stopMessage(checksumFile)}
     </p>
-    <Checkbox label="Also remove the files already copied" checked={removeCopied} onChange={(on) => (removeCopied = on)}>
-      {#snippet help()}
-        The destination goes back to how it was. Files this job replaced come back only from a mirror's archive.
-      {/snippet}
-    </Checkbox>
+    {#if !checking}
+      <Checkbox label="Also remove the files already copied" checked={removeCopied} onChange={(on) => (removeCopied = on)}>
+        {#snippet help()}
+          The destination goes back to how it was. Files this job replaced come back only from a mirror's archive.
+        {/snippet}
+      </Checkbox>
+    {/if}
     {#snippet actions()}
       <Button data-autofocus onclick={() => (asking = false)}>Continue</Button>
       <Button variant="danger" onclick={stop}>Stop</Button>

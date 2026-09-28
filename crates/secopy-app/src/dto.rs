@@ -384,6 +384,12 @@ pub enum QueueEvent {
         index: u32,
         count: u32,
     },
+    /// A queued mirror's deep check: files compared, of how many.
+    Compared {
+        index: u32,
+        done: u32,
+        total: u32,
+    },
     /// The checks passed and it runs: a job that can't start never gets this.
     JobStarted {
         index: u32,

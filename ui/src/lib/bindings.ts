@@ -318,6 +318,8 @@ export type ProgressView = {
 export type QueueEvent = 
 /**  The job is being checked (its source scanned, the destination looked at). */
 { type: "jobChecking"; index: number; count: number } | 
+/**  A queued mirror's deep check: files compared, of how many. */
+{ type: "compared"; index: number; done: number; total: number } | 
 /**  The checks passed and it runs: a job that can't start never gets this. */
 { type: "jobStarted"; index: number; count: number; job: QueuedJobView } | { type: "progress"; view: ProgressView } | { type: "done"; summary: QueueSummaryView };
 
