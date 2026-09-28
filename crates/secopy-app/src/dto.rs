@@ -293,3 +293,65 @@ pub struct ProfilesView {
     pub profiles: Vec<Profile>,
     pub session: SessionView,
 }
+
+/// A queued job as the Queue screen shows it (plan 6).
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct QueuedJobView {
+    /// "copy", or "unknown" for a job a newer Secopy wrote.
+    pub kind: String,
+    pub verify: bool,
+    /// The source as shown ("3 files" for several).
+    pub source: String,
+    pub destination: String,
+    pub last_error: Option<String>,
+    pub supported: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueView {
+    pub jobs: Vec<QueuedJobView>,
+    pub on_failure: crate::queue::OnFailure,
+    pub running: bool,
+}
+
+/// How a queued job ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum QueueResult {
+    Complete,
+    Failed,
+    Cancelled,
+    NotRun,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueResultView {
+    pub job: QueuedJobView,
+    pub result: QueueResult,
+    /// Why it failed, was cancelled or didn't run.
+    pub reason: Option<String>,
+    /// The job's summary, when it ran.
+    pub summary: Option<SummaryView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueSummaryView {
+    pub results: Vec<QueueResultView>,
+    pub complete: u32,
+    pub count: u32,
+    #[specta(type = specta_typescript::Number)]
+    pub millis: u64,
+}
+
+/// What a queue run sends to the window.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum QueueEvent {
+    JobStarted { index: u32, count: u32 },
+    Progress { view: ProgressView },
+    Done { summary: QueueSummaryView },
+}

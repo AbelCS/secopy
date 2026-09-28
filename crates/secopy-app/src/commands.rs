@@ -9,10 +9,12 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 
 use crate::dto::{
-    ConflictPolicy, ExtensionKey, FinishedRow, ProfilesView, ProgressView, SessionView, StartView,
-    SummaryView, show,
+    ConflictPolicy, ExtensionKey, FinishedRow, JobOutcome, ProfilesView, ProgressView, QueueEvent,
+    QueueResult, QueueResultView, QueueSummaryView, QueueView, QueuedJobView, SessionView,
+    StartView, SummaryView, show,
 };
-use crate::jobs::{JobSettings, Jobs, ProgressSink};
+use crate::jobs::{JobHandle, JobSettings, Jobs, ProgressSink};
+use crate::queue::{Entry, OnFailure, QUEUE, Queue, QueuedJob};
 use crate::session::{Change, Session, scan_source as scan};
 use crate::store::{
     PROFILES, Profile, ProfileInput, Profiles, REMEMBERED, Remembered, SETTINGS, Settings, Store,
@@ -29,6 +31,17 @@ pub struct AppState {
     pub remembered: Mutex<Remembered>,
     /// Saved files that couldn't be read, handed to the UI once.
     warnings: Mutex<Vec<String>>,
+    /// The saved queue (plan 6).
+    pub(crate) queue: Mutex<Queue>,
+    pub(crate) queue_run: Mutex<QueueRun>,
+}
+
+/// The queue run in progress, and the jobs of the last one.
+#[derive(Default)]
+pub(crate) struct QueueRun {
+    pub running: bool,
+    pub cancelled: bool,
+    pub handles: Vec<Option<JobHandle>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -42,6 +55,7 @@ impl AppState {
         let (settings, w1) = store.load::<Settings>(SETTINGS);
         let (profiles, w2) = store.load::<Profiles>(PROFILES);
         let (remembered, w3) = store.load::<Remembered>(REMEMBERED);
+        let (queue, w4) = store.load::<Queue>(QUEUE);
         Self {
             session: Mutex::new(Session::new()),
             jobs: Jobs::new(data_dir.join("reports")),
@@ -49,7 +63,9 @@ impl AppState {
             settings: Mutex::new(settings),
             profiles: Mutex::new(profiles),
             remembered: Mutex::new(remembered),
-            warnings: Mutex::new([w1, w2, w3].into_iter().flatten().collect()),
+            warnings: Mutex::new([w1, w2, w3, w4].into_iter().flatten().collect()),
+            queue: Mutex::new(queue),
+            queue_run: Mutex::new(QueueRun::default()),
         }
     }
 
@@ -241,6 +257,9 @@ impl AppState {
 
     /// Starts the job with the current settings and remembers the destination (B7).
     pub fn start(&self, verify: bool, sink: impl ProgressSink) -> Result<(), String> {
+        if lock(&self.queue_run).running {
+            return Err("The queue is running.".into());
+        }
         let (ready, dest) = {
             let s = session(self);
             let ready = s
@@ -270,6 +289,241 @@ impl AppState {
         }
         Ok(session(self).install_retry(source, selection))
     }
+}
+
+pub trait QueueSink: Clone + Send + Sync + 'static {
+    fn send(&self, event: QueueEvent);
+}
+
+/// A queued job's progress, forwarded as queue events.
+struct Forward<S>(S);
+impl<S: QueueSink> ProgressSink for Forward<S> {
+    fn send(&self, view: ProgressView) {
+        self.0.send(QueueEvent::Progress { view });
+    }
+}
+
+fn job_view(entry: &Entry) -> QueuedJobView {
+    match &entry.job {
+        QueuedJob::Copy(job) => QueuedJobView {
+            kind: "copy".into(),
+            verify: job.verify,
+            source: match job.sources.as_slice() {
+                [one] => show(one),
+                many => format!("{} files", many.len()),
+            },
+            destination: show(&job.destination),
+            last_error: entry.last_error.clone(),
+            supported: true,
+        },
+        QueuedJob::Unknown(_) => QueuedJobView {
+            kind: "unknown".into(),
+            verify: false,
+            source: String::new(),
+            destination: String::new(),
+            last_error: Some("Needs a newer Secopy.".into()),
+            supported: false,
+        },
+    }
+}
+
+impl AppState {
+    pub fn queue_view(&self) -> QueueView {
+        let q = lock(&self.queue);
+        QueueView {
+            jobs: q.jobs.iter().map(job_view).collect(),
+            on_failure: q.on_failure,
+            running: lock(&self.queue_run).running,
+        }
+    }
+
+    /// Changes the queue and saves it; `change` returns false for a bad index.
+    pub fn change_queue(
+        &self,
+        change: impl FnOnce(&mut Queue) -> bool,
+    ) -> Result<QueueView, String> {
+        {
+            let mut q = lock(&self.queue);
+            let mut next = q.clone();
+            if !change(&mut next) {
+                return Err("That job is no longer in the queue.".into());
+            }
+            self.store
+                .save(QUEUE, &next)
+                .map_err(|e| format!("Couldn't save the queue: {e}"))?;
+            *q = next;
+        }
+        Ok(self.queue_view())
+    }
+
+    pub fn add_to_queue(&self, verify: bool) -> Result<QueueView, String> {
+        let job = session(self)
+            .copy_job(verify)
+            .ok_or("Set up a copy first: a source, a destination and something to copy.")?;
+        self.change_queue(|q| {
+            q.add(job);
+            true
+        })
+    }
+
+    /// A copy or the queue is running.
+    pub fn busy(&self) -> bool {
+        self.jobs.is_running() || lock(&self.queue_run).running
+    }
+
+    /// Cancel: the current job, and the queue if it runs (spec Q5).
+    pub fn cancel(&self) {
+        lock(&self.queue_run).cancelled = true;
+        self.jobs.cancel();
+    }
+
+    pub fn queue_job(&self, index: usize) -> Option<JobHandle> {
+        lock(&self.queue_run).handles.get(index).cloned().flatten()
+    }
+
+    /// Runs the saved queue, one job after another (FR-40..FR-43). Blocking.
+    pub fn run_queue(&self, sink: impl QueueSink) -> Result<QueueSummaryView, String> {
+        {
+            let mut run = lock(&self.queue_run);
+            if run.running || self.jobs.is_running() {
+                return Err("A copy or the queue is already running.".into());
+            }
+            run.running = true;
+            run.cancelled = false;
+            run.handles.clear();
+        }
+        let _awake = secopy_core::awake::KeepAwake::new();
+        let clock = std::time::Instant::now();
+        let (entries, on_failure) = {
+            let q = lock(&self.queue);
+            (q.jobs.clone(), q.on_failure)
+        };
+        let count = entries.len() as u32;
+        let mut results = Vec::new();
+        let mut keep = Vec::new();
+        let mut stop = false;
+        for (index, entry) in entries.iter().enumerate() {
+            if stop || lock(&self.queue_run).cancelled {
+                lock(&self.queue_run).handles.push(None);
+                results.push(QueueResultView {
+                    job: job_view(entry),
+                    result: QueueResult::NotRun,
+                    reason: Some("Not run: the queue stopped.".into()),
+                    summary: None,
+                });
+                keep.push(entry.clone());
+                continue;
+            }
+            sink.send(QueueEvent::JobStarted {
+                index: index as u32,
+                count,
+            });
+            let (result, reason, handle) = self.run_one(entry, &sink);
+            let summary = handle.as_ref().and_then(JobHandle::summary);
+            lock(&self.queue_run).handles.push(handle);
+            let failed = matches!(result, QueueResult::Failed);
+            if result != QueueResult::Complete {
+                keep.push(Entry {
+                    last_error: if failed {
+                        reason.clone()
+                    } else {
+                        entry.last_error.clone()
+                    },
+                    ..entry.clone()
+                });
+            }
+            stop |= result == QueueResult::Cancelled || (failed && on_failure == OnFailure::Stop);
+            results.push(QueueResultView {
+                job: job_view(entry),
+                result,
+                reason,
+                summary,
+            });
+            // Saved after every job: completed ones gone, the rest kept (Review focus 3).
+            let remaining: Vec<Entry> = keep
+                .iter()
+                .cloned()
+                .chain(entries[index + 1..].iter().cloned())
+                .collect();
+            let _ = self.change_queue(|q| {
+                q.jobs = remaining;
+                true
+            });
+        }
+        lock(&self.queue_run).running = false;
+        let summary = QueueSummaryView {
+            complete: count_of(&results, QueueResult::Complete),
+            count,
+            millis: clock.elapsed().as_millis() as u64,
+            results,
+        };
+        sink.send(QueueEvent::Done {
+            summary: summary.clone(),
+        });
+        Ok(summary)
+    }
+
+    fn run_one(
+        &self,
+        entry: &Entry,
+        sink: &impl QueueSink,
+    ) -> (QueueResult, Option<String>, Option<JobHandle>) {
+        let QueuedJob::Copy(job) = &entry.job else {
+            return (
+                QueueResult::Failed,
+                Some("Needs a newer Secopy.".into()),
+                None,
+            );
+        };
+        let ready = match crate::queue::prepare(job) {
+            Ok(ready) => ready,
+            Err(reason) => return (QueueResult::Failed, Some(reason), None),
+        };
+        let settings = JobSettings::from(&*lock(&self.settings));
+        if let Err(reason) = self
+            .jobs
+            .start(ready, job.verify, settings, Forward(sink.clone()))
+        {
+            return (QueueResult::Failed, Some(reason), None);
+        }
+        self.remember(|r| r.used_destination(&show(&job.destination)));
+        self.jobs.wait();
+        let handle = self.jobs.current_handle();
+        let outcome = handle
+            .as_ref()
+            .and_then(JobHandle::summary)
+            .map(|s| s.outcome);
+        let (result, reason) = match outcome {
+            Some(JobOutcome::Complete) => (QueueResult::Complete, None),
+            Some(JobOutcome::Cancelled) => (QueueResult::Cancelled, Some("Cancelled.".into())),
+            Some(JobOutcome::Failures) => {
+                let n = handle
+                    .as_ref()
+                    .and_then(JobHandle::summary)
+                    .map_or(0, |s| s.failed);
+                (
+                    QueueResult::Failed,
+                    Some(format!(
+                        "{n} {} failed.",
+                        if n == 1 { "file" } else { "files" }
+                    )),
+                )
+            }
+            Some(JobOutcome::Stopped) | None => (
+                QueueResult::Failed,
+                handle
+                    .as_ref()
+                    .and_then(JobHandle::summary)
+                    .and_then(|s| s.stopped_because)
+                    .or(Some("Stopped.".into())),
+            ),
+        };
+        (result, reason, handle)
+    }
+}
+
+fn count_of(results: &[QueueResultView], kind: QueueResult) -> u32 {
+    results.iter().filter(|r| r.result == kind).count() as u32
 }
 
 impl ProgressSink for Channel<ProgressView> {
@@ -746,5 +1000,183 @@ mod tests {
             "{error}"
         );
         assert!(!state.jobs.is_running(), "nothing started");
+    }
+
+    use crate::queue::{CopyJob, OnFailure, Queue, QueuedJob};
+
+    #[derive(Clone, Default)]
+    struct Events(Arc<StdMutex<Vec<QueueEvent>>>);
+    impl QueueSink for Events {
+        fn send(&self, e: QueueEvent) {
+            self.0.lock().unwrap().push(e);
+        }
+    }
+
+    /// A state with `n` sources of `files` files each, all queued to one destination.
+    fn queued(dir: &Path, sources: &[(&str, usize)]) -> AppState {
+        let state = AppState::new(dir.join("data"));
+        let dest = dir.join("dest");
+        fs::create_dir_all(&dest).unwrap();
+        for (name, files) in sources {
+            let src = dir.join(name);
+            fs::create_dir_all(&src).unwrap();
+            for i in 0..*files {
+                fs::write(src.join(format!("{i}.mov")), b"clip").unwrap();
+            }
+            lock(&state.queue).add(CopyJob {
+                sources: vec![src],
+                include_folder: true,
+                extensions: None,
+                destination: dest.clone(),
+                conflicts: ConflictPolicy::KeepBoth,
+                verify: true,
+            });
+        }
+        state
+    }
+
+    #[test]
+    fn the_queue_runs_every_job_and_empties() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 2), ("B", 1)]);
+        let events = Events::default();
+        let summary = state.run_queue(events.clone()).unwrap();
+        assert_eq!((summary.complete, summary.count), (2, 2));
+        assert!(
+            dir.path().join("dest/A/0.mov").exists() && dir.path().join("dest/B/0.mov").exists()
+        );
+        assert!(
+            state.queue_view().jobs.is_empty(),
+            "complete jobs leave the queue"
+        );
+        let saved: Queue = state.store.load(crate::queue::QUEUE).0;
+        assert!(saved.jobs.is_empty());
+        let started: Vec<u32> = events
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|e| match e {
+                QueueEvent::JobStarted { index, count } => Some(index * 10 + count),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(started, [2, 12], "job 0 of 2, then job 1 of 2");
+        assert_eq!(state.queue_job(1).unwrap().summary().unwrap().files, 1);
+    }
+
+    #[test]
+    fn a_job_that_cant_start_fails_and_the_queue_goes_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1), ("B", 1)]);
+        fs::remove_dir_all(dir.path().join("A")).unwrap();
+        let summary = state.run_queue(Events::default()).unwrap();
+        assert_eq!(summary.results[0].result, QueueResult::Failed);
+        assert!(
+            summary.results[0]
+                .reason
+                .as_deref()
+                .unwrap()
+                .ends_with("isn't there any more.")
+        );
+        assert_eq!(summary.results[1].result, QueueResult::Complete);
+        let left = state.queue_view().jobs;
+        assert_eq!(left.len(), 1, "the failed job stays");
+        assert!(left[0].last_error.is_some());
+    }
+
+    /// Review focus 2.
+    #[test]
+    fn stop_on_failure_leaves_the_rest_not_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1), ("B", 1)]);
+        lock(&state.queue).on_failure = OnFailure::Stop;
+        fs::remove_dir_all(dir.path().join("A")).unwrap();
+        let summary = state.run_queue(Events::default()).unwrap();
+        assert_eq!(summary.results[1].result, QueueResult::NotRun);
+        assert!(!dir.path().join("dest/B").exists(), "B never started");
+        assert_eq!(state.queue_view().jobs.len(), 2);
+    }
+
+    /// Review focus 5.
+    #[test]
+    fn an_unknown_job_fails_and_the_queue_goes_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        lock(&state.queue).jobs.insert(
+            0,
+            crate::queue::Entry {
+                job: QueuedJob::Unknown(serde_json::json!({"kind": "mirror", "preset": "p"})),
+                last_error: None,
+            },
+        );
+        let summary = state.run_queue(Events::default()).unwrap();
+        assert_eq!(
+            summary.results[0].reason.as_deref(),
+            Some("Needs a newer Secopy.")
+        );
+        assert_eq!(summary.results[1].result, QueueResult::Complete);
+    }
+
+    /// Review focus 3.
+    #[test]
+    fn cancel_stops_the_queue_and_keeps_the_rest() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 400), ("B", 1)]);
+        state.cancel(); // before the run: flag is reset by the run, so cancel during it
+        std::thread::scope(|s| {
+            let run = s.spawn(|| state.run_queue(Events::default()).unwrap());
+            // Cancel as soon as the first job is running.
+            while !state.jobs.is_running() && !run.is_finished() {
+                std::thread::yield_now();
+            }
+            state.cancel();
+            let summary = run.join().unwrap();
+            assert_ne!(summary.results[1].result, QueueResult::Complete);
+        });
+        assert!(!state.busy());
+        let left = state.queue_view().jobs;
+        assert!(!left.is_empty(), "nothing lost");
+    }
+
+    /// Review focus 4.
+    #[test]
+    fn one_run_at_a_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        lock(&state.queue_run).running = true;
+        assert_eq!(
+            state.run_queue(Events::default()).unwrap_err(),
+            "A copy or the queue is already running."
+        );
+        assert_eq!(
+            state.start(true, Sink::default()).unwrap_err(),
+            "The queue is running."
+        );
+        lock(&state.queue_run).running = false;
+    }
+
+    #[test]
+    fn add_to_queue_takes_the_setup_and_saves_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[]);
+        assert!(
+            state
+                .add_to_queue(true)
+                .unwrap_err()
+                .contains("Set up a copy first")
+        );
+        let src = dir.path().join("S");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("a.mov"), b"a").unwrap();
+        state.rescan(Change::Pick(vec![src]));
+        session(&state).set_destination(Some(dir.path().join("dest")));
+        let view = state.add_to_queue(false).unwrap();
+        assert_eq!(view.jobs.len(), 1);
+        assert!(!view.jobs[0].verify);
+        assert_eq!(
+            state.store.load::<Queue>(crate::queue::QUEUE).0.jobs.len(),
+            1
+        );
     }
 }
