@@ -7,7 +7,6 @@ mod migrate;
 mod picker;
 pub mod session;
 pub mod store;
-pub mod volumes;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, Runtime, WindowEvent};
@@ -46,7 +45,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::job_summary,
         commands::save_report,
         commands::retry_failed,
-        commands::eject,
         commands::set_menu_state,
     ])
 }

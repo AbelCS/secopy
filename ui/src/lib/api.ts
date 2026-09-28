@@ -65,7 +65,6 @@ export const tauriApi = {
   jobSummary: (): Promise<SummaryView | null> => unwrap(commands.jobSummary()),
   saveReport: (path: string): Promise<null> => unwrap(commands.saveReport(path)),
   retryFailed: (): Promise<SessionView> => unwrap(commands.retryFailed()),
-  eject: (mountPoint: string): Promise<null> => unwrap(commands.eject(mountPoint)),
   appStart: (): Promise<StartView> => unwrap(commands.appStart()),
   recentDestinations: (): Promise<string[]> => unwrap(commands.recentDestinations()),
   selectProfile: (id: string | null): Promise<SessionView> => unwrap(commands.selectProfile(id)),

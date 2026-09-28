@@ -105,41 +105,17 @@ describe("Summary", () => {
     screen.getByText("No checksum file (off in Settings)");
     expect(screen.queryByRole("button", { name: "Open checksum file" })).toBeNull();
   });
-  test("Eject shows for a card, and says when it's done", async () => {
-    const { api } = show(summaryView({ sourceDrive: { name: "CARD_A", mountPoint: "/Volumes/CARD_A" } }));
-    await fireEvent.click(screen.getByRole("button", { name: "Eject CARD_A" }));
-    expect(api.eject).toHaveBeenCalledWith("/Volumes/CARD_A");
-    await screen.findByText("CARD_A was ejected. You can remove it.");
-    expect(screen.queryByRole("button", { name: "Eject CARD_A" })).toBeNull();
-  });
-
-  test("a refused eject says why and can be tried again", async () => {
-    const { api } = show(summaryView({ sourceDrive: { name: "CARD_A", mountPoint: "/Volumes/CARD_A" } }));
-    api.eject.mockRejectedValueOnce(new Error("CARD_A is in use by Finder"));
-    await fireEvent.click(screen.getByRole("button", { name: "Eject CARD_A" }));
-    await screen.findByText("CARD_A is in use by Finder");
-    screen.getByRole("button", { name: "Eject CARD_A" });
-  });
-
-  test("no Eject for the Mac's own disk; Safe to eject for a removable destination", () => {
-    show(summaryView({ destinationDrive: { name: "V001", mountPoint: "/Volumes/V001" } }));
-    expect(screen.queryByRole("button", { name: /Eject/ })).toBeNull();
-    screen.getByText("Safe to eject V001: everything was written.");
-  });
-
   test("the bar puts what you'd do next first, and New copy on the right", () => {
     show(
       summaryView({
         failed: 1,
         outcome: "failures",
-        sourceDrive: { name: "CARD_A", mountPoint: "/Volumes/CARD_A" },
         checksumFile: "/Volumes/RAID/Day01/secopy.xxh64",
       }),
     );
     const bar = within(screen.getByRole("group", { name: "Actions" }));
     expect(bar.getAllByRole("button").map((b) => b.textContent?.trim())).toEqual([
       "Retry failed",
-      "Eject CARD_A",
       "Show in Finder",
       "Open checksum file",
       "Save report…",

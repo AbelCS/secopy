@@ -1,7 +1,7 @@
 <script lang="ts">
   // The summary (RFD §5.4): what happened, the figures, what failed and why, and what to do next.
   import { useApi } from "../lib/api";
-  import type { DriveRef, SummaryView } from "../lib/bindings";
+  import type { SummaryView } from "../lib/bindings";
   import { formatCount } from "../lib/format";
   import { headline } from "../lib/headline";
   import { summaryStats } from "../lib/summaryText";
@@ -45,18 +45,6 @@
     }
   }
 
-  let ejected: string | null = $state(null);
-  let ejectError: string | null = $state(null);
-  async function eject(drive: DriveRef) {
-    try {
-      await api.eject(drive.mountPoint);
-      ejected = `${drive.name} was ejected. You can remove it.`;
-      ejectError = null;
-    } catch (e) {
-      ejectError = e instanceof Error ? e.message : String(e);
-    }
-  }
-
   async function saveReport() {
     const name = summary.reportFile?.split("/").pop() ?? "secopy_report.txt";
     const path = await api.pickReportPath(name);
@@ -84,11 +72,6 @@
       <Notice tone="danger">The checksum file could not be written: {summary.checksumError}</Notice>
     {/if}
     {#if summary.reportError}<Notice tone="danger">The report could not be saved: {summary.reportError}</Notice>{/if}
-    {#if summary.destinationDrive}
-      <Notice tone="success" announce={false}>Safe to eject {summary.destinationDrive.name}: everything was written.</Notice>
-    {/if}
-    {#if ejected}<Notice tone="success">{ejected}</Notice>{/if}
-    {#if ejectError}<Notice tone="danger">{ejectError}</Notice>{/if}
     {#if actionError}<Notice tone="danger">{actionError}</Notice>{/if}
   </div>
 
@@ -113,10 +96,6 @@
       {#snippet start()}
         <!-- What you'd do next comes first. -->
         {#if summary.failed > 0}<Button onclick={onRetry}>Retry failed</Button>{/if}
-        {#if summary.sourceDrive && !ejected}
-          {@const drive = summary.sourceDrive}
-          <Button onclick={() => eject(drive)}>Eject {drive.name}</Button>
-        {/if}
         <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>Show in Finder</Button>
         {#if summary.checksumFile}
           <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>Open checksum file</Button>
