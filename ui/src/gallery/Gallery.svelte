@@ -10,6 +10,7 @@
   import MirrorPreview from "../components/MirrorPreview.svelte";
   import MirrorScreen from "../components/MirrorScreen.svelte";
   import VerifyScreen from "../components/VerifyScreen.svelte";
+  import TabBar from "../lib/ui/TabBar.svelte";
   import QueueSummary from "../components/QueueSummary.svelte";
   import SettingsScreen from "../components/SettingsScreen.svelte";
   import Summary from "../components/Summary.svelte";
@@ -57,6 +58,19 @@
   <SettingsScreen {settings} onSettings={() => {}} onDone={() => {}} />
 {:else if page === "mirror"}
   <MirrorScreen presets={mirrors} onPresets={() => {}} onPreview={() => {}} onQueue={() => {}} />
+{:else if page === "tabs"}
+  <div style="display:flex;flex-direction:column;gap:24px;padding:24px 0">
+    {#each ["copy", "queue"] as sel (sel)}
+      <TabBar
+        items={[{ id: "copy", label: "Copy" }, { id: "mirror", label: "Mirror" }, { id: "verify", label: "Verify" }]}
+        selected={sel}
+        onSelect={() => {}}
+        queue={{ count: 3 }}
+      >
+        {#snippet trailing()}<Button icon="settings">Settings</Button>{/snippet}
+      </TabBar>
+    {/each}
+  </div>
 {:else if page === "verify"}
   <VerifyScreen onStart={() => {}} onQueue={() => {}} />
 {:else if page === "verify-summary"}

@@ -42,7 +42,7 @@ downloaded with `curl` aren't flagged. If you did download the `.dmg` from the
 File menu: **⌘O** choose the source, **⌘D** choose the destination, **⌘↩** start,
 **⌘.** cancel. While copying, **Space** pauses and resumes. **Esc** goes back from Settings
 and Profiles; **⌘,** opens Settings. The tabs at the top: **⌘1** Copy, **⌘2** Mirror,
-**⌘3** Verify, **⌘4** Queue.
+**⌘3** Verify; **⌘4** opens the Queue.
 
 ## Development
 

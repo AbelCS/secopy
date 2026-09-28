@@ -416,8 +416,8 @@
         { id: "copy", label: "Copy" },
         { id: "mirror", label: "Mirror" },
         { id: "verify", label: "Verify" },
-        { id: "queue", label: "Queue", count: queue.jobs.length },
       ]}
+      queue={{ count: queue.jobs.length }}
       selected={section}
       onSelect={(id) => go(id as "copy" | "mirror" | "verify" | "queue")}
     >

@@ -94,13 +94,15 @@ describe("App", () => {
     screen.getByRole("option", { name: "Sony FX3" });
   });
 
-  test("the sections are tabs at the top, with one Settings button for the whole app", async () => {
+  test("the kinds of job are tabs at the top; the Queue and Settings sit apart on the right", async () => {
     const { state } = app();
     await startButton();
     const tabs = screen.getByRole("navigation", { name: "Sections" });
-    for (const name of ["Copy", "Mirror", /^Queue/]) within(tabs).getByRole("button", { name });
+    for (const name of ["Copy", "Mirror", "Verify"]) within(tabs).getByRole("button", { name });
+    expect(within(tabs).queryByRole("button", { name: /^Queue/ })).toBeNull();
     const inBar = () => screen.getByRole("button", { name: "Settings" }).closest(".tabbar");
     expect(inBar()).not.toBeNull();
+    expect(screen.getByRole("button", { name: /^Queue/ }).closest(".tabbar")).not.toBeNull();
     await waitFor(() => expect(state.menu).not.toBeNull());
     state.menu!("show-queue");
     await screen.findByRole("heading", { level: 1, name: "Queue" });
