@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.10.1](https://github.com/AbelCS/secopy/compare/v0.10.0...v0.10.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* a Verify that stopped reads as a Verify ([06aff47](https://github.com/AbelCS/secopy/commit/06aff4722ab3fdf06aea049ff52b81c929ed08ef)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** a job's ending after a panic survives the same bug ([83c5dcf](https://github.com/AbelCS/secopy/commit/83c5dcf1a09a99b0ca60fe298e55ded799fa889f)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** a queue that panicked keeps every job's real result ([b4a5552](https://github.com/AbelCS/secopy/commit/b4a55521f8372e8a81d30712e13de641069534e3)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** a scan from before a session restart stays stale ([5f730c3](https://github.com/AbelCS/secopy/commit/5f730c3a7256c8f5bb874f835ed043eee7a41c1d)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** a stopped job's queue reason ends with a full stop ([c3f2f1d](https://github.com/AbelCS/secopy/commit/c3f2f1daf0b3695fb16e0b7366bdd9e172a5d4ee)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** a Verify problem says which checksum file listed it ([04a66d6](https://github.com/AbelCS/secopy/commit/04a66d66fc372df563c310d188518f7222eba552)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** allow only the notification calls the window makes ([049ce2b](https://github.com/AbelCS/secopy/commit/049ce2b5db919dc0f5854a90fecad346826ee122)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** don't remember a full screen or maximized window's size ([c28887f](https://github.com/AbelCS/secopy/commit/c28887f11db8138ef3aa95858d6930337255e15f)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** end a job or queue whose thread panicked ([4ba13c0](https://github.com/AbelCS/secopy/commit/4ba13c079c66b52fbf325055d6f0a8e594ba55f9)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** keep working after a panic while a lock was held ([8022561](https://github.com/AbelCS/secopy/commit/80225611b2d52091a6f71d7e205d0329317d32f2)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** put profiles read from disk right like new ones ([65a3295](https://github.com/AbelCS/secopy/commit/65a3295e17b6b536e27ade88c86e9c80db22a2d1)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **app:** the profile's directory in other letter case is no change ([0831e2d](https://github.com/AbelCS/secopy/commit/0831e2d6a213a03524b1b211541fe1c2d5947748)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **core:** make a check's report read as a verify, not a copy ([db284e6](https://github.com/AbelCS/secopy/commit/db284e6d5c9bc1928df419a3c159d4bf421c71b1)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **core:** name a listed link or directory instead of "missing" ([1e07b76](https://github.com/AbelCS/secopy/commit/1e07b763366138b200a732f8e813254bc1dfa685)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **core:** name the checksum file that listed each problem file ([2bb1c57](https://github.com/AbelCS/secopy/commit/2bb1c57fb54c863d8ac78867ddf13d84abdbe702)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **core:** read from the device without following a link ([684719f](https://github.com/AbelCS/secopy/commit/684719f895bc0ddf4d8d679252e19c9740ad7ab4)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **core:** sync the directory after replacing a checksum file ([be0de7f](https://github.com/AbelCS/secopy/commit/be0de7f26c8421f440df0a1c97b4144407008ead)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* count every checksum file problem past the first 1,000 ([ab8d0ff](https://github.com/AbelCS/secopy/commit/ab8d0ffb345a85156380730352df23ea41f4f62f)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* say when a cancelled job puts the destination back ([44fc3c8](https://github.com/AbelCS/secopy/commit/44fc3c8079686229a987b643cb2a613056620652)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **ui:** ask "Discard changes?" once, however often Esc is pressed ([3824b35](https://github.com/AbelCS/secopy/commit/3824b35d78a38834d07e232f5afdb10d57de91db)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **ui:** close Save as new… and its error on another profile or source ([6782ee3](https://github.com/AbelCS/secopy/commit/6782ee3680e93ea3c9e0754899415be248dceb0d)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **ui:** name each Summary button in the queue summary for VoiceOver ([4fe7ad5](https://github.com/AbelCS/secopy/commit/4fe7ad5f8c8ad6912e3e602c01696457bd7ea169)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **ui:** name the job's kind when asking to stop or quit ([1bdad33](https://github.com/AbelCS/secopy/commit/1bdad3323986d52691ff5fa4688d194a1a7623ab)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **ui:** name the queue's list of jobs for VoiceOver ([cd6a099](https://github.com/AbelCS/secopy/commit/cd6a0998c43d67e4948aa1daff79f1448bafa974)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **ui:** quitting while files are removed says Secopy finishes first ([1bd33c9](https://github.com/AbelCS/secopy/commit/1bd33c969d29537f6845f0692ed1832d9007769a)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **ui:** send the File menu state only when it changes ([0ab4113](https://github.com/AbelCS/secopy/commit/0ab4113cd72c5bc19a67a3f3d915a2c64a3840c4)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **ui:** split file types typed together, and * means All types ([e92fd52](https://github.com/AbelCS/secopy/commit/e92fd527436e55506a5945323fd37ee8a9084d95)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+* **ui:** turn off Cancel Copy in the menu while a mirror removes files ([b9230ef](https://github.com/AbelCS/secopy/commit/b9230efabd34d6cef7e64746efe48a11509f855c)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+
+
+### Performance Improvements
+
+* **core:** read a check's large files with the copy's few lanes ([a38f14e](https://github.com/AbelCS/secopy/commit/a38f14e1bac2845a931dae87c21a0a6ed8788021)), closes [#69](https://github.com/AbelCS/secopy/issues/69)
+
 ## [0.10.0](https://github.com/AbelCS/secopy/compare/v0.9.0...v0.10.0) (2026-09-28)
 
 
