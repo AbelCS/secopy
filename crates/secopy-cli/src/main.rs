@@ -394,6 +394,9 @@ fn print_summary(report: &JobReport, total_bytes: u64) {
     if let Some(e) = &report.checksum_error {
         println!("checksum file NOT written: {e}");
     }
+    if let Some(e) = &report.durability_error {
+        println!("NOT confirmed saved to disk: {e}");
+    }
     if let Some(e) = &report.fatal {
         println!("stopped: {e}");
     }

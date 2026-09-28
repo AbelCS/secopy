@@ -143,6 +143,8 @@ pub struct JobReport {
     pub created_dirs: Vec<PathBuf>,
     /// What the scan couldn't read, from the plan: not copied (#58).
     pub unread: Vec<ScanProblem>,
+    /// The device reported an error while the copy was made durable (#58).
+    pub durability_error: Option<String>,
 }
 
 impl JobReport {
@@ -167,6 +169,7 @@ impl JobReport {
             && self.failed().next().is_none()
             && self.unread.is_empty()
             && self.checksum_error.is_none()
+            && self.durability_error.is_none()
     }
 }
 
@@ -258,7 +261,7 @@ pub fn run_job(
     } else {
         (None, None)
     };
-    make_durable(dest, &plan.dirs);
+    let durability_error = make_durable(dest, &plan.dirs);
     JobReport {
         not_started: (plan.files.len() - outcomes.len()) as u64,
         outcomes,
@@ -276,6 +279,7 @@ pub fn run_job(
         elapsed: started.elapsed(),
         created_dirs,
         unread: plan.unread.clone(),
+        durability_error,
     }
 }
 
@@ -336,19 +340,53 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
 
 /// Makes the job durable: one fsync per directory for the renames, then one
 /// drive-cache flush for the whole volume (RFD §7.4).
-fn make_durable(dest: &Path, dirs: &[DirEntry]) {
+/// Makes the new names and the drive's cache durable. `Some` when the device reported an
+/// error doing so: the destination can't confirm the files are on disk.
+fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<String> {
     // Folders that were never created fail to open and are skipped.
     #[cfg(unix)]
-    for dir in dirs
+    let problem = dirs
         .iter()
         .map(|d| dest.join(&d.rel))
         .chain([dest.to_path_buf()])
-    {
-        if let Ok(f) = fs::File::open(&dir) {
-            let _ = os::sync_file(&f);
-        }
-    }
+        .filter_map(|dir| fs::File::open(dir).ok())
+        .fold(None, |problem, f| {
+            problem.or_else(|| durability_problem(os::sync_file(&f)))
+        });
     #[cfg(not(unix))]
-    let _ = dirs;
-    let _ = os::full_barrier(dest);
+    let problem = {
+        let _ = dirs;
+        None
+    };
+    problem.or_else(|| durability_problem(os::full_barrier(dest)))
+}
+
+/// A device error (not a file system that can't sync a directory or flush its cache).
+fn durability_problem(result: std::io::Result<()>) -> Option<String> {
+    let e = result.err()?;
+    #[cfg(unix)]
+    let device = matches!(
+        e.raw_os_error(),
+        Some(libc::EIO | libc::ENXIO | libc::ENODEV | libc::ENOSPC | libc::EROFS)
+    );
+    #[cfg(not(unix))]
+    let device = e.kind() != std::io::ErrorKind::Unsupported;
+    device.then(|| e.to_string())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    /// #58: a device error while making the copy durable is a problem; a file system that
+    /// can't sync a directory is not.
+    #[test]
+    fn only_device_errors_make_durability_fail() {
+        let err = |code| std::io::Error::from_raw_os_error(code);
+        assert!(durability_problem(Err(err(libc::EIO))).is_some());
+        assert!(durability_problem(Err(err(libc::ENXIO))).is_some());
+        assert!(durability_problem(Err(err(libc::ENOTSUP))).is_none());
+        assert!(durability_problem(Err(err(libc::EINVAL))).is_none());
+        assert!(durability_problem(Ok(())).is_none());
+    }
 }

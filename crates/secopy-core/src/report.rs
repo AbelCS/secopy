@@ -80,6 +80,8 @@ pub struct Report {
     pub files: Vec<ReportFile>,
     /// What the scan couldn't read, so it wasn't copied (#58).
     pub unread: Vec<Unread>,
+    /// The device reported an error while the copy was made durable (#58).
+    pub durability_error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -171,6 +173,7 @@ impl Report {
             removed_partials: job.removed_partials,
             counts,
             files,
+            durability_error: job.durability_error.clone(),
             unread: job
                 .unread
                 .iter()
@@ -246,6 +249,9 @@ impl Report {
             }
             (None, None) => {}
         }
+        if let Some(e) = &self.durability_error {
+            let _ = writeln!(t, "NOT CONFIRMED SAVED TO DISK: {e}");
+        }
         if self.removed_partials > 0 {
             let _ = writeln!(
                 t,
@@ -319,6 +325,7 @@ fn result_line(job: &JobReport, counts: &Counts) -> String {
             n => format!("{n} items couldn't be read"),
         },
         0 if job.checksum_error.is_some() => "checksum file not written".to_string(),
+        0 if job.durability_error.is_some() => "not confirmed saved to disk".to_string(),
         0 => "complete".to_string(),
         1 => "1 file failed".to_string(),
         n => format!("{n} files failed"),

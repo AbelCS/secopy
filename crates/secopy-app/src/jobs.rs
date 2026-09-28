@@ -328,6 +328,7 @@ impl Job {
                 || removal_failed
                 || !done.report.unread.is_empty()
                 || done.report.checksum_error.is_some()
+                || done.report.durability_error.is_some()
             {
                 JobOutcome::Failures
             } else {
@@ -342,6 +343,7 @@ impl Job {
             skipped_different: count(c.skipped_different),
             failed: count(c.failed),
             unread: count(done.report.unread.len()),
+            durability_error: done.report.durability_error.clone(),
             not_started: count(c.not_started),
             bytes_written: c.bytes_written,
             millis: done.report.elapsed.as_millis() as u64,

@@ -238,6 +238,8 @@ pub struct SummaryView {
     pub failed: u32,
     /// Items the scan couldn't read, so they weren't copied (#58).
     pub unread: u32,
+    /// The destination reported an error while the copy was made durable (#58).
+    pub durability_error: Option<String>,
     pub not_started: u32,
     #[specta(type = specta_typescript::Number)]
     pub bytes_written: u64,

@@ -130,6 +130,7 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
     skippedDifferent: 0,
     failed: 0,
     unread: 0,
+    durabilityError: null,
     notStarted: 0,
     bytesWritten: 212_400_000_000,
     millis: 252_000,

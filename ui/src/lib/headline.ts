@@ -10,6 +10,7 @@ export function headline(s: SummaryView): string {
     if (s.unread > 0) return `${plural(s.unread, "item")} couldn't be read`;
     if (m && m.removalFailures.length > 0) return `${plural(m.removalFailures.length, "file")} couldn't be removed`;
     if (s.checksumError) return "The checksum file couldn't be written";
+    if (s.durabilityError) return "The destination couldn't confirm the files are saved";
   }
   if (m && s.outcome === "complete") {
     const parts = [
