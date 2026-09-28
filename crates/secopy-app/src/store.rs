@@ -237,6 +237,7 @@ impl CopyPresets {
         if name.is_empty() {
             return Err("The preset needs a name.".into());
         }
+        long_name(&name)?;
         Ok(CopyPresetInput {
             name,
             source: source(&input.source)?,
@@ -338,6 +339,20 @@ impl CopyPreset {
             extensions: self.extensions.clone(),
         }
     }
+}
+
+/// Longest preset name, in characters.
+const MAX_NAME: usize = 200;
+/// A hundred years: longer can't be counted back from today.
+const MAX_ARCHIVE_DAYS: u32 = 36_500;
+
+fn long_name(name: &str) -> Result<(), String> {
+    if name.chars().count() > MAX_NAME {
+        return Err(format!(
+            "The name is too long: {MAX_NAME} characters at most."
+        ));
+    }
+    Ok(())
 }
 
 /// `name`, or else `name (2)`, `name (3)`…: the first `taken` says no to.
@@ -516,6 +531,7 @@ impl MirrorPresets {
         if name.is_empty() {
             return Err("The mirror needs a name.".into());
         }
+        long_name(&name)?;
         let origin = full_path(&input.origin, "origin", "/Volumes/SSD/Footage")?;
         let destination = full_path(&input.destination, "destination", "/Volumes/NAS/Footage")?;
         let (o, d) = (Path::new(&origin), Path::new(&destination));
@@ -530,6 +546,9 @@ impl MirrorPresets {
         }
         if input.deleted.mode == DeletedMode::Archive && input.deleted.days == 0 {
             return Err("Keep archived files for at least 1 day.".into());
+        }
+        if input.deleted.days > MAX_ARCHIVE_DAYS {
+            return Err("Keep archived files for at most 36,500 days.".into());
         }
         Ok(MirrorPresetInput {
             name,
@@ -1031,5 +1050,29 @@ mod tests {
         );
         let json = serde_json::to_value(p.input()).unwrap();
         assert!(json.get("includeFolder").is_some(), "{json}");
+    }
+
+    /// Review: names and archive days have limits, so a file can't bring in one that breaks.
+    #[test]
+    fn names_and_archive_days_have_limits() {
+        let long = "x".repeat(201);
+        assert_eq!(
+            CopyPresets::normalized(input(&long, "")).unwrap_err(),
+            "The name is too long: 200 characters at most."
+        );
+        let mirror = MirrorPresetInput {
+            name: "Footage".into(),
+            origin: "/a".into(),
+            destination: "/b".into(),
+            deleted: DeletedFiles {
+                mode: DeletedMode::Archive,
+                days: 4_000_000_000,
+            },
+            deep_check: false,
+        };
+        assert_eq!(
+            MirrorPresets::normalized(mirror).unwrap_err(),
+            "Keep archived files for at most 36,500 days."
+        );
     }
 }
