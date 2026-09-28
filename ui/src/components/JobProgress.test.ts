@@ -120,6 +120,18 @@ describe("JobProgress", () => {
     expect(api.cancelJob).not.toHaveBeenCalled();
   });
 
+  test("while a cancelled job removes what it copied, it says so, with Pause and Cancel off", () => {
+    const { api } = fakeApi();
+    render(JobProgress, {
+      props: { progress: progressView({ phase: "removing", undoing: true }), title: "Copying & verifying" },
+      context: apiContext(api),
+    });
+    screen.getByText("Putting the destination back as it was…");
+    expect(screen.queryByText(/Deleting/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Pause" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveProperty("disabled", true);
+  });
+
   test("while a mirror archives, Pause and Cancel are off", async () => {
     const { api } = fakeApi();
     const { component } = render(JobProgress, {

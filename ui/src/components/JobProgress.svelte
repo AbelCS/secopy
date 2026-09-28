@@ -212,7 +212,9 @@
       {#if progress.verify && !check}
         <ProgressBar label="Verified" done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} />
       {/if}
-      {#if progress.phase === "removing"}
+      {#if progress.phase === "removing" && progress.undoing}
+        <p class="muted">Putting the destination back as it was…</p>
+      {:else if progress.phase === "removing"}
         <p class="muted">{progress.archiving ? "Archiving" : "Deleting"} {plural(progress.removing, "file")}</p>
       {/if}
     </Section>

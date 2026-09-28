@@ -115,6 +115,7 @@ export function progressView(over: Partial<ProgressView> = {}): ProgressView {
     fatal: null,
     removing: 0,
     archiving: false,
+    undoing: false,
     ...over,
   };
 }

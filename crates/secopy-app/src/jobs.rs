@@ -664,6 +664,11 @@ impl Job {
         });
         // Cancel with "Also remove the files already copied": the destination as it was.
         let undone = (report.cancelled && self.remove_copied.load(Relaxed)).then(|| {
+            let last = lock(&self.last).clone();
+            let mut view = self.progress(&last, false, None);
+            view.phase = JobPhase::Removing;
+            view.undoing = true;
+            sink.send(view);
             let undone = undo(plan, &report, mirroring.and_then(|m| m.archive.as_deref()));
             report.checksum_file = None;
             undone
@@ -767,6 +772,7 @@ impl Job {
             fatal,
             removing: 0,
             archiving: false,
+            undoing: false,
         }
     }
 
@@ -1169,12 +1175,13 @@ mod tests {
     #[test]
     fn cancelling_can_remove_what_was_copied() {
         let f = fixture(200, 50_000);
+        let sink = Collect::default();
         f.jobs
             .start(
                 f.session.ready().unwrap(),
                 true,
                 JobSettings::default(),
-                Collect::default(),
+                sink.clone(),
             )
             .unwrap();
         while f.jobs.finished_page(0, 1, false).is_empty() {
@@ -1189,6 +1196,11 @@ mod tests {
         assert!(undone.removed >= 1, "{undone:?}");
         assert_eq!((undone.not_restored, undone.failed), (0, 0));
         assert_eq!(s.checksum_file, None);
+        // While it removes them, the window says so, with nothing left to pause or cancel.
+        let views = sink.0.lock().unwrap().clone();
+        let shown = |v: &ProgressView| v.phase == JobPhase::Removing && v.undoing;
+        assert!(views.iter().any(shown), "the removal is shown");
+        assert_eq!(views.last().unwrap().phase, JobPhase::Done);
         assert_eq!(
             fs::read_dir(&f.dest).unwrap().count(),
             0,
