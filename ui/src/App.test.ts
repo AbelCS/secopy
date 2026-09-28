@@ -234,13 +234,14 @@ describe("App", () => {
     await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
     await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
-    state.queueEvent!({ type: "jobStarted", index: 0, count: 2 });
+    state.queueEvent!({ type: "jobChecking", index: 0, count: 2 });
+    state.queueEvent!({ type: "jobStarted", index: 0, count: 2, job: queuedJob() });
     state.queueEvent!({ type: "progress", view: progressView() });
-    await screen.findByText("Job 1 of 2");
+    await screen.findByText(/^Job 1 of 2 · /);
     state.queueEvent!({ type: "done", summary: { complete: 2, count: 2, millis: 1000, results: [
       { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
       { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
-    ] } });
+    ], saveError: null } });
     await screen.findByRole("heading", { name: "Queue done: 2 of 2 jobs complete" });
     expect(api.notify).toHaveBeenCalledTimes(1);
     expect(api.notify).toHaveBeenCalledWith("Queue done: 2 of 2 jobs complete", expect.any(String));
@@ -256,13 +257,29 @@ describe("App", () => {
     await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
     await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
-    state.queueEvent!({ type: "jobStarted", index: 0, count: 2 });
+    state.queueEvent!({ type: "jobChecking", index: 0, count: 2 });
+    state.queueEvent!({ type: "jobStarted", index: 0, count: 2, job: queuedJob() });
     state.queueEvent!({ type: "progress", view: progressView({ filesDone: 1 }) });
     await waitFor(() => expect(api.finishedPage).toHaveBeenCalledTimes(1));
-    state.queueEvent!({ type: "jobStarted", index: 1, count: 2 });
-    await screen.findByText("Job 2 of 2");
+    state.queueEvent!({ type: "jobChecking", index: 1, count: 2 });
+    state.queueEvent!({ type: "jobStarted", index: 1, count: 2, job: queuedJob() });
+    await screen.findByText(/^Job 2 of 2 · /);
     state.queueEvent!({ type: "progress", view: progressView({ filesDone: 1 }) });
     await waitFor(() => expect(api.finishedPage).toHaveBeenCalledTimes(2), { timeout: 500 });
+  });
+
+  test("a queue job is checked first, then shows its own kind", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.queue = queueView({ jobs: [queuedJob(), queuedJob({ kind: "mirror", name: "Footage" })] });
+    render(App, { props: { api } });
+    await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await waitFor(() => expect(state.queueEvent).not.toBeNull());
+    state.queueEvent!({ type: "jobChecking", index: 1, count: 2 });
+    await screen.findByRole("heading", { level: 1, name: "Checking…" });
+    expect(screen.getByRole("button", { name: "Pause" })).toHaveProperty("disabled", true);
+    state.queueEvent!({ type: "jobStarted", index: 1, count: 2, job: queuedJob({ kind: "mirror", name: "Footage" }) });
+    await screen.findByRole("heading", { level: 1, name: "Mirroring" });
   });
 
   test("after a queue run, Copy opens New copy, not an older summary", async () => {
@@ -277,7 +294,7 @@ describe("App", () => {
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
     state.queueEvent!({ type: "done", summary: { complete: 1, count: 1, millis: 1000, results: [
       { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
-    ] } });
+    ], saveError: null } });
     await screen.findByRole("heading", { name: "Queue done: 1 of 1 job complete" });
     state.menu!("show-copy");
     await screen.findByRole("heading", { level: 1, name: "New copy" });

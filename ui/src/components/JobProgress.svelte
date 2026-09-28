@@ -24,10 +24,13 @@
     banner,
     queue,
     title,
+    checking = false,
   }: {
     progress: ProgressView;
     /** What the job is called while it runs ("Mirroring"); by default Copying. */
     title?: string;
+    /** A queue job is being checked before it starts: nothing is copied yet. */
+    checking?: boolean;
     /** The running job writes a checksum file (Settings). */
     checksumFile?: boolean;
     /** In a queue run: this job's place (0-based) and the number of jobs. */
@@ -64,7 +67,9 @@
       ? "Done"
       : progress.paused
         ? "Paused"
-        : title
+        : checking
+          ? "Checking…"
+          : title
           ? title
           : progress.phase === "verifying"
             ? "Verifying"
@@ -73,7 +78,9 @@
               : "Copying",
   );
   const files = $derived.by(() => {
-    const parts = [`${formatCount(progress.filesDone)} / ${plural(progress.totalFiles, "file")}`];
+    const parts = queue ? [`Job ${queue.index + 1} of ${queue.count}`] : [];
+    if (checking) return parts.join(" · ");
+    parts.push(`${formatCount(progress.filesDone)} / ${plural(progress.totalFiles, "file")}`);
     if (progress.filesSkipped > 0) parts.push(`${formatCount(progress.filesSkipped)} skipped`);
     if (progress.filesFailed > 0) parts.push(`${formatCount(progress.filesFailed)} failed`);
     return parts.join(" · ");
@@ -143,7 +150,6 @@
   {#snippet header()}
     <ScreenHeader title={phase}>
       {#snippet trailing()}
-        {#if queue}<span>Job {queue.index + 1} of {queue.count}</span> ·{/if}
         {formatDuration(progress.elapsedMs)} elapsed
       {/snippet}
     </ScreenHeader>
@@ -153,48 +159,54 @@
   <p class="visually-hidden" aria-live="polite">{phase}</p>
   {#if progress.fatal}<Notice tone="danger">Stopped: {progress.fatal}</Notice>{/if}
 
-  <Section title="Progress">
-    {#snippet aside()}
-      <span class="overall">
-        <strong>{formatPercent(workDone, work)}</strong>
-        {#if progress.phase !== "done"}
-          ·
-          {#if timeLeft === null}
-            <span>Estimating…</span>
-          {:else}
-            <span class="visually-hidden">Time left:</span><span title="Time left">{formatDuration(timeLeft)}</span>
+  {#if checking}
+    <Section title="Progress">
+      <p class="muted">Looking at the source and the destination before this job starts…</p>
+    </Section>
+  {:else}
+    <Section title="Progress">
+      {#snippet aside()}
+        <span class="overall">
+          <strong>{formatPercent(workDone, work)}</strong>
+          {#if progress.phase !== "done"}
+            ·
+            {#if timeLeft === null}
+              <span>Estimating…</span>
+            {:else}
+              <span class="visually-hidden">Time left:</span><span title="Time left">{formatDuration(timeLeft)}</span>
+            {/if}
           {/if}
-        {/if}
-      </span>
-    {/snippet}
-    <ProgressBar label="Copied" done={progress.copiedBytes} total={progress.totalBytes} speed={copySpeed} />
-    {#if progress.verify}
-      <ProgressBar label="Verified" done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} />
-    {/if}
-    {#if progress.phase === "removing"}
-      <p class="muted">{progress.archiving ? "Archiving" : "Deleting"} {plural(progress.removing, "file")}</p>
-    {/if}
-  </Section>
+        </span>
+      {/snippet}
+      <ProgressBar label="Copied" done={progress.copiedBytes} total={progress.totalBytes} speed={copySpeed} />
+      {#if progress.verify}
+        <ProgressBar label="Verified" done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} />
+      {/if}
+      {#if progress.phase === "removing"}
+        <p class="muted">{progress.archiving ? "Archiving" : "Deleting"} {plural(progress.removing, "file")}</p>
+      {/if}
+    </Section>
 
-  <Section title="Active">
-    {#if progress.active.length === 0 && !progress.smallFiles && progress.filesDone === 0}
-      <p class="muted">Starting…</p>
-    {/if}
-    <table>
-      <tbody>
-        <!-- Verifying is a new row: one bar never runs from 100 % back to 0. -->
-        {#each progress.active as f (`${f.id}-${f.verifying}`)}
-          {@render activeRow(f.name, f.path, f.verifying ? "Verifying" : "Copying", f.bytesDone, f.size)}
-        {/each}
-        {#if progress.smallFiles}
-          {@const small = progress.smallFiles}
-          {@render activeRow(`+ ${plural(small.count, "small file")}`, "", "", small.bytesDone, small.size)}
-        {/if}
-      </tbody>
-    </table>
-  </Section>
+    <Section title="Active">
+      {#if progress.active.length === 0 && !progress.smallFiles && progress.filesDone === 0}
+        <p class="muted">Starting…</p>
+      {/if}
+      <table>
+        <tbody>
+          <!-- Verifying is a new row: one bar never runs from 100 % back to 0. -->
+          {#each progress.active as f (`${f.id}-${f.verifying}`)}
+            {@render activeRow(f.name, f.path, f.verifying ? "Verifying" : "Copying", f.bytesDone, f.size)}
+          {/each}
+          {#if progress.smallFiles}
+            {@const small = progress.smallFiles}
+            {@render activeRow(`+ ${plural(small.count, "small file")}`, "", "", small.bytesDone, small.size)}
+          {/if}
+        </tbody>
+      </table>
+    </Section>
 
-  <FinishedList total={progress.filesDone} failedTotal={progress.filesFailed} updated={progress.elapsedMs} />
+    <FinishedList total={progress.filesDone} failedTotal={progress.filesFailed} updated={progress.elapsedMs} />
+  {/if}
 
   {#snippet actions()}
     <ActionBar status={files}>
@@ -202,7 +214,7 @@
         {#if progress.paused}
           <Button onclick={() => api.resumeJob()}>Resume</Button>
         {:else}
-          <Button onclick={() => api.pauseJob()} disabled={progress.phase === "done"}>Pause</Button>
+          <Button onclick={() => api.pauseJob()} disabled={progress.phase === "done" || checking}>Pause</Button>
         {/if}
         <Button variant="danger" onclick={cancel} disabled={progress.phase === "done"}>Cancel</Button>
       {/snippet}

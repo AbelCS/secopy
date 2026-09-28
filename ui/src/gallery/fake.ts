@@ -167,6 +167,7 @@ export const queueSummary: QueueSummaryView = {
   complete: 1,
   count: 3,
   millis: 6_130_000,
+  saveError: null,
   results: [
     { job: queue.jobs[0], result: "complete", reason: null, summary: { ...summary, outcome: "complete", failed: 0, failures: [] } },
     { job: queue.jobs[1], result: "failed", reason: "CARD_B isn't connected.", summary: null },

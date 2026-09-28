@@ -1,7 +1,7 @@
 <script lang="ts">
   // The queue (RFD §5.7): the jobs saved with Add to queue, in the order they run, what to do
   // when one fails, and Run queue.
-  import type { Snippet } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { OnFailure, QueueView } from "../lib/bindings";
   import { plural } from "../lib/format";
@@ -43,6 +43,16 @@
     }
   }
 
+  /** Moves a job and keeps the focus on it, in its new row (for the keyboard and VoiceOver). */
+  async function move(from: number, to: number) {
+    await change(() => api.moveInQueue(from, to));
+    await tick();
+    const row = document.querySelectorAll<HTMLElement>(".job")[to];
+    const buttons = [...(row?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
+    const same = buttons[to > from ? 1 : 0];
+    (same && !same.disabled ? same : buttons.find((b) => !b.disabled))?.focus();
+  }
+
   async function clear() {
     const sure = await api.confirm("Every job in the queue is removed.", "Clear the queue?", "Clear", "Keep");
     if (sure) await change(() => api.clearQueue());
@@ -67,7 +77,8 @@
         <p>Nothing queued. Set up a copy or a mirror and press Add to queue: it runs here, one after another with the others.</p>
       </EmptyState>
     {:else}
-      <ol class="jobs">
+      <!-- role="list": Safari drops list semantics when the bullets are hidden. -->
+      <ol class="jobs" role="list">
         {#each queue.jobs as job, i (i)}
           <li class="job">
             <span class="number">{i + 1}</span>
@@ -84,9 +95,9 @@
               {#if job.lastError}<Notice tone="danger">{job.lastError}</Notice>{/if}
             </div>
             <div class="buttons">
-              <Button aria-label="Move up" disabled={i === 0} onclick={() => change(() => api.moveInQueue(i, i - 1))}>↑</Button>
-              <Button aria-label="Move down" disabled={i === count - 1} onclick={() => change(() => api.moveInQueue(i, i + 1))}>↓</Button>
-              <Button aria-label="Remove" onclick={() => change(() => api.removeFromQueue(i))}>✕</Button>
+              <Button aria-label="Move job {i + 1} up" disabled={i === 0} onclick={() => move(i, i - 1)}>↑</Button>
+              <Button aria-label="Move job {i + 1} down" disabled={i === count - 1} onclick={() => move(i, i + 1)}>↓</Button>
+              <Button aria-label="Remove job {i + 1}" onclick={() => change(() => api.removeFromQueue(i))}>✕</Button>
             </div>
           </li>
         {/each}

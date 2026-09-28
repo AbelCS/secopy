@@ -8,6 +8,7 @@
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
   import Icon from "../lib/ui/Icon.svelte";
+  import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
   import Section from "../lib/ui/Section.svelte";
 
@@ -41,19 +42,24 @@
       </h2>
     </div>
     <p class="muted">took {formatDuration(summary.millis)}</p>
+    {#if summary.saveError}<Notice tone="danger">{summary.saveError}</Notice>{/if}
   </div>
 
   <Section title="Jobs">
-    <ol class="jobs">
+    <ol class="jobs" role="list">
       {#each summary.results as r, i (i)}
         <li class="job {r.result}">
           <span class="icon" aria-hidden="true">{r.result === "complete" ? "✓" : r.result === "notRun" ? "–" : "✗"}</span>
           <div class="what">
             <span class="word">{word[r.result]}</span>
-            {#if r.job.kind === "mirror"}<span>Mirror · {r.job.name ?? ""}</span>{/if}
-            <span class="mono path"><bdi>{r.job.source}</bdi></span>
-            <span class="muted" aria-hidden="true">→</span>
-            <span class="mono path"><bdi>{r.job.destination}</bdi></span>
+            {#if !r.job.supported}
+              <span>A job for a newer Secopy</span>
+            {:else}
+              {#if r.job.kind === "mirror"}<span>Mirror · {r.job.name ?? ""}</span>{/if}
+              <span class="mono path"><bdi>{r.job.source}</bdi></span>
+              <span class="muted" aria-hidden="true">→</span>
+              <span class="mono path"><bdi>{r.job.destination}</bdi></span>
+            {/if}
             <span class="line">{r.summary ? headline(r.summary) : (r.reason ?? "")}</span>
           </div>
           {#if r.summary}<Button onclick={() => onOpen(i)}>Summary</Button>{/if}

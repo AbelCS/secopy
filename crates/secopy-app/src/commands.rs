@@ -380,6 +380,10 @@ impl AppState {
         &self,
         change: impl FnOnce(&mut Queue) -> bool,
     ) -> Result<QueueView, String> {
+        // The run saves what's left after each job; a change now would be lost or duplicated.
+        if lock(&self.queue_run).running {
+            return Err("The queue is running.".into());
+        }
         {
             let mut q = lock(&self.queue);
             let mut next = q.clone();
@@ -424,15 +428,32 @@ impl AppState {
 
     /// Runs the saved queue, one job after another (FR-40..FR-43). Blocking.
     pub fn run_queue(&self, sink: impl QueueSink) -> Result<QueueSummaryView, String> {
-        {
-            let mut run = lock(&self.queue_run);
-            if run.running || self.jobs.is_running() {
-                return Err("A copy or the queue is already running.".into());
-            }
-            run.running = true;
-            run.cancelled = false;
-            run.handles.clear();
+        self.claim_queue_run()?;
+        Ok(self.run_claimed(sink))
+    }
+
+    /// Marks the queue as running, so a second Run queue is refused before any thread starts.
+    pub fn claim_queue_run(&self) -> Result<(), String> {
+        let mut run = lock(&self.queue_run);
+        if run.running || self.jobs.is_running() {
+            return Err("A copy or the queue is already running.".into());
         }
+        run.running = true;
+        run.cancelled = false;
+        run.handles.clear();
+        Ok(())
+    }
+
+    /// Runs the queue claimed by `claim_queue_run`; it is released however this ends.
+    pub fn run_claimed(&self, sink: impl QueueSink) -> QueueSummaryView {
+        /// Releases the run on the way out, a panic included.
+        struct Release<'a>(&'a Mutex<QueueRun>);
+        impl Drop for Release<'_> {
+            fn drop(&mut self) {
+                self.0.lock().unwrap_or_else(|e| e.into_inner()).running = false;
+            }
+        }
+        let _release = Release(&self.queue_run);
         let _awake = secopy_core::awake::KeepAwake::new();
         let clock = std::time::Instant::now();
         let (entries, on_failure) = {
@@ -443,6 +464,7 @@ impl AppState {
         let mut results = Vec::new();
         let mut keep = Vec::new();
         let mut stop = false;
+        let mut save_error = None;
         for (index, entry) in entries.iter().enumerate() {
             if stop || lock(&self.queue_run).cancelled {
                 lock(&self.queue_run).handles.push(None);
@@ -452,14 +474,18 @@ impl AppState {
                     reason: Some("Not run: the queue stopped.".into()),
                     summary: None,
                 });
-                keep.push(entry.clone());
+                // Not run this time: an older run's reason no longer applies.
+                keep.push(Entry {
+                    last_error: None,
+                    ..entry.clone()
+                });
                 continue;
             }
-            sink.send(QueueEvent::JobStarted {
+            sink.send(QueueEvent::JobChecking {
                 index: index as u32,
                 count,
             });
-            let (result, reason, handle) = self.run_one(entry, &sink);
+            let (result, reason, handle) = self.run_one(entry, (index as u32, count), &sink);
             let summary = handle.as_ref().and_then(JobHandle::summary);
             lock(&self.queue_run).handles.push(handle);
             let failed = matches!(result, QueueResult::Failed);
@@ -468,7 +494,7 @@ impl AppState {
                     last_error: if failed {
                         reason.clone()
                     } else {
-                        entry.last_error.clone()
+                        Some("Stopped.".into())
                     },
                     ..entry.clone()
                 });
@@ -486,10 +512,13 @@ impl AppState {
                 .cloned()
                 .chain(entries[index + 1..].iter().cloned())
                 .collect();
-            let _ = self.change_queue(|q| {
-                q.jobs = remaining;
-                true
-            });
+            if let Err(e) = self.leave_in_queue(remaining) {
+                save_error = Some(e);
+            }
+        }
+        // Once more with the jobs not run, whose reasons were cleared.
+        if let Err(e) = self.leave_in_queue(keep) {
+            save_error = Some(e);
         }
         lock(&self.queue_run).running = false;
         let summary = QueueSummaryView {
@@ -497,18 +526,35 @@ impl AppState {
             count,
             millis: clock.elapsed().as_millis() as u64,
             results,
+            save_error,
         };
         sink.send(QueueEvent::Done {
             summary: summary.clone(),
         });
-        Ok(summary)
+        summary
+    }
+
+    /// The jobs left after one ran: kept in memory even if they can't be saved, so a
+    /// completed job never runs twice.
+    fn leave_in_queue(&self, jobs: Vec<Entry>) -> Result<(), String> {
+        let mut q = lock(&self.queue);
+        q.jobs = jobs;
+        self.store
+            .save(QUEUE, &*q)
+            .map_err(|e| format!("Couldn't save the queue: {e}"))
     }
 
     fn run_one(
         &self,
         entry: &Entry,
+        (index, count): (u32, u32),
         sink: &impl QueueSink,
     ) -> (QueueResult, Option<String>, Option<JobHandle>) {
+        let started = QueueEvent::JobStarted {
+            index,
+            count,
+            job: job_view(entry, &lock(&self.mirrors)),
+        };
         match &entry.job {
             QueuedJob::Copy(job) => {
                 let ready = match crate::queue::prepare(job) {
@@ -516,7 +562,7 @@ impl AppState {
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
                 let settings = JobSettings::from(&*lock(&self.settings));
-                let ran = self.start_and_wait(ready, job.verify, settings, sink);
+                let ran = self.start_and_wait(ready, job.verify, settings, started, sink);
                 if ran.2.is_some() {
                     self.remember(|r| r.used_destination(&show(&job.destination)));
                 }
@@ -535,7 +581,7 @@ impl AppState {
                     return (QueueResult::Failed, Some(guard.clone()), None);
                 }
                 let settings = JobSettings::for_mirror(&job, chrono::Local::now());
-                self.start_and_wait(job.ready(), true, settings, sink)
+                self.start_and_wait(job.ready(), true, settings, started, sink)
             }
             QueuedJob::Unknown(_) => (
                 QueueResult::Failed,
@@ -552,8 +598,11 @@ impl AppState {
         ready: Ready,
         verify: bool,
         settings: JobSettings,
+        started: QueueEvent,
         sink: &impl QueueSink,
     ) -> (QueueResult, Option<String>, Option<JobHandle>) {
+        // The checks passed: the window shows this job's Copying screen from here.
+        sink.send(started);
         {
             // A cancel during the checks stops the job before it starts: the check and the
             // start happen under the lock `cancel` takes.
@@ -979,14 +1028,16 @@ pub async fn set_queue_on_failure(
 #[specta::specta]
 pub fn run_queue(app: AppHandle, on_event: Channel<QueueEvent>) -> Result<(), String> {
     let state = app.state::<AppState>();
-    if state.busy() {
-        return Err("A copy or the queue is already running.".into());
-    }
+    state.claim_queue_run()?;
     let runner = app.clone();
     let thread = std::thread::spawn(move || {
-        let _ = runner.state::<AppState>().run_queue(on_event);
+        runner.state::<AppState>().run_claimed(on_event);
     });
-    lock(&state.queue_run).thread = Some(thread);
+    // Only one run is claimed at a time, so this is the previous (finished) run's thread.
+    let old = lock(&state.queue_run).thread.replace(thread);
+    if let Some(old) = old {
+        let _ = old.join();
+    }
     Ok(())
 }
 
@@ -1447,17 +1498,24 @@ mod tests {
         );
         let saved: Queue = state.store.load(crate::queue::QUEUE).0;
         assert!(saved.jobs.is_empty());
-        let started: Vec<u32> = events
+        let kinds: Vec<String> = events
             .0
             .lock()
             .unwrap()
             .iter()
             .filter_map(|e| match e {
-                QueueEvent::JobStarted { index, count } => Some(index * 10 + count),
+                QueueEvent::JobChecking { index, count } => Some(format!("check {index}/{count}")),
+                QueueEvent::JobStarted { index, count, job } => {
+                    Some(format!("start {index}/{count} {}", job.kind))
+                }
                 _ => None,
             })
             .collect();
-        assert_eq!(started, [2, 12], "job 0 of 2, then job 1 of 2");
+        assert_eq!(
+            kinds,
+            ["check 0/2", "start 0/2 copy", "check 1/2", "start 1/2 copy"],
+            "each job is checked, then started"
+        );
         assert_eq!(state.queue_job(1).unwrap().summary().unwrap().files, 1);
     }
 
@@ -1479,6 +1537,94 @@ mod tests {
         let left = state.queue_view().jobs;
         assert_eq!(left.len(), 1, "the failed job stays");
         assert!(left[0].last_error.is_some());
+    }
+
+    /// #57: a job that can't start never shows a Copying screen.
+    #[test]
+    fn a_job_that_cant_start_is_never_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        fs::remove_dir_all(dir.path().join("A")).unwrap();
+        let events = Events::default();
+        state.run_queue(events.clone()).unwrap();
+        let events = events.0.lock().unwrap();
+        assert!(matches!(
+            events[0],
+            QueueEvent::JobChecking { index: 0, .. }
+        ));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, QueueEvent::JobStarted { .. })),
+            "no Copying screen for it"
+        );
+    }
+
+    /// #57: a panic mid-run doesn't leave the queue "running" until restart.
+    #[test]
+    fn a_panic_mid_run_doesnt_leave_the_queue_running() {
+        #[derive(Clone)]
+        struct Panics;
+        impl QueueSink for Panics {
+            fn send(&self, _: QueueEvent) {
+                panic!("the window went away badly");
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        let ran =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| state.run_queue(Panics)));
+        assert!(ran.is_err());
+        assert!(!state.busy());
+    }
+
+    /// #57: the run is claimed before its thread starts, so two can't both start.
+    #[test]
+    fn a_run_is_claimed_before_it_starts() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        state.claim_queue_run().unwrap();
+        assert_eq!(
+            state.claim_queue_run().unwrap_err(),
+            "A copy or the queue is already running."
+        );
+        let summary = state.run_claimed(Events::default());
+        assert_eq!(summary.complete, 1);
+        assert!(!state.busy());
+    }
+
+    /// #57: completed jobs leave the queue even when it can't be saved.
+    #[cfg(unix)]
+    #[test]
+    fn a_queue_that_cant_be_saved_still_forgets_completed_jobs() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        let data = dir.path().join("data");
+        fs::create_dir_all(&data).unwrap();
+        fs::set_permissions(&data, fs::Permissions::from_mode(0o555)).unwrap();
+        let summary = state.run_queue(Events::default()).unwrap();
+        fs::set_permissions(&data, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(
+            state.queue_view().jobs.is_empty(),
+            "no duplicate on a re-run"
+        );
+        let error = summary.save_error.expect("says the queue wasn't saved");
+        assert!(error.starts_with("Couldn't save the queue"), "{error}");
+    }
+
+    /// #57: the queue can't be changed while it runs.
+    #[test]
+    fn the_queue_cant_be_changed_while_it_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        lock(&state.queue_run).running = true;
+        assert_eq!(
+            state.change_queue(|q| q.remove(0)).unwrap_err(),
+            "The queue is running."
+        );
+        lock(&state.queue_run).running = false;
+        assert_eq!(state.queue_view().jobs.len(), 1);
     }
 
     /// Review focus 2.
@@ -1519,6 +1665,9 @@ mod tests {
     fn cancel_stops_the_queue_and_keeps_the_rest() {
         let dir = tempfile::tempdir().unwrap();
         let state = queued(dir.path(), &[("A", 400), ("B", 1)]);
+        for e in &mut lock(&state.queue).jobs {
+            e.last_error = Some("an old reason".into());
+        }
         state.cancel(false); // before the run: flag is reset by the run, so cancel during it
         std::thread::scope(|s| {
             let run = s.spawn(|| state.run_queue(Events::default()).unwrap());
@@ -1537,6 +1686,8 @@ mod tests {
             2,
             "the cancelled job and the one not run both stay"
         );
+        assert_eq!(left[0].last_error.as_deref(), Some("Stopped."));
+        assert_eq!(left[1].last_error, None, "no stale reason on a job not run");
     }
 
     /// Review focus 4.
@@ -1591,7 +1742,7 @@ mod tests {
             run.running = true;
             run.cancelled = true;
         }
-        let (result, _, handle) = state.run_one(&entry, &Events::default());
+        let (result, _, handle) = state.run_one(&entry, (0, 1), &Events::default());
         assert_eq!(result, QueueResult::Cancelled);
         assert!(handle.is_none());
         assert!(!dir.path().join("dest/A").exists(), "nothing copied");

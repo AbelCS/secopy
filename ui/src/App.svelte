@@ -74,8 +74,9 @@
   $effect(() => {
     if (screen === "mirror" || screen === "mirror-summary") mirrorScreen = screen;
   });
-  /** The queue run in progress: this job's place and the number of jobs. */
-  let queueRun: { index: number; count: number } | null = $state(null);
+  /** The queue run in progress: this job's place, the number of jobs, and whether it is still
+   * being checked; `kind` is the job's ("copy", "mirror") once it starts. */
+  let queueRun: { index: number; count: number; checking: boolean; kind: string | null } | null = $state(null);
   let queueSummary: QueueSummaryView | null = $state(null);
   /** The job running is a mirror. */
   let mirrorRunning = $state(false);
@@ -149,6 +150,14 @@
     fatal: null,
     removing: 0,
     archiving: false,
+  });
+
+  /** A queue job before its first update: none of New copy's figures, which aren't its own. */
+  const queueWaiting = (jobVerifies: boolean): ProgressView => ({
+    ...waiting(),
+    verify: jobVerifies,
+    totalFiles: 0,
+    totalBytes: 0,
   });
 
   async function run<T>(action: () => Promise<T>): Promise<T | undefined> {
@@ -241,14 +250,17 @@
     summary = null;
     copyScreen = "setup";
     forgetMirrorSummary();
-    queueRun = { index: 0, count: queue.jobs.length };
-    progress = waiting();
+    queueRun = { index: 0, count: queue.jobs.length, checking: true, kind: null };
+    progress = queueWaiting(false);
     screen = "progress";
     const started = await run(() =>
       api.runQueue((e) => {
-        if (e.type === "jobStarted") {
-          queueRun = { index: e.index, count: e.count };
-          progress = waiting();
+        if (e.type === "jobChecking") {
+          queueRun = { index: e.index, count: e.count, checking: true, kind: null };
+          progress = queueWaiting(false);
+        } else if (e.type === "jobStarted") {
+          queueRun = { index: e.index, count: e.count, checking: false, kind: e.job.kind };
+          progress = queueWaiting(e.job.kind === "mirror" || e.job.verify);
         } else if (e.type === "progress") {
           progress = e.view;
         } else {
@@ -377,7 +389,8 @@
           checksumFile={settings.writeChecksumFile}
           {banner}
           queue={queueRun ?? undefined}
-          title={mirrorRunning ? "Mirroring" : undefined}
+          checking={queueRun?.checking ?? false}
+          title={mirrorRunning || queueRun?.kind === "mirror" ? "Mirroring" : undefined}
         />
       {/key}
     {:else if screen === "summary" && summary}
