@@ -576,4 +576,42 @@ describe("App", () => {
     state.openFile!();
     await screen.findByText("Import it when the copy has finished.");
   });
+
+  test("the Finder listener is ready before the opened file is taken", async () => {
+    const { api } = fakeApi(readyView());
+    let ready = () => {};
+    api.onOpenFile.mockImplementation(() => new Promise((resolve) => (ready = () => resolve(() => {}))));
+    render(App, { props: { api } });
+    await startButton();
+    expect(api.takeOpenedFile).not.toHaveBeenCalled();
+    ready();
+    await waitFor(() => expect(api.takeOpenedFile).toHaveBeenCalled());
+  });
+
+  test("Import from the menu asks before leaving unsaved Settings", async () => {
+    const { api, state } = app();
+    await startButton();
+    state.openSettings!();
+    await fireEvent.click(await screen.findByRole("checkbox", { name: /Write the checksum file/ }));
+    api.confirm.mockResolvedValue(false);
+    api.pickImportFile.mockResolvedValue("/Users/me/Team.secopy");
+    state.menu!("import-file");
+    await waitFor(() => expect(api.confirm).toHaveBeenCalled());
+    expect(api.openImport).not.toHaveBeenCalled();
+    screen.getByRole("heading", { level: 1, name: "Settings" });
+  });
+
+  test("a second file replaces the one on the Import screen", async () => {
+    const { api, state } = app();
+    await startButton();
+    api.pickImportFile.mockResolvedValue("/Users/me/Team.secopy");
+    state.menu!("import-file");
+    await screen.findByText("Team presets.secopy");
+    const more = [...importView().copyPresets, { name: "GoPro", paths: [], clash: null, newName: "GoPro", missing: [], problem: null }];
+    api.openImport.mockResolvedValue(importView({ fileName: "Other.secopy", copyPresets: more.slice(1), settings: null }));
+    api.openImport.mockResolvedValueOnce(importView({ fileName: "Other.secopy", copyPresets: [...more, ...more], settings: null }));
+    state.menu!("import-file");
+    await screen.findByText("Other.secopy");
+    expect(screen.getAllByRole("checkbox", { name: "GoPro" })).toHaveLength(2);
+  });
 });

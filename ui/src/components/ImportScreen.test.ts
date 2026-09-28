@@ -56,4 +56,26 @@ describe("ImportScreen", () => {
     expect(onBack).toHaveBeenCalled();
     expect(onImport).not.toHaveBeenCalled();
   });
+
+  test("Import can't be pressed twice", async () => {
+    let finish = () => {};
+    const onImport = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    render(ImportScreen, { props: { view: view(), onImport, onBack: () => {} } });
+    const button = screen.getByRole("button", { name: "Import" });
+    await fireEvent.click(button);
+    await fireEvent.click(button);
+    expect(onImport).toHaveBeenCalledTimes(1);
+    finish();
+  });
+
+  test("a preset renamed only because the file has its name twice says its new name", () => {
+    const v = view({
+      copyPresets: [
+        { name: "A", paths: [], clash: null, newName: "A", missing: [], problem: null },
+        { name: "a", paths: [], clash: null, newName: "a (2)", missing: [], problem: null },
+      ],
+    });
+    render(ImportScreen, { props: { view: v, onImport: vi.fn(), onBack: () => {} } });
+    screen.getByText("Imported as “a (2)”: the file has this name twice.");
+  });
 });

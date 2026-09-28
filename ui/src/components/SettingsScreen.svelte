@@ -39,6 +39,12 @@
   let settingsError: string | null = $state(null);
   const changed = $derived((Object.keys(draft) as (keyof Settings)[]).some((k) => draft[k] !== settings[k]));
 
+  /** Whether it's fine to leave: asks when there are unsaved changes (Import opens over it). */
+  export async function mayLeave(): Promise<boolean> {
+    if (!changed) return true;
+    return await api.confirm("Your changes to the settings aren't saved.", "Discard changes?", "Discard", "Keep editing");
+  }
+
   async function save() {
     saving = true;
     try {

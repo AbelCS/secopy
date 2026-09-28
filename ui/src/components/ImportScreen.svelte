@@ -20,7 +20,7 @@
     view: ImportView;
     /** App-wide messages, shown first. */
     banner?: Snippet;
-    onImport: (c: ImportChoices) => void;
+    onImport: (c: ImportChoices) => void | Promise<void>;
     onBack: () => void;
   } = $props();
 
@@ -41,6 +41,18 @@
     mirrorPresets: chosen(mirrors),
   });
   const any = $derived(choices.settings || choices.copyPresets.length > 0 || choices.mirrorPresets.length > 0);
+  /** Import is working: a second press imports nothing more. */
+  let importing = $state(false);
+
+  async function importChosen() {
+    if (importing) return;
+    importing = true;
+    try {
+      await onImport(choices);
+    } finally {
+      importing = false;
+    }
+  }
 </script>
 
 <!-- A held Esc repeats: only the first press counts. -->
@@ -56,6 +68,9 @@
             {#each p.paths as path (path)}<p class="note mono">{path}</p>{/each}
             {#if p.problem}<p class="note problem">{p.problem}</p>{/if}
             {#each p.missing as path (path)}<p class="note">{path} isn't connected now.</p>{/each}
+            {#if !p.clash && !p.problem && p.newName !== p.name}
+              <p class="note">Imported as “{p.newName}”: the file has this name twice.</p>
+            {/if}
             {#if p.clash && !p.problem}
               <div class="choice">
               <RadioGroup
@@ -100,7 +115,7 @@
   {#snippet actions()}
     <ActionBar>
       {#snippet start()}<Button icon="chevron-left" onclick={onBack}>Back</Button>{/snippet}
-      {#snippet end()}<Button variant="primary" disabled={!any} onclick={() => onImport(choices)}>Import</Button>{/snippet}
+      {#snippet end()}<Button variant="primary" disabled={!any || importing} onclick={importChosen}>Import</Button>{/snippet}
     </ActionBar>
   {/snippet}
 </AppShell>

@@ -55,6 +55,19 @@
   /** "Discard changes?" is open: another click doesn't ask a second time. */
   let asking = false;
 
+  /** Whether it's fine to leave: asks when the mirror being edited has unsaved changes. */
+  export async function mayLeave(): Promise<boolean> {
+    if (!changed) return true;
+    if (asking) return false;
+    const which = selectedId === NEW ? "the new mirror" : `“${selected?.name ?? ""}”`;
+    asking = true;
+    try {
+      return await api.confirm(`Your changes to ${which} aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+    } finally {
+      asking = false;
+    }
+  }
+
   async function select(id: string) {
     if (id === selectedId || asking) return;
     if (changed) {
