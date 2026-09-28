@@ -10,6 +10,7 @@
   import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
   import Section from "../lib/ui/Section.svelte";
+  import Hint from "../lib/ui/Hint.svelte";
   import SegmentedControl from "../lib/ui/SegmentedControl.svelte";
 
   let {
@@ -96,7 +97,12 @@
           <span class="muted">{formatBytes(preview.changedBytes)}</span></li>
         <li><span class="sign" aria-hidden="true">−</span><span>
           {formatCount(preview.removedFiles)} deleted in the origin →
-          {preview.archiveDays === null ? "deleted" : `archived, kept ${formatCount(preview.archiveDays)} days`}
+          {#if preview.archiveDays === null}deleted{:else}<Hint
+              text="Moved into the hidden .secopy-archive directory in the destination, and removed for good after {formatCount(
+                preview.archiveDays,
+              )} days."
+              >archived, kept {formatCount(preview.archiveDays)} days</Hint
+            >{/if}
         </span></li>
       </ul>
     {/if}

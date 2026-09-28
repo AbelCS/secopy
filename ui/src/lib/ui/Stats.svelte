@@ -1,10 +1,20 @@
+<script lang="ts" module>
+  /** A figure, or one that explains itself on hover. */
+  export type Stat = string | { text: string; hint: string };
+</script>
+
 <script lang="ts">
-  // Figures on one line: "3 files · 7.0 GB written · took 0:06".
-  let { items }: { items: string[] } = $props();
+  // Figures on one line: "3 files · 7.0 GB written · took 0:06". A figure that needs it can
+  // explain itself (a `Hint`).
+  import Hint from "./Hint.svelte";
+
+  let { items }: { items: Stat[] } = $props();
 </script>
 
 <ul class="stats">
-  {#each items as item, i (i)}<li>{item}</li>{/each}
+  {#each items as item, i (i)}
+    <li>{#if typeof item === "string"}{item}{:else}<Hint text={item.hint}>{item.text}</Hint>{/if}</li>
+  {/each}
 </ul>
 
 <style>

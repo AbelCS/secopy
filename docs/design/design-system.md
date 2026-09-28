@@ -74,6 +74,7 @@ Components use tokens only, never raw colours or sizes.
 | `ProgressBar` | One phase's progress with speed and ETA |
 | `EmptyState` | What an empty part is for and how to fill it |
 | `Icon` | A few Lucide icons, always next to words |
+| `Hint` | A term that isn't clear on its own, explained on hover and keyboard focus: dotted underline, or an ⓘ mark with no term. `FormRow` (`hint`) and `Stats` items take one |
 | `Dialog` | A question over the screen, only when a system dialog can't hold it (a checkbox): safe answer first and focused, the other on the right; Esc is the safe answer |
 
 ## Rules
@@ -86,4 +87,5 @@ Components use tokens only, never raw colours or sizes.
 - Every field has a visible label; its error appears right under it and is linked to it.
 - The user-facing words are "directory" and "file".
 - No emoji as icons.
+- A `Hint` only where a word isn't clear on its own (Small files, Existing files, Identical, system files, Copy & Verify, archived, not started), in one or two plain sentences. Not for what a help line under an option already says.
 - Yes/no questions use the system dialog (`api.confirm`); `Dialog` only when the question needs more than two buttons.

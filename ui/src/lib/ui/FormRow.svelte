@@ -3,13 +3,17 @@
   // and the row's own actions (Choose…, All · None) on the right. Rows keep a section
   // readable: every kind of thing in its own line, the labels in one column.
   import type { Snippet } from "svelte";
+  import Hint from "./Hint.svelte";
 
   let {
     label,
+    hint,
     aside,
     children,
   }: {
     label: string;
+    /** What the label means, when it isn't clear on its own. */
+    hint?: string;
     aside?: Snippet;
     children: Snippet;
   } = $props();
@@ -17,7 +21,9 @@
 </script>
 
 <div class="row form-row" class:with-aside={!!aside} role="group" aria-labelledby={id}>
-  <div class="label" {id}>{label}</div>
+  <div class="label" {id}>
+    {#if hint}<Hint text={hint}>{label}</Hint>{:else}{label}{/if}
+  </div>
   <div class="content">{@render children()}</div>
   {#if aside}<div class="aside">{@render aside()}</div>{/if}
 </div>

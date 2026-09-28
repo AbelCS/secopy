@@ -12,6 +12,7 @@ import {
   sourceView,
 } from "../test/fake-api";
 import Setup from "./Setup.svelte";
+import { hintOf, showing } from "../test/hint";
 
 function setup(
   view: SessionView = sessionView(),
@@ -66,7 +67,7 @@ describe("Setup", () => {
     expect(from().getAllByRole("button", { name: "Choose…" })).toHaveLength(1);
     await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD/DCIM"]));
-    await screen.findByText("1,284 files · 212.4 GB · 37 system files skipped");
+    await screen.findByText(showing("1,284 files · 212.4 GB · 37 system files skipped"));
     api.pickSource.mockResolvedValueOnce(["/a.wav", "/b.wav"]);
     await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/a.wav", "/b.wav"]));
@@ -147,6 +148,8 @@ describe("Setup", () => {
       readyView({ destination: destinationView({ identical: 284, differs: 12, stalePartials: 2 }) }),
     );
     screen.getByText("284 identical files will be skipped (not checked).");
+    expect(hintOf(screen.getByText("Identical"))).toMatch(/same name, size and date/);
+    expect(hintOf(screen.getByText("Existing files"))).toMatch(/Keep both/);
     screen.getByText("2 unfinished files from an interrupted copy will be replaced.");
     expect(screen.getByLabelText("Keep both")).toHaveProperty("checked", true);
     await fireEvent.click(screen.getByLabelText("Overwrite"));
@@ -257,6 +260,12 @@ describe("Setup", () => {
     expect(screen.queryByRole("button", { name: "Save as new…" })).toBeNull();
   });
 
+  test("the terms that need it explain themselves", () => {
+    setup(readyView());
+    expect(hintOf(screen.getByText("37 system files skipped"))).toMatch(/\.DS_Store/);
+    expect(hintOf(screen.getByRole("button", { name: "About verifying" }))).toMatch(/back from the destination/);
+  });
+
   test("the hidden count follows the setting", () => {
     setup(readyView(), undefined, { settings: settingsView({ showSystemCount: false }) });
     within(screen.getByRole("group", { name: "Source" })).getByText("1,284 files · 212.4 GB");
@@ -299,7 +308,7 @@ describe("Setup", () => {
     setup(readyView());
     const source = within(screen.getByRole("group", { name: "Source" }));
     source.getByText(readyView().source!.label);
-    source.getByText("1,284 files · 212.4 GB · 37 system files skipped");
+    source.getByText(showing("1,284 files · 212.4 GB · 37 system files skipped"));
     source.getByRole("button", { name: "Choose…" });
     expect(screen.queryByRole("group", { name: "Selected" })).toBeNull();
     expect(screen.queryByText(/cards or drives/)).toBeNull();

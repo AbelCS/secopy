@@ -4,6 +4,7 @@ import { apiContext } from "../lib/api";
 import type { FinishedRow, ProgressView } from "../lib/bindings";
 import { fakeApi, progressView } from "../test/fake-api";
 import JobProgress from "./JobProgress.svelte";
+import { hintOf } from "../test/hint";
 
 function show(progress: ProgressView) {
   const { api } = fakeApi();
@@ -171,7 +172,7 @@ describe("JobProgress", () => {
     screen.getByText("A001C014.mov");
     screen.getByText("5.1 GB of 8.4 GB");
     screen.getByRole("progressbar", { name: "A001C014.mov" });
-    screen.getByText("Small files");
+    expect(hintOf(screen.getByText("Small files"))).toMatch(/under 8 MB/);
     screen.getByText("1,234 of 5,000");
     expect(screen.getByRole("progressbar", { name: "Small files" }).getAttribute("aria-valuenow")).toBe("25");
   });
