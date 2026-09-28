@@ -115,9 +115,9 @@ pub fn run() {
             if let WindowEvent::Resized(size) = event {
                 let scale = window.scale_factor().unwrap_or(1.0);
                 let size = size.to_logical::<f64>(scale);
-                // Minimizing reports a tiny size; keep the last real one.
-                if size.width >= MIN_WIDTH
-                    && size.height >= MIN_HEIGHT
+                let fills_screen = window.is_fullscreen().unwrap_or(false)
+                    || window.is_maximized().unwrap_or(false);
+                if remembers_size(size.width, size.height, fills_screen)
                     && let Some(state) = window.try_state::<AppState>()
                 {
                     state.window_resized(WindowSize {
@@ -217,6 +217,12 @@ fn menu_state(setup: bool, can_start: bool, copying: bool) -> [bool; 4] {
 /// The window's minimum size (`tauri.conf.json`).
 const MIN_WIDTH: f64 = 720.0;
 const MIN_HEIGHT: f64 = 560.0;
+
+/// Whether the window's new size is the one to open with next time. Minimizing reports a
+/// tiny size, and full screen or maximized the screen's (#69); keep the last real one.
+fn remembers_size(width: f64, height: f64, fills_screen: bool) -> bool {
+    !fills_screen && width >= MIN_WIDTH && height >= MIN_HEIGHT
+}
 
 /// The saved window size, kept within the minimum and the screen.
 fn window_size(saved: WindowSize, screen: Option<(f64, f64)>) -> (f64, f64) {
@@ -482,6 +488,19 @@ mod tests {
             window_size(saved(3000.0, 2000.0), Some((1440.0, 900.0))),
             (1440.0, 900.0)
         );
+    }
+
+    /// #69: full screen or maximized, the window keeps the size it had before for the next
+    /// launch, instead of opening screen-sized.
+    #[test]
+    fn only_a_real_window_size_is_remembered() {
+        use super::remembers_size;
+        assert!(remembers_size(1200.0, 800.0, false));
+        assert!(
+            !remembers_size(1728.0, 1117.0, true),
+            "full screen or maximized"
+        );
+        assert!(!remembers_size(200.0, 100.0, false), "minimized");
     }
 
     #[test]
