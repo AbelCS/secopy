@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/AbelCS/secopy/compare/v0.4.0...v0.5.0) (2026-09-28)
+
+
+### Features
+
+* **ui:** clearer progress and file lists ([5e0e77c](https://github.com/AbelCS/secopy/commit/5e0e77c3d781cd20539e5876c46080510ea43b4c)), closes [#33](https://github.com/AbelCS/secopy/issues/33)
+* **ui:** time left is just the time ([3f8e009](https://github.com/AbelCS/secopy/commit/3f8e0096f979e8e4b751a5dfb4d02ec97329dc64)), closes [#33](https://github.com/AbelCS/secopy/issues/33)
+
+
+### Bug Fixes
+
+* **core:** write the checksum file on SMB shares ([c825790](https://github.com/AbelCS/secopy/commit/c8257904ed147024482bffac67881fcbecbf4319)), closes [#32](https://github.com/AbelCS/secopy/issues/32)
+
 ## [0.4.0](https://github.com/AbelCS/secopy/compare/v0.3.0...v0.4.0) (2026-09-27)
 
 
