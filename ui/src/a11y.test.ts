@@ -9,9 +9,11 @@ import MirrorPreview from "./components/MirrorPreview.svelte";
 import MirrorScreen from "./components/MirrorScreen.svelte";
 import VerifyScreen from "./components/VerifyScreen.svelte";
 import SettingsScreen from "./components/SettingsScreen.svelte";
+import ImportScreen from "./components/ImportScreen.svelte";
+import ExportDialog from "./components/ExportDialog.svelte";
 import Summary from "./components/Summary.svelte";
 import { apiContext } from "./lib/api";
-import { fakeApi, copyPreset, progressView, readyView, settingsView, summaryView, queuedJob, queueView, mirrorPreset, mirrorPreview } from "./test/fake-api";
+import { fakeApi, copyPreset, progressView, readyView, settingsView, summaryView, queuedJob, queueView, mirrorPreset, mirrorPreview, importView } from "./test/fake-api";
 
 async function violations(container: HTMLElement): Promise<string[]> {
   // Colours are checked by tokens.test.ts; the test DOM can't compute them.
@@ -40,10 +42,20 @@ describe("accessibility (axe-core)", () => {
     expect(await violations(container)).toEqual([]);
   });
 
-  test("Settings", async () => {
+  test("Settings, with Export… and Import…", async () => {
     const { api } = fakeApi();
-    const { container } = render(SettingsScreen, { props: { settings: settingsView(), onSettings: () => {}, onDone: () => {} }, context: apiContext(api) });
+    const { container } = render(SettingsScreen, {
+      props: { settings: settingsView(), onSettings: () => {}, onExport: () => {}, onImport: () => {}, onDone: () => {} },
+      context: apiContext(api),
+    });
     expect(await violations(container)).toEqual([]);
+  });
+
+  test("Import and the export dialog", async () => {
+    const { container } = render(ImportScreen, { props: { view: importView(), onImport: () => {}, onBack: () => {} } });
+    expect(await violations(container)).toEqual([]);
+    const dialog = render(ExportDialog, { props: { copyPresets: 2, mirrorPresets: 0, onExport: () => {}, onClose: () => {} } });
+    expect(await violations(dialog.container)).toEqual([]);
   });
 
   test("Copy presets, with and without presets", async () => {
