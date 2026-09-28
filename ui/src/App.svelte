@@ -237,6 +237,7 @@
         onManageProfiles={() => open("profiles")}
         onMode={saveMode}
         onSettings={openSettings}
+        onQueued={(q) => (queue = q)}
       />
     {:else if screen === "progress" && progress}
       <JobProgress bind:this={progressScreen} {progress} checksumFile={settings.writeChecksumFile} {banner} />

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test, vi } from "vitest";
 import { apiContext } from "../lib/api";
-import type { Profile, SessionView, Settings } from "../lib/bindings";
+import type { Profile, QueueView, SessionView, Settings } from "../lib/bindings";
 import {
   destinationView,
   fakeApi,
@@ -20,7 +20,7 @@ function setup(
 ) {
   const { api, state } = fakeApi(answer);
   const started: number[] = [];
-  const calls = { profiles: [] as Profile[][], manage: 0, modes: [] as boolean[] };
+  const calls = { profiles: [] as Profile[][], manage: 0, modes: [] as boolean[], queued: [] as QueueView[] };
   const result = render(Setup, {
     props: {
       view,
@@ -32,6 +32,7 @@ function setup(
       onProfiles: (p: Profile[]) => calls.profiles.push(p),
       onManageProfiles: () => calls.manage++,
       onMode: (v: boolean) => calls.modes.push(v),
+      onQueued: (q: QueueView) => calls.queued.push(q),
     },
     context: apiContext(api),
   });
@@ -341,5 +342,23 @@ describe("Setup", () => {
     await fireEvent.click(open);
     await fireEvent.keyDown(screen.getByRole("textbox", { name: "Name" }), { key: "Escape" });
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Save as new…" }));
+  });
+
+  test("Add to queue saves the setup, says so, and clears the source", async () => {
+    const { api, calls } = setup(readyView(), sessionView({ destination: readyView().destination }));
+    const add = screen.getByRole("button", { name: "Add to queue" });
+    expect(add).toHaveProperty("disabled", false);
+    await fireEvent.click(add);
+    await waitFor(() => expect(api.addToQueue).toHaveBeenCalledWith(true));
+    expect(api.clearSource).toHaveBeenCalled();
+    await screen.findByText(/Added to the queue/);
+    expect(calls.queued).toHaveLength(1);
+  });
+
+  test("Add to queue is off exactly when Start is, and for a retry", () => {
+    setup(sessionView());
+    expect(screen.getByRole("button", { name: "Add to queue" })).toHaveProperty("disabled", true);
+    setup(readyView({ source: sourceView({ isRetry: true }) }));
+    expect(screen.getAllByRole("button", { name: "Add to queue" }).at(-1)).toHaveProperty("disabled", true);
   });
 });
