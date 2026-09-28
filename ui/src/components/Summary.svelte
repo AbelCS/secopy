@@ -22,10 +22,15 @@
     onNewCopy,
     onSettings,
     banner,
+    queueIndex,
+    onBack,
   }: {
     summary: SummaryView;
-    onRetry: () => void;
-    onNewCopy: () => void;
+    onRetry?: () => void;
+    onNewCopy?: () => void;
+    /** A job of the queue run: its files and report, no Retry, and Back instead of New copy. */
+    queueIndex?: number;
+    onBack?: () => void;
     onSettings?: () => void;
     /** App-wide messages, shown first. */
     banner?: Snippet;
@@ -48,7 +53,7 @@
   async function saveReport() {
     const name = summary.reportFile?.split("/").pop() ?? "secopy_report.txt";
     const path = await api.pickReportPath(name);
-    if (path) await act(() => api.saveReport(path));
+    if (path) await act(() => (queueIndex === undefined ? api.saveReport(path) : api.queueSaveReport(queueIndex, path)));
   }
 </script>
 
@@ -89,20 +94,34 @@
   {/if}
 
   <!-- Every file with its status and checksum, as during the copy (RFD §5.4). -->
-  <FinishedList title="Files" total={summary.finished} failedTotal={summary.failed} updated={0} />
+  <FinishedList
+    title="Files"
+    total={summary.finished}
+    failedTotal={summary.failed}
+    updated={0}
+    fetchPage={queueIndex === undefined
+      ? undefined
+      : (offset, limit, failedOnly) => api.queueFinishedPage(queueIndex, offset, limit, failedOnly)}
+  />
 
   {#snippet actions()}
     <ActionBar>
       {#snippet start()}
         <!-- What you'd do next comes first. -->
-        {#if summary.failed > 0}<Button onclick={onRetry}>Retry failed</Button>{/if}
+        {#if summary.failed > 0 && onRetry}<Button onclick={onRetry}>Retry failed</Button>{/if}
         <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>Show in Finder</Button>
         {#if summary.checksumFile}
           <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>Open checksum file</Button>
         {/if}
         <Button onclick={saveReport}>Save report…</Button>
       {/snippet}
-      {#snippet end()}<Button variant="primary" onclick={onNewCopy}>New copy</Button>{/snippet}
+      {#snippet end()}
+        {#if onBack}
+          <Button variant="primary" onclick={onBack}>Back</Button>
+        {:else}
+          <Button variant="primary" onclick={onNewCopy}>New copy</Button>
+        {/if}
+      {/snippet}
     </ActionBar>
   {/snippet}
 </AppShell>

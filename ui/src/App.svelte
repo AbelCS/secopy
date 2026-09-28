@@ -4,11 +4,20 @@
   import { onMount } from "svelte";
   import { provideApi, tauriApi, type Api } from "./lib/api";
   import { stopMessage } from "./lib/stopping";
-  import { notificationFor } from "./lib/summaryText";
-  import type { Profile, ProgressView, QueueView, SessionView, Settings, SummaryView } from "./lib/bindings";
+  import { notificationFor, queueNotification } from "./lib/summaryText";
+  import type {
+    Profile,
+    ProgressView,
+    QueueSummaryView,
+    QueueView,
+    SessionView,
+    Settings,
+    SummaryView,
+  } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
   import ProfilesScreen from "./components/ProfilesScreen.svelte";
   import QueueScreen from "./components/QueueScreen.svelte";
+  import QueueSummary from "./components/QueueSummary.svelte";
   import SettingsScreen from "./components/SettingsScreen.svelte";
   import Button from "./lib/ui/Button.svelte";
   import Notice from "./lib/ui/Notice.svelte";
@@ -21,7 +30,15 @@
   // svelte-ignore state_referenced_locally
   provideApi(api);
 
-  type Screen = "setup" | "progress" | "summary" | "settings" | "profiles" | "queue";
+  type Screen =
+    | "setup"
+    | "progress"
+    | "summary"
+    | "settings"
+    | "profiles"
+    | "queue"
+    | "queue-summary"
+    | "queue-job";
   let screen = $state<Screen>("setup");
   /** Where Settings and Profiles go back to. */
   let back: "setup" | "summary" | "queue" = "setup";
@@ -31,9 +48,15 @@
   $effect(() => {
     if (screen === "setup" || screen === "summary") copyScreen = screen;
   });
-  const section = $derived(screen === "queue" ? "queue" : "copy");
+  const queueScreens: Screen[] = ["queue", "queue-summary", "queue-job"];
+  const section = $derived(queueScreens.includes(screen) ? "queue" : "copy");
   /** The sidebar shows on the sections' own screens; not while jobs run, nor on Settings. */
-  const showSidebar = $derived(screen === "setup" || screen === "summary" || screen === "queue");
+  const showSidebar = $derived(screen === "setup" || screen === "summary" || queueScreens.includes(screen));
+  /** The queue run in progress: this job's place and the number of jobs. */
+  let queueRun: { index: number; count: number } | null = $state(null);
+  let queueSummary: QueueSummaryView | null = $state(null);
+  /** The job of the queue summary whose own summary is open. */
+  let openedJob: number | null = $state(null);
 
   function go(next: "copy" | "queue") {
     if (!showSidebar) return;
@@ -145,8 +168,37 @@
     }
   }
 
-  /** Run queue: the run itself is wired in with the queue's progress (plan 6, Task 9). */
-  function runQueue() {}
+  /** Runs the queue: one Copying screen per job, then the queue summary (FR-40..FR-43). */
+  async function runQueue() {
+    queueRun = { index: 0, count: queue.jobs.length };
+    progress = waiting();
+    screen = "progress";
+    const started = await run(() =>
+      api.runQueue((e) => {
+        if (e.type === "jobStarted") {
+          queueRun = { index: e.index, count: e.count };
+          progress = waiting();
+        } else if (e.type === "progress") {
+          progress = e.view;
+        } else {
+          queueRun = null;
+          queueSummary = e.summary;
+          screen = "queue-summary";
+          void run(() => api.queue()).then((q) => {
+            if (q) queue = q;
+          });
+          if (settings.notifyWhenDone && !api.windowFocused()) {
+            const { title, body } = queueNotification(e.summary);
+            void api.notify(title, body).catch(() => {}); // a courtesy, never an error
+          }
+        }
+      }),
+    );
+    if (started === undefined) {
+      queueRun = null;
+      screen = "queue";
+    }
+  }
 
   async function retry() {
     const next = await run(() => api.retryFailed());
@@ -242,7 +294,13 @@
         onQueued={(q) => (queue = q)}
       />
     {:else if screen === "progress" && progress}
-      <JobProgress bind:this={progressScreen} {progress} checksumFile={settings.writeChecksumFile} {banner} />
+      <JobProgress
+        bind:this={progressScreen}
+        {progress}
+        checksumFile={settings.writeChecksumFile}
+        {banner}
+        queue={queueRun ?? undefined}
+      />
     {:else if screen === "summary" && summary}
       <Summary {summary} {banner} onRetry={retry} onNewCopy={newCopy} onSettings={openSettings} />
     {:else if screen === "settings"}
@@ -256,6 +314,22 @@
       />
     {:else if screen === "queue"}
       <QueueScreen {queue} {banner} onQueue={(q) => (queue = q)} onRun={runQueue} onSettings={openSettings} />
+    {:else if screen === "queue-summary" && queueSummary}
+      <QueueSummary
+        summary={queueSummary}
+        onOpen={(i) => {
+          openedJob = i;
+          screen = "queue-job";
+        }}
+        onDone={() => (screen = "queue")}
+      />
+    {:else if screen === "queue-job" && queueSummary && openedJob !== null && queueSummary.results[openedJob]?.summary}
+      <Summary
+        summary={queueSummary.results[openedJob].summary!}
+        {banner}
+        queueIndex={openedJob}
+        onBack={() => (screen = "queue-summary")}
+      />
     {/if}
   </div>
 </div>

@@ -20,10 +20,13 @@
     progress,
     checksumFile = true,
     banner,
+    queue,
   }: {
     progress: ProgressView;
     /** The running job writes a checksum file (Settings). */
     checksumFile?: boolean;
+    /** In a queue run: this job's place (0-based) and the number of jobs. */
+    queue?: { index: number; count: number };
     /** App-wide messages, shown first. */
     banner?: Snippet;
   } = $props();
@@ -70,7 +73,10 @@
   });
 
   export async function cancel() {
-    const stop = await api.confirm(stopMessage(checksumFile), "Stop copying?");
+    const stop = await api.confirm(
+      stopMessage(checksumFile),
+      queue ? "Stop copying and stop the queue?" : "Stop copying?",
+    );
     if (stop) await api.cancelJob();
   }
 
@@ -113,7 +119,10 @@
 <AppShell>
   {#snippet header()}
     <ScreenHeader title={phase}>
-      {#snippet trailing()}{formatDuration(progress.elapsedMs)} elapsed{/snippet}
+      {#snippet trailing()}
+        {#if queue}<span>Job {queue.index + 1} of {queue.count}</span> ·{/if}
+        {formatDuration(progress.elapsedMs)} elapsed
+      {/snippet}
     </ScreenHeader>
   {/snippet}
 

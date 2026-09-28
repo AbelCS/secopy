@@ -11,6 +11,7 @@
     total,
     failedTotal,
     updated,
+    fetchPage,
   }: {
     title?: string;
     /** Finished files so far. */
@@ -19,6 +20,8 @@
     failedTotal: number;
     /** Changes with every progress update. */
     updated: number;
+    /** Where the rows come from: the current job by default, or a job of the queue run. */
+    fetchPage?: (offset: number, limit: number, failedOnly: boolean) => Promise<FinishedRow[]>;
   } = $props();
 
   const api = useApi();
@@ -61,7 +64,7 @@
       const expected = Math.min(PAGE, count - page * PAGE);
       if ((have && have.length >= expected) || asked.get(page) === now) continue;
       asked.set(page, now);
-      api.finishedPage(page * PAGE, PAGE, only).then((rows) => {
+      (fetchPage ?? api.finishedPage)(page * PAGE, PAGE, only).then((rows) => {
         if (only !== failedOnly) return;
         pages = new Map(pages).set(page, rows);
       });

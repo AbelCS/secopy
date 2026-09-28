@@ -1,5 +1,5 @@
 // What a summary says in short: its figures, and the notification when a copy ends.
-import type { SummaryView } from "./bindings";
+import type { QueueSummaryView, SummaryView } from "./bindings";
 import { formatBytes, formatCount, formatDuration, formatSpeed, plural } from "./format";
 import { headline } from "./headline";
 
@@ -15,4 +15,11 @@ export function summaryStats(s: SummaryView): string[] {
 export function notificationFor(s: SummaryView): { title: string; body: string } {
   const mark = s.outcome === "complete" ? "✓" : "✗";
   return { title: `${mark} ${headline(s)}`, body: summaryStats(s).slice(0, 3).join(" · ") };
+}
+
+/** The notification when a queue run ends (FR-43). */
+export function queueNotification(s: QueueSummaryView): { title: string; body: string } {
+  const title = `Queue done: ${s.complete} of ${plural(s.count, "job")} complete`;
+  const failed = s.results.filter((r) => r.result === "failed").length;
+  return { title, body: failed > 0 ? `${plural(failed, "job")} failed` : "Every job finished." };
 }
