@@ -1289,6 +1289,7 @@ fn a_checksum_file_that_couldnt_be_written_is_not_a_success() {
     assert_eq!(r.result, "checksum file not written");
 }
 
+#[cfg(unix)]
 fn meta() -> secopy_core::report::JobMeta {
     secopy_core::report::JobMeta {
         app_version: "test".into(),
@@ -1297,4 +1298,36 @@ fn meta() -> secopy_core::report::JobMeta {
         started: chrono::Local::now(),
         finished: chrono::Local::now(),
     }
+}
+
+/// #58: rewritten in place at the same size, a file would verify against the bytes read
+/// (a mix of two versions). Its modification time gives it away: it fails, nothing is kept.
+#[test]
+fn a_source_rewritten_at_the_same_size_fails() {
+    let f = fixture();
+    let mut o = opts(true);
+    o.hooks = Hooks {
+        before_copy: Some(|source| {
+            if source.to_string_lossy().contains("notes") {
+                // Same length as "hello", a later time.
+                fs::write(source, b"HELLO").unwrap();
+                let later = std::time::SystemTime::now() + Duration::from_secs(60);
+                fs::File::options()
+                    .write(true)
+                    .open(source)
+                    .unwrap()
+                    .set_modified(later)
+                    .unwrap();
+            }
+        }),
+        after_copy: None,
+    };
+    let (report, _) = run(&plan(&f.src, &f.dest), &o);
+    let failed: Vec<_> = report.failed().collect();
+    assert_eq!(failed.len(), 1, "{:?}", report.outcomes);
+    assert_eq!(
+        failed[0].status,
+        FileStatus::Failed(FileError::SourceChanged)
+    );
+    assert!(!f.dest.join("CARD/notes.txt").exists());
 }

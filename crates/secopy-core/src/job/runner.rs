@@ -188,8 +188,10 @@ impl<'a> Runner<'a> {
         if partial.removed_stale {
             self.removed_partials.fetch_add(1, Relaxed);
         }
-        // Growing or shrinking while it was read: the copy matches no version of the file.
-        if partial.bytes != file.entry.size {
+        // Growing or shrinking while it was read, or rewritten at the same size (a new
+        // modification time): the copy may mix two versions, and verifying would only confirm
+        // the mix.
+        if partial.bytes != file.entry.size || changed_since_scan(&file.entry) {
             partial.discard();
             return Err(FileError::SourceChanged);
         }
@@ -442,4 +444,15 @@ fn archive_old(old: &Path, to: &Path) -> Result<(), FileError> {
         fs::create_dir_all(parent).map_err(FileError::write_dest)?;
     }
     fs::rename(old, to).map_err(FileError::write_dest)
+}
+
+/// The source's size or modification time isn't what the scan saw.
+fn changed_since_scan(entry: &crate::scan::ScanEntry) -> bool {
+    match fs::metadata(&entry.source) {
+        Ok(meta) => {
+            meta.len() != entry.size
+                || (entry.mtime.is_some() && meta.modified().ok() != entry.mtime)
+        }
+        Err(_) => true,
+    }
 }

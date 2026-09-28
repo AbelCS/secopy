@@ -46,3 +46,9 @@ test("what couldn't be read, and a checksum file that wasn't written, aren't a s
     "The checksum file couldn't be written",
   );
 });
+
+test("a destination that couldn't confirm the copy is saved isn't a success", () => {
+  expect(headline(summaryView({ outcome: "failures", failed: 0, durabilityError: "Input/output error" }))).toBe(
+    "The destination couldn't confirm the files are saved",
+  );
+});

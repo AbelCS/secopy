@@ -53,9 +53,21 @@ pub fn write(dest: &Path, entries: &[(PathBuf, u64)], now: DateTime<Local>) -> i
         body.push('\n');
     }
     let (path, mut file) = create_unique(dest, now)?;
-    file.write_all(body.as_bytes())?;
-    crate::os::sync_durable(&file)?;
-    Ok(path)
+    let written = file
+        .write_all(body.as_bytes())
+        .and_then(|()| crate::os::sync_durable(&file));
+    keep_only_if_written(path, written)
+}
+
+/// A checksum file cut short would look finished and list too few files: it goes.
+fn keep_only_if_written(path: PathBuf, written: io::Result<()>) -> io::Result<PathBuf> {
+    match written {
+        Ok(()) => Ok(path),
+        Err(e) => {
+            let _ = std::fs::remove_file(&path);
+            Err(e)
+        }
+    }
 }
 
 fn create_unique(dest: &Path, now: DateTime<Local>) -> io::Result<(PathBuf, File)> {
@@ -85,6 +97,17 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use std::fs;
+
+    /// #58: a checksum file that couldn't be written in full doesn't stay, looking finished.
+    #[test]
+    fn a_checksum_file_that_fails_while_written_is_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secopy_x.xxh64");
+        fs::write(&path, "half a li").unwrap();
+        let result = keep_only_if_written(path.clone(), Err(io::Error::other("disk full")));
+        assert_eq!(result.unwrap_err().to_string(), "disk full");
+        assert!(!path.exists());
+    }
 
     fn at(h: u32, m: u32, s: u32) -> DateTime<Local> {
         Local.with_ymd_and_hms(2026, 9, 26, h, m, s).unwrap()

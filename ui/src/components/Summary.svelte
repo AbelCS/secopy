@@ -89,6 +89,12 @@
     {#if summary.checksumError}
       <Notice tone="danger">The checksum file could not be written: {summary.checksumError}</Notice>
     {/if}
+    {#if summary.durabilityError}
+      <Notice tone="danger">
+        The destination reported an error while the files were saved to disk: {summary.durabilityError}. Check
+        the drive and run the copy again.
+      </Notice>
+    {/if}
     {#if summary.reportError}<Notice tone="danger">The report could not be saved: {summary.reportError}</Notice>{/if}
     {#if actionError}<Notice tone="danger">{actionError}</Notice>{/if}
   </div>

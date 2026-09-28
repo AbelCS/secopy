@@ -54,6 +54,8 @@ export const commands = {
 	failed: number,
 	/**  Items the scan couldn't read, so they weren't copied (#58). */
 	unread: number,
+	/**  The destination reported an error while the copy was made durable (#58). */
+	durabilityError: string | null,
 	notStarted: number,
 	bytesWritten: number,
 	millis: number,
@@ -465,6 +467,8 @@ export type SummaryView = {
 	failed: number,
 	/**  Items the scan couldn't read, so they weren't copied (#58). */
 	unread: number,
+	/**  The destination reported an error while the copy was made durable (#58). */
+	durabilityError: string | null,
 	notStarted: number,
 	bytesWritten: number,
 	millis: number,

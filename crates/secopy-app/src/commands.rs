@@ -691,8 +691,11 @@ fn failure_reason(s: &SummaryView) -> String {
     if n > 0 {
         return format!("{n} {} couldn't be removed.", files(n));
     }
-    match &s.checksum_error {
-        Some(e) => format!("The checksum file couldn't be written: {e}"),
+    if let Some(e) = &s.checksum_error {
+        return format!("The checksum file couldn't be written: {e}");
+    }
+    match &s.durability_error {
+        Some(e) => format!("The destination couldn't confirm the files are saved: {e}"),
         None => "It didn't complete.".into(),
     }
 }
