@@ -134,8 +134,10 @@ export type CheckSummaryView = {
 	/**  Files no checksum file lists. */
 	notChecked: number,
 	checksumFiles: number,
-	/**  Problems in the checksum files: "file:line: why". */
+	/**  Problems in the checksum files: "file:line: why", the first 1,000. */
 	problems: string[],
+	/**  Problems past the ones listed; `None` when every one is (#69). */
+	moreProblems?: number | null,
 };
 
 /**  A directory about to be checked (plan 8): what its checksum files list. */

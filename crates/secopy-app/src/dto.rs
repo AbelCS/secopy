@@ -301,8 +301,18 @@ pub struct CheckSummaryView {
     /// Files no checksum file lists.
     pub not_checked: u32,
     pub checksum_files: u32,
-    /// Problems in the checksum files: "file:line: why".
+    /// Problems in the checksum files: "file:line: why", the first 1,000.
     pub problems: Vec<String>,
+    /// Problems past the ones listed; `None` when every one is (#69).
+    #[specta(optional)]
+    pub more_problems: Option<u32>,
+}
+
+impl CheckSummaryView {
+    /// Every problem in the checksum files, listed or not.
+    pub fn problem_count(&self) -> u32 {
+        count(self.problems.len()).saturating_add(self.more_problems.unwrap_or(0))
+    }
 }
 
 /// The files a cancelled job removed again (#54).

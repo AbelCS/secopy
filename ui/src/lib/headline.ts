@@ -7,11 +7,13 @@ export function headline(s: SummaryView): string {
   const c = s.check;
   if (c) {
     if (s.outcome === "cancelled") return "Cancelled";
+    // The summary lists the first 1,000 problems; the rest are only counted.
+    const problems = c.problems.length + (c.moreProblems ?? 0);
     const parts = [
       c.changed > 0 ? plural(c.changed, "file") + " changed" : "",
       c.missing > 0 ? `${formatCount(c.missing)} missing` : "",
       c.failed > 0 ? `${formatCount(c.failed)} couldn't be read` : "",
-      c.problems.length > 0 ? plural(c.problems.length, "checksum file problem") : "",
+      problems > 0 ? plural(problems, "checksum file problem") : "",
     ].filter(Boolean);
     return parts.length === 0 ? `All ${plural(c.intact, "file")} intact` : parts.join(" · ");
   }

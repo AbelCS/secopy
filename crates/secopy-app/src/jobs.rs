@@ -421,6 +421,8 @@ impl Job {
                             None => format!("{}: {}", show(&p.file), p.reason),
                         })
                         .collect(),
+                    more_problems: (checked.problems.len() > FAILURES_SHOWN)
+                        .then(|| count(checked.problems.len() - FAILURES_SHOWN)),
                 })
             }
             _ => None,
