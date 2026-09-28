@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import { apiContext } from "../lib/api";
 import type { FinishedRow, SummaryView } from "../lib/bindings";
@@ -78,9 +78,9 @@ describe("Summary", () => {
     expect(calls).toEqual(["retry"]);
   });
 
-  test("Reveal, Open checksum file and Save report", async () => {
+  test("Show in Finder, Open checksum file and Save report", async () => {
     const { api } = show(summaryView());
-    await fireEvent.click(screen.getByRole("button", { name: "Reveal in Finder" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Show in Finder" }));
     expect(api.reveal).toHaveBeenCalledWith("/Volumes/RAID/Day01/DCIM");
     await fireEvent.click(screen.getByRole("button", { name: "Open checksum file" }));
     expect(api.openFile).toHaveBeenCalledWith("/Volumes/RAID/Day01/secopy_2026-09-27_140302.xxh64");
@@ -125,5 +125,25 @@ describe("Summary", () => {
     show(summaryView({ destinationDrive: { name: "V001", mountPoint: "/Volumes/V001" } }));
     expect(screen.queryByRole("button", { name: /Eject/ })).toBeNull();
     screen.getByText("Safe to eject V001: everything was written.");
+  });
+
+  test("the bar puts what you'd do next first, and New copy on the right", () => {
+    show(
+      summaryView({
+        failed: 1,
+        outcome: "failures",
+        sourceDrive: { name: "CARD_A", mountPoint: "/Volumes/CARD_A" },
+        checksumFile: "/Volumes/RAID/Day01/secopy.xxh64",
+      }),
+    );
+    const bar = within(screen.getByRole("group", { name: "Actions" }));
+    expect(bar.getAllByRole("button").map((b) => b.textContent?.trim())).toEqual([
+      "Retry failed",
+      "Eject CARD_A",
+      "Show in Finder",
+      "Open checksum file",
+      "Save report…",
+      "New copy",
+    ]);
   });
 });

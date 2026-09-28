@@ -113,7 +113,7 @@
       <Notice tone="warning">The destination already contains 12 items.</Notice>
       <Notice tone="danger">Stopped: the source is no longer available.</Notice>
       <Stats items={["3 files", "7.0 GB written", "took 0:06", "1.2 GB/s average"]} />
-      <ProgressBar label="Copied" done={72e9} total={180e9} speed={1.1e9} average={1.0e9} eta={98_000} />
+      <ProgressBar label="Copied" done={72e9} total={180e9} speed={1.1e9} />
       <EmptyState><p>Nothing here yet: this is where an empty part of a screen says how to fill it.</p></EmptyState>
     </Section>
 

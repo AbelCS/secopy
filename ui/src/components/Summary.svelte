@@ -111,16 +111,17 @@
   {#snippet actions()}
     <ActionBar>
       {#snippet start()}
-        <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>Reveal in Finder</Button>
-        {#if summary.checksumFile}
-          <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>Open checksum file</Button>
-        {/if}
-        <Button onclick={saveReport}>Save report…</Button>
+        <!-- What you'd do next comes first. -->
         {#if summary.failed > 0}<Button onclick={onRetry}>Retry failed</Button>{/if}
         {#if summary.sourceDrive && !ejected}
           {@const drive = summary.sourceDrive}
           <Button onclick={() => eject(drive)}>Eject {drive.name}</Button>
         {/if}
+        <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>Show in Finder</Button>
+        {#if summary.checksumFile}
+          <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>Open checksum file</Button>
+        {/if}
+        <Button onclick={saveReport}>Save report…</Button>
       {/snippet}
       {#snippet end()}<Button variant="primary" onclick={onNewCopy}>New copy</Button>{/snippet}
     </ActionBar>

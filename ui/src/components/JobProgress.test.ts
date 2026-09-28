@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import { apiContext } from "../lib/api";
 import type { FinishedRow, ProgressView } from "../lib/bindings";
@@ -26,19 +26,24 @@ function row(i: number, over: Partial<FinishedRow> = {}): FinishedRow {
 }
 
 describe("JobProgress", () => {
-  test("phase, bars and file counts", () => {
+  test("phase, bars, the whole job's percent and file counts", () => {
     show(progressView({ copiedBytes: 148_200_000_000, verifiedBytes: 141_000_000_000, filesDone: 902 }));
     screen.getByRole("heading", { name: "Copying & verifying" });
-    expect(screen.getAllByRole("progressbar")).toHaveLength(2);
-    screen.getByText(/148\.2 GB \/ 212\.4 GB · 69\.8 %/);
+    expect(screen.getAllByRole("progressbar", { name: /Copied|Verified/ })).toHaveLength(2);
+    screen.getByText("148.2 GB of 212.4 GB");
+    // Copying and verifying are half of the job each.
+    within(screen.getByRole("region", { name: "Progress" })).getByText("68.1 %");
     screen.getByText("902 / 1,284 files");
   });
 
-  test("speed and ETA need two updates, then follow the progress", async () => {
+  test("time left and speed wait for real numbers instead of showing dashes", async () => {
     const { rerender } = show(progressView());
-    expect(screen.getAllByText(/ETA —/)).toHaveLength(2);
+    screen.getByText("Estimating…");
+    expect(screen.queryByText(/—|ETA/)).toBeNull();
     await rerender({ progress: progressView({ elapsedMs: 1000, copiedBytes: 1_000_000_000 }) });
-    screen.getByText(/1\.0 GB\/s \(avg 1\.0 GB\/s\) · ETA 3:31/);
+    screen.getByText("about 7:04 left");
+    screen.getByText("1.0 GB of 212.4 GB · 1.0 GB/s");
+    expect(screen.queryByText("Estimating…")).toBeNull();
   });
 
   test("plain Copy shows one bar", () => {
@@ -87,7 +92,10 @@ describe("JobProgress", () => {
       }),
     );
     screen.getByText("A001C014.mov");
+    screen.getByText("5.1 GB of 8.4 GB");
+    screen.getByRole("progressbar", { name: "A001C014.mov" });
     screen.getByText("+ 12 small files");
+    screen.getByText("18.0 MB of 41.0 MB");
   });
 
   test("a fatal error shows a banner", () => {
@@ -158,5 +166,12 @@ describe("JobProgress", () => {
     await fireEvent.keyDown(container.querySelector(".viewport")!, { key: " " });
     await fireEvent.keyDown(window, { key: " ", shiftKey: true });
     expect(api.pauseJob).not.toHaveBeenCalled();
+  });
+
+  test("the file list has column headers, and fits a short list", () => {
+    const { container } = show(progressView({ filesDone: 4 }));
+    const finished = within(screen.getByRole("region", { name: "Finished" }));
+    for (const name of ["File", "Size", "Time", "Speed", "Checksum", "Status"]) finished.getByText(name);
+    expect((container.querySelector(".viewport") as HTMLElement).style.height).toBe("112px");
   });
 });
