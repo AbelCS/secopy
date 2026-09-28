@@ -1,7 +1,7 @@
 <script lang="ts">
   // The end of a queue run (FR-43): one row per job with its result, each opening that job's
   // own summary.
-  import type { QueueResult, QueueSummaryView } from "../lib/bindings";
+  import type { QueuedJobView, QueueResult, QueueSummaryView } from "../lib/bindings";
   import { formatDuration, plural } from "../lib/format";
   import { headline } from "../lib/headline";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -30,6 +30,14 @@
     cancelled: "Cancelled",
     notRun: "Not run",
   };
+
+  /** A job in words, for its Summary button's name: "Verify · /Volumes/Backup". "to", not
+   *  "→", so VoiceOver doesn't read "right arrow". */
+  function jobName(job: QueuedJobView): string {
+    if (job.kind === "check") return `Verify · ${job.source}`;
+    const kind = job.kind === "mirror" ? `Mirror ${job.name ?? ""}`.trim() : job.verify ? "Copy & Verify" : "Copy";
+    return `${kind} · ${job.source} to ${job.destination}`;
+  }
 </script>
 
 <AppShell>
@@ -46,7 +54,7 @@
   </div>
 
   <Section title="Jobs">
-    <ol class="jobs" role="list">
+    <ol class="jobs" role="list" aria-label="Job results">
       {#each summary.results as r, i (i)}
         <li class="job {r.result}">
           <span class="icon" aria-hidden="true">{r.result === "complete" ? "✓" : r.result === "notRun" ? "–" : "✗"}</span>
@@ -67,7 +75,9 @@
             {/if}
             <span class="line">{r.summary ? headline(r.summary) : (r.reason ?? "")}</span>
           </div>
-          {#if r.summary}<Button onclick={() => onOpen(i)}>Summary</Button>{/if}
+          {#if r.summary}
+            <Button aria-label="Summary of job {i + 1}, {jobName(r.job)}" onclick={() => onOpen(i)}>Summary</Button>
+          {/if}
         </li>
       {/each}
     </ol>

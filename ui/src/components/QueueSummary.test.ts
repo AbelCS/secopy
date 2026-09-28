@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import { queuedJob, summaryView } from "../test/fake-api";
 import QueueSummary from "./QueueSummary.svelte";
@@ -24,8 +24,10 @@ describe("QueueSummary", () => {
     screen.getByRole("heading", { name: "Queue done: 1 of 3 jobs complete" });
     screen.getByText("took 1:42:10");
     screen.getByText("Not run: the queue stopped.");
-    const open = screen.getAllByRole("button", { name: "Summary" });
+    const list = screen.getByRole("list", { name: "Job results" });
+    const open = within(list).getAllByRole("button", { name: /^Summary of job \d/ });
     expect(open).toHaveLength(2); // no summary for a job that didn't run
+    expect(open[1]).toBe(screen.getByRole("button", { name: /^Summary of job 2, Copy & Verify · \/Volumes\/CARD_B\/DCIM to / }));
     await fireEvent.click(open[1]);
     expect(calls.open).toEqual([1]);
   });
@@ -93,5 +95,6 @@ describe("QueueSummary", () => {
     });
     screen.getByText("Verify");
     expect(screen.queryByText("→")).toBeNull();
+    screen.getByRole("button", { name: "Summary of job 1, Verify · /Volumes/Backup/Day01" });
   });
 });
