@@ -250,7 +250,7 @@ These values are a starting point and will be refined during M2.
 Tabs at the top hold the kinds of job: **Copy** (the main window above), **Mirror** (§5.8) and
 **Verify** (FR-34). On the right of the bar, apart from them, a **Queue** button with the number
 of queued jobs (highlighted while the Queue is open) and Settings. The bar is hidden while jobs
-run and on Settings and Profiles.
+run and on Settings and Copy presets.
 
 - **Add to queue** next to Start copy (and on a mirror preset) saves the job as set up; the
   Queue screen lists the jobs (reorder, remove, clear), the choice for failures (continue with
@@ -349,9 +349,9 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-35 | Each job produces a report as plain text and as JSON: settings, start/end, counts, per-file result (including skipped files), failures with reasons, whether cache bypass was active, leftover partial files removed, and files left out of the checksum file. It is kept in the app's data folder, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
-| FR-36 | The app remembers the mode, the window size and the last selected source profile, which is loaded again at launch when its source is there. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
-| FR-37 | Keyboard, in a File menu: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `⌘/Ctrl+.` cancel the copy (asks first); items greyed out when they don't apply. `Space` pauses and resumes a copy; `Esc` goes back from Settings and Profiles and cancels dialogs. | S |
-| FR-38 | **Source profiles**, chosen by hand: a saved copy setup for FROM. A name, the source (a full path, e.g. `/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one loads its source and settings (or says its card isn't connected); changes last for one run unless saved with "Update profile" or "Save as new…" (which asks only for a name). The destination is never part of a profile. No automatic card detection, and nothing is written to cards. | S |
+| FR-36 | The app remembers the mode, the window size and the last selected copy preset, which is loaded again at launch when its source is there. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
+| FR-37 | Keyboard, in a File menu: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `⌘/Ctrl+.` cancel the copy (asks first); items greyed out when they don't apply. `Space` pauses and resumes a copy; `Esc` goes back from Settings and Copy presets and cancels dialogs. | S |
+| FR-38 | **Copy presets**, chosen by hand: a saved copy setup for FROM. A name, the source (a full path, e.g. `/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one loads its source and settings (or says its card isn't connected); changes last for one run unless saved with "Update preset" or "Save as new…" (which asks only for a name). The destination is never part of a preset. No automatic card detection, and nothing is written to cards. | S |
 
 ### 6.9 Job queue
 
@@ -576,3 +576,4 @@ The stack meets these constraints:
 | 2026-09-28 | **Verify an existing copy** (#67): a directory, and every checksum file inside it; files nothing lists are "not checked" (shown, not a failure); mirrors keep a hidden checksum file so their backups can be verified. A separate check engine; the copy engine is unchanged. |
 | 2026-09-28 | **The Queue apart from the tabs** (#67): the tabs are the kinds of job (Copy, Mirror, Verify), underlined when selected; the Queue, where any of them waits and runs, is a button with its count on the right, next to Settings. |
 | 2026-09-28 | **No multiple destinations** (#69 discussion): two copy jobs in the queue copy a source to two destinations, reading it twice. A job that reads once and writes N copies was dropped: it's a new path through the copy engine for something the queue already does. This replaces the v1.1 plan (2026-09-26). |
+| 2026-09-28 | **Presets** (#72): copy profiles are now copy presets, like mirror presets: one word for saved setups. The saved file keeps its name, profiles.json. |

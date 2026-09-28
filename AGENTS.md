@@ -1,7 +1,7 @@
 # Secopy
 
 macOS desktop app for fast, verified copies of directories (a camera card, a volume, any
-directory): Copy & Verify with xxHash64 and a checksum file, profiles, a job queue and one-way
+directory): Copy & Verify with xxHash64 and a checksum file, copy presets, a job queue and one-way
 mirrors. Secopy is macOS only (Apple Silicon) by design, engine included; building for another
 OS is a compile error (RFD §14).
 
@@ -121,7 +121,7 @@ format exactly.
 
 - Layout: `crates/secopy-core` (engine library, no UI dependencies), `crates/secopy-cli`
   (developer CLI and benchmark driver), `crates/secopy-app` (the Tauri 2 shell: session,
-  jobs, commands, `store` for the saved settings, profiles, mirror presets and state,
+  jobs, commands, `store` for the saved settings, copy presets, mirror presets and state,
   `queue` for the saved queue, `mirrors` for turning a preset into a job, `picker` for the
   source panel, `migrate` for the 0.2.0 → 0.3.0 data folder) and `ui/` (Svelte 5 +
   TypeScript, Vite). Run the app with `npm run tauri dev` from `ui/`; build the `.dmg`

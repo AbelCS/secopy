@@ -5,7 +5,7 @@ How the app's screens are built, so they look and behave the same. The colours c
 
 To see every component and screen: `cd ui && npm run dev`, then open
 <http://localhost:5173/gallery.html> (add `#setup`, `#progress`, `#summary`, `#settings`,
-`#profiles`, `#profiles-empty`, `#queue`, `#queue-summary`, `#mirror`, `#mirror-preview`,
+`#presets`, `#presets-empty`, `#queue`, `#queue-summary`, `#mirror`, `#mirror-preview`,
 `#mirror-summary`, `#mirroring`, `#verify`, `#verify-summary`, `#tabs` or `#cancel` for a screen; `?tips` shows every `Hint`). The
 gallery is dev only and not in the app.
 
@@ -14,7 +14,7 @@ gallery is dev only and not in the app.
 The kinds of job (Copy, Mirror, Verify) are tabs in a `TabBar` at the top of the section
 screens: plain words, the selected one underlined in the accent. On its right, apart from the
 tabs, the Queue (a button with its job count, highlighted while it's open) and Settings, once
-for the whole app. The bar is hidden while jobs run and on Settings and Profiles, so the width
+for the whole app. The bar is hidden while jobs run and on Settings and Copy presets, so the width
 goes to paths and file lists. Below it, every screen is an `AppShell` with three parts,
 always in the same place:
 
@@ -34,7 +34,7 @@ always in the same place:
 - **Header** (`ScreenHeader`): the screen's title (the window's title bar already says Secopy), so you
   know where you are inside a tab (New copy, Summary, Preview…); a screen's own controls on the right.
 - **Content**: `Section`s, one per part of the screen, and app-wide messages first.
-  Inside a section, one `FormRow` per kind of thing (Source, Profile, Options,
+  Inside a section, one `FormRow` per kind of thing (Source, Preset, Options,
   File types…), with a hairline between rows; a control whose row already names it hides
   its own label (`hideLabel`), keeping it for screen readers.
 - **Action bar** (`ActionBar`), always visible:
@@ -45,7 +45,7 @@ always in the same place:
   - **middle:** a short status. It explains a disabled primary action ("Choose where to
     copy to."), or says what will happen.
 - Changes are saved explicitly, never on their own. Settings has Cancel (left; Esc too)
-  and Save (right, on only when something changed; it saves and goes back). A profile has
+  and Save (right, on only when something changed; it saves and goes back). A copy preset has
   Revert and Save, and leaving it with unsaved changes asks first.
 
 ## Tokens (`ui/src/app.css`)
@@ -66,7 +66,7 @@ Components use tokens only, never raw colours or sizes.
 |---|---|
 | `AppShell` | Every screen's frame: `header`, content, `actions` |
 | `ScreenHeader` | Title and optional trailing controls |
-| `TabBar` | The kinds of job as underlined tabs at the top (Copy, Mirror, Verify); on the right the Queue button (its count, highlighted while open) and Settings; hidden while jobs run and on Settings/Profiles |
+| `TabBar` | The kinds of job as underlined tabs at the top (Copy, Mirror, Verify); on the right the Queue button (its count, highlighted while open) and Settings; hidden while jobs run and on Settings/Copy presets |
 | `ActionBar` | The bottom bar: `start`, `status`, `end` |
 | `Section` | A titled part of a screen; the only card style |
 | `FormRow` | One labelled line inside a section: the label column on the left, the content, the row's own actions on the right (Choose…, All · None) |
