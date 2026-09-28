@@ -52,6 +52,10 @@ pub enum FileError {
     InTheWay { path: PathBuf },
     #[error("the source file changed while it was copied")]
     SourceChanged,
+    #[error("changed since it was copied (expected {expected}, found {actual})")]
+    Changed { expected: String, actual: String },
+    #[error("missing")]
+    Missing,
     #[error("cancelled")]
     Cancelled,
 }

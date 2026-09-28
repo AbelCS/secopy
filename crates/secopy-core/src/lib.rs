@@ -5,6 +5,7 @@
 compile_error!("Secopy supports macOS only (issue #60).");
 
 pub mod awake;
+pub mod check;
 pub mod checksum_file;
 pub mod control;
 pub mod copy;
