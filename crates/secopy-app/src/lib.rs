@@ -57,6 +57,14 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::run_queue,
         commands::queue_finished_page,
         commands::queue_save_report,
+        commands::mirror_presets,
+        commands::create_mirror_preset,
+        commands::edit_mirror_preset,
+        commands::delete_mirror_preset,
+        commands::preview_mirror,
+        commands::mirror_preview_page,
+        commands::run_mirror,
+        commands::add_mirror_to_queue,
     ])
 }
 

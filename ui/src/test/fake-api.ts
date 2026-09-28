@@ -175,6 +175,7 @@ export function queuedJob(over: Partial<QueuedJobView> = {}): QueuedJobView {
     destination: "/Volumes/RAID/Day01",
     lastError: null,
     supported: true,
+    name: null,
     ...over,
   };
 }

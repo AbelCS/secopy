@@ -86,6 +86,16 @@ export const commands = {
 	runQueue: (onEvent: Channel<QueueEvent>) => typedError<null, string>(__TAURI_INVOKE("run_queue", { onEvent })),
 	queueFinishedPage: (index: number, offset: number, limit: number, failedOnly: boolean) => typedError<FinishedRow[], string>(__TAURI_INVOKE("queue_finished_page", { index, offset, limit, failedOnly })),
 	queueSaveReport: (index: number, path: string) => typedError<null, string>(__TAURI_INVOKE("queue_save_report", { index, path })),
+	mirrorPresets: () => typedError<MirrorPreset[], string>(__TAURI_INVOKE("mirror_presets")),
+	createMirrorPreset: (input: MirrorPresetInput) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("create_mirror_preset", { input })),
+	editMirrorPreset: (id: string, input: MirrorPresetInput) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("edit_mirror_preset", { id, input })),
+	deleteMirrorPreset: (id: string) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("delete_mirror_preset", { id })),
+	/**  A mirror's preview (FR-47); Run mirror then runs it. */
+	previewMirror: (id: string) => typedError<MirrorPreviewView, string>(__TAURI_INVOKE("preview_mirror", { id })),
+	mirrorPreviewPage: (kind: "new" | "changed" | "removed" | null, offset: number, limit: number) => typedError<PreviewRow[], string>(__TAURI_INVOKE("mirror_preview_page", { kind, offset, limit })),
+	/**  Runs the previewed mirror; progress arrives on `on_progress`. */
+	runMirror: (onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("run_mirror", { onProgress })),
+	addMirrorToQueue: (id: string) => typedError<QueueView, string>(__TAURI_INVOKE("add_mirror_to_queue", { id })),
 };
 
 /* Types */
@@ -100,6 +110,15 @@ export type ActiveFileView = {
 
 /**  What to do with files that exist but differ (FR-17). */
 export type ConflictPolicy = "keepBoth" | "overwrite" | "skip";
+
+export type DeletedFiles = {
+	mode: DeletedMode,
+	/**  Days archived files are kept (archive mode). */
+	days: number,
+};
+
+/**  What a mirror does with files deleted in the origin (FR-44). */
+export type DeletedMode = "archive" | "delete";
 
 export type DestinationView = {
 	path: string,
@@ -158,6 +177,44 @@ export type JobPhase = "copying" | "verifying" |
 /**  A mirror archiving or deleting what's gone from its origin (plan 7). */
 "removing" | "done";
 
+/**  A saved one-way mirror (plan 7, FR-44). */
+export type MirrorPreset = {
+	id: string,
+	name: string,
+	origin: string,
+	destination: string,
+	deleted: DeletedFiles,
+	/**  Also compare contents by checksum (FR-46). */
+	deepCheck: boolean,
+};
+
+/**  A mirror preset as typed in its editor. */
+export type MirrorPresetInput = {
+	name: string,
+	origin: string,
+	destination: string,
+	deleted: DeletedFiles,
+	deepCheck: boolean,
+};
+
+/**  A mirror's preview (FR-47): what a run would do, before anything is touched. */
+export type MirrorPreviewView = {
+	presetId: string,
+	name: string,
+	origin: string,
+	destination: string,
+	newFiles: number,
+	newBytes: number,
+	changedFiles: number,
+	changedBytes: number,
+	removedFiles: number,
+	/**  Days removed files are archived for; `None` when they are deleted. */
+	archiveDays: number | null,
+	unchanged: number,
+	/**  Why the run looks wrong (FR-50): Run mirror asks first. */
+	guard: string | null,
+};
+
 /**  What a mirror did besides copying (FR-52). */
 export type MirrorSummaryView = {
 	/**  Files new in the origin, copied. */
@@ -181,6 +238,16 @@ export type PlanView = {
 	bytesToWrite: number,
 	/**  Not enough free space (FR-16). */
 	blocker: string | null,
+};
+
+export type PreviewKind = "new" | "changed" | "removed";
+
+/**  One file in a mirror's preview. */
+export type PreviewRow = {
+	path: string,
+	size: number,
+	kind: PreviewKind,
+	reason: string,
 };
 
 /**  A saved copy setup for FROM (FR-38): choosing it loads its source and settings. */
@@ -275,6 +342,8 @@ export type QueuedJobView = {
 	destination: string,
 	lastError: string | null,
 	supported: boolean,
+	/**  A mirror's preset name; `None` for a copy. */
+	name: string | null,
 };
 
 export type RowStatus = "copied" | "verified" | "skipped" | "failed";

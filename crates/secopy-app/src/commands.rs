@@ -13,12 +13,14 @@ use crate::dto::{
     QueueResult, QueueResultView, QueueSummaryView, QueueView, QueuedJobView, SessionView,
     StartView, SummaryView, show,
 };
+use crate::dto::{MirrorPreviewView, PreviewKind, PreviewRow, count};
 use crate::jobs::{JobHandle, JobSettings, Jobs, ProgressSink};
+use crate::mirrors::MirrorJob;
 use crate::queue::{Entry, OnFailure, QUEUE, Queue, QueuedJob};
-use crate::session::{Change, Session, scan_source as scan};
+use crate::session::{Change, Ready, Session, scan_source as scan};
 use crate::store::{
-    PROFILES, Profile, ProfileInput, Profiles, REMEMBERED, Remembered, SETTINGS, Settings, Store,
-    WindowSize,
+    MIRRORS, MirrorPreset, MirrorPresetInput, MirrorPresets, PROFILES, Profile, ProfileInput,
+    Profiles, REMEMBERED, Remembered, SETTINGS, Settings, Store, WindowSize,
 };
 
 /// Everything the app keeps between commands.
@@ -33,6 +35,10 @@ pub struct AppState {
     warnings: Mutex<Vec<String>>,
     /// The saved queue (plan 6).
     pub(crate) queue: Mutex<Queue>,
+    /// Saved mirror presets (plan 7).
+    pub(crate) mirrors: Mutex<MirrorPresets>,
+    /// The mirror last previewed: Run mirror runs exactly this (FR-47).
+    preview: Mutex<Option<MirrorJob>>,
     pub(crate) queue_run: Mutex<QueueRun>,
 }
 
@@ -58,6 +64,7 @@ impl AppState {
         let (profiles, w2) = store.load::<Profiles>(PROFILES);
         let (remembered, w3) = store.load::<Remembered>(REMEMBERED);
         let (queue, w4) = store.load::<Queue>(QUEUE);
+        let (mirrors, w5) = store.load::<MirrorPresets>(MIRRORS);
         Self {
             session: Mutex::new(Session::new()),
             jobs: Jobs::new(data_dir.join("reports")),
@@ -65,7 +72,9 @@ impl AppState {
             settings: Mutex::new(settings),
             profiles: Mutex::new(profiles),
             remembered: Mutex::new(remembered),
-            warnings: Mutex::new([w1, w2, w3, w4].into_iter().flatten().collect()),
+            warnings: Mutex::new([w1, w2, w3, w4, w5].into_iter().flatten().collect()),
+            mirrors: Mutex::new(mirrors),
+            preview: Mutex::new(None),
             queue: Mutex::new(queue),
             queue_run: Mutex::new(QueueRun::default()),
         }
@@ -305,7 +314,7 @@ impl<S: QueueSink> ProgressSink for Forward<S> {
     }
 }
 
-fn job_view(entry: &Entry) -> QueuedJobView {
+fn job_view(entry: &Entry, mirrors: &MirrorPresets) -> QueuedJobView {
     match &entry.job {
         QueuedJob::Copy(job) => QueuedJobView {
             kind: "copy".into(),
@@ -317,6 +326,27 @@ fn job_view(entry: &Entry) -> QueuedJobView {
             destination: show(&job.destination),
             last_error: entry.last_error.clone(),
             supported: true,
+            name: None,
+        },
+        QueuedJob::Mirror { preset } => match mirrors.get(preset) {
+            Some(p) => QueuedJobView {
+                kind: "mirror".into(),
+                verify: true,
+                source: p.origin.clone(),
+                destination: p.destination.clone(),
+                last_error: entry.last_error.clone(),
+                supported: true,
+                name: Some(p.name.clone()),
+            },
+            None => QueuedJobView {
+                kind: "mirror".into(),
+                verify: true,
+                source: String::new(),
+                destination: String::new(),
+                last_error: Some(PRESET_GONE.into()),
+                supported: false,
+                name: None,
+            },
         },
         QueuedJob::Unknown(_) => QueuedJobView {
             kind: "unknown".into(),
@@ -325,15 +355,21 @@ fn job_view(entry: &Entry) -> QueuedJobView {
             destination: String::new(),
             last_error: Some("Needs a newer Secopy.".into()),
             supported: false,
+            name: None,
         },
     }
 }
+
+const PRESET_GONE: &str = "The mirror preset no longer exists.";
 
 impl AppState {
     pub fn queue_view(&self) -> QueueView {
         let q = lock(&self.queue);
         QueueView {
-            jobs: q.jobs.iter().map(job_view).collect(),
+            jobs: {
+                let mirrors = lock(&self.mirrors);
+                q.jobs.iter().map(|e| job_view(e, &mirrors)).collect()
+            },
             on_failure: q.on_failure,
             running: lock(&self.queue_run).running,
         }
@@ -410,7 +446,7 @@ impl AppState {
             if stop || lock(&self.queue_run).cancelled {
                 lock(&self.queue_run).handles.push(None);
                 results.push(QueueResultView {
-                    job: job_view(entry),
+                    job: job_view(entry, &lock(&self.mirrors)),
                     result: QueueResult::NotRun,
                     reason: Some("Not run: the queue stopped.".into()),
                     summary: None,
@@ -438,7 +474,7 @@ impl AppState {
             }
             stop |= result == QueueResult::Cancelled || (failed && on_failure == OnFailure::Stop);
             results.push(QueueResultView {
-                job: job_view(entry),
+                job: job_view(entry, &lock(&self.mirrors)),
                 result,
                 reason,
                 summary,
@@ -472,66 +508,96 @@ impl AppState {
         entry: &Entry,
         sink: &impl QueueSink,
     ) -> (QueueResult, Option<String>, Option<JobHandle>) {
-        let QueuedJob::Copy(job) = &entry.job else {
-            return (
+        match &entry.job {
+            QueuedJob::Copy(job) => {
+                let ready = match crate::queue::prepare(job) {
+                    Ok(ready) => ready,
+                    Err(reason) => return (QueueResult::Failed, Some(reason), None),
+                };
+                let settings = JobSettings::from(&*lock(&self.settings));
+                let ran = self.start_and_wait(ready, job.verify, settings, sink);
+                if ran.2.is_some() {
+                    self.remember(|r| r.used_destination(&show(&job.destination)));
+                }
+                ran
+            }
+            QueuedJob::Mirror { preset } => {
+                let Some(preset) = lock(&self.mirrors).get(preset).cloned() else {
+                    return (QueueResult::Failed, Some(PRESET_GONE.into()), None);
+                };
+                let job = match crate::mirrors::prepare(&preset) {
+                    Ok(job) => job,
+                    Err(reason) => return (QueueResult::Failed, Some(reason), None),
+                };
+                // Nobody is there to confirm: a run that looks wrong doesn't start (FR-50).
+                if let Some(guard) = &job.plan.guard {
+                    return (QueueResult::Failed, Some(guard.clone()), None);
+                }
+                let settings = JobSettings::for_mirror(&job, chrono::Local::now());
+                self.start_and_wait(job.ready(), true, settings, sink)
+            }
+            QueuedJob::Unknown(_) => (
                 QueueResult::Failed,
                 Some("Needs a newer Secopy.".into()),
                 None,
-            );
-        };
-        let ready = match crate::queue::prepare(job) {
-            Ok(ready) => ready,
-            Err(reason) => return (QueueResult::Failed, Some(reason), None),
-        };
-        let settings = JobSettings::from(&*lock(&self.settings));
+            ),
+        }
+    }
+
+    /// Starts a queued job unless the queue was cancelled while it was being checked, waits
+    /// for it, and says how it ended.
+    fn start_and_wait(
+        &self,
+        ready: Ready,
+        verify: bool,
+        settings: JobSettings,
+        sink: &impl QueueSink,
+    ) -> (QueueResult, Option<String>, Option<JobHandle>) {
         {
-            // A cancel during the scan above stops the job before it starts: the check and
-            // the start happen under the lock `cancel` takes.
+            // A cancel during the checks stops the job before it starts: the check and the
+            // start happen under the lock `cancel` takes.
             let run = lock(&self.queue_run);
             if run.cancelled {
                 return (QueueResult::Cancelled, Some("Cancelled.".into()), None);
             }
             if let Err(reason) = self
                 .jobs
-                .start(ready, job.verify, settings, Forward(sink.clone()))
+                .start(ready, verify, settings, Forward(sink.clone()))
             {
                 return (QueueResult::Failed, Some(reason), None);
             }
         }
-        self.remember(|r| r.used_destination(&show(&job.destination)));
         self.jobs.wait();
         let handle = self.jobs.current_handle();
-        let outcome = handle
-            .as_ref()
-            .and_then(JobHandle::summary)
-            .map(|s| s.outcome);
-        let (result, reason) = match outcome {
+        let summary = handle.as_ref().and_then(JobHandle::summary);
+        let (result, reason) = match summary.as_ref().map(|s| s.outcome) {
             Some(JobOutcome::Complete) => (QueueResult::Complete, None),
             Some(JobOutcome::Cancelled) => (QueueResult::Cancelled, Some("Cancelled.".into())),
             Some(JobOutcome::Failures) => {
-                let n = handle
-                    .as_ref()
-                    .and_then(JobHandle::summary)
-                    .map_or(0, |s| s.failed);
-                (
-                    QueueResult::Failed,
-                    Some(format!(
-                        "{n} {} failed.",
-                        if n == 1 { "file" } else { "files" }
-                    )),
-                )
+                (QueueResult::Failed, summary.as_ref().map(failure_reason))
             }
             Some(JobOutcome::Stopped) | None => (
                 QueueResult::Failed,
-                handle
-                    .as_ref()
-                    .and_then(JobHandle::summary)
+                summary
                     .and_then(|s| s.stopped_because)
                     .or(Some("Stopped.".into())),
             ),
         };
         (result, reason, handle)
     }
+}
+
+/// Why a job ended with failures: its failed files, or a mirror's files not removed.
+fn failure_reason(s: &SummaryView) -> String {
+    let files = |n: u32| if n == 1 { "file" } else { "files" };
+    if s.failed > 0 {
+        return format!("{} {} failed.", s.failed, files(s.failed));
+    }
+    let n = s
+        .mirror
+        .as_ref()
+        .map_or(0, |m| m.removal_failures.len() as u32);
+    format!("{n} {} couldn't be removed.", files(n))
 }
 
 fn count_of(results: &[QueueResultView], kind: QueueResult) -> u32 {
@@ -702,6 +768,148 @@ pub fn set_menu_state(app: AppHandle, setup: bool, can_start: bool, copying: boo
     }
 }
 
+impl AppState {
+    pub fn mirror_presets(&self) -> Vec<MirrorPreset> {
+        lock(&self.mirrors).presets.clone()
+    }
+
+    /// Changes the mirror presets and saves them; memory changes only once saved.
+    fn change_mirrors<T>(
+        &self,
+        change: impl FnOnce(&mut MirrorPresets) -> Result<T, String>,
+    ) -> Result<Vec<MirrorPreset>, String> {
+        let mut presets = lock(&self.mirrors);
+        let mut next = presets.clone();
+        change(&mut next)?;
+        self.store
+            .save(MIRRORS, &next)
+            .map_err(|e| format!("Couldn't save the mirror: {e}"))?;
+        *presets = next;
+        Ok(presets.presets.clone())
+    }
+
+    pub fn create_mirror_preset(
+        &self,
+        input: MirrorPresetInput,
+    ) -> Result<Vec<MirrorPreset>, String> {
+        self.change_mirrors(|m| m.add(input))
+    }
+
+    pub fn edit_mirror_preset(
+        &self,
+        id: &str,
+        input: MirrorPresetInput,
+    ) -> Result<Vec<MirrorPreset>, String> {
+        self.change_mirrors(|m| m.edit(id, input))
+    }
+
+    pub fn delete_mirror_preset(&self, id: &str) -> Result<Vec<MirrorPreset>, String> {
+        self.change_mirrors(|m| {
+            m.delete(id);
+            Ok(())
+        })
+    }
+
+    /// Works out what the preset would do now and keeps it for Run mirror (FR-47).
+    pub fn preview_mirror(&self, id: &str) -> Result<MirrorPreviewView, String> {
+        let preset = lock(&self.mirrors).get(id).cloned().ok_or(PRESET_GONE)?;
+        let job = crate::mirrors::prepare(&preset)?;
+        let plan = &job.plan;
+        let sum = |new: bool| {
+            let files: Vec<u64> = plan
+                .changes
+                .iter()
+                .filter(|(_, c)| (*c == secopy_core::mirror::Change::New) == new)
+                .map(|(i, _)| plan.copy.files[*i].entry.size)
+                .collect();
+            (count(files.len()), files.iter().sum::<u64>())
+        };
+        let ((new_files, new_bytes), (changed_files, changed_bytes)) = (sum(true), sum(false));
+        let view = MirrorPreviewView {
+            preset_id: preset.id.clone(),
+            name: preset.name.clone(),
+            origin: preset.origin.clone(),
+            destination: preset.destination.clone(),
+            new_files,
+            new_bytes,
+            changed_files,
+            changed_bytes,
+            removed_files: count(plan.removals.len()),
+            archive_days: match plan.options.deleted {
+                secopy_core::mirror::Deleted::Archive { days } => Some(days),
+                secopy_core::mirror::Deleted::Delete => None,
+            },
+            unchanged: count(plan.copy.files.len() - plan.changes.len()),
+            guard: plan.guard.clone(),
+        };
+        *lock(&self.preview) = Some(job);
+        Ok(view)
+    }
+
+    /// Rows of the preview, of one kind or all of them.
+    pub fn mirror_preview_page(
+        &self,
+        kind: Option<PreviewKind>,
+        offset: u32,
+        limit: u32,
+    ) -> Vec<PreviewRow> {
+        use secopy_core::mirror::Change;
+        let preview = lock(&self.preview);
+        let Some(job) = preview.as_ref() else {
+            return Vec::new();
+        };
+        let plan = &job.plan;
+        let changes = plan.changes.iter().map(|(i, c)| {
+            let entry = &plan.copy.files[*i].entry;
+            let (kind, reason) = match c {
+                Change::New => (PreviewKind::New, "New in the origin"),
+                Change::Changed => (PreviewKind::Changed, "Changed in the origin"),
+                Change::ContentsDiffer => (PreviewKind::Changed, "Contents differ"),
+            };
+            PreviewRow {
+                path: show(&entry.rel),
+                size: entry.size,
+                kind,
+                reason: reason.into(),
+            }
+        });
+        let removals = plan.removals.iter().map(|rel| PreviewRow {
+            path: show(rel),
+            size: std::fs::metadata(plan.copy.dest.join(rel)).map_or(0, |m| m.len()),
+            kind: PreviewKind::Removed,
+            reason: "Deleted in the origin".into(),
+        });
+        changes
+            .chain(removals)
+            .filter(|r| kind.is_none_or(|k| r.kind == k))
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect()
+    }
+
+    /// Run mirror: the previewed plan, through the job runner (FR-47).
+    pub fn run_mirror(&self, sink: impl ProgressSink) -> Result<(), String> {
+        if lock(&self.queue_run).running {
+            return Err("A copy or the queue is already running.".into());
+        }
+        let job = lock(&self.preview)
+            .clone()
+            .ok_or("Preview the mirror first.")?;
+        let settings = JobSettings::for_mirror(&job, chrono::Local::now());
+        self.jobs.start(job.ready(), true, settings, sink)
+    }
+
+    pub fn add_mirror_to_queue(&self, id: &str) -> Result<QueueView, String> {
+        if lock(&self.mirrors).get(id).is_none() {
+            return Err(PRESET_GONE.into());
+        }
+        self.change_queue(|q| {
+            q.add_mirror(id);
+            true
+        })
+    }
+}
+
 impl QueueSink for Channel<QueueEvent> {
     fn send(&self, event: QueueEvent) {
         let _ = Channel::send(self, event);
@@ -810,6 +1018,71 @@ pub async fn queue_save_report(app: AppHandle, index: u32, path: String) -> Resu
             .save_report(&PathBuf::from(path))
     })
     .await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn mirror_presets(app: AppHandle) -> Result<Vec<MirrorPreset>, String> {
+    blocking(app, |state| state.mirror_presets()).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_mirror_preset(
+    app: AppHandle,
+    input: MirrorPresetInput,
+) -> Result<Vec<MirrorPreset>, String> {
+    blocking(app, move |state| state.create_mirror_preset(input)).await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn edit_mirror_preset(
+    app: AppHandle,
+    id: String,
+    input: MirrorPresetInput,
+) -> Result<Vec<MirrorPreset>, String> {
+    blocking(app, move |state| state.edit_mirror_preset(&id, input)).await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_mirror_preset(app: AppHandle, id: String) -> Result<Vec<MirrorPreset>, String> {
+    blocking(app, move |state| state.delete_mirror_preset(&id)).await?
+}
+
+/// A mirror's preview (FR-47); Run mirror then runs it.
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_mirror(app: AppHandle, id: String) -> Result<MirrorPreviewView, String> {
+    blocking(app, move |state| state.preview_mirror(&id)).await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn mirror_preview_page(
+    app: AppHandle,
+    kind: Option<PreviewKind>,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<PreviewRow>, String> {
+    blocking(app, move |state| {
+        state.mirror_preview_page(kind, offset, limit)
+    })
+    .await
+}
+
+/// Runs the previewed mirror; progress arrives on `on_progress`.
+#[tauri::command]
+#[specta::specta]
+pub async fn run_mirror(app: AppHandle, on_progress: Channel<ProgressView>) -> Result<(), String> {
+    blocking(app, move |state| state.run_mirror(on_progress)).await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn add_mirror_to_queue(app: AppHandle, id: String) -> Result<QueueView, String> {
+    blocking(app, move |state| state.add_mirror_to_queue(&id)).await?
 }
 
 /// "Retry failed": only the failed files, checked again (RFD §5.4).
@@ -1228,7 +1501,7 @@ mod tests {
         lock(&state.queue).jobs.insert(
             0,
             crate::queue::Entry {
-                job: QueuedJob::Unknown(serde_json::json!({"kind": "mirror", "preset": "p"})),
+                job: QueuedJob::Unknown(serde_json::json!({"kind": "sync", "preset": "p"})),
                 last_error: None,
             },
         );
@@ -1322,5 +1595,83 @@ mod tests {
         assert!(handle.is_none());
         assert!(!dir.path().join("dest/A").exists(), "nothing copied");
         lock(&state.queue_run).running = false;
+    }
+    fn mirror_state(dir: &Path) -> (AppState, String, PathBuf, PathBuf) {
+        let state = AppState::new(dir.join("data"));
+        let (o, d) = (dir.join("o"), dir.join("d"));
+        fs::create_dir_all(&o).unwrap();
+        fs::create_dir_all(&d).unwrap();
+        fs::write(o.join("a.mov"), b"a").unwrap();
+        fs::write(d.join("x.mov"), b"x").unwrap();
+        fs::write(d.join("y.mov"), b"y").unwrap();
+        fs::write(d.join("z.mov"), b"z").unwrap();
+        let presets = state
+            .create_mirror_preset(crate::store::MirrorPresetInput {
+                name: "Footage".into(),
+                origin: show(&o),
+                destination: show(&d),
+                deleted: crate::store::DeletedFiles {
+                    mode: crate::store::DeletedMode::Archive,
+                    days: 30,
+                },
+                deep_check: false,
+            })
+            .unwrap();
+        (state, presets[0].id.clone(), o, d)
+    }
+
+    #[test]
+    fn preview_counts_and_lists_the_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, ..) = mirror_state(dir.path());
+        let p = state.preview_mirror(&id).unwrap();
+        assert_eq!((p.new_files, p.removed_files, p.unchanged), (1, 3, 0));
+        assert_eq!(
+            p.guard.as_deref(),
+            Some("3 of the destination's 3 files would be removed.")
+        );
+        let removed = state.mirror_preview_page(Some(PreviewKind::Removed), 0, 10);
+        assert_eq!(removed.len(), 3);
+    }
+
+    /// Review focus 4.
+    #[test]
+    fn a_tripped_guard_fails_a_queued_mirror() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        state.add_mirror_to_queue(&id).unwrap();
+        let summary = state.run_queue(Events::default()).unwrap();
+        assert_eq!(summary.results[0].result, QueueResult::Failed);
+        assert_eq!(
+            summary.results[0].reason.as_deref(),
+            Some("3 of the destination's 3 files would be removed.")
+        );
+        assert!(d.join("x.mov").exists(), "nothing removed");
+    }
+
+    #[test]
+    fn a_queued_mirror_runs_like_a_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, o, d) = mirror_state(dir.path());
+        fs::write(o.join("x.mov"), b"x").unwrap(); // the guard now allows it: 2 of 3
+        fs::write(o.join("y.mov"), b"y").unwrap();
+        state.add_mirror_to_queue(&id).unwrap();
+        assert_eq!(state.queue_view().jobs[0].name.as_deref(), Some("Footage"));
+        let summary = state.run_queue(Events::default()).unwrap();
+        assert_eq!(summary.results[0].result, QueueResult::Complete);
+        assert!(!d.join("z.mov").exists() && d.join("a.mov").exists());
+    }
+
+    #[test]
+    fn a_queued_mirror_whose_preset_is_gone_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, ..) = mirror_state(dir.path());
+        state.add_mirror_to_queue(&id).unwrap();
+        state.delete_mirror_preset(&id).unwrap();
+        let summary = state.run_queue(Events::default()).unwrap();
+        assert_eq!(
+            summary.results[0].reason.as_deref(),
+            Some("The mirror preset no longer exists.")
+        );
     }
 }

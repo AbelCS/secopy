@@ -314,6 +314,8 @@ pub struct QueuedJobView {
     pub destination: String,
     pub last_error: Option<String>,
     pub supported: bool,
+    /// A mirror's preset name; `None` for a copy.
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -380,4 +382,45 @@ pub struct MirrorSummaryView {
     pub removal_failures: Vec<FinishedRow>,
     /// Why nothing was removed: the copy phase failed or was cancelled.
     pub nothing_removed: Option<String>,
+}
+
+/// A mirror's preview (FR-47): what a run would do, before anything is touched.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MirrorPreviewView {
+    pub preset_id: String,
+    pub name: String,
+    pub origin: String,
+    pub destination: String,
+    pub new_files: u32,
+    #[specta(type = specta_typescript::Number)]
+    pub new_bytes: u64,
+    pub changed_files: u32,
+    #[specta(type = specta_typescript::Number)]
+    pub changed_bytes: u64,
+    pub removed_files: u32,
+    /// Days removed files are archived for; `None` when they are deleted.
+    pub archive_days: Option<u32>,
+    pub unchanged: u32,
+    /// Why the run looks wrong (FR-50): Run mirror asks first.
+    pub guard: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum PreviewKind {
+    New,
+    Changed,
+    Removed,
+}
+
+/// One file in a mirror's preview.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewRow {
+    pub path: String,
+    #[specta(type = specta_typescript::Number)]
+    pub size: u64,
+    pub kind: PreviewKind,
+    pub reason: String,
 }

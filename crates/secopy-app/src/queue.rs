@@ -26,6 +26,10 @@ pub struct CopyJob {
 #[derive(Debug, Clone, PartialEq)]
 pub enum QueuedJob {
     Copy(CopyJob),
+    /// A mirror preset, planned at its turn (plan 7).
+    Mirror {
+        preset: String,
+    },
     Unknown(serde_json::Value),
 }
 
@@ -55,6 +59,15 @@ impl Queue {
     pub fn add(&mut self, job: CopyJob) {
         self.jobs.push(Entry {
             job: QueuedJob::Copy(job),
+            last_error: None,
+        });
+    }
+
+    pub fn add_mirror(&mut self, preset: &str) {
+        self.jobs.push(Entry {
+            job: QueuedJob::Mirror {
+                preset: preset.to_string(),
+            },
             last_error: None,
         });
     }
@@ -126,6 +139,9 @@ impl Serialize for Entry {
                 v["kind"] = "copy".into();
                 v
             }
+            QueuedJob::Mirror { preset } => {
+                serde_json::json!({ "kind": "mirror", "preset": preset })
+            }
             QueuedJob::Unknown(v) => v.clone(),
         };
         if let Some(object) = value.as_object_mut() {
@@ -146,6 +162,12 @@ impl<'de> Deserialize<'de> for Entry {
             Some("copy") => serde_json::from_value::<CopyJob>(value.clone())
                 .map(QueuedJob::Copy)
                 .unwrap_or(QueuedJob::Unknown(value)),
+            Some("mirror") => match value.get("preset").and_then(|p| p.as_str()) {
+                Some(preset) => QueuedJob::Mirror {
+                    preset: preset.to_string(),
+                },
+                None => QueuedJob::Unknown(value),
+            },
             _ => QueuedJob::Unknown(value),
         };
         Ok(Self { job, last_error })
@@ -283,7 +305,7 @@ mod tests {
                 .iter()
                 .map(|e| match &e.job {
                     QueuedJob::Copy(c) => c.sources[0].display().to_string(),
-                    QueuedJob::Unknown(_) => "?".into(),
+                    QueuedJob::Mirror { .. } | QueuedJob::Unknown(_) => "?".into(),
                 })
                 .collect()
         };
@@ -323,7 +345,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join(QUEUE),
-            r#"{"version": 1, "onFailure": "continue", "jobs": [{"kind": "mirror", "preset": "p1", "lastError": null}]}"#,
+            r#"{"version": 1, "onFailure": "continue", "jobs": [{"kind": "sync", "preset": "p1", "lastError": null}]}"#,
         )
         .unwrap();
         let store = Store::new(dir.path().to_path_buf());
