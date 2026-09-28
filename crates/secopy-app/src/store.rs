@@ -506,7 +506,7 @@ impl Store {
     /// Writes `name` through a temp file and a rename, so a failed save never leaves half a
     /// file.
     pub fn save<T: Serialize>(&self, name: &str, data: &T) -> Result<(), String> {
-        let _one_at_a_time = self.saving.lock().expect("store lock poisoned");
+        let _one_at_a_time = crate::lock(&self.saving);
         let path = self.dir.join(name);
         let failed = |e: io::Error| format!("{}: {e}", path.display());
         fs::create_dir_all(&self.dir).map_err(failed)?;
