@@ -29,6 +29,14 @@ describe("MirrorScreen", () => {
     expect(screen.getByRole("spinbutton", { name: "Days to keep" })).toHaveProperty("value", "30");
   });
 
+  test("Checking says copies are always verified, and what the deep check adds", () => {
+    show();
+    screen.getByText(/always verified after copying/);
+    const deep = screen.getByRole("checkbox", { name: "Also compare unchanged files byte for byte" });
+    expect(deep).toHaveProperty("checked", false);
+    screen.getByText(/same size and date are normally left alone/);
+  });
+
   test("Preview… previews the saved preset; edits must be saved first", async () => {
     const { api, calls } = show();
     await fireEvent.click(screen.getByRole("button", { name: "Preview…" }));
