@@ -91,5 +91,16 @@ section says, which also checks those first-launch steps), then:
     1 missing, 1 not checked; the report lists them. Verify a whole drive with several copies.
 30. **Verify a mirror.** Run a mirror to the NAS; Verify its destination: all intact, and
     `.secopy-checksums.xxh64` is there (⇧⌘. in Finder). Queue a verify of it with another job.
+31. **Export and import.** File › Export… with everything ticked; open the `.secopy` in a text
+    editor: settings and presets, no ids. Export one copy preset and one mirror from their
+    screens. In another macOS user account, File › Import… the first file: every preset and
+    the settings come in; the queue and recent destinations don't. Import it again: each
+    preset offers Keep both ("Name (2)") or Replace; Replace a mirror that is queued, then
+    run the queue: the queued job runs the replaced mirror. A preset whose card isn't in says
+    it isn't connected, and still imports.
+32. **Import from Finder.** Double-click a `.secopy` with Secopy closed, then with it open: the
+    Import screen shows it. Start a copy and double-click one: "Import it when the copy has
+    finished.", nothing changes; File › Import… is greyed out while it runs. Back on the
+    Import screen changes nothing.
 
 Record the macOS version, the card reader and anything odd in the release PR.
