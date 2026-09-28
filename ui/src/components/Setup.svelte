@@ -73,7 +73,7 @@
     if (settings.showSystemCount && source.skippedSystem > 0)
       parts.push({
         text: `${plural(source.skippedSystem, "system file")} skipped`,
-        hint: "Files computers leave on a card, like .DS_Store, ._ files and Thumbs.db. They're never copied.",
+        hint: "Files computers leave behind, like .DS_Store, ._ files and Thumbs.db. They're never copied.",
       });
     if (source.skippedSymlinks > 0) parts.push({ text: `${plural(source.skippedSymlinks, "symlink")} skipped` });
     return parts;

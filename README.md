@@ -55,11 +55,11 @@ cd ui && npm run tauri dev
 Try the CLI:
 
 ```sh
-cargo run --release -p secopy-cli -- /path/to/CARD --to /path/to/backup --verify
+cargo run --release -p secopy-cli -- /path/to/source --to /path/to/backup --verify
 # files that already exist but differ: keep both (default), overwrite or skip
-cargo run --release -p secopy-cli -- /path/to/CARD --to /path/to/backup --on-conflict skip
+cargo run --release -p secopy-cli -- /path/to/source --to /path/to/backup --on-conflict skip
 # also write the job report (text and JSON)
-cargo run --release -p secopy-cli -- /path/to/CARD --to /path/to/backup --report /tmp
+cargo run --release -p secopy-cli -- /path/to/source --to /path/to/backup --report /tmp
 # make the backup a mirror of the directory; --dry-run shows what would change first
 cargo run --release -p secopy-cli -- /path/to/Footage --to /path/to/backup --mirror --dry-run
 ```
