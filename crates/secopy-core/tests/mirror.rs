@@ -684,3 +684,68 @@ fn a_deep_check_records_the_hashes_it_compared() {
         Some(&secopy_core::hash::hash_bytes(b"a"))
     );
 }
+
+fn check_of(d: &Path) -> secopy_core::check::CheckReport {
+    let plan = secopy_core::check::plan(d).unwrap();
+    secopy_core::check::run(
+        &plan,
+        &secopy_core::check::CheckOptions {
+            keep_awake: false,
+            ..Default::default()
+        },
+        &JobControl::new(),
+        &|_| {},
+    )
+}
+
+/// Final review: a file renamed (letter case) and changed in the origin keeps its new hash,
+/// and a file gone from both sides leaves the checksum file.
+#[test]
+fn the_checksum_file_follows_renames_and_drops_gone_files() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("A.MOV", b"new contents")]);
+    write(&d, &[("a.mov", b"old")]);
+    let old = secopy_core::hash::hash_bytes(b"old");
+    fs::write(
+        d.join(".secopy-checksums.xxh64"),
+        format!("{old:016x}  a.mov\n{old:016x}  b.mov\n"),
+    )
+    .unwrap();
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let (report, finished) = run(&p, None);
+    mirror::write_checksums(&p, &report, &finished.unwrap()).unwrap();
+    let r = check_of(&d);
+    assert!(r.is_intact(), "{:?} {:?}", r.job.outcomes, r.problems);
+}
+
+/// Final review: a link planted where the temporary file goes is never written through.
+#[test]
+fn the_temporary_file_is_never_written_through_a_link() {
+    let (dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    let victim = dir.path().join("victim.txt");
+    fs::write(&victim, b"keep me").unwrap();
+    std::os::unix::fs::symlink(&victim, d.join(".secopy-checksums.partial")).unwrap();
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let (report, finished) = run(&p, None);
+    mirror::write_checksums(&p, &report, &finished.unwrap()).unwrap();
+    assert_eq!(fs::read(&victim).unwrap(), b"keep me");
+    assert!(check_of(&d).is_intact());
+}
+
+/// Final review: a previous checksum file that can't be read is kept, not replaced.
+#[test]
+fn an_unreadable_checksum_file_is_kept() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    let sums = d.join(".secopy-checksums.xxh64");
+    fs::write(&sums, b"0000000000000001  old.mov\n").unwrap();
+    fs::set_permissions(&sums, fs::Permissions::from_mode(0o000)).unwrap();
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let (report, finished) = run(&p, None);
+    let result = mirror::write_checksums(&p, &report, &finished.unwrap());
+    fs::set_permissions(&sums, fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(result.is_err());
+    assert_eq!(fs::read(&sums).unwrap(), b"0000000000000001  old.mov\n");
+}

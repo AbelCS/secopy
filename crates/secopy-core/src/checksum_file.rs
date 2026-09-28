@@ -84,10 +84,17 @@ pub fn write_replacing(path: &Path, entries: &[(PathBuf, u64)]) -> io::Result<()
         body.push('\n');
     }
     let tmp = path.with_extension("partial");
-    let written = File::create(&tmp).and_then(|mut f| {
-        f.write_all(body.as_bytes())
-            .and_then(|()| crate::os::sync_durable(&f))
-    });
+    // A fresh file of our own: whatever is there (a leftover, or a link to elsewhere) goes
+    // first, and the new one is never opened through a link.
+    let _ = std::fs::remove_file(&tmp);
+    let written = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .and_then(|mut f| {
+            f.write_all(body.as_bytes())
+                .and_then(|()| crate::os::sync_durable(&f))
+        });
     if let Err(e) = written.and_then(|()| std::fs::rename(&tmp, path)) {
         let _ = std::fs::remove_file(&tmp);
         return Err(e);

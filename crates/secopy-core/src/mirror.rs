@@ -572,10 +572,20 @@ pub fn write_checksums(
     finished: &Finished,
 ) -> std::io::Result<()> {
     use crate::job::FileStatus;
-    let path = plan.copy.dest.join(crate::check::MIRROR_CHECKSUMS);
-    let mut sums: std::collections::BTreeMap<PathBuf, u64> = fs::read_to_string(&path)
-        .map(|text| crate::check::parse(&text).0.into_iter().collect())
-        .unwrap_or_default();
+    let dest = &plan.copy.dest;
+    let path = dest.join(crate::check::MIRROR_CHECKSUMS);
+    // The previous file; one that is there but can't be read is kept, never replaced.
+    let mut sums: std::collections::BTreeMap<PathBuf, u64> = match fs::read_to_string(&path) {
+        Ok(text) => crate::check::parse(&text).0.into_iter().collect(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Default::default(),
+        Err(e) => return Err(e),
+    };
+    // Renames first: a renamed file this run also updated keeps the new hash below.
+    for (from, to) in &finished.renamed {
+        if let Some(hash) = sums.remove(from) {
+            sums.insert(to.clone(), hash);
+        }
+    }
     sums.extend(plan.same.iter().map(|(p, h)| (p.clone(), *h)));
     for o in &report.outcomes {
         if matches!(o.status, FileStatus::Copied | FileStatus::Verified)
@@ -587,11 +597,8 @@ pub fn write_checksums(
     for r in finished.removals.iter().filter(|r| r.result.is_ok()) {
         sums.remove(&r.rel);
     }
-    for (from, to) in &finished.renamed {
-        if let Some(hash) = sums.remove(from) {
-            sums.insert(to.clone(), hash);
-        }
-    }
+    // Files no longer in the destination (removed by hand, or gone) leave it too.
+    sums.retain(|rel, _| fs::symlink_metadata(dest.join(rel)).is_ok_and(|m| m.is_file()));
     let entries: Vec<(PathBuf, u64)> = sums.into_iter().collect();
     crate::checksum_file::write_replacing(&path, &entries)
 }
