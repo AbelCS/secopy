@@ -52,3 +52,12 @@ test("a destination that couldn't confirm the copy is saved isn't a success", ()
     "The destination couldn't confirm the files are saved",
   );
 });
+
+test("files Skip left out are never hidden behind \"All\" or \"everything was already there\"", () => {
+  expect(headline(summaryView({ verified: 2, skippedDifferent: 3 }))).toBe(
+    "2 files copied and verified; 3 different files left as they were",
+  );
+  expect(headline(summaryView({ verified: 0, skippedDifferent: 1 }))).toBe(
+    "Nothing copied: 1 different file left as it was",
+  );
+});
