@@ -3,8 +3,8 @@ import type { Api } from "../lib/api";
 import type { FinishedRow, Profile, ProgressView, SessionView, Settings, SummaryView } from "../lib/bindings";
 
 export const profiles: Profile[] = [
-  { id: "fx3", name: "Sony FX3", folder: "PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
-  { id: "dji", name: "DJI Mini 4", folder: "DCIM", includeFolder: false, extensions: null },
+  { id: "fx3", name: "Sony FX3", source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
+  { id: "dji", name: "DJI Mini 4", source: "/Volumes/DJI/DCIM", includeFolder: false, extensions: null },
 ];
 
 export const settings: Settings = { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true };
@@ -49,7 +49,6 @@ export const session: SessionView = {
   profileId: "fx3",
   profileChanged: true,
   pickProblem: null,
-  suggestedFolder: "PRIVATE/M4ROOT/CLIP",
   stale: false,
 };
 
@@ -125,6 +124,7 @@ export function fakeApi(start: Partial<{ profiles: Profile[] }> = {}): Api {
       verify: true,
       recentDestinations: ["/Volumes/V001/Day01", "/Volumes/V001/Day00"],
       warnings: [],
+      lastProfile: null,
     }),
     finishedPage: (offset: number, limit: number) =>
       Promise.resolve(Array.from({ length: Math.max(0, Math.min(limit, 40 - offset)) }, (_, i) => row(offset + i + 1))),

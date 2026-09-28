@@ -147,7 +147,8 @@
     {/if}
     <table>
       <tbody>
-        {#each progress.active as f (f.id)}
+        <!-- Verifying is a new row: one bar never runs from 100 % back to 0. -->
+        {#each progress.active as f (`${f.id}-${f.verifying}`)}
           {@render activeRow(f.name, f.path, f.verifying ? "Verifying" : "Copying", f.bytesDone, f.size)}
         {/each}
         {#if progress.smallFiles}

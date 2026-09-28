@@ -107,7 +107,8 @@
             onclick={() => select(p.id)}
           >
             <span>{p.name}</span>
-            <span class="muted mono">{p.folder || "(what you pick)"}</span>
+            <!-- The left-to-right mark keeps the slashes in place inside the right-aligned cut. -->
+            <span class="muted mono path" title={p.source}>{p.source ? `\u200E${p.source}` : "(no source yet)"}</span>
           </button>
         {/each}
         <Button variant="link" onclick={() => select(NEW)}>+ New profile</Button>
@@ -129,9 +130,8 @@
       {:else}
         <EmptyState>
           <p>
-            A profile remembers where the clips are on a card of a given camera (for example
-            <span class="mono">PRIVATE/M4ROOT/CLIP</span>), whether that directory itself is copied, and which
-            file types. Pick it in the main window and a card is set up in one click.
+            A profile saves a source and its settings (whether that directory itself is copied, and which file
+            types), so a copy you do often is set up in one step: choose the profile in the main window.
           </p>
           <p>Create one with “+ New profile”, or with “Save as new…” in the main window.</p>
         </EmptyState>
@@ -201,5 +201,15 @@
   .muted {
     color: var(--text-muted);
     font-size: var(--text-xs);
+  }
+
+  /* A long source keeps its end (the directory that matters) visible. */
+  .path {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
   }
 </style>

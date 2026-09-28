@@ -36,12 +36,12 @@ section says, which also checks those first-launch steps), then:
     window and the app quits; open it again and ⌘Q quits at once, without asking.
 12. **Drops.** Drop a card (or a directory on it) on FROM: Source shows it with its files
     and size. Drop a directory on TO: it becomes the destination, not the source.
-13. **A profile on a real card.** Save as new… on the card's clip folder (e.g.
-    `PRIVATE/M4ROOT/CLIP`), with only the video types on. Eject, insert another card of the
-    same camera, drop or choose it: the profile's folder and types apply. Insert a card of
-    another camera: "<card> has no <folder>", nothing copies. In Profile → Manage profiles…,
-    Choose… a folder on the card: the folder fills in relative to the card; change a type
-    and Save.
+13. **A profile on a real card.** Choose the card's clip folder (e.g.
+    `PRIVATE/M4ROOT/CLIP`), keep only the video types, and Save as new… (only a name is
+    asked). Choose None, then the profile again: the source and types come back. Eject the
+    card and choose the profile: "<card> isn't connected", nothing copies. Quit with the
+    card in and open again: the profile and its source are loaded. In Profile → Manage
+    profiles…, Choose… another directory as the source and Save.
 14. **Changed for this run.** With a profile applied, turn a type off: "changed for this
     run" appears. Copy without saving; after New copy the profile is as it was. Change it
     again and Update profile: the next card uses the change.

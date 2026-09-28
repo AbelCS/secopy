@@ -18,7 +18,7 @@ function app(view = readyView()) {
   return { api, state };
 }
 
-const startButton = () => screen.findByRole("button", { name: /^Copy & verify 1,284 files/ });
+const startButton = () => screen.findByRole("button", { name: "Start copy" });
 
 describe("App", () => {
   test("the main screen is New copy", () => {
@@ -86,7 +86,8 @@ describe("App", () => {
     const { api, state } = fakeApi(readyView());
     state.start = startView({ session: readyView(), verify: false, profiles: [profile()] });
     render(App, { props: { api } });
-    await screen.findByRole("button", { name: /^Copy 1,284 files/ });
+    await screen.findByRole("button", { name: "Start copy" });
+    expect(screen.getByLabelText("Copy")).toHaveProperty("checked", true);
     screen.getByRole("option", { name: "Sony FX3" });
   });
 
@@ -130,7 +131,7 @@ describe("App", () => {
     state.start = startView({ session: readyView(), settings: settingsView({ writeChecksumFile: false }) });
     render(App, { props: { api } });
     await waitFor(() => expect(state.close).not.toBeNull());
-    await screen.findByRole("button", { name: /^Copy & verify 1,284 files/ });
+    await screen.findByRole("button", { name: "Start copy" });
     api.jobRunning.mockResolvedValue(true);
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenCalledWith(
@@ -148,7 +149,7 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "Profiles" });
     expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
     await fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    await screen.findByRole("button", { name: /^Copy & verify 1,284 files/ });
+    await screen.findByRole("button", { name: "Start copy" });
   });
   test("a finished copy notifies only when the window is in the background", async () => {
     const { api, state } = app();
@@ -202,5 +203,12 @@ describe("App", () => {
     await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(true, true, false));
     await fireEvent.click(await startButton());
     await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true));
+  });
+
+  test("the last profile is loaded again at start", async () => {
+    const { api, state } = fakeApi(sessionView());
+    state.start = startView({ session: sessionView(), profiles: [profile()], lastProfile: "fx3" });
+    render(App, { props: { api } });
+    await waitFor(() => expect(api.selectProfile).toHaveBeenCalledWith("fx3"));
   });
 });

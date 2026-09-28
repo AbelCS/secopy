@@ -53,7 +53,8 @@ describe("Setup", () => {
 
   test("a ready session enables Start and says what it will do", async () => {
     const { started } = setup(readyView());
-    const button = screen.getByRole("button", { name: "Copy & verify 1,284 files · 212.4 GB" });
+    const button = screen.getByRole("button", { name: "Start copy" });
+    screen.getByText("1,284 files · 212.4 GB");
     expect(button).toHaveProperty("disabled", false);
     await fireEvent.click(button);
     expect(started).toHaveLength(1);
@@ -117,7 +118,7 @@ describe("Setup", () => {
       }),
     );
     expect(screen.getByRole("alert").textContent).toBe("Not enough free space");
-    expect(screen.getByRole("button", { name: /copy & verify/i })).toHaveProperty("disabled", true);
+    expect(start()).toHaveProperty("disabled", true);
   });
 
   test("a non-empty copy root is a warning, not a block", () => {
@@ -151,10 +152,12 @@ describe("Setup", () => {
     expect(api.setConflicts).toHaveBeenCalledWith("overwrite");
   });
 
-  test("Copy mode changes the Start label", async () => {
-    setup(readyView());
+  test("the mode is chosen once, next to Start; Start doesn't repeat it", async () => {
+    const { calls } = setup(readyView());
     await fireEvent.click(screen.getByLabelText("Copy"));
-    screen.getByRole("button", { name: "Copy 1,284 files · 212.4 GB" });
+    expect(calls.modes).toEqual([false]);
+    screen.getByRole("button", { name: "Start copy" });
+    expect(screen.queryByRole("button", { name: /^Copy/ })).toBeNull();
   });
 
   test("a scan in progress says so, and Start waits for it", async () => {
@@ -228,13 +231,13 @@ describe("Setup", () => {
     expect(calls.profiles).toHaveLength(1);
   });
 
-  test("Save as new… suggests the folder and saves under a new name", async () => {
-    const { api } = setup(readyView({ suggestedFolder: "PRIVATE/M4ROOT/CLIP" }));
+  test("Save as new… asks only for a name; the source and settings are what's on screen", async () => {
+    const { api } = setup(readyView());
     await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
-    expect(screen.getByLabelText("Directory on the card")).toHaveProperty("value", "PRIVATE/M4ROOT/CLIP");
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
     await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3" } });
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(api.saveProfileAs).toHaveBeenCalledWith("FX3", "PRIVATE/M4ROOT/CLIP"));
+    await waitFor(() => expect(api.saveProfileAs).toHaveBeenCalledWith("FX3"));
   });
 
   test("a profile that can't be saved says why", async () => {
@@ -255,7 +258,7 @@ describe("Setup", () => {
 
   test("the hidden count follows the setting", () => {
     setup(readyView(), undefined, { settings: settingsView({ showSystemCount: false }) });
-    screen.getByText("1,284 files · 212.4 GB");
+    within(screen.getByRole("group", { name: "Source" })).getByText("1,284 files · 212.4 GB");
   });
 
   test("a recent destination can be chosen again", async () => {

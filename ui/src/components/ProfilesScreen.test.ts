@@ -5,7 +5,7 @@ import type { Profile } from "../lib/bindings";
 import { fakeApi, profile } from "../test/fake-api";
 import ProfilesScreen from "./ProfilesScreen.svelte";
 
-function show(profiles: Profile[] = [profile(), profile({ id: "dji", name: "DJI Mini 4", folder: "DCIM", extensions: null })]) {
+function show(profiles: Profile[] = [profile(), profile({ id: "dji", name: "DJI Mini 4", source: "/Volumes/DJI/DCIM", extensions: null })]) {
   const { api } = fakeApi();
   const calls = { profiles: [] as Profile[][], done: 0 };
   render(ProfilesScreen, {
@@ -26,7 +26,7 @@ const typeInput = () => screen.getByLabelText("Add a file type");
 describe("ProfilesScreen", () => {
   test("with no profiles it explains what they are", async () => {
     show([]);
-    screen.getByText(/A profile remembers where the clips are on a card/);
+    screen.getByText(/A profile saves a source and its settings/);
     await fireEvent.click(screen.getByRole("button", { name: "+ New profile" }));
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "");
   });
@@ -34,7 +34,7 @@ describe("ProfilesScreen", () => {
   test("the first profile is shown in the editor, and the list switches it", async () => {
     show();
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "Sony FX3");
-    expect(screen.getByLabelText("Directory on the card")).toHaveProperty("value", "PRIVATE/M4ROOT/CLIP");
+    expect(screen.getByRole("textbox", { name: "Source" })).toHaveProperty("value", "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP");
     expect(screen.getByLabelText("Only these")).toHaveProperty("checked", true);
     screen.getByText(".mp4");
     await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
@@ -52,7 +52,7 @@ describe("ProfilesScreen", () => {
     await waitFor(() =>
       expect(api.editProfile).toHaveBeenCalledWith("fx3", {
         name: "FX3 A-cam",
-        folder: "PRIVATE/M4ROOT/CLIP",
+        source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
         includeFolder: true,
         extensions: ["mp4"],
       }),
@@ -80,14 +80,12 @@ describe("ProfilesScreen", () => {
     expect(save()).toHaveProperty("disabled", true);
   });
 
-  test("Choose… fills the folder relative to the card", async () => {
+  test("Choose… fills the source with the chosen directory", async () => {
     const { api } = show();
-    api.pickCardFolder.mockResolvedValueOnce("/Volumes/CARD_A/DCIM/100MSDCF");
+    api.pickDirectory.mockResolvedValueOnce("/Users/me/Desktop/A");
     await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
-    await waitFor(() => expect(screen.getByLabelText("Directory on the card")).toHaveProperty("value", "DCIM/100MSDCF"));
-    api.pickCardFolder.mockResolvedValueOnce("/Users/me/Desktop");
-    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
-    await screen.findByText("Choose a directory on a card or drive.");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Source" })).toHaveProperty("value", "/Users/me/Desktop/A"));
+    screen.getByLabelText("Include the “A” directory");
   });
 
   test("a problem is shown next to its field", async () => {
@@ -97,10 +95,10 @@ describe("ProfilesScreen", () => {
     await fireEvent.click(save());
     const nameError = await screen.findByText("There is already a profile called “DJI Mini 4”.");
     expect(screen.getByRole("textbox", { name: "Name" }).getAttribute("aria-describedby")).toBe(nameError.id);
-    api.editProfile.mockRejectedValueOnce(new Error("The directory can't contain “..” or “.”."));
+    api.editProfile.mockRejectedValueOnce(new Error("The source must be a full path, like /Volumes/CARD_A/DCIM."));
     await fireEvent.click(save());
-    const folderError = await screen.findByText("The directory can't contain “..” or “.”.");
-    expect(screen.getByLabelText("Directory on the card").getAttribute("aria-describedby")).toBe(folderError.id);
+    const sourceError = await screen.findByText("The source must be a full path, like /Volumes/CARD_A/DCIM.");
+    expect(screen.getByRole("textbox", { name: "Source" }).getAttribute("aria-describedby")).toBe(sourceError.id);
   });
 
   test("Revert undoes unsaved changes", async () => {
@@ -117,10 +115,15 @@ describe("ProfilesScreen", () => {
     const { api, calls } = show();
     await fireEvent.click(screen.getByRole("button", { name: "+ New profile" }));
     await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "GoPro" } });
-    await fireEvent.input(screen.getByLabelText("Directory on the card"), { target: { value: "DCIM" } });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Source" }), { target: { value: "/Volumes/GOPRO/DCIM" } });
     await fireEvent.click(save());
     await waitFor(() =>
-      expect(api.createProfile).toHaveBeenCalledWith({ name: "GoPro", folder: "DCIM", includeFolder: true, extensions: null }),
+      expect(api.createProfile).toHaveBeenCalledWith({
+        name: "GoPro",
+        source: "/Volumes/GOPRO/DCIM",
+        includeFolder: true,
+        extensions: null,
+      }),
     );
     expect(calls.profiles).toHaveLength(1);
   });

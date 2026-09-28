@@ -29,8 +29,6 @@ pub struct SessionView {
     pub profile_changed: bool,
     /// Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP".
     pub pick_problem: Option<String>,
-    /// What Save as new… suggests for the profile's folder.
-    pub suggested_folder: String,
     /// A newer scan replaced this one while it ran (FR-3); the UI keeps its current view.
     pub stale: bool,
 }
@@ -284,6 +282,8 @@ pub struct StartView {
     pub recent_destinations: Vec<String>,
     /// Saved files that couldn't be read; shown once.
     pub warnings: Vec<String>,
+    /// The profile last used, when its source is there: the window loads it again (FR-36).
+    pub last_profile: Option<String>,
 }
 
 /// After a profile change: the profiles and what FROM shows now.
