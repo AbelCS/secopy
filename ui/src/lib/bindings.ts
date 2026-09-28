@@ -77,6 +77,8 @@ export const commands = {
 	mirror: MirrorSummaryView | null,
 	/**  What Cancel's "Also remove the files already copied" did (#54). */
 	undone: UndoneView | null,
+	/**  A check's own figures (plan 8); `None` for a copy or a mirror. */
+	check: CheckSummaryView | null,
 } | null, string>(__TAURI_INVOKE("job_summary")),
 	saveReport: (path: string) => typedError<null, string>(__TAURI_INVOKE("save_report", { path })),
 	/**  "Retry failed": only the failed files, checked again (RFD §5.4). */
@@ -115,6 +117,20 @@ export type ActiveFileView = {
 	verifying: boolean,
 	size: number,
 	bytesDone: number,
+};
+
+/**  What a check found (plan 8). */
+export type CheckSummaryView = {
+	intact: number,
+	changed: number,
+	missing: number,
+	/**  Couldn't be read. */
+	failed: number,
+	/**  Files no checksum file lists. */
+	notChecked: number,
+	checksumFiles: number,
+	/**  Problems in the checksum files: "file:line: why". */
+	problems: string[],
 };
 
 /**  How far a preview's deep check is: files compared, of how many (#57). */
@@ -372,7 +388,13 @@ export type QueuedJobView = {
 
 export type RowStatus = "copied" | "verified" | "skipped" | "failed" | 
 /**  Stopped by Cancel. */
-"cancelled";
+"cancelled" | 
+/**  A check read it as it was copied (plan 8). */
+"intact" | 
+/**  A check read something else than was copied. */
+"changed" | 
+/**  A check didn't find it. */
+"missing";
 
 /**
  *  Everything the main window shows. Every session command returns the whole view, so the
@@ -493,6 +515,8 @@ export type SummaryView = {
 	mirror: MirrorSummaryView | null,
 	/**  What Cancel's "Also remove the files already copied" did (#54). */
 	undone: UndoneView | null,
+	/**  A check's own figures (plan 8); `None` for a copy or a mirror. */
+	check: CheckSummaryView | null,
 };
 
 /**  The files a cancelled job removed again (#54). */

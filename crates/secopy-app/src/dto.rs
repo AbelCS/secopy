@@ -220,6 +220,12 @@ pub enum RowStatus {
     Failed,
     /// Stopped by Cancel.
     Cancelled,
+    /// A check read it as it was copied (plan 8).
+    Intact,
+    /// A check read something else than was copied.
+    Changed,
+    /// A check didn't find it.
+    Missing,
 }
 
 /// The summary after a job (RFD §5.4).
@@ -264,6 +270,24 @@ pub struct SummaryView {
     pub mirror: Option<MirrorSummaryView>,
     /// What Cancel's "Also remove the files already copied" did (#54).
     pub undone: Option<UndoneView>,
+    /// A check's own figures (plan 8); `None` for a copy or a mirror.
+    pub check: Option<CheckSummaryView>,
+}
+
+/// What a check found (plan 8).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckSummaryView {
+    pub intact: u32,
+    pub changed: u32,
+    pub missing: u32,
+    /// Couldn't be read.
+    pub failed: u32,
+    /// Files no checksum file lists.
+    pub not_checked: u32,
+    pub checksum_files: u32,
+    /// Problems in the checksum files: "file:line: why".
+    pub problems: Vec<String>,
 }
 
 /// The files a cancelled job removed again (#54).

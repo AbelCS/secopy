@@ -80,9 +80,16 @@
   }
 
   const statusText = (r: FinishedRow) =>
-    ({ verified: "✓ Verified", copied: "✓ Copied", skipped: "Skipped", failed: "✗ Failed", cancelled: "Cancelled" })[
-      r.status
-    ];
+    ({
+      verified: "✓ Verified",
+      copied: "✓ Copied",
+      skipped: "Skipped",
+      failed: "✗ Failed",
+      cancelled: "Cancelled",
+      intact: "✓ Intact",
+      changed: "✗ Changed",
+      missing: "✗ Missing",
+    })[r.status];
 </script>
 
 <Section {title}>
@@ -187,11 +194,14 @@
   }
 
   .verified,
-  .copied {
+  .copied,
+  .intact {
     color: var(--success);
   }
 
-  .failed {
+  .failed,
+  .changed,
+  .missing {
     color: var(--danger);
   }
 
