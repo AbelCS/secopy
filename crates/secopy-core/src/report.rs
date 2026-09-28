@@ -54,6 +54,9 @@ pub struct ReportFile {
     pub reason: Option<String>,
     pub xxh64: Option<String>,
     pub in_checksum_file: bool,
+    /// A check: the checksum file that listed it, relative to the checked directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub listed_in: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -138,6 +141,7 @@ impl Report {
                         reason: None,
                         xxh64: None,
                         in_checksum_file: false,
+                        listed_in: None,
                     };
                 };
                 let status = match &o.status {
@@ -179,6 +183,7 @@ impl Report {
                     reason,
                     xxh64: o.hash.map(crate::hash::to_hex),
                     in_checksum_file: o.in_checksum_file,
+                    listed_in: None,
                 }
             })
             .collect();
@@ -239,7 +244,9 @@ impl Report {
                     Some(FileStatus::Failed(e @ FileError::Changed { .. })) => {
                         ("changed", Some(e.to_string()))
                     }
-                    Some(FileStatus::Failed(FileError::Missing)) => ("missing", None),
+                    Some(FileStatus::Failed(e @ FileError::Missing)) => {
+                        ("missing", Some(e.to_string()))
+                    }
                     Some(FileStatus::Failed(e)) => ("failed", Some(e.to_string())),
                     Some(FileStatus::Cancelled) => ("cancelled", None),
                     _ => ("not started", None),
@@ -252,6 +259,7 @@ impl Report {
                     reason,
                     xxh64: Some(crate::hash::to_hex(f.expected)),
                     in_checksum_file: true,
+                    listed_in: Some(slash_path(&f.from)),
                 }
             })
             .collect();
@@ -481,7 +489,11 @@ impl Report {
             let _ = writeln!(t, "PROBLEMS");
             for f in problems {
                 let reason = f.reason.as_deref().unwrap_or_default();
-                let _ = writeln!(t, "  {}: {reason}", f.path);
+                let _ = write!(t, "  {}: {reason}", f.path);
+                if let Some(sums) = &f.listed_in {
+                    let _ = write!(t, " (listed in {sums})");
+                }
+                let _ = writeln!(t);
             }
         }
         let _ = writeln!(t);

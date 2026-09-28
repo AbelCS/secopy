@@ -371,3 +371,51 @@ fn only_secopys_reports_are_left_out() {
     let p = check::plan(&root).unwrap();
     assert_eq!(p.not_checked, [PathBuf::from("sales_report.txt")]);
 }
+
+/// #69 V3: each problem file in a check's report names the checksum file that listed it.
+#[test]
+fn the_report_names_the_checksum_file_that_listed_a_problem() {
+    let dir = tempfile::tempdir().unwrap();
+    let (_a, day1) = copy_of(&[("a.mov", b"aaaa"), ("gone.mov", b"g"), ("ok.mov", b"o")]);
+    let drive = dir.path().join("drive");
+    fs::create_dir_all(&drive).unwrap();
+    fs::rename(&day1, drive.join("Day01")).unwrap();
+    fs::write(drive.join("Day01/a.mov"), b"aaab").unwrap();
+    fs::remove_file(drive.join("Day01/gone.mov")).unwrap();
+    let p = check::plan(&drive).unwrap();
+    let sums = secopy_core::checksum_file::slash_path(&p.checksum_files[0]);
+    assert!(sums.starts_with("Day01/secopy_"), "{sums}");
+    let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
+    let meta = secopy_core::report::JobMeta {
+        app_version: "test".into(),
+        source: drive.display().to_string(),
+        verify: true,
+        started: chrono::Local::now(),
+        finished: chrono::Local::now(),
+    };
+    let report = secopy_core::report::Report::for_check(&p, &r, &meta);
+    let text = report.to_text();
+    let hex = |data: &[u8]| secopy_core::hash::to_hex(secopy_core::hash::hash_bytes(data));
+    assert!(
+        text.contains(&format!(
+            "  Day01/a.mov: changed since it was copied (expected {}, found {}) (listed in {sums})",
+            hex(b"aaaa"),
+            hex(b"aaab"),
+        )),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!("  Day01/gone.mov: missing (listed in {sums})")),
+        "{text}"
+    );
+    assert!(!text.contains("Day01/ok.mov: "), "{text}");
+    let json: serde_json::Value = serde_json::from_str(&report.to_json()).unwrap();
+    let file = |name: &str| {
+        let files = json["files"].as_array().unwrap();
+        files.iter().find(|f| f["path"] == name).unwrap().clone()
+    };
+    assert_eq!(file("Day01/gone.mov")["status"], "missing");
+    assert_eq!(file("Day01/gone.mov")["listed_in"], sums.as_str());
+    assert_eq!(file("Day01/a.mov")["listed_in"], sums.as_str());
+    assert_eq!(file("Day01/ok.mov")["listed_in"], sums.as_str());
+}
