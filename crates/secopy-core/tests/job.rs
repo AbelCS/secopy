@@ -1331,3 +1331,51 @@ fn a_source_rewritten_at_the_same_size_fails() {
     );
     assert!(!f.dest.join("CARD/notes.txt").exists());
 }
+
+/// #58: the new version can't take the old one's place (here, the directory turned
+/// read-only): the old version stays where it was, not only in the archive.
+#[cfg(unix)]
+#[test]
+fn a_failed_replace_leaves_the_old_version_where_it_was() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, plan, dest, archive) = replace_fixture();
+    let mut o = JobOptions {
+        archive_replaced: Some(archive.clone()),
+        ..opts(true)
+    };
+    o.hooks = Hooks {
+        before_copy: None,
+        after_copy: Some(|p, _| {
+            let dir = p.parent().unwrap();
+            fs::set_permissions(dir, fs::Permissions::from_mode(0o555)).unwrap();
+        }),
+    };
+    let (report, _) = run(&plan, &o);
+    fs::set_permissions(&dest, fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(!report.is_success());
+    assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"old");
+    assert!(
+        !archive.join("clip.mov").exists(),
+        "not archived: it wasn't replaced"
+    );
+}
+
+/// #58: an archive that can't take the old version fails the file and leaves no partial.
+#[test]
+fn an_archive_that_cant_be_written_leaves_no_partial_file() {
+    let (dir, plan, dest, _) = replace_fixture();
+    let blocked = dir.path().join("blocked");
+    fs::write(&blocked, b"a file where the archive directory would be").unwrap();
+    let o = JobOptions {
+        archive_replaced: Some(blocked.join("run")),
+        ..opts(true)
+    };
+    let (report, _) = run(&plan, &o);
+    assert_eq!(report.failed().count(), 1);
+    assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"old");
+    let left: Vec<_> = fs::read_dir(&dest)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(left, ["clip.mov"], "no partial file left");
+}

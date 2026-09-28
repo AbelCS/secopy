@@ -237,9 +237,20 @@ impl<'a> Runner<'a> {
     fn commit(&self, file: &PlannedFile, partial: PartialCopy) -> Result<PathBuf, FileError> {
         let dest = &self.plan.dest;
         let original = dest.join(&file.entry.rel);
-        if let (Action::Overwrite, Some(archive)) = (&file.action, &self.opts.archive_replaced) {
-            archive_old(&original, &archive.join(&file.entry.rel))?;
-        }
+        // The old version goes to the archive only once the new one is verified (here).
+        let archived = match (&file.action, &self.opts.archive_replaced) {
+            (Action::Overwrite, Some(archive)) => {
+                let to = archive.join(&file.entry.rel);
+                match archive_old(&original, &to) {
+                    Ok(kept) => Some((kept, to)),
+                    Err(e) => {
+                        partial.discard();
+                        return Err(e);
+                    }
+                }
+            }
+            _ => None,
+        };
         let how = match &file.action {
             Action::Overwrite => Commit::Replace,
             Action::KeepBoth { n, .. } => Commit::KeepBoth {
@@ -248,7 +259,22 @@ impl<'a> Runner<'a> {
             },
             _ => Commit::NoReplace,
         };
-        let landed = partial.commit(&dest.join(file.final_rel()), how)?;
+        let landed = match partial.commit(&dest.join(file.final_rel()), how) {
+            Ok(landed) => landed,
+            Err(e) => {
+                // Not replaced: the old version stays where it was, not only in the archive.
+                match archived {
+                    Some((Archived::Linked, to)) => {
+                        let _ = fs::remove_file(to);
+                    }
+                    Some((Archived::Moved, to)) => {
+                        let _ = fs::rename(to, &original);
+                    }
+                    _ => {}
+                }
+                return Err(e);
+            }
+        };
         Ok(landed
             .strip_prefix(dest)
             .map(Path::to_path_buf)
@@ -436,14 +462,30 @@ fn root_is_there(path: &Path, device: u64) -> bool {
 }
 
 /// Moves the file a verified copy is about to replace into the archive (mirror, FR-48).
-fn archive_old(old: &Path, to: &Path) -> Result<(), FileError> {
+/// How the old version was kept in the archive.
+enum Archived {
+    /// Already gone: nothing to keep.
+    Nothing,
+    /// A second name in the archive; the old version stays in place until it's replaced, so
+    /// its path is never empty.
+    Linked,
+    /// Moved there (no hard links on this file system).
+    Moved,
+}
+
+fn archive_old(old: &Path, to: &Path) -> Result<Archived, FileError> {
     if fs::symlink_metadata(old).is_err() {
-        return Ok(()); // already gone: nothing to keep
+        return Ok(Archived::Nothing);
     }
     if let Some(parent) = to.parent() {
         fs::create_dir_all(parent).map_err(FileError::write_dest)?;
     }
-    fs::rename(old, to).map_err(FileError::write_dest)
+    if fs::hard_link(old, to).is_ok() {
+        return Ok(Archived::Linked);
+    }
+    fs::rename(old, to)
+        .map(|()| Archived::Moved)
+        .map_err(FileError::write_dest)
 }
 
 /// The source's size or modification time isn't what the scan saw.

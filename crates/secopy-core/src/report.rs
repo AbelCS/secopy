@@ -82,6 +82,20 @@ pub struct Report {
     pub unread: Vec<Unread>,
     /// The device reported an error while the copy was made durable (#58).
     pub durability_error: Option<String>,
+    /// A mirror's removals after its copy phase (plan 7).
+    pub mirror: Option<MirrorPart>,
+}
+
+/// What a mirror did after copying: removals, and names changed to the origin's spelling.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MirrorPart {
+    /// Removed files went to the archive (or were deleted).
+    pub archived: bool,
+    pub removed: Vec<String>,
+    pub not_removed: Vec<Unread>,
+    pub renamed: Vec<(String, String)>,
+    /// Why nothing was removed: the copy phase didn't end cleanly.
+    pub nothing_removed: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -174,6 +188,7 @@ impl Report {
             counts,
             files,
             durability_error: job.durability_error.clone(),
+            mirror: None,
             unread: job
                 .unread
                 .iter()
@@ -183,6 +198,18 @@ impl Report {
                 })
                 .collect(),
         }
+    }
+
+    /// Adds a mirror's removals; one that failed means the result isn't "complete".
+    pub fn with_mirror(mut self, part: MirrorPart) -> Report {
+        if self.result == "complete" && !part.not_removed.is_empty() {
+            self.result = match part.not_removed.len() {
+                1 => "1 file couldn't be removed".to_string(),
+                n => format!("{n} files couldn't be removed"),
+            };
+        }
+        self.mirror = Some(part);
+        self
     }
 
     pub fn to_json(&self) -> String {
@@ -264,6 +291,37 @@ impl Report {
             let _ = writeln!(t, "COULDN'T BE READ (not copied)");
             for u in &self.unread {
                 let _ = writeln!(t, "  {}: {}", u.path, u.reason);
+            }
+        }
+        if let Some(m) = &self.mirror {
+            let _ = writeln!(t);
+            match &m.nothing_removed {
+                Some(why) => {
+                    let _ = writeln!(t, "{why}");
+                }
+                None => {
+                    let how = if m.archived { "archived" } else { "deleted" };
+                    let _ = writeln!(
+                        t,
+                        "Removed from the destination ({how}): {}",
+                        m.removed.len()
+                    );
+                    for path in &m.removed {
+                        let _ = writeln!(t, "  {path}");
+                    }
+                }
+            }
+            if !m.not_removed.is_empty() {
+                let _ = writeln!(t, "Not removed: {}", m.not_removed.len());
+                for n in &m.not_removed {
+                    let _ = writeln!(t, "  {}: {}", n.path, n.reason);
+                }
+            }
+            if !m.renamed.is_empty() {
+                let _ = writeln!(t, "Renamed to match the origin: {}", m.renamed.len());
+                for (from, to) in &m.renamed {
+                    let _ = writeln!(t, "  {from} → {to}");
+                }
             }
         }
         let problems: Vec<&ReportFile> = self

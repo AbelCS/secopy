@@ -45,6 +45,22 @@ pub enum Change {
     ContentsDiffer,
 }
 
+/// A destination file as the preview saw it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Seen {
+    pub len: u64,
+    pub modified: Option<std::time::SystemTime>,
+}
+
+impl Seen {
+    fn of(meta: &fs::Metadata) -> Seen {
+        Seen {
+            len: meta.len(),
+            modified: meta.modified().ok(),
+        }
+    }
+}
+
 /// What a mirror run does, worked out before anything is touched.
 #[derive(Debug, Clone)]
 pub struct MirrorPlan {
@@ -57,6 +73,8 @@ pub struct MirrorPlan {
     pub changes: Vec<(usize, Change)>,
     /// Destination files no longer in the origin, relative to the destination.
     pub removals: Vec<PathBuf>,
+    /// How each removal looked in the preview: a file that changed since isn't removed.
+    pub seen: HashMap<PathBuf, Seen>,
     /// Destination directories no longer in the origin, deepest first.
     pub remove_dirs: Vec<PathBuf>,
     /// The same file spelled otherwise (letter case, Unicode form): (destination name, origin name).
@@ -89,6 +107,15 @@ pub fn plan_watched(
         return Err(format!("The origin isn't there: {}", origin.display()));
     }
     nested(origin, destination)?;
+    // Archiving into a link could put (and later clean up) files anywhere.
+    if let Deleted::Archive { .. } = options.deleted
+        && fs::symlink_metadata(destination.join(ARCHIVE_DIR)).is_ok_and(|m| !m.is_dir())
+    {
+        return Err(format!(
+            "The destination's {ARCHIVE_DIR} isn't a directory (it's a link or a file). Move it \
+             away, or choose to delete removed files."
+        ));
+    }
     let source = Source::Directory {
         path: origin.to_path_buf(),
         mode: DirMode::ContentsOnly,
@@ -136,6 +163,7 @@ pub fn plan_watched(
     let planned: Vec<&Path> = copy.files.iter().map(|f| f.entry.rel.as_path()).collect();
     let Extras {
         mut removals,
+        seen,
         mut remove_dirs,
         mut renames,
         destination_files,
@@ -169,6 +197,7 @@ pub fn plan_watched(
         copy,
         changes,
         removals,
+        seen,
         remove_dirs,
         renames,
         destination_files,
@@ -230,6 +259,7 @@ fn differs(a: &Path, b: &Path, control: &JobControl) -> bool {
 /// What the destination has that the origin doesn't.
 struct Extras {
     removals: Vec<PathBuf>,
+    seen: HashMap<PathBuf, Seen>,
     remove_dirs: Vec<PathBuf>,
     renames: Vec<(PathBuf, PathBuf)>,
     destination_files: u64,
@@ -246,6 +276,7 @@ fn extras(destination: &Path, planned: &[&Path], origin_has: &dyn Fn(&Path) -> b
         alike.entry(name_key(p)).or_default().push(p);
     }
     let mut removals = Vec::new();
+    let mut seen = HashMap::new();
     let mut dirs = Vec::new();
     let mut renames = Vec::new();
     let mut count = 0;
@@ -290,11 +321,15 @@ fn extras(destination: &Path, planned: &[&Path], origin_has: &dyn Fn(&Path) -> b
         if origin_has(&rel) {
             continue;
         }
+        if let Ok(meta) = entry.metadata() {
+            seen.insert(rel.clone(), Seen::of(&meta));
+        }
         removals.push(rel);
     }
     dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
     Extras {
         removals,
+        seen,
         remove_dirs: dirs,
         renames,
         destination_files: count,
@@ -355,12 +390,51 @@ pub struct Finished {
     pub renamed: Vec<(PathBuf, PathBuf)>,
 }
 
+/// `finish`'s result for the report.
+pub fn report_part(
+    finished: &Result<Finished, String>,
+    archived: bool,
+) -> crate::report::MirrorPart {
+    let show = |p: &Path| p.display().to_string();
+    let mut part = crate::report::MirrorPart {
+        archived,
+        removed: Vec::new(),
+        not_removed: Vec::new(),
+        renamed: Vec::new(),
+        nothing_removed: None,
+    };
+    match finished {
+        Ok(f) => {
+            for r in &f.removals {
+                match &r.result {
+                    Ok(()) => part.removed.push(show(&r.rel)),
+                    Err(why) => part.not_removed.push(crate::report::Unread {
+                        path: show(&r.rel),
+                        reason: why.clone(),
+                    }),
+                }
+            }
+            part.renamed = f.renamed.iter().map(|(a, b)| (show(a), show(b))).collect();
+        }
+        Err(why) => part.nothing_removed = Some(why.clone()),
+    }
+    part
+}
+
 const STAMP: &str = "%Y-%m-%d %H.%M.%S";
 
+/// This run's archive directory: named by `now`, and never one another run already has
+/// (two runs in the same second get "… (2)"), so nothing archived is ever overwritten.
 pub fn archive_dir(destination: &Path, now: chrono::DateTime<chrono::Local>) -> PathBuf {
-    destination
-        .join(ARCHIVE_DIR)
-        .join(now.format(STAMP).to_string())
+    let root = destination.join(ARCHIVE_DIR);
+    let stamp = now.format(STAMP).to_string();
+    (1u32..)
+        .map(|n| match n {
+            1 => root.join(&stamp),
+            n => root.join(format!("{stamp} ({n})")),
+        })
+        .find(|p| fs::symlink_metadata(p).is_err())
+        .expect("a free archive name")
 }
 
 /// The removals, once the copy phase is clean (FR-49); `archive` is `Some` in archive mode.
@@ -395,6 +469,18 @@ pub fn finish(
             continue;
         }
         let from = dest.join(rel);
+        let now = match fs::symlink_metadata(&from) {
+            Ok(meta) => Seen::of(&meta),
+            Err(_) => continue, // already gone
+        };
+        // Written since the preview (another app): not the file the preview listed.
+        if plan.seen.get(rel) != Some(&now) {
+            done.push(Removal {
+                rel: rel.clone(),
+                result: Err("It changed after the preview, so it was kept.".into()),
+            });
+            continue;
+        }
         let result = match archive {
             Some(root) => {
                 let to = root.join(rel);
@@ -429,13 +515,23 @@ pub fn finish(
 /// Removes archive run directories older than `days` (named by `archive_dir`).
 pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chrono::Local>) -> u32 {
     let limit = now - chrono::Duration::days(i64::from(days));
-    let Ok(entries) = fs::read_dir(destination.join(ARCHIVE_DIR)) else {
+    let root = destination.join(ARCHIVE_DIR);
+    // Only a real directory: a link could lead anywhere outside the destination.
+    if !fs::symlink_metadata(&root).is_ok_and(|m| m.is_dir()) {
+        return 0;
+    }
+    let Ok(entries) = fs::read_dir(&root) else {
         return 0;
     };
     let mut removed = 0;
-    for e in entries.filter_map(Result::ok) {
+    for e in entries
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+    {
         let name = e.file_name().to_string_lossy().into_owned();
-        let old = chrono::NaiveDateTime::parse_from_str(&name, STAMP)
+        // "… (2)": a second run in the same second.
+        let stamp = name.split(" (").next().unwrap_or_default();
+        let old = chrono::NaiveDateTime::parse_from_str(stamp, STAMP)
             .ok()
             .and_then(|t| t.and_local_timezone(chrono::Local).single())
             .is_some_and(|t| t < limit);
