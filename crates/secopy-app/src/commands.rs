@@ -805,10 +805,20 @@ impl AppState {
                 QueueResult::Failed,
                 summary
                     .and_then(|s| s.stopped_because)
+                    .map(|why| full_stop(&why))
                     .or(Some("Stopped.".into())),
             ),
         };
         (result, reason, handle)
+    }
+}
+
+/// `text` as a sentence for the queue, whose reasons all end with a full stop.
+fn full_stop(text: &str) -> String {
+    if text.ends_with(['.', '!', '?']) {
+        text.to_string()
+    } else {
+        format!("{text}.")
     }
 }
 
@@ -853,7 +863,7 @@ fn failure_reason(s: &SummaryView) -> String {
         return format!("{} empty {dirs} couldn't be created.", s.dir_errors);
     }
     if let Some(e) = &s.checksum_error {
-        return format!("The checksum file couldn't be written: {e}");
+        return full_stop(&format!("The checksum file couldn't be written: {e}"));
     }
     match &s.durability_error {
         Some(e) => format!("The destination couldn't confirm the files are saved: {e}"),
@@ -2019,6 +2029,33 @@ mod tests {
         );
         assert!(summary.results[0].summary.is_some(), "A's summary opens");
         assert_eq!(state.queue_view().jobs.len(), 2, "B and C stay queued");
+    }
+
+    /// #70: a job that stopped gives the queue a full sentence, like every other reason.
+    #[test]
+    fn a_stopped_jobs_reason_ends_with_a_full_stop() {
+        /// Panics on the job's first progress view, in the job's thread.
+        #[derive(Clone, Default)]
+        struct PanicsOnProgress(Events, Arc<std::sync::atomic::AtomicBool>);
+        impl QueueSink for PanicsOnProgress {
+            fn send(&self, e: QueueEvent) {
+                if matches!(e, QueueEvent::Progress { .. })
+                    && !self.1.swap(true, std::sync::atomic::Ordering::Relaxed)
+                {
+                    panic!("a bug");
+                }
+                self.0.send(e);
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        state.claim_queue_run().unwrap();
+        let summary = state.run_claimed(PanicsOnProgress::default());
+        assert_eq!(summary.results[0].result, QueueResult::Failed);
+        assert_eq!(
+            summary.results[0].reason.as_deref(),
+            Some("Secopy hit an internal error.")
+        );
     }
 
     /// #69 review: a job that completed, with the panic before it left the queue, is
