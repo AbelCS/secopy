@@ -1,5 +1,6 @@
 <script lang="ts">
   // Source profiles (FR-38): the list on the left, the selected one's editor on the right.
+  import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { Profile, ProfileInput, SessionView } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -84,7 +85,7 @@
       selectedId = result.profiles[0]?.id ?? null;
       error = null;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = messageOf(e);
     }
   }
 </script>

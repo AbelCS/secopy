@@ -58,7 +58,7 @@ const WINDOWS_RESERVED: &[&str] = &[
 
 /// Checks one file or folder name against the destination file system. Windows rules
 /// apply on NTFS, ReFS, exFAT and FAT, and on every destination when running on Windows.
-pub fn check_name(name: &OsStr, fs: &FsInfo) -> Result<(), NameProblem> {
+fn check_name(name: &OsStr, fs: &FsInfo) -> Result<(), NameProblem> {
     let text = name.to_string_lossy();
     if too_long(name, &text, fs.name_limit) {
         return Err(NameProblem::TooLong {

@@ -1,6 +1,7 @@
 <script lang="ts">
   // The app's screens: set up a copy, follow it, read the summary (RFD §5.2–§5.4), and the
   // queue (§5.7), with the sections in a sidebar.
+  import { messageOf } from "./lib/format";
   import { onMount } from "svelte";
   import { provideApi, tauriApi, type Api } from "./lib/api";
   import { stopMessage } from "./lib/stopping";
@@ -49,7 +50,7 @@
   let screen = $state<Screen>("setup");
   /** Where Settings and Profiles go back to. */
   let back: "setup" | "summary" | "queue" | "mirror" | "mirror-summary" = "setup";
-  let queue: QueueView = $state({ jobs: [], onFailure: "continue", running: false });
+  let queue: QueueView = $state({ jobs: [], onFailure: "continue" });
   /** The Copy section's screen to return to: New copy, or the last summary. */
   let copyScreen: "setup" | "summary" = "setup";
   $effect(() => {
@@ -173,7 +174,7 @@
       error = null;
       return result;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = messageOf(e);
       return undefined;
     }
   }

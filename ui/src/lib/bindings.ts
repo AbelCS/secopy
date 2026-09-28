@@ -9,7 +9,7 @@ export const commands = {
 	/**  FROM's Choose…: a folder or files, in one panel (FR-1, FR-2). `None` when cancelled. */
 	pickSource: () => typedError<string[] | null, string>(__TAURI_INVOKE("pick_source")),
 	/**
-	 *  Scans a picked, dropped or chosen drive or source (FR-1..FR-3). A newer scan replaces
+	 *  Scans a picked, dropped or chosen source (FR-1..FR-3). A newer scan replaces
 	 *  an older one.
 	 */
 	scanSource: (paths: string[]) => typedError<SessionView, string>(__TAURI_INVOKE("scan_source", { paths })),
@@ -33,7 +33,6 @@ export const commands = {
 	setFilter: (selected: (string | null)[] | null) => typedError<SessionView, string>(__TAURI_INVOKE("set_filter", { selected })),
 	setDestination: (path: string | null) => typedError<SessionView, string>(__TAURI_INVOKE("set_destination", { path })),
 	setConflicts: (policy: ConflictPolicy) => typedError<SessionView, string>(__TAURI_INVOKE("set_conflicts", { policy })),
-	sessionView: () => typedError<SessionView, string>(__TAURI_INVOKE("session_view")),
 	/**  Starts copying what the main window shows; progress arrives on `on_progress`. */
 	startJob: (verify: boolean, onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("start_job", { verify, onProgress })),
 	pauseJob: () => __TAURI_INVOKE<void>("pause_job"),
@@ -281,7 +280,7 @@ export type Profile = {
 	extensions: (string | null)[] | null,
 };
 
-/**  A profile as typed in a form (Save as new…, Settings). */
+/**  A profile as typed in a form (Save as new…, the Profiles screen). */
 export type ProfileInput = {
 	name: string,
 	/**  A full path, or empty. */
@@ -355,12 +354,11 @@ export type QueueSummaryView = {
 export type QueueView = {
 	jobs: QueuedJobView[],
 	onFailure: OnFailure,
-	running: boolean,
 };
 
 /**  A queued job as the Queue screen shows it (plan 6). */
 export type QueuedJobView = {
-	/**  "copy", or "unknown" for a job a newer Secopy wrote. */
+	/**  "copy", "mirror", or "unknown" for a job a newer Secopy wrote. */
 	kind: string,
 	verify: boolean,
 	/**  The source as shown ("3 files" for several). */
@@ -501,8 +499,6 @@ export type SummaryView = {
 export type UndoneView = {
 	/**  Files it had created, removed. */
 	removed: number,
-	/**  Files it had replaced, put back from the archive. */
-	restored: number,
 	/**  Files it had replaced that couldn't be put back: the new version stays. */
 	notRestored: number,
 	/**  Files that couldn't be removed or put back (the report lists them). */

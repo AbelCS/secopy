@@ -159,7 +159,6 @@ export const mirrorSummary: SummaryView = {
 
 export const queue: QueueView = {
   onFailure: "continue",
-  running: false,
   jobs: [
     { kind: "copy", verify: true, source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", destination: "/Volumes/V001/Day01", lastError: null, supported: true, name: null },
     { kind: "copy", verify: true, source: "/Volumes/CARD_B/PRIVATE/M4ROOT/CLIP", destination: "/Volumes/V001/Day01", lastError: "CARD_B isn't connected.", supported: true, name: null },

@@ -5,11 +5,13 @@ How the app's screens are built, so they look and behave the same. The colours c
 
 To see every component and screen: `cd ui && npm run dev`, then open
 <http://localhost:5173/gallery.html> (add `#setup`, `#progress`, `#summary`, `#settings`,
-`#profiles` or `#profiles-empty` for a screen). The gallery is dev only and not in the app.
+`#profiles`, `#profiles-empty`, `#queue`, `#queue-summary`, `#mirror`, `#mirror-preview`,
+`#mirror-summary`, `#mirroring` or `#cancel` for a screen; `?tips` shows every `Hint`). The
+gallery is dev only and not in the app.
 
 ## Layout
 
-The app's sections (Copy, Queue) are in a `Sidebar` on the left of the section screens; it
+The app's sections (Copy, Mirror, Queue) are in a `Sidebar` on the left of the section screens; it
 is hidden while jobs run and on Settings and Profiles. Every screen is an `AppShell` with
 three parts, always in the same place:
 
@@ -45,7 +47,7 @@ three parts, always in the same place:
 | Kind | Tokens |
 |---|---|
 | Colour | `bg`, `surface`, `surface-raised`, `border`, `text`, `text-muted`, `text-faint`, `accent`, `accent-soft` (chosen items), `accent-strong` (filled accent backgrounds: primary button, selected segment), `accent-strong-hover` (a filled button under the pointer), `on-accent`, `success`, `warning`, `danger` |
-| Spacing | `space-1` 4 · `space-2` 8 · `space-3` 12 · `space-4` 16 · `space-5` 24 · `space-6` 32 px |
+| Spacing | `space-1` 4 · `space-2` 8 · `space-3` 12 · `space-4` 16 · `space-5` 24 px |
 | Type | `text-xs` 11 (section labels, caps) · `text-sm` 12 (help, meta) · `text-md` 14 (body) · `text-lg` 16 (screen titles) · `text-xl` 20 (result headlines); the macOS system font; tabular numbers; `mono` for paths and hashes |
 | Shape | `radius-control` 6 · `radius` 8 (sections) · `radius-pill`; `control-height` 30 px |
 | Motion | `duration` 150 ms, `ease`; none with reduced motion |

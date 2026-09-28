@@ -6,7 +6,7 @@
   import type { MirrorPreset, MirrorPresetInput, MirrorPreviewView, QueueView } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
-  import { formatCount, plural } from "../lib/format";
+  import { formatCount, messageOf, plural } from "../lib/format";
   import Button from "../lib/ui/Button.svelte";
   import EmptyState from "../lib/ui/EmptyState.svelte";
   import Notice from "../lib/ui/Notice.svelte";
@@ -85,7 +85,7 @@
       await action();
       error = null;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = messageOf(e);
     } finally {
       busy = false;
     }
@@ -98,7 +98,7 @@
       onPreview(await api.previewMirror(p.id, (c) => (compared = c)));
       error = null;
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = messageOf(e);
       error = message === "Cancelled." ? null : message;
     } finally {
       previewing = false;

@@ -2,7 +2,7 @@
   // The summary (RFD §5.4): what happened, the figures, what failed and why, and what to do next.
   import { useApi } from "../lib/api";
   import type { SummaryView } from "../lib/bindings";
-  import { formatCount, plural } from "../lib/format";
+  import { formatCount, messageOf, plural } from "../lib/format";
   import { headline } from "../lib/headline";
   import { summaryStats } from "../lib/summaryText";
   import type { Snippet } from "svelte";
@@ -49,7 +49,7 @@
       await action();
       actionError = null;
     } catch (e) {
-      actionError = e instanceof Error ? e.message : String(e);
+      actionError = messageOf(e);
     }
   }
 

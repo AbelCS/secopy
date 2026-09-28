@@ -114,7 +114,7 @@ pub struct Preflight {
 
 /// Modification times closer than this count as equal: FAT stores times in 2 s steps,
 /// and exFAT and SMB round them.
-pub const SAME_MTIME: Duration = Duration::from_secs(2);
+const SAME_MTIME: Duration = Duration::from_secs(2);
 
 /// Checks `sel` against `dest`. Problems that stop the whole job are returned as the
 /// error; everything else is listed so the user can decide.

@@ -24,7 +24,7 @@ use secopy_core::source::Source;
 
 use crate::dto::{
     ActiveFileView, FinishedRow, JobOutcome, JobPhase, MirrorSummaryView, ProgressView, RowStatus,
-    SmallFilesView, SummaryView, UndoneView, count, show,
+    SmallFilesView, SummaryView, UndoneView, count, sentence, show,
 };
 use crate::mirrors::MirrorJob;
 use crate::session::Ready;
@@ -403,7 +403,6 @@ impl Job {
             mirror,
             undone: done.undone.as_ref().map(|u| UndoneView {
                 removed: count(u.removed),
-                restored: count(u.restored),
                 not_restored: count(u.not_restored),
                 failed: count(u.failed.len()),
             }),
@@ -508,20 +507,18 @@ impl Job {
         let mut active = Vec::new();
         // Small files are one steady row below; only big ones are worth a bar each.
         for f in p.active.iter().filter(|f| f.size >= OWN_ROW) {
-            {
-                active.push(ActiveFileView {
-                    id: count(f.id),
-                    name: f
-                        .rel
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
-                    path: show(&f.rel),
-                    verifying: f.phase == secopy_core::job::Phase::Verifying,
-                    size: f.size,
-                    bytes_done: f.bytes_done,
-                });
-            }
+            active.push(ActiveFileView {
+                id: count(f.id),
+                name: f
+                    .rel
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                path: show(&f.rel),
+                verifying: f.phase == secopy_core::job::Phase::Verifying,
+                size: f.size,
+                bytes_done: f.bytes_done,
+            });
         }
         let copying = p
             .active
@@ -692,14 +689,6 @@ fn row(o: &FileOutcome) -> FinishedRow {
         hash: o.hash.map(secopy_core::hash::to_hex),
         status,
         reason,
-    }
-}
-
-fn sentence(text: &str) -> String {
-    let mut chars = text.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
     }
 }
 

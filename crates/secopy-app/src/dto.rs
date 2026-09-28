@@ -272,8 +272,6 @@ pub struct SummaryView {
 pub struct UndoneView {
     /// Files it had created, removed.
     pub removed: u32,
-    /// Files it had replaced, put back from the archive.
-    pub restored: u32,
     /// Files it had replaced that couldn't be put back: the new version stays.
     pub not_restored: u32,
     /// Files that couldn't be removed or put back (the report lists them).
@@ -290,6 +288,15 @@ pub enum JobOutcome {
 }
 
 /// Paths shown to people: lossy for names that aren't UTF-8.
+/// `text` with a capital first letter, as the UI shows messages.
+pub fn sentence(text: &str) -> String {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
 pub fn show(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
@@ -328,7 +335,7 @@ pub struct ProfilesView {
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QueuedJobView {
-    /// "copy", or "unknown" for a job a newer Secopy wrote.
+    /// "copy", "mirror", or "unknown" for a job a newer Secopy wrote.
     pub kind: String,
     pub verify: bool,
     /// The source as shown ("3 files" for several).
@@ -345,7 +352,6 @@ pub struct QueuedJobView {
 pub struct QueueView {
     pub jobs: Vec<QueuedJobView>,
     pub on_failure: crate::queue::OnFailure,
-    pub running: bool,
 }
 
 /// How a queued job ended.

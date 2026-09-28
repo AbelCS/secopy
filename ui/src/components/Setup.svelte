@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { useApi } from "../lib/api";
   import type { ConflictPolicy, Profile, ProfilesView, QueueView, SessionView, Settings } from "../lib/bindings";
-  import { formatBytes, plural } from "../lib/format";
+  import { baseName, formatBytes, messageOf, plural } from "../lib/format";
   import type { Snippet } from "svelte";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
@@ -100,7 +100,7 @@
       setTimeout(() => (queuedNote = null), 3000);
       await update(() => api.clearSource(), (e) => (sourceError = e));
     } catch (e) {
-      sourceError = e instanceof Error ? e.message : String(e);
+      sourceError = messageOf(e);
     }
   }
 
@@ -134,7 +134,7 @@
       if (!next.stale) view = next;
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(messageOf(e));
     } finally {
       if (kind === "scan") scanning--;
       else checking--;
@@ -174,7 +174,6 @@
   }
 
   /** The last part of a path: "/Volumes/CARD/DCIM" → "DCIM". */
-  const baseName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
   export async function chooseSource() {
     const paths = await api.pickSource();
