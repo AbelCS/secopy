@@ -443,3 +443,123 @@ fn a_symlink_into_the_origin_is_refused() {
         "The destination can't be inside the origin."
     );
 }
+
+/// #58: two runs in the same second get their own archive directories, so one never
+/// overwrites what the other archived; both are cleaned up in time.
+#[test]
+fn each_run_gets_its_own_archive_directory() {
+    let (_dir, _o, d) = pair();
+    let then = chrono::Local::now() - chrono::Duration::days(40);
+    let first = mirror::archive_dir(&d, then);
+    write(&first, &[("x.mov", b"first")]);
+    let second = mirror::archive_dir(&d, then);
+    assert_ne!(first, second);
+    write(&second, &[("x.mov", b"second")]);
+    assert_eq!(fs::read(first.join("x.mov")).unwrap(), b"first");
+    assert_eq!(mirror::clean_archives(&d, 30, chrono::Local::now()), 2);
+}
+
+/// #58: a `.secopy-archive` that is a link leads outside the destination: cleaning up never
+/// follows it, and a mirror that archives refuses to run.
+#[cfg(unix)]
+#[test]
+fn a_linked_archive_is_never_followed() {
+    let (dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    let elsewhere = dir.path().join("elsewhere");
+    let old = mirror::archive_dir(
+        &elsewhere,
+        chrono::Local::now() - chrono::Duration::days(40),
+    );
+    write(&old, &[("precious.mov", b"p")]);
+    std::os::unix::fs::symlink(
+        elsewhere.join(mirror::ARCHIVE_DIR),
+        d.join(mirror::ARCHIVE_DIR),
+    )
+    .unwrap();
+    assert_eq!(mirror::clean_archives(&d, 30, chrono::Local::now()), 0);
+    assert!(old.join("precious.mov").exists());
+    let err = mirror::plan(&o, &d, &opts()).unwrap_err();
+    assert!(err.contains(".secopy-archive"), "{err}");
+}
+
+/// #58: a destination file that changed after the preview (another app wrote it) isn't the
+/// one the preview listed: it is kept, and the run says so.
+#[test]
+fn a_destination_file_changed_since_the_preview_is_kept() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), ("b.mov", b"b")]);
+    write(
+        &d,
+        &[("a.mov", b"a"), ("b.mov", b"b"), ("gone.mov", b"old")],
+    );
+    same_time(&o.join("a.mov"), &d.join("a.mov"));
+    same_time(&o.join("b.mov"), &d.join("b.mov"));
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    assert_eq!(p.removals.len(), 1);
+    fs::write(d.join("gone.mov"), b"somebody's new work").unwrap();
+    let (_, finished) = run(&p, None);
+    let removals = finished.unwrap().removals;
+    let why = removals[0].result.as_ref().unwrap_err();
+    assert!(why.contains("changed"), "{why}");
+    assert_eq!(
+        fs::read(d.join("gone.mov")).unwrap(),
+        b"somebody's new work"
+    );
+}
+
+/// #58: the report (text and JSON alike) has the removals, and a removal that failed means
+/// the result isn't "complete".
+#[test]
+fn the_report_has_the_removals_and_their_failures() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), ("b.mov", b"b")]);
+    write(&d, &[("a.mov", b"a"), ("b.mov", b"b"), ("gone.mov", b"g")]);
+    same_time(&o.join("a.mov"), &d.join("a.mov"));
+    same_time(&o.join("b.mov"), &d.join("b.mov"));
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let (report, finished) = run(&p, None);
+    let meta = secopy_core::report::JobMeta {
+        app_version: "test".into(),
+        source: "o".into(),
+        verify: true,
+        started: chrono::Local::now(),
+        finished: chrono::Local::now(),
+    };
+    let ok = secopy_core::report::Report::new(&p.copy, &report, &meta)
+        .with_mirror(mirror::report_part(&finished, false));
+    assert_eq!(ok.result, "complete");
+    assert!(ok.to_json().contains("\"removed\""), "{}", ok.to_json());
+    assert!(
+        ok.to_text()
+            .contains("Removed from the destination (deleted): 1")
+    );
+    let mut failed = finished.unwrap();
+    failed.removals[0].result = Err("Permission denied".into());
+    let bad = secopy_core::report::Report::new(&p.copy, &report, &meta)
+        .with_mirror(mirror::report_part(&Ok(failed), false));
+    assert_eq!(bad.result, "1 file couldn't be removed");
+    assert!(bad.to_json().contains("Permission denied"));
+    assert!(
+        bad.to_text()
+            .contains("Not removed: 1\n  gone.mov: Permission denied"),
+        "{}",
+        bad.to_text()
+    );
+    let renamed = mirror::Finished {
+        removals: vec![],
+        renamed: vec![("IMG.jpg".into(), "img.jpg".into())],
+    };
+    let part = mirror::report_part(&Ok(renamed), true);
+    let text = secopy_core::report::Report::new(&p.copy, &report, &meta)
+        .with_mirror(part)
+        .to_text();
+    assert!(
+        text.contains("Removed from the destination (archived): 0"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Renamed to match the origin: 1\n  IMG.jpg → img.jpg\n"),
+        "{text}"
+    );
+}

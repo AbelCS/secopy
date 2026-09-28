@@ -16,7 +16,7 @@ use secopy_core::job::{
     Event, FileOutcome, FileStatus, JobOptions, JobReport, Progress, SkipReason, Undone, run_job,
     undo,
 };
-use secopy_core::mirror::{self, Change, Deleted, MirrorPlan, Removal};
+use secopy_core::mirror::{self, Change, Deleted, MirrorPlan};
 use secopy_core::plan::Plan;
 use secopy_core::report::{JobMeta, Report};
 use secopy_core::scan::Selection;
@@ -554,7 +554,13 @@ impl Job {
         };
         let mut job_report = done.report.clone();
         job_report.outcomes = self.outcomes.lock().expect("job lock poisoned").clone();
-        Report::new(&self.ready.plan, &job_report, &meta)
+        let report = Report::new(&self.ready.plan, &job_report, &meta);
+        match (&done.removals, &self.settings.mirror) {
+            (Some(removals), Some(m)) => {
+                report.with_mirror(mirror::report_part(removals, m.archive.is_some()))
+            }
+            _ => report,
+        }
     }
 
     /// Saves the report in the app's data folder, named like the checksum file (FR-35).
@@ -575,14 +581,6 @@ impl Job {
             .write(reports_dir, &stem)
             .map(|(text, _)| text)
             .map_err(failed)?;
-        if let Some(removals) = &done.removals {
-            let archived = self
-                .settings
-                .mirror
-                .as_ref()
-                .is_some_and(|m| m.archive.is_some());
-            append_removals(&text, removals, archived).map_err(failed)?;
-        }
         if let Some(undone) = &done.undone {
             append_undone(&text, undone).map_err(failed)?;
         }
@@ -641,45 +639,6 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
         removal_failures,
         nothing_removed,
     }
-}
-
-/// Adds a mirror's removals to its saved text report (FR-52).
-fn append_removals(
-    text: &Path,
-    removals: &Result<mirror::Finished, String>,
-    archived: bool,
-) -> std::io::Result<()> {
-    use std::io::Write;
-    let mut out = fs::OpenOptions::new().append(true).open(text)?;
-    let finished = match removals {
-        Ok(finished) => finished,
-        Err(why) => return writeln!(out, "\n{why}"),
-    };
-    let (ok, failed): (Vec<&Removal>, Vec<&Removal>) =
-        finished.removals.iter().partition(|r| r.result.is_ok());
-    let how = if archived { "archived" } else { "deleted" };
-    writeln!(out, "\nRemoved from the destination ({how}): {}", ok.len())?;
-    for r in ok {
-        writeln!(out, "  {}", r.rel.display())?;
-    }
-    if !failed.is_empty() {
-        writeln!(out, "Not removed: {}", failed.len())?;
-        for r in failed {
-            let why = r.result.as_ref().err().map_or("", String::as_str);
-            writeln!(out, "  {}: {why}", r.rel.display())?;
-        }
-    }
-    if !finished.renamed.is_empty() {
-        writeln!(
-            out,
-            "Renamed to match the origin: {}",
-            finished.renamed.len()
-        )?;
-        for (from, to) in &finished.renamed {
-            writeln!(out, "  {} → {}", from.display(), to.display())?;
-        }
-    }
-    Ok(())
 }
 
 /// What Cancel's "Also remove the files already copied" did, at the end of the text report.
@@ -949,41 +908,6 @@ mod tests {
         let s = f.jobs.summary().unwrap();
         assert!(s.checksum_error.is_some());
         assert_eq!(s.outcome, JobOutcome::Failures);
-    }
-
-    /// #57: the report counts only what was removed, lists what wasn't, and the renames.
-    #[test]
-    fn the_report_counts_removals_that_worked_and_lists_renames() {
-        let dir = tempfile::tempdir().unwrap();
-        let text = dir.path().join("r.txt");
-        fs::write(&text, "Secopy\n").unwrap();
-        let finished = mirror::Finished {
-            removals: vec![
-                Removal {
-                    rel: "a.mov".into(),
-                    result: Ok(()),
-                },
-                Removal {
-                    rel: "b.mov".into(),
-                    result: Err("Permission denied".into()),
-                },
-            ],
-            renamed: vec![("IMG.jpg".into(), "img.jpg".into())],
-        };
-        append_removals(&text, &Ok(finished), true).unwrap();
-        let out = fs::read_to_string(&text).unwrap();
-        assert!(
-            out.contains("Removed from the destination (archived): 1\n  a.mov\n"),
-            "{out}"
-        );
-        assert!(
-            out.contains("Not removed: 1\n  b.mov: Permission denied\n"),
-            "{out}"
-        );
-        assert!(
-            out.contains("Renamed to match the origin: 1\n  IMG.jpg → img.jpg\n"),
-            "{out}"
-        );
     }
 
     /// #57: small files are one steady row for the whole job: its count never goes back.
