@@ -83,7 +83,8 @@
     {#if summary.undone && summary.undone.failed > 0}
       <Notice tone="danger">{plural(summary.undone.failed, "file")} couldn't be removed (see the report).</Notice>
     {/if}
-    {#if summary.mirror?.nothingRemoved}<Notice tone="danger">{summary.mirror.nothingRemoved}</Notice>{/if}
+    <!-- After removing the copies, "left in the destination" would only confuse. -->
+    {#if summary.mirror?.nothingRemoved && !summary.undone}<Notice tone="danger">{summary.mirror.nothingRemoved}</Notice>{/if}
     {#if summary.checksumOff && !summary.mirror}<p class="muted">No checksum file (off in Settings)</p>{/if}
     {#if summary.checksumError}
       <Notice tone="danger">The checksum file could not be written: {summary.checksumError}</Notice>

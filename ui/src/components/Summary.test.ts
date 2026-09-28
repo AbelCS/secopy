@@ -47,15 +47,30 @@ describe("Summary", () => {
     screen.getByText("1 file couldn't be removed (see the report).");
   });
 
+  test("a mirror cancelled with its copies removed says only that", () => {
+    show(
+      summaryView({
+        outcome: "cancelled",
+        undone: { removed: 3, restored: 0, notRestored: 0, failed: 0 },
+        mirror: {
+          new: 0, updated: 0, removed: 0, archived: true, removalFailures: [],
+          nothingRemoved: "Files deleted in the origin were left in the destination: the mirror was cancelled.",
+        },
+      }),
+    );
+    screen.getByRole("heading", { name: /Cancelled: the destination is back as it was/ });
+    expect(screen.queryByText(/left in the destination/)).toBeNull();
+  });
+
   test("a mirror that removed nothing says why", () => {
     show(
       summaryView({
         outcome: "failures",
         failed: 2,
-        mirror: { new: 0, updated: 0, removed: 0, archived: true, removalFailures: [], nothingRemoved: "Nothing was removed: 2 files failed." },
+        mirror: { new: 0, updated: 0, removed: 0, archived: true, removalFailures: [], nothingRemoved: "Files deleted in the origin were left in the destination: 2 files failed." },
       }),
     );
-    screen.getByText("Nothing was removed: 2 files failed.");
+    screen.getByText("Files deleted in the origin were left in the destination: 2 files failed.");
   });
 
   test("every file is listed with its status and checksum", async () => {

@@ -371,14 +371,19 @@ pub fn finish(
 ) -> Result<Finished, String> {
     let failed = report.failed().count();
     if report.cancelled {
-        return Err("Nothing was removed: the mirror was cancelled.".into());
+        return Err(
+            "Files deleted in the origin were left in the destination: the mirror was cancelled."
+                .into(),
+        );
     }
     if report.fatal.is_some() {
-        return Err("Nothing was removed: the mirror stopped.".into());
+        return Err(
+            "Files deleted in the origin were left in the destination: the mirror stopped.".into(),
+        );
     }
     if failed > 0 {
         return Err(format!(
-            "Nothing was removed: {failed} {} failed.",
+            "Files deleted in the origin were left in the destination: {failed} {} failed.",
             if failed == 1 { "file" } else { "files" }
         ));
     }

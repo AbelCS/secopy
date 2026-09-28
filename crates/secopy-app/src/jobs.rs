@@ -1242,7 +1242,7 @@ mod tests {
         let m = jobs.summary().unwrap().mirror.unwrap();
         assert_eq!(
             m.nothing_removed.as_deref(),
-            Some("Nothing was removed: 1 file failed.")
+            Some("Files deleted in the origin were left in the destination: 1 file failed.")
         );
         assert!(d.join("x.mov").exists());
     }
