@@ -3,22 +3,32 @@
   // them. Copy presets have their own screen.
   import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
+  import type { Snippet } from "svelte";
   import type { Settings } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
   import Checkbox from "../lib/ui/Checkbox.svelte";
+  import FormRow from "../lib/ui/FormRow.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
   import Section from "../lib/ui/Section.svelte";
 
   let {
     settings,
+    banner,
     onSettings,
+    onExport,
+    onImport,
     onDone,
   }: {
     settings: Settings;
+    /** App-wide messages, shown first. */
+    banner?: Snippet;
     onSettings: (settings: Settings) => void;
+    /** Export… and Import… (#77): a .secopy file with the settings and presets. */
+    onExport?: () => void;
+    onImport?: () => void;
     onDone: () => void;
   } = $props();
 
@@ -48,6 +58,8 @@
 
 <AppShell>
   {#snippet header()}<ScreenHeader title="Settings" />{/snippet}
+
+  {#if banner}{@render banner()}{/if}
 
   <Section title="Every copy">
     <div class="options">
@@ -91,6 +103,23 @@
     {#if settingsError}<Notice tone="danger">{settingsError}</Notice>{/if}
   </Section>
 
+  {#if onExport || onImport}
+    <Section title="Settings and presets">
+      <FormRow label="Another Mac">
+        <div class="transfer">
+          {#if onExport}
+            <Button
+              help={changed ? "Exports your saved settings; save first to include these changes." : ""}
+              onclick={onExport}>Export…</Button
+            >
+          {/if}
+          {#if onImport}<Button onclick={onImport}>Import…</Button>{/if}
+        </div>
+        <p class="muted">A .secopy file with your settings and presets, for a new Mac or to share presets.</p>
+      </FormRow>
+    </Section>
+  {/if}
+
   {#snippet actions()}
     <ActionBar>
       {#snippet start()}<Button onclick={onDone}>Cancel</Button>{/snippet}
@@ -102,6 +131,17 @@
 </AppShell>
 
 <style>
+  .transfer {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .transfer + .muted {
+    margin: var(--space-2) 0 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
   .options {
     display: flex;
     flex-direction: column;

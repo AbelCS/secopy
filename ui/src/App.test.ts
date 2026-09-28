@@ -539,4 +539,18 @@ describe("App", () => {
     await screen.findByRole("heading", { level: 1, name: "Mirror" });
     expect(screen.queryByText("Mirrored: 2 new, 1 updated, 1 archived")).toBeNull();
   });
+
+  test("File › Export… asks what, then where, and says what was exported", async () => {
+    const { api, state } = app();
+    await startButton();
+    api.pickExportPath.mockResolvedValue("/Users/me/Secopy settings.secopy");
+    api.exportAll.mockResolvedValue("Exported 1 copy preset and the settings.");
+    state.menu!("export-file");
+    await fireEvent.click(await screen.findByRole("button", { name: "Export…" }));
+    await waitFor(() =>
+      expect(api.exportAll).toHaveBeenCalledWith("/Users/me/Secopy settings.secopy", expect.objectContaining({ settings: true })),
+    );
+    expect(api.pickExportPath.mock.calls[0][0]).toMatch(/^Secopy settings \d{4}-\d{2}-\d{2}\.secopy$/);
+    await screen.findByText("Exported 1 copy preset and the settings.");
+  });
 });

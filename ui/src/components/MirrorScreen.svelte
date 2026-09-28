@@ -36,6 +36,8 @@
   // svelte-ignore state_referenced_locally
   let selectedId: string | null = $state(presets[0]?.id ?? null);
   let error: string | null = $state(null);
+  /** A short confirmation, "Exported “Footage”." */
+  let said: string | null = $state(null);
   let busy = $state(false);
   /** Preview… is working; with the deep check, how far it is. */
   let previewing = $state(false);
@@ -67,6 +69,7 @@
       if (!discard) return;
     }
     changed = false;
+    said = null;
     selectedId = id;
   }
 
@@ -105,6 +108,33 @@
     } finally {
       previewing = false;
       compared = null;
+    }
+  }
+
+  /** Export… (#77): the saved mirror, after asking about unsaved changes. */
+  async function exportSelected() {
+    const preset = selected;
+    if (!preset || asking) return;
+    if (changed) {
+      asking = true;
+      let discard: boolean;
+      try {
+        discard = await api.confirm(`Your changes to “${preset.name}” aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+      } finally {
+        asking = false;
+      }
+      if (!discard) return;
+      editor?.revert();
+      changed = false;
+    }
+    const path = await api.pickExportPath(`${preset.name.replace(/[/:]/g, "-")}.secopy`);
+    if (!path) return;
+    try {
+      said = await api.exportMirrorPreset(preset.id, path);
+      error = null;
+    } catch (e) {
+      said = null;
+      error = messageOf(e);
     }
   }
 
@@ -172,6 +202,7 @@
           <p>Create one with “+ New mirror”.</p>
         </EmptyState>
       {/if}
+      {#if said}<Notice tone="success">{said}</Notice>{/if}
       {#if error}<Notice tone="danger">{error}</Notice>{/if}
     </Section>
   </div>
@@ -188,6 +219,7 @@
     >
       {#snippet start()}
         {#if selected && selectedId !== NEW}
+          <Button onclick={exportSelected}>Export…</Button>
           <Button variant="danger" onclick={() => remove(selected)}>Delete…</Button>
         {/if}
       {/snippet}

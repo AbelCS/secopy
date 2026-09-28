@@ -19,6 +19,7 @@ import {
   type CopyPreset,
   type CopyPresetInput,
   type CopyPresetsView,
+  type ExportWhat,
   type MirrorPreset,
   type MirrorPresetInput,
   type MirrorPreviewView,
@@ -148,6 +149,12 @@ export const tauriApi = {
     asList(await open({ directory: true, multiple: false, title }))?.[0] ?? null,
   pickDestination: async (): Promise<string | null> =>
     asList(await open({ directory: true, multiple: false, title: "Copy to" }))?.[0] ?? null,
+  exportAll: (path: string, what: ExportWhat): Promise<string> => unwrap(commands.exportAll(path, what)),
+  exportCopyPreset: (id: string, path: string): Promise<string> => unwrap(commands.exportCopyPreset(id, path)),
+  exportMirrorPreset: (id: string, path: string): Promise<string> => unwrap(commands.exportMirrorPreset(id, path)),
+  /** Where to save a .secopy file. */
+  pickExportPath: (suggested: string): Promise<string | null> =>
+    save({ defaultPath: suggested, filters: [{ name: "Secopy settings", extensions: ["secopy"] }] }),
   pickReportPath: (suggested: string): Promise<string | null> =>
     save({ defaultPath: suggested, filters: [{ name: "Text", extensions: ["txt"] }] }),
   confirm: (message: string, title: string, ok = "Stop copying", cancel = "Keep copying"): Promise<boolean> =>

@@ -30,6 +30,8 @@
   // svelte-ignore state_referenced_locally
   let selectedId: string | null = $state(presets[0]?.id ?? null);
   let error: string | null = $state(null);
+  /** A short confirmation, "Exported “Sony FX3”." */
+  let said: string | null = $state(null);
   /** The editor has unsaved changes. */
   let changed = $state(false);
   let canSave = $state(false);
@@ -59,7 +61,27 @@
   async function select(id: string) {
     if (id === selectedId || !(await mayLeave())) return;
     changed = false;
+    said = null;
     selectedId = id;
+  }
+
+  /** Export… (#77): the saved preset, after asking about unsaved changes. */
+  async function exportSelected() {
+    const preset = selected;
+    if (!preset || !(await mayLeave())) return;
+    if (changed) {
+      editor?.revert();
+      changed = false;
+    }
+    const path = await api.pickExportPath(`${preset.name.replace(/[/:]/g, "-")}.secopy`);
+    if (!path) return;
+    try {
+      said = await api.exportCopyPreset(preset.id, path);
+      error = null;
+    } catch (e) {
+      said = null;
+      error = messageOf(e);
+    }
   }
 
   async function back() {
@@ -147,6 +169,7 @@
           <p>Create one with “+ New preset”, or with “Save as…” in the main window.</p>
         </EmptyState>
       {/if}
+      {#if said}<Notice tone="success">{said}</Notice>{/if}
       {#if error}<Notice tone="danger">{error}</Notice>{/if}
     </Section>
   </div>
@@ -156,6 +179,7 @@
       {#snippet start()}
         <Button icon="chevron-left" onclick={back}>Back</Button>
         {#if selected && selectedId !== NEW}
+          <Button onclick={exportSelected}>Export…</Button>
           <Button variant="danger" onclick={() => remove(selected)}>Delete…</Button>
         {/if}
       {/snippet}
