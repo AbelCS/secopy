@@ -14,7 +14,12 @@ import {
   commands,
   type ConflictPolicy,
   type FinishedRow,
+  type MirrorPreset,
+  type MirrorPresetInput,
+  type MirrorPreviewView,
   type OnFailure,
+  type PreviewKind,
+  type PreviewRow,
   type Profile,
   type ProfileInput,
   type ProfilesView,
@@ -82,6 +87,22 @@ export const tauriApi = {
   queueFinishedPage: (index: number, offset: number, limit: number, failedOnly: boolean): Promise<FinishedRow[]> =>
     unwrap(commands.queueFinishedPage(index, offset, limit, failedOnly)),
   queueSaveReport: (index: number, path: string): Promise<null> => unwrap(commands.queueSaveReport(index, path)),
+  mirrorPresets: (): Promise<MirrorPreset[]> => unwrap(commands.mirrorPresets()),
+  createMirrorPreset: (input: MirrorPresetInput): Promise<MirrorPreset[]> =>
+    unwrap(commands.createMirrorPreset(input)),
+  editMirrorPreset: (id: string, input: MirrorPresetInput): Promise<MirrorPreset[]> =>
+    unwrap(commands.editMirrorPreset(id, input)),
+  deleteMirrorPreset: (id: string): Promise<MirrorPreset[]> => unwrap(commands.deleteMirrorPreset(id)),
+  /** What a preset would do now; Run mirror then runs exactly this (FR-47). */
+  previewMirror: (id: string): Promise<MirrorPreviewView> => unwrap(commands.previewMirror(id)),
+  mirrorPreviewPage: (kind: PreviewKind | null, offset: number, limit: number): Promise<PreviewRow[]> =>
+    unwrap(commands.mirrorPreviewPage(kind, offset, limit)),
+  runMirror: (onProgress: (p: ProgressView) => void): Promise<null> => {
+    const channel = new Channel<ProgressView>();
+    channel.onmessage = onProgress;
+    return unwrap(commands.runMirror(channel));
+  },
+  addMirrorToQueue: (id: string): Promise<QueueView> => unwrap(commands.addMirrorToQueue(id)),
   appStart: (): Promise<StartView> => unwrap(commands.appStart()),
   recentDestinations: (): Promise<string[]> => unwrap(commands.recentDestinations()),
   selectProfile: (id: string | null): Promise<SessionView> => unwrap(commands.selectProfile(id)),

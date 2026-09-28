@@ -172,14 +172,16 @@ const START_COPY: &str = "start-copy";
 const CANCEL_COPY: &str = "cancel-copy";
 pub const MENU_EVENT: &str = "menu";
 const SHOW_COPY: &str = "show-copy";
+const SHOW_MIRROR: &str = "show-mirror";
 const SHOW_QUEUE: &str = "show-queue";
 /// Menu items the window handles (File and View).
-const MENU_ITEMS: [&str; 6] = [
+const MENU_ITEMS: [&str; 7] = [
     CHOOSE_SOURCE,
     CHOOSE_DESTINATION,
     START_COPY,
     CANCEL_COPY,
     SHOW_COPY,
+    SHOW_MIRROR,
     SHOW_QUEUE,
 ];
 
@@ -336,6 +338,7 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         true,
         &[
             &MenuItem::with_id(app, SHOW_COPY, "Copy", true, Some("CmdOrCtrl+1"))?,
+            &MenuItem::with_id(app, SHOW_MIRROR, "Mirror", true, Some("CmdOrCtrl+2"))?,
             &MenuItem::with_id(app, SHOW_QUEUE, "Queue", true, Some("CmdOrCtrl+3"))?,
         ],
     )?;

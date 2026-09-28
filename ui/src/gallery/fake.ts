@@ -1,6 +1,6 @@
 // Fake data and a fake Api for the gallery: every screen without Tauri. Dev only.
 import type { Api } from "../lib/api";
-import type { FinishedRow, Profile, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
+import type { FinishedRow, MirrorPreset, Profile, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
 
 export const profiles: Profile[] = [
   { id: "fx3", name: "Sony FX3", source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
@@ -112,6 +112,11 @@ export const summary: SummaryView = {
   mirror: null,
 };
 
+export const mirrors: MirrorPreset[] = [
+  { id: "m1", name: "Footage → NAS", origin: "/Volumes/SSD/Footage", destination: "/Volumes/Media/Footage", deleted: { mode: "archive", days: 30 }, deepCheck: false },
+  { id: "m2", name: "Photos → Backup", origin: "/Users/me/Pictures/Photos", destination: "/Volumes/Backup/Photos", deleted: { mode: "delete", days: 30 }, deepCheck: true },
+];
+
 export const queue: QueueView = {
   onFailure: "continue",
   running: false,
@@ -159,6 +164,7 @@ export function fakeApi(start: Partial<{ profiles: Profile[] }> = {}): Api {
     recentDestinations: ok([]),
     confirm: ok(true),
     queue: ok(queue),
+    mirrorPresets: ok(mirrors),
   };
   return new Proxy({} as Api, { get: (_target, key: string) => table[key] ?? ok(session) });
 }

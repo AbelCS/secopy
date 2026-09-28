@@ -8,6 +8,8 @@
   import type {
     Profile,
     ProgressView,
+    MirrorPreset,
+    MirrorPreviewView,
     QueueSummaryView,
     QueueView,
     SessionView,
@@ -18,6 +20,7 @@
   import ProfilesScreen from "./components/ProfilesScreen.svelte";
   import QueueScreen from "./components/QueueScreen.svelte";
   import QueueSummary from "./components/QueueSummary.svelte";
+  import MirrorScreen from "./components/MirrorScreen.svelte";
   import SettingsScreen from "./components/SettingsScreen.svelte";
   import Button from "./lib/ui/Button.svelte";
   import Notice from "./lib/ui/Notice.svelte";
@@ -38,10 +41,12 @@
     | "profiles"
     | "queue"
     | "queue-summary"
-    | "queue-job";
+    | "queue-job"
+    | "mirror"
+    | "mirror-preview";
   let screen = $state<Screen>("setup");
   /** Where Settings and Profiles go back to. */
-  let back: "setup" | "summary" | "queue" = "setup";
+  let back: "setup" | "summary" | "queue" | "mirror" = "setup";
   let queue: QueueView = $state({ jobs: [], onFailure: "continue", running: false });
   /** The Copy section's screen to return to: New copy, or the last summary. */
   let copyScreen: "setup" | "summary" = "setup";
@@ -49,18 +54,26 @@
     if (screen === "setup" || screen === "summary") copyScreen = screen;
   });
   const queueScreens: Screen[] = ["queue", "queue-summary", "queue-job"];
-  const section = $derived(queueScreens.includes(screen) ? "queue" : "copy");
+  const mirrorScreens: Screen[] = ["mirror", "mirror-preview"];
+  const section = $derived(
+    queueScreens.includes(screen) ? "queue" : mirrorScreens.includes(screen) ? "mirror" : "copy",
+  );
   /** The sidebar shows on the sections' own screens; not while jobs run, nor on Settings. */
-  const showSidebar = $derived(screen === "setup" || screen === "summary" || queueScreens.includes(screen));
+  const showSidebar = $derived(
+    screen === "setup" || screen === "summary" || queueScreens.includes(screen) || mirrorScreens.includes(screen),
+  );
+  let mirrorPresets: MirrorPreset[] = $state([]);
+  /** The preview the Mirror section's Preview… worked out; Run mirror runs it. */
+  let mirrorPreview: MirrorPreviewView | null = $state(null);
   /** The queue run in progress: this job's place and the number of jobs. */
   let queueRun: { index: number; count: number } | null = $state(null);
   let queueSummary: QueueSummaryView | null = $state(null);
   /** The job of the queue summary whose own summary is open. */
   let openedJob: number | null = $state(null);
 
-  function go(next: "copy" | "queue") {
+  function go(next: "copy" | "mirror" | "queue") {
     if (!showSidebar) return;
-    screen = next === "queue" ? "queue" : copyScreen;
+    screen = next === "queue" ? "queue" : next === "mirror" ? "mirror" : copyScreen;
   }
   /** Saved files that couldn't be read, shown once. */
   let warnings: string[] = $state([]);
@@ -100,6 +113,7 @@
     else if (item === "start-copy" && screen === "setup") setupScreen?.startIfReady();
     else if (item === "cancel-copy" && screen === "progress") void progressScreen?.cancel();
     else if (item === "show-copy") go("copy");
+    else if (item === "show-mirror") go("mirror");
     else if (item === "show-queue") go("queue");
   }
 
@@ -149,7 +163,7 @@
 
   /** Settings or Profiles, over a section's screen; never during a copy. */
   function open(next: "settings" | "profiles") {
-    if (screen !== "setup" && screen !== "summary" && screen !== "queue") return;
+    if (screen !== "setup" && screen !== "summary" && screen !== "queue" && screen !== "mirror") return;
     back = screen;
     screen = next;
   }
@@ -242,6 +256,9 @@
     void run(() => api.queue()).then((q) => {
       if (q) queue = q;
     });
+    void run(() => api.mirrorPresets()).then((m) => {
+      if (m) mirrorPresets = m;
+    });
     const unlistenSettings = api.onOpenSettings(openSettings);
     const unlistenMenu = api.onMenu(onMenu);
     // Closing during a copy asks first; if closed anyway, the app stops the copy cleanly.
@@ -275,10 +292,11 @@
     <Sidebar
       items={[
         { id: "copy", label: "Copy" },
+        { id: "mirror", label: "Mirror" },
         { id: "queue", label: "Queue", count: queue.jobs.length },
       ]}
       selected={section}
-      onSelect={(id) => go(id as "copy" | "queue")}
+      onSelect={(id) => go(id as "copy" | "mirror" | "queue")}
     />
   {/if}
   <div class="screen">
@@ -320,6 +338,18 @@
         onProfiles={(p) => (profiles = p)}
         onView={(v) => (view = v)}
         onDone={() => (screen = back)}
+      />
+    {:else if screen === "mirror"}
+      <MirrorScreen
+        presets={mirrorPresets}
+        {banner}
+        onPresets={(p) => (mirrorPresets = p)}
+        onPreview={(v) => {
+          mirrorPreview = v;
+          screen = "mirror-preview";
+        }}
+        onQueue={(q) => (queue = q)}
+        onSettings={openSettings}
       />
     {:else if screen === "queue"}
       <QueueScreen {queue} {banner} onQueue={(q) => (queue = q)} onRun={runQueue} onSettings={openSettings} />
