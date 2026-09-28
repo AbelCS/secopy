@@ -1,0 +1,64 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
+import { describe, expect, test } from "vitest";
+import { apiContext } from "../lib/api";
+import type { QueueView } from "../lib/bindings";
+import { fakeApi, queuedJob, queueView } from "../test/fake-api";
+import QueueScreen from "./QueueScreen.svelte";
+
+function show(queue: QueueView = queueView({ jobs: [queuedJob(), queuedJob({ source: "/Volumes/CARD_B/DCIM", verify: false })] })) {
+  const { api } = fakeApi();
+  const calls = { queue: [] as QueueView[], run: 0 };
+  render(QueueScreen, {
+    props: { queue, onQueue: (q: QueueView) => calls.queue.push(q), onRun: () => calls.run++ },
+    context: apiContext(api),
+  });
+  return { api, calls };
+}
+
+describe("QueueScreen", () => {
+  test("each job shows its mode, source and destination", () => {
+    show();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    within(rows[0]).getByText("Copy & Verify");
+    within(rows[1]).getByText("Copy");
+    within(rows[1]).getByText("/Volumes/CARD_B/DCIM");
+  });
+
+  test("jobs move and are removed", async () => {
+    const { api } = show();
+    await fireEvent.click(screen.getAllByRole("button", { name: "Move down" })[0]);
+    expect(api.moveInQueue).toHaveBeenCalledWith(0, 1);
+    await fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[1]);
+    expect(api.removeFromQueue).toHaveBeenCalledWith(1);
+    expect(screen.getAllByRole("button", { name: "Move up" })[0]).toHaveProperty("disabled", true);
+  });
+
+  test("Clear queue asks first", async () => {
+    const { api } = show();
+    api.confirm.mockResolvedValueOnce(false);
+    await fireEvent.click(screen.getByRole("button", { name: "Clear queue…" }));
+    await waitFor(() => expect(api.confirm).toHaveBeenCalled());
+    expect(api.clearQueue).not.toHaveBeenCalled();
+  });
+
+  test("the failure choice is saved, and Run queue runs", async () => {
+    const { api, calls } = show();
+    await fireEvent.click(screen.getByLabelText("Stop the queue"));
+    expect(api.setQueueOnFailure).toHaveBeenCalledWith("stop");
+    await fireEvent.click(screen.getByRole("button", { name: "Run queue" }));
+    expect(calls.run).toBe(1);
+  });
+
+  test("a failed job says why; a newer job says so", () => {
+    show(queueView({ jobs: [queuedJob({ lastError: "CARD_A isn't connected." }), queuedJob({ kind: "unknown", supported: false, lastError: "Needs a newer Secopy." })] }));
+    screen.getByText("CARD_A isn't connected.");
+    screen.getByText("Needs a newer Secopy.");
+  });
+
+  test("an empty queue explains how to add jobs, and Run is off", () => {
+    show(queueView());
+    screen.getByText(/Add to queue/);
+    expect(screen.getByRole("button", { name: "Run queue" })).toHaveProperty("disabled", true);
+  });
+});
