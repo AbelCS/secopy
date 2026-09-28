@@ -263,9 +263,10 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
     let report = run_with_progress(&plan.copy, &opts)?;
     print_summary(&report, plan.copy.bytes_to_write());
     let removed_ok = match mirror::finish(&plan, &report, archive.as_deref()) {
-        Ok(removals) => {
+        Ok(finished) => {
+            let removals = &finished.removals;
             let mut ok = true;
-            for r in &removals {
+            for r in removals {
                 if let Err(e) = &r.result {
                     eprintln!("NOT REMOVED {}: {e}", r.rel.display());
                     ok = false;
@@ -275,6 +276,9 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
                 "removed: {}",
                 removals.iter().filter(|r| r.result.is_ok()).count()
             );
+            if !finished.renamed.is_empty() {
+                println!("renamed to match the origin: {}", finished.renamed.len());
+            }
             ok
         }
         Err(why) => {

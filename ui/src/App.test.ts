@@ -319,6 +319,7 @@ describe("App", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
     await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
     await screen.findByRole("heading", { level: 1, name: "Mirroring" });
+    expect(api.runMirror).toHaveBeenCalledWith("m1", expect.any(Function));
     state.progress!(progressView({ phase: "done" }));
     await screen.findByText("Mirrored: 2 new, 1 updated, 1 archived");
     // The Copy section doesn't show the mirror's summary.

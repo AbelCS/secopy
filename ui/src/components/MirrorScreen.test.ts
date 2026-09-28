@@ -37,10 +37,25 @@ describe("MirrorScreen", () => {
     screen.getByText(/same size and date are normally left alone/);
   });
 
+  test("a long Preview… says how far it is and can be cancelled", async () => {
+    const { api } = show();
+    let report: ((c: { done: number; total: number }) => void) | undefined;
+    api.previewMirror.mockImplementation((_id: string, onCompared: (c: { done: number; total: number }) => void) => {
+      report = onCompared;
+      return new Promise(() => {});
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Preview…" }));
+    expect(screen.getByRole("button", { name: "Preview…" })).toHaveProperty("disabled", true);
+    report!({ done: 120, total: 2410 });
+    await screen.findByText("Comparing contents: 120 of 2,410 files");
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(api.cancelMirrorPreview).toHaveBeenCalled();
+  });
+
   test("Preview… previews the saved preset; edits must be saved first", async () => {
     const { api, calls } = show();
     await fireEvent.click(screen.getByRole("button", { name: "Preview…" }));
-    await waitFor(() => expect(api.previewMirror).toHaveBeenCalledWith("m1"));
+    await waitFor(() => expect(api.previewMirror).toHaveBeenCalledWith("m1", expect.any(Function)));
     expect(calls.preview).toHaveLength(1);
     await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Other" } });
     expect(screen.queryByRole("button", { name: "Preview…" })).toBeNull();

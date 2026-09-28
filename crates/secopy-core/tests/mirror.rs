@@ -179,7 +179,7 @@ fn run(
     archive: Option<&Path>,
 ) -> (
     secopy_core::job::JobReport,
-    Result<Vec<mirror::Removal>, String>,
+    Result<mirror::Finished, String>,
 ) {
     let opts = JobOptions {
         write_checksum_file: false,
@@ -201,7 +201,7 @@ fn a_run_makes_the_destination_match_and_keeps_what_it_removed() {
     let archive = dir.path().join("backup/.secopy-archive/run");
     let (report, removed) = run(&p, Some(&archive));
     assert!(report.is_success());
-    assert_eq!(removed.unwrap().len(), 1);
+    assert_eq!(removed.unwrap().removals.len(), 1);
     assert_eq!(fs::read(d.join("b.mov")).unwrap(), b"changed!");
     assert!(d.join("new/c.mov").exists() && !d.join("gone").exists());
     assert_eq!(fs::read(archive.join("gone/d.mov")).unwrap(), b"d");
@@ -232,7 +232,7 @@ fn delete_mode_removes_for_good() {
     )
     .unwrap();
     let (_, removed) = run(&p, None);
-    assert_eq!(removed.unwrap().len(), 2);
+    assert_eq!(removed.unwrap().removals.len(), 2);
     assert!(!d.join("x.mov").exists() && !d.join(".secopy-archive").exists());
 }
 
@@ -268,7 +268,7 @@ fn a_file_back_in_the_origin_is_not_removed() {
     .unwrap();
     write(&o, &[("back.mov", b"b")]);
     let (_, removed) = run(&p, None);
-    assert!(removed.unwrap().is_empty());
+    assert!(removed.unwrap().removals.is_empty());
     assert!(d.join("back.mov").exists());
 }
 
@@ -320,7 +320,10 @@ fn a_rename_never_replaces_another_file() {
     p.removals.clear();
     p.renames = vec![("a.mp4".into(), "A2.mp4".into())];
     let (_, removed) = run(&p, None);
-    removed.unwrap();
+    assert!(
+        removed.unwrap().renamed.is_empty(),
+        "not renamed, so not reported"
+    );
     assert_eq!(fs::read(d.join("A2.mp4")).unwrap(), b"new");
 }
 
@@ -348,4 +351,78 @@ fn nas_bookkeeping_in_the_destination_is_never_removed() {
     assert!(p.remove_dirs.is_empty(), "{:?}", p.remove_dirs);
     assert_eq!(p.destination_files, 1);
     assert_eq!(p.guard, None);
+}
+
+/// #57: the report can say which names were changed to the origin's spelling.
+#[test]
+fn a_rename_is_reported() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("img.jpg", b"x")]);
+    write(&d, &[("IMG.jpg", b"x")]);
+    same_time(&o.join("img.jpg"), &d.join("IMG.jpg"));
+    if !o.join("IMG.jpg").exists() {
+        return; // a case-sensitive volume: nothing to rename
+    }
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let (_, finished) = run(&p, None);
+    assert_eq!(
+        finished.unwrap().renamed,
+        [("IMG.jpg".into(), "img.jpg".into())]
+    );
+}
+
+/// #57: one inside the other is refused however the path is written.
+#[test]
+fn the_origin_and_destination_cant_hold_each_other() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), ("sub/b.mov", b"b")]);
+    let err = |origin: &Path, dest: &Path| mirror::plan(origin, dest, &opts()).unwrap_err();
+    assert_eq!(
+        err(&o, &o),
+        "The origin and the destination are the same directory."
+    );
+    assert_eq!(
+        err(&o, &o.join("sub")),
+        "The destination can't be inside the origin."
+    );
+    fs::create_dir_all(d.join("in")).unwrap();
+    write(&d, &[("in/c.mov", b"c")]);
+    assert_eq!(
+        err(&d.join("in"), &d),
+        "The origin can't be inside the destination."
+    );
+    let shouted = o.parent().unwrap().join("ORIGIN");
+    if shouted.exists() {
+        // A case-insensitive volume: the same directory spelled otherwise.
+        assert_eq!(
+            err(&o, &shouted.join("sub")),
+            "The destination can't be inside the origin."
+        );
+    }
+}
+
+/// #57: the deep check reports its progress and can be cancelled.
+#[test]
+fn the_deep_check_reports_progress_and_can_be_cancelled() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), ("b.mov", b"b")]);
+    write(&d, &[("a.mov", b"a"), ("b.mov", b"b")]);
+    same_time(&o.join("a.mov"), &d.join("a.mov"));
+    same_time(&o.join("b.mov"), &d.join("b.mov"));
+    let deep = MirrorOptions {
+        deep_check: true,
+        ..opts()
+    };
+    let seen = std::sync::Mutex::new(Vec::new());
+    let control = JobControl::new();
+    mirror::plan_watched(&o, &d, &deep, &control, &|done, total| {
+        seen.lock().unwrap().push((done, total))
+    })
+    .unwrap();
+    assert_eq!(*seen.lock().unwrap(), [(0, 2), (1, 2), (2, 2)]);
+    control.cancel();
+    assert_eq!(
+        mirror::plan_watched(&o, &d, &deep, &control, &|_, _| {}).unwrap_err(),
+        "Cancelled."
+    );
 }

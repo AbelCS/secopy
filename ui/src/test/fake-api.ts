@@ -4,6 +4,7 @@
 import { vi } from "vitest";
 import type { Api } from "../lib/api";
 import type {
+  ComparedView,
   DestinationView,
   Profile,
   ProfileInput,
@@ -274,9 +275,10 @@ export function fakeApi(session: SessionView = sessionView()) {
     createMirrorPreset: vi.fn((_input: MirrorPresetInput) => Promise.resolve([mirrorPreset()])),
     editMirrorPreset: vi.fn((_id: string, _input: MirrorPresetInput) => Promise.resolve([mirrorPreset()])),
     deleteMirrorPreset: vi.fn((_id: string) => Promise.resolve([] as MirrorPreset[])),
-    previewMirror: vi.fn((_id: string) => Promise.resolve(mirrorPreview())),
+    previewMirror: vi.fn((_id: string, _onCompared: (c: ComparedView) => void) => Promise.resolve(mirrorPreview())),
+    cancelMirrorPreview: vi.fn(() => Promise.resolve()),
     mirrorPreviewPage: vi.fn((_kind: PreviewKind | null, _o: number, _l: number) => Promise.resolve([] as PreviewRow[])),
-    runMirror: vi.fn((onProgress: (p: ProgressView) => void) => {
+    runMirror: vi.fn((_id: string, onProgress: (p: ProgressView) => void) => {
       state.progress = onProgress;
       return Promise.resolve(null);
     }),

@@ -93,10 +93,12 @@ export const commands = {
 	editMirrorPreset: (id: string, input: MirrorPresetInput) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("edit_mirror_preset", { id, input })),
 	deleteMirrorPreset: (id: string) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("delete_mirror_preset", { id })),
 	/**  A mirror's preview (FR-47); Run mirror then runs it. */
-	previewMirror: (id: string) => typedError<MirrorPreviewView, string>(__TAURI_INVOKE("preview_mirror", { id })),
+	previewMirror: (id: string, onCompared: Channel<ComparedView>) => typedError<MirrorPreviewView, string>(__TAURI_INVOKE("preview_mirror", { id, onCompared })),
 	mirrorPreviewPage: (kind: "new" | "changed" | "removed" | null, offset: number, limit: number) => typedError<PreviewRow[], string>(__TAURI_INVOKE("mirror_preview_page", { kind, offset, limit })),
 	/**  Runs the previewed mirror; progress arrives on `on_progress`. */
-	runMirror: (onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("run_mirror", { onProgress })),
+	runMirror: (id: string, onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("run_mirror", { id, onProgress })),
+	/**  Stops a preview's deep check. */
+	cancelMirrorPreview: () => __TAURI_INVOKE<void>("cancel_mirror_preview"),
 	addMirrorToQueue: (id: string) => typedError<QueueView, string>(__TAURI_INVOKE("add_mirror_to_queue", { id })),
 };
 
@@ -108,6 +110,12 @@ export type ActiveFileView = {
 	verifying: boolean,
 	size: number,
 	bytesDone: number,
+};
+
+/**  How far a preview's deep check is: files compared, of how many (#57). */
+export type ComparedView = {
+	done: number,
+	total: number,
 };
 
 /**  What to do with files that exist but differ (FR-17). */

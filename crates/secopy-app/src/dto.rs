@@ -416,6 +416,14 @@ pub struct MirrorSummaryView {
     pub nothing_removed: Option<String>,
 }
 
+/// How far a preview's deep check is: files compared, of how many (#57).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ComparedView {
+    pub done: u32,
+    pub total: u32,
+}
+
 /// A mirror's preview (FR-47): what a run would do, before anything is touched.
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]

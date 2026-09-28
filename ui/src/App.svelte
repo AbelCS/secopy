@@ -235,7 +235,7 @@
     mirrorRunning = true;
     screen = "progress";
     const started = await run(() =>
-      api.runMirror((p) => {
+      api.runMirror(preview.presetId, (p) => {
         progress = p;
         if (p.phase === "done") void finish();
       }),

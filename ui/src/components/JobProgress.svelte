@@ -86,6 +86,8 @@
     return parts.join(" · ");
   });
 
+  /** Done, or a mirror's removals: short, and stopping halfway would help nobody. */
+  const finishing = $derived(progress.phase === "done" || progress.phase === "removing");
   /** Cancel's question is open. */
   let asking = $state(false);
   /** Also remove the files already copied (#54); off each time it opens. */
@@ -100,7 +102,7 @@
 
   /** Asks, then stops the job (and the queue) as chosen. */
   export function cancel() {
-    if (progress.phase === "done") return;
+    if (progress.phase === "done" || progress.phase === "removing") return;
     removeCopied = false;
     asking = true;
   }
@@ -115,7 +117,7 @@
    * theirs), and not with a modifier.
    */
   function onKey(e: KeyboardEvent) {
-    if (e.key !== " " || e.repeat || progress.phase === "done" || asking) return;
+    if (e.key !== " " || e.repeat || finishing || asking) return;
     if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
     if (t?.closest?.('input, textarea, select, button, [contenteditable], [tabindex="0"]')) return;
@@ -214,9 +216,9 @@
         {#if progress.paused}
           <Button onclick={() => api.resumeJob()}>Resume</Button>
         {:else}
-          <Button onclick={() => api.pauseJob()} disabled={progress.phase === "done" || checking}>Pause</Button>
+          <Button onclick={() => api.pauseJob()} disabled={finishing || checking}>Pause</Button>
         {/if}
-        <Button variant="danger" onclick={cancel} disabled={progress.phase === "done"}>Cancel</Button>
+        <Button variant="danger" onclick={cancel} disabled={finishing}>Cancel</Button>
       {/snippet}
     </ActionBar>
   {/snippet}

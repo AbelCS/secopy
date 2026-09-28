@@ -125,7 +125,7 @@ struct Done {
     /// Why the report couldn't also be written next to the checksum file.
     next_to_error: Option<String>,
     /// A mirror's removals, or why nothing was removed (plan 7).
-    removals: Option<Result<Vec<Removal>, String>>,
+    removals: Option<Result<mirror::Finished, String>>,
     /// What a cancel with "Also remove the files already copied" removed (#54).
     undone: Option<Undone>,
 }
@@ -567,9 +567,15 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
             .count()
     };
     let (removed, removal_failures, nothing_removed) = match &done.removals {
-        Some(Ok(list)) => (
-            list.iter().filter(|r| r.result.is_ok()).count(),
-            list.iter()
+        Some(Ok(finished)) => (
+            finished
+                .removals
+                .iter()
+                .filter(|r| r.result.is_ok())
+                .count(),
+            finished
+                .removals
+                .iter()
                 .enumerate()
                 .filter_map(|(i, r)| {
                     r.result.as_ref().err().map(|e| FinishedRow {
@@ -602,27 +608,38 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
 /// Adds a mirror's removals to its saved text report (FR-52).
 fn append_removals(
     text: &Path,
-    removals: &Result<Vec<Removal>, String>,
+    removals: &Result<mirror::Finished, String>,
     archived: bool,
 ) -> std::io::Result<()> {
     use std::io::Write;
     let mut out = fs::OpenOptions::new().append(true).open(text)?;
-    match removals {
-        Ok(list) => {
-            let how = if archived { "archived" } else { "deleted" };
-            writeln!(
-                out,
-                "\nRemoved from the destination ({how}): {}",
-                list.len()
-            )?;
-            for r in list {
-                match &r.result {
-                    Ok(()) => writeln!(out, "  {}", r.rel.display())?,
-                    Err(e) => writeln!(out, "  {} — NOT REMOVED: {e}", r.rel.display())?,
-                }
-            }
+    let finished = match removals {
+        Ok(finished) => finished,
+        Err(why) => return writeln!(out, "\n{why}"),
+    };
+    let (ok, failed): (Vec<&Removal>, Vec<&Removal>) =
+        finished.removals.iter().partition(|r| r.result.is_ok());
+    let how = if archived { "archived" } else { "deleted" };
+    writeln!(out, "\nRemoved from the destination ({how}): {}", ok.len())?;
+    for r in ok {
+        writeln!(out, "  {}", r.rel.display())?;
+    }
+    if !failed.is_empty() {
+        writeln!(out, "Not removed: {}", failed.len())?;
+        for r in failed {
+            let why = r.result.as_ref().err().map_or("", String::as_str);
+            writeln!(out, "  {}: {why}", r.rel.display())?;
         }
-        Err(why) => writeln!(out, "\n{why}")?,
+    }
+    if !finished.renamed.is_empty() {
+        writeln!(
+            out,
+            "Renamed to match the origin: {}",
+            finished.renamed.len()
+        )?;
+        for (from, to) in &finished.renamed {
+            writeln!(out, "  {} → {}", from.display(), to.display())?;
+        }
     }
     Ok(())
 }
@@ -832,6 +849,41 @@ mod tests {
             last.copied_bytes,
             last.verified_bytes,
             last.total_bytes
+        );
+    }
+
+    /// #57: the report counts only what was removed, lists what wasn't, and the renames.
+    #[test]
+    fn the_report_counts_removals_that_worked_and_lists_renames() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = dir.path().join("r.txt");
+        fs::write(&text, "Secopy\n").unwrap();
+        let finished = mirror::Finished {
+            removals: vec![
+                Removal {
+                    rel: "a.mov".into(),
+                    result: Ok(()),
+                },
+                Removal {
+                    rel: "b.mov".into(),
+                    result: Err("Permission denied".into()),
+                },
+            ],
+            renamed: vec![("IMG.jpg".into(), "img.jpg".into())],
+        };
+        append_removals(&text, &Ok(finished), true).unwrap();
+        let out = fs::read_to_string(&text).unwrap();
+        assert!(
+            out.contains("Removed from the destination (archived): 1\n  a.mov\n"),
+            "{out}"
+        );
+        assert!(
+            out.contains("Not removed: 1\n  b.mov: Permission denied\n"),
+            "{out}"
+        );
+        assert!(
+            out.contains("Renamed to match the origin: 1\n  IMG.jpg → img.jpg\n"),
+            "{out}"
         );
     }
 
@@ -1131,8 +1183,12 @@ mod tests {
         std::fs::create_dir_all(&d).unwrap();
         std::fs::write(o.join("a.mov"), b"a").unwrap();
         std::fs::write(d.join("x.mov"), b"x").unwrap();
-        let job =
-            crate::mirrors::prepare(&preset(&o, &d, crate::store::DeletedMode::Archive)).unwrap();
+        let job = crate::mirrors::prepare(
+            &preset(&o, &d, crate::store::DeletedMode::Archive),
+            &JobControl::new(),
+            &|_, _| {},
+        )
+        .unwrap();
         let jobs = Jobs::new(dir.path().join("reports"));
         let sink = Collect::default();
         jobs.start(
@@ -1166,8 +1222,12 @@ mod tests {
         std::fs::create_dir_all(&d).unwrap();
         std::fs::write(o.join("a.mov"), b"a").unwrap();
         std::fs::write(d.join("x.mov"), b"x").unwrap();
-        let job =
-            crate::mirrors::prepare(&preset(&o, &d, crate::store::DeletedMode::Delete)).unwrap();
+        let job = crate::mirrors::prepare(
+            &preset(&o, &d, crate::store::DeletedMode::Delete),
+            &JobControl::new(),
+            &|_, _| {},
+        )
+        .unwrap();
         std::fs::remove_file(o.join("a.mov")).unwrap();
         let jobs = Jobs::new(dir.path().join("reports"));
         jobs.start(
@@ -1195,7 +1255,9 @@ mod tests {
             crate::store::DeletedMode::Archive,
         );
         assert_eq!(
-            crate::mirrors::prepare(&p).err().unwrap(),
+            crate::mirrors::prepare(&p, &JobControl::new(), &|_, _| {})
+                .err()
+                .unwrap(),
             "SECOPY_NO_SUCH isn't connected."
         );
     }
