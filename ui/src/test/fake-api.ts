@@ -222,7 +222,7 @@ export function mirrorPreview(over: Partial<MirrorPreviewView> = {}): MirrorPrev
 }
 
 export function queueView(over: Partial<QueueView> = {}): QueueView {
-  return { jobs: [], onFailure: "continue", running: false, ...over };
+  return { jobs: [], onFailure: "continue", ...over };
 }
 
 /** Every method is a spy; `session` is what the session commands answer. */
@@ -250,7 +250,6 @@ export function fakeApi(session: SessionView = sessionView()) {
     setFilter: vi.fn(answer),
     setDestination: vi.fn(answer),
     setConflicts: vi.fn(answer),
-    sessionView: vi.fn(answer),
     startJob: vi.fn((_verify: boolean, onProgress: (p: ProgressView) => void) => {
       state.progress = onProgress;
       return Promise.resolve(null);

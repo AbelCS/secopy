@@ -67,7 +67,7 @@ pub struct MirrorPlan {
     pub origin: PathBuf,
     /// The origin as a job source: its contents go straight into the destination.
     pub source: Source,
-    /// The copy phase: `Copy`, `Overwrite` or `SkipIdentical` for each origin file.
+    /// The copy phase: `Copy`, `Overwrite`, `SkipIdentical` or `Fail` for each origin file.
     pub copy: Plan,
     /// Each file the run writes, by index into `copy.files`.
     pub changes: Vec<(usize, Change)>,

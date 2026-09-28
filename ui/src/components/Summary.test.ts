@@ -40,7 +40,7 @@ describe("Summary", () => {
   });
 
   test("a cancel that removed files says what it couldn't put back", () => {
-    show(summaryView({ outcome: "cancelled", failed: 1, undone: { removed: 5, restored: 1, notRestored: 2, failed: 1 } }));
+    show(summaryView({ outcome: "cancelled", failed: 1, undone: { removed: 5, notRestored: 2, failed: 1 } }));
     // Retrying only the failed files would leave a partial copy: the others were removed.
     expect(screen.queryByRole("button", { name: "Retry failed" })).toBeNull();
     screen.getByRole("heading", { name: /Cancelled: the copied files were removed/ });
@@ -52,7 +52,7 @@ describe("Summary", () => {
     show(
       summaryView({
         outcome: "cancelled",
-        undone: { removed: 3, restored: 0, notRestored: 0, failed: 0 },
+        undone: { removed: 3, notRestored: 0, failed: 0 },
         mirror: {
           new: 0, updated: 0, removed: 0, archived: true, removalFailures: [],
           nothingRemoved: "Files deleted in the origin were left in the destination: the mirror was cancelled.",

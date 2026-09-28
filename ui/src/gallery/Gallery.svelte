@@ -127,9 +127,7 @@
     <Section title="Fields">
       <div class="column">
         <TextField label="Name" value="Sony FX3" help="Shown in the Profile menu." />
-        <TextField label="Source" value="DCIM" mono error="The source must be a full path, like /Volumes/CARD_A/DCIM.">
-          {#snippet trailing()}<Button>Choose…</Button>{/snippet}
-        </TextField>
+        <TextField label="Source" value="DCIM" mono error="The source must be a full path, like /Volumes/CARD_A/DCIM." />
       </div>
     </Section>
 

@@ -125,7 +125,7 @@ impl<'de> Deserialize<'de> for Profile {
     }
 }
 
-/// A profile as typed in a form (Save as new…, Settings).
+/// A profile as typed in a form (Save as new…, the Profiles screen).
 #[derive(Debug, Clone, PartialEq, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileInput {

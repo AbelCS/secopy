@@ -1,6 +1,7 @@
 <script lang="ts">
   // One mirror preset's fields (FR-44): its name, origin and destination, what happens to
   // files deleted in the origin, and the deep check. Problems show next to their field.
+  import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { DeletedMode, MirrorPreset, MirrorPresetInput } from "../lib/bindings";
   import Button from "../lib/ui/Button.svelte";
@@ -79,7 +80,7 @@
   }
 
   async function choose(which: "origin" | "destination") {
-    const path = await api.pickDirectory();
+    const path = await api.pickDirectory(which === "origin" ? "Origin" : "Destination");
     if (path === null) return;
     if (which === "origin") origin = path;
     else destination = path;
@@ -98,7 +99,7 @@
         deepCheck,
       });
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = messageOf(e);
       if (message.startsWith("The origin")) originProblem = message;
       else if (message.startsWith("The destination")) destinationProblem = message;
       else if (/name|mirror called/.test(message)) nameProblem = message;

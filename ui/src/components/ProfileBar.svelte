@@ -1,6 +1,7 @@
 <script lang="ts">
   // FROM's source profile (FR-38): pick one, see when this run differs from it, and save
   // the difference with Update profile or Save as new….
+  import { messageOf } from "../lib/format";
   import { tick } from "svelte";
   import { useApi } from "../lib/api";
   import type { Profile, ProfilesView, SessionView } from "../lib/bindings";
@@ -46,7 +47,7 @@
       error = null;
       savingAs = false;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = messageOf(e);
     }
   }
 

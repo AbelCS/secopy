@@ -1,6 +1,7 @@
 <script lang="ts">
   // Settings (RFD §5.5): what every job does. Changes apply when saved; Cancel (or Esc) drops
   // them. Source profiles have their own screen.
+  import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { Settings } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -35,7 +36,7 @@
       onSettings(await api.setSettings(draft));
       onDone();
     } catch (e) {
-      settingsError = e instanceof Error ? e.message : String(e);
+      settingsError = messageOf(e);
     } finally {
       saving = false;
     }

@@ -32,7 +32,7 @@ test("a mirror says what it did", () => {
 });
 
 test("a cancel that removed the copied files says so", () => {
-  const undone = { removed: 3, restored: 1, notRestored: 0, failed: 0 };
+  const undone = { removed: 3, notRestored: 0, failed: 0 };
   expect(headline(summaryView({ outcome: "cancelled", undone }))).toBe("Cancelled: the destination is back as it was");
   expect(headline(summaryView({ outcome: "cancelled", undone: { ...undone, notRestored: 1 } }))).toBe(
     "Cancelled: the copied files were removed",

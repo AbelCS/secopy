@@ -7,7 +7,7 @@ use std::path::Path;
 pub type ExtKey = Option<String>;
 
 /// How "no extension" is written in lists such as the CLI `--ext` flag.
-pub const NO_EXTENSION: &str = "(none)";
+const NO_EXTENSION: &str = "(none)";
 
 pub fn ext_key(path: &Path) -> ExtKey {
     path.extension()

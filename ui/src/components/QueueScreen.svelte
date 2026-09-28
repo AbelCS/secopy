@@ -4,7 +4,7 @@
   import { tick, type Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { OnFailure, QueueView } from "../lib/bindings";
-  import { plural } from "../lib/format";
+  import { messageOf, plural } from "../lib/format";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
@@ -41,7 +41,7 @@
       error = null;
       return true;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = messageOf(e);
       return false;
     }
   }

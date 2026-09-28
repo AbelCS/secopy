@@ -58,7 +58,6 @@ export const tauriApi = {
     unwrap(commands.setDestination(path)),
   setConflicts: (policy: ConflictPolicy): Promise<SessionView> =>
     unwrap(commands.setConflicts(policy)),
-  sessionView: (): Promise<SessionView> => unwrap(commands.sessionView()),
 
   startJob: (verify: boolean, onProgress: (p: ProgressView) => void): Promise<null> => {
     const channel = new Channel<ProgressView>();
@@ -125,7 +124,8 @@ export const tauriApi = {
   setMode: (verify: boolean): Promise<null> => unwrap(commands.setMode(verify)),
   /** Secopy → Settings… (⌘,). */
   onOpenSettings: (handler: () => void): Promise<() => void> => listen("open-settings", handler),
-  /** File menu items (spec §3): "choose-source", "choose-destination", "start-copy", "cancel-copy". */
+  /** Menu items the window handles: "choose-source", "choose-destination", "start-copy",
+   * "cancel-copy" (File), "show-copy", "show-mirror", "show-queue" (View). */
   onMenu: (handler: (item: string) => void): Promise<() => void> => listen<string>("menu", (e) => handler(e.payload)),
   /** Which File menu items apply. */
   setMenuState: (setup: boolean, canStart: boolean, copying: boolean): Promise<void> =>
@@ -133,10 +133,9 @@ export const tauriApi = {
 
   /** FROM's Choose…: a folder or files, in one panel. */
   pickSource: (): Promise<string[] | null> => unwrap(commands.pickSource()),
-  /** A folder on a card, for a profile's folder. */
-  /** A profile's source: one directory. */
-  pickDirectory: async (): Promise<string | null> =>
-    asList(await open({ directory: true, multiple: false, title: "Source" }))?.[0] ?? null,
+  /** One directory: a profile's source, a mirror's origin or destination. */
+  pickDirectory: async (title = "Choose a directory"): Promise<string | null> =>
+    asList(await open({ directory: true, multiple: false, title }))?.[0] ?? null,
   pickDestination: async (): Promise<string | null> =>
     asList(await open({ directory: true, multiple: false, title: "Copy to" }))?.[0] ?? null,
   pickReportPath: (suggested: string): Promise<string | null> =>

@@ -44,3 +44,13 @@ export function formatPercent(done: number, total: number): string {
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${formatCount(n)} ${n === 1 ? one : many}`;
 }
+
+/** The message of something thrown: the app's commands throw Errors with its words. */
+export function messageOf(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/** The last name in a path: "CLIP" for "/Volumes/CARD/CLIP"; "" for "/". */
+export function baseName(path: string): string {
+  return path.split("/").filter(Boolean).pop() ?? "";
+}

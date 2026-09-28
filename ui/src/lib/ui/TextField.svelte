@@ -1,6 +1,5 @@
 <script lang="ts">
   // A text field with a visible label, optional help, and its error right under it.
-  import type { Snippet } from "svelte";
   import type { HTMLInputAttributes } from "svelte/elements";
 
   let {
@@ -10,7 +9,6 @@
     help,
     error = null,
     mono = false,
-    trailing,
     ...rest
   }: HTMLInputAttributes & {
     label: string;
@@ -20,8 +18,6 @@
     help?: string;
     error?: string | null;
     mono?: boolean;
-    /** A button beside the field, like Choose…. */
-    trailing?: Snippet;
   } = $props();
   const id = $props.id();
   const described = $derived(error ? `${id}-error` : help ? `${id}-help` : undefined);
@@ -38,7 +34,6 @@
       aria-invalid={error ? "true" : undefined}
       {...rest}
     />
-    {#if trailing}{@render trailing()}{/if}
   </div>
   {#if error}
     <p id="{id}-error" class="error" role="alert">{error}</p>

@@ -376,7 +376,6 @@ impl AppState {
                 q.jobs.iter().map(|e| job_view(e, &mirrors)).collect()
             },
             on_failure: q.on_failure,
-            running: lock(&self.queue_run).running,
         }
     }
 
@@ -744,7 +743,7 @@ pub async fn pick_source(app: AppHandle) -> Result<Option<Vec<String>>, String> 
         .map_err(|e| e.to_string())
 }
 
-/// Scans a picked, dropped or chosen drive or source (FR-1..FR-3). A newer scan replaces
+/// Scans a picked, dropped or chosen source (FR-1..FR-3). A newer scan replaces
 /// an older one.
 #[tauri::command]
 #[specta::specta]
@@ -795,12 +794,6 @@ pub async fn set_destination(app: AppHandle, path: Option<String>) -> Result<Ses
 #[specta::specta]
 pub async fn set_conflicts(app: AppHandle, policy: ConflictPolicy) -> Result<SessionView, String> {
     blocking(app, move |state| session(state).set_policy(policy)).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn session_view(app: AppHandle) -> Result<SessionView, String> {
-    blocking(app, |state| session(state).view()).await
 }
 
 /// Starts copying what the main window shows; progress arrives on `on_progress`.

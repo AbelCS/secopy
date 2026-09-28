@@ -14,7 +14,7 @@ use secopy_core::source::{DirMode, Source};
 
 use crate::dto::{
     ConflictPolicy, DestinationView, ExtensionKey, ExtensionView, FileProblemView, PlanView,
-    SessionView, SourceView, count, show,
+    SessionView, SourceView, count, sentence, show,
 };
 use crate::store::Profile;
 
@@ -34,7 +34,7 @@ pub struct Session {
     source_generation: u64,
     /// The file types the pending scan starts with.
     next_filter: ExtensionFilter,
-    /// What the user picked: a drive, a drop or Choose…. The source is this plus the
+    /// What the user picked: a drop or Choose…. The source is this plus the
     /// profile's folder (spec B3).
     picked: Option<Vec<PathBuf>>,
     profile: Option<Profile>,
@@ -74,7 +74,7 @@ impl Default for Session {
 
 /// A change to FROM; each one rescans.
 pub enum Change {
-    /// A new pick: a drive, a drop or Choose….
+    /// A new pick: a drop or Choose….
     Pick(Vec<PathBuf>),
     /// The "Include the folder" checkbox; keeps this run's file types.
     IncludeFolder(bool),
@@ -565,7 +565,7 @@ impl Session {
                 view.differs = count(pf.conflicts.len()) - view.identical;
                 view.stale_partials = count(pf.stale_partials.len());
             }
-            Some(Err(blocker)) => view.blocker = Some(sentence(blocker.to_string())),
+            Some(Err(blocker)) => view.blocker = Some(sentence(&blocker.to_string())),
             // No source yet: show what the destination is, or why it can't be used.
             None => match fsinfo::fs_info(dest) {
                 Ok(info) => {
@@ -573,10 +573,10 @@ impl Session {
                     view.fs_kind = fs_label(&info.kind);
                 }
                 Err(_) if !dest.is_dir() => {
-                    view.blocker = Some(sentence(Blocker::DestMissing.to_string()))
+                    view.blocker = Some(sentence(&Blocker::DestMissing.to_string()))
                 }
                 Err(e) => {
-                    view.blocker = Some(sentence(Blocker::DestNotWritable(e.into()).to_string()))
+                    view.blocker = Some(sentence(&Blocker::DestNotWritable(e.into()).to_string()))
                 }
             },
         }
@@ -605,7 +605,7 @@ fn plan_view(plan: &Plan) -> PlanView {
     PlanView {
         files_to_write: count(plan.files.iter().filter(|f| f.action.writes()).count()),
         bytes_to_write: plan.bytes_to_write(),
-        blocker: plan.blockers().first().map(|b| sentence(b.to_string())),
+        blocker: plan.blockers().first().map(|b| sentence(&b.to_string())),
     }
 }
 
@@ -654,17 +654,9 @@ fn fs_label(kind: &FsKind) -> String {
 }
 
 /// Engine messages start in lower case; the UI shows them as sentences.
-fn sentence(text: String) -> String {
-    let mut chars = text.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => text,
-    }
-}
-
 /// Scans `source` (the slow part of picking a source); called without the session lock.
 pub fn scan_source(source: &Source) -> Result<Scan, String> {
-    scan::scan(source, &ScanOptions::default()).map_err(|e| sentence(e.to_string()))
+    scan::scan(source, &ScanOptions::default()).map_err(|e| sentence(&e.to_string()))
 }
 
 #[cfg(test)]

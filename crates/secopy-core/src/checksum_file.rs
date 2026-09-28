@@ -26,7 +26,7 @@ pub fn slash_path(rel: &Path) -> String {
 
 /// One line without the trailing newline: `<hash>  <path>`. Paths containing `\`, CR or
 /// LF use the GNU coreutils escaping: a leading `\` and escaped characters.
-pub fn format_line(hash: u64, rel: &Path) -> String {
+fn format_line(hash: u64, rel: &Path) -> String {
     let path = slash_path(rel);
     if path.contains(['\\', '\n', '\r']) {
         let escaped = path

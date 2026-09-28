@@ -4,7 +4,7 @@
 pub use xxhash_rust::xxh64::Xxh64;
 
 /// Seed used for every hash.
-pub const SEED: u64 = 0;
+const SEED: u64 = 0;
 
 /// Creates a streaming hasher with the Secopy seed.
 pub fn hasher() -> Xxh64 {

@@ -1,6 +1,7 @@
 <script lang="ts">
   // One profile's fields (FR-38): its name, the source it loads, whether that directory itself
   // is copied, and which file types. Problems show next to their field.
+  import { baseName, messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { Profile, ProfileInput } from "../lib/bindings";
   import Button from "../lib/ui/Button.svelte";
@@ -52,7 +53,7 @@
   let sourceProblem: string | null = $state(null);
   let otherProblem: string | null = $state(null);
 
-  const folderName = $derived(source.split("/").filter(Boolean).pop() ?? "");
+  const folderName = $derived(baseName(source));
   const isChanged = $derived(
     profile === null
       ? name.trim() !== ""
@@ -88,7 +89,7 @@
   }
 
   async function chooseSource() {
-    const path = await api.pickDirectory();
+    const path = await api.pickDirectory("Source");
     if (path === null) return;
     source = path;
     sourceProblem = null;
@@ -101,7 +102,7 @@
     try {
       await onSave({ name, source, includeFolder, extensions: all ? null : types });
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = messageOf(e);
       if (message.startsWith("The source")) sourceProblem = message;
       else if (/name|profile called/.test(message)) nameProblem = message;
       else otherProblem = message;

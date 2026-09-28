@@ -116,8 +116,9 @@ format exactly.
 
 - Layout: `crates/secopy-core` (engine library, no UI dependencies), `crates/secopy-cli`
   (developer CLI and benchmark driver), `crates/secopy-app` (the Tauri 2 shell: session,
-  jobs, commands, `store` for the saved settings, profiles and state, `volumes` for the
-  drives list, `migrate` for the 0.2.0 → 0.3.0 data folder) and `ui/` (Svelte 5 +
+  jobs, commands, `store` for the saved settings, profiles, mirror presets and state,
+  `queue` for the saved queue, `mirrors` for turning a preset into a job, `picker` for the
+  source panel, `migrate` for the 0.2.0 → 0.3.0 data folder) and `ui/` (Svelte 5 +
   TypeScript, Vite). Run the app with `npm run tauri dev` from `ui/`; build the `.dmg`
   with `npm run tauri build`.
 - Engine flow: `scan → select → preflight → Plan::resolve → run_job`, then `Report` for
