@@ -79,6 +79,44 @@ impl Queue {
     }
 }
 
+use crate::dto::SessionView;
+use crate::session::{Change, Ready, Session, scan_source};
+
+/// `job` as New copy would build it now: scanned and checked at its turn (spec Q3).
+pub fn prepare(job: &CopyJob) -> Result<Ready, String> {
+    let mut s = Session::new();
+    let mut view = apply(&mut s, Change::Pick(job.sources.clone()));
+    if view.pick_problem.is_none() && !job.include_folder {
+        view = apply(&mut s, Change::IncludeFolder(false));
+    }
+    if let Some(problem) = view.pick_problem {
+        return Err(problem);
+    }
+    s.set_filter(job.extensions.clone());
+    s.set_policy(job.conflicts);
+    let view = s.set_destination(Some(job.destination.clone()));
+    s.ready().ok_or_else(|| why_not(&view))
+}
+
+/// Applies `change` and runs the scan it needs, like the commands do.
+fn apply(s: &mut Session, change: Change) -> SessionView {
+    match s.begin(change) {
+        Ok(pending) => {
+            let scanned = scan_source(&pending.source);
+            s.finish_scan(pending, scanned)
+        }
+        Err(view) => *view,
+    }
+}
+
+fn why_not(view: &SessionView) -> String {
+    view.destination
+        .as_ref()
+        .and_then(|d| d.blocker.clone())
+        .or_else(|| view.plan.as_ref().and_then(|p| p.blocker.clone()))
+        .unwrap_or_else(|| "Nothing to copy.".into())
+}
+
 impl Serialize for Entry {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use serde::ser::Error;
@@ -118,6 +156,109 @@ impl<'de> Deserialize<'de> for Entry {
 mod tests {
     use super::*;
     use crate::store::Store;
+
+    use crate::session::{Change, Session, scan_source};
+
+    /// Applies `change` and runs its scan, like the commands do.
+    fn apply(s: &mut Session, change: Change) {
+        if let Ok(pending) = s.begin(change) {
+            let scanned = scan_source(&pending.source);
+            s.finish_scan(pending, scanned);
+        }
+    }
+
+    fn card(dir: &std::path::Path) -> (PathBuf, PathBuf) {
+        let card = dir.join("CARD");
+        std::fs::create_dir_all(card.join("CLIP")).unwrap();
+        std::fs::write(card.join("CLIP/a.mp4"), b"a").unwrap();
+        std::fs::write(card.join("CLIP/a.xml"), b"x").unwrap();
+        let dest = dir.join("dest");
+        std::fs::create_dir_all(&dest).unwrap();
+        (card.join("CLIP"), dest)
+    }
+
+    #[test]
+    fn new_copy_is_saved_as_set_up() {
+        let dir = tempfile::tempdir().unwrap();
+        let (clip, dest) = card(dir.path());
+        let mut s = Session::new();
+        assert_eq!(s.copy_job(true), None, "nothing set up");
+        apply(&mut s, Change::Pick(vec![clip.clone()]));
+        apply(&mut s, Change::IncludeFolder(false));
+        s.set_filter(Some(vec![Some("mp4".into())]));
+        s.set_policy(ConflictPolicy::Skip);
+        s.set_destination(Some(dest.clone()));
+        assert_eq!(
+            s.copy_job(false),
+            Some(CopyJob {
+                sources: vec![clip],
+                include_folder: false,
+                extensions: Some(vec![Some("mp4".into())]),
+                destination: dest,
+                conflicts: ConflictPolicy::Skip,
+                verify: false,
+            })
+        );
+    }
+
+    /// Review focus 1: the job copies what's there at its turn.
+    #[test]
+    fn prepare_scans_again_at_its_turn() {
+        let dir = tempfile::tempdir().unwrap();
+        let (clip, dest) = card(dir.path());
+        let job = CopyJob {
+            sources: vec![clip.clone()],
+            include_folder: true,
+            extensions: None,
+            destination: dest,
+            conflicts: ConflictPolicy::KeepBoth,
+            verify: true,
+        };
+        assert_eq!(prepare(&job).unwrap().plan.files.len(), 2);
+        std::fs::write(clip.join("b.mp4"), b"b").unwrap();
+        assert_eq!(prepare(&job).unwrap().plan.files.len(), 3);
+        let only_mp4 = CopyJob {
+            extensions: Some(vec![Some("mp4".into())]),
+            include_folder: false,
+            ..job
+        };
+        let ready = prepare(&only_mp4).unwrap();
+        assert_eq!(ready.plan.files.len(), 2);
+        assert_eq!(ready.copy_root, only_mp4.destination, "contents only");
+    }
+
+    #[test]
+    fn a_job_that_cant_start_says_why() {
+        let dir = tempfile::tempdir().unwrap();
+        let (clip, dest) = card(dir.path());
+        let gone = CopyJob {
+            sources: vec![dir.path().join("gone")],
+            include_folder: true,
+            extensions: None,
+            destination: dest.clone(),
+            conflicts: ConflictPolicy::KeepBoth,
+            verify: true,
+        };
+        assert!(
+            prepare(&gone)
+                .err()
+                .unwrap()
+                .ends_with("isn't there any more.")
+        );
+        let no_dest = CopyJob {
+            sources: vec![clip.clone()],
+            destination: dir.path().join("no-dest"),
+            ..gone.clone()
+        };
+        assert!(!prepare(&no_dest).err().unwrap().is_empty());
+        let nothing = CopyJob {
+            sources: vec![clip],
+            extensions: Some(vec![Some("wav".into())]),
+            destination: dest,
+            ..gone
+        };
+        assert_eq!(prepare(&nothing).err().unwrap(), "Nothing to copy.");
+    }
 
     fn job(name: &str) -> CopyJob {
         CopyJob {

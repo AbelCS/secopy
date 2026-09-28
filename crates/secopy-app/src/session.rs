@@ -332,6 +332,27 @@ impl Session {
         self.view()
     }
 
+    /// This setup as a queued job (FR-39); `None` unless Start copy would start it. A
+    /// retry can't be queued: it copies a failed job's files, not a source.
+    pub fn copy_job(&self, verify: bool) -> Option<crate::queue::CopyJob> {
+        self.ready()?;
+        let picked = self.source.as_ref()?;
+        if picked.is_retry {
+            return None;
+        }
+        Some(crate::queue::CopyJob {
+            sources: self.picked.clone()?,
+            include_folder: self.include_folder,
+            extensions: match &self.filter {
+                ExtensionFilter::All => None,
+                ExtensionFilter::Only(keys) => Some(keys.iter().cloned().collect()),
+            },
+            destination: self.dest.clone()?,
+            conflicts: self.policy,
+            verify,
+        })
+    }
+
     /// The picked directory, which a profile saves as its source; `None` for files.
     pub fn picked_source(&self) -> Option<String> {
         match self.picked.as_deref() {
