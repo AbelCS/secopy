@@ -1,6 +1,6 @@
 <script lang="ts">
   // The app's screens: set up a copy, follow it, read the summary (RFD §5.2–§5.4), and the
-  // queue (§5.7), with the sections in a sidebar.
+  // queue (§5.7), with the sections as tabs at the top.
   import { messageOf } from "./lib/format";
   import { onMount } from "svelte";
   import { provideApi, tauriApi, type Api } from "./lib/api";
@@ -26,7 +26,7 @@
   import SettingsScreen from "./components/SettingsScreen.svelte";
   import Button from "./lib/ui/Button.svelte";
   import Notice from "./lib/ui/Notice.svelte";
-  import Sidebar from "./lib/ui/Sidebar.svelte";
+  import TabBar from "./lib/ui/TabBar.svelte";
   import Setup from "./components/Setup.svelte";
   import Summary from "./components/Summary.svelte";
 
@@ -61,8 +61,8 @@
   const section = $derived(
     queueScreens.includes(screen) ? "queue" : mirrorScreens.includes(screen) ? "mirror" : "copy",
   );
-  /** The sidebar shows on the sections' own screens; not while jobs run, nor on Settings. */
-  const showSidebar = $derived(
+  /** The tabs show on the sections' own screens; not while jobs run, nor on Settings. */
+  const showTabs = $derived(
     screen === "setup" || screen === "summary" || queueScreens.includes(screen) || mirrorScreens.includes(screen),
   );
   let mirrorPresets: MirrorPreset[] = $state([]);
@@ -95,7 +95,7 @@
   let openedJob: number | null = $state(null);
 
   function go(next: "copy" | "mirror" | "queue") {
-    if (!showSidebar) return;
+    if (!showTabs) return;
     screen = next === "queue" ? "queue" : next === "mirror" ? mirrorScreen : copyScreen;
   }
   /** Saved files that couldn't be read, shown once. */
@@ -360,9 +360,9 @@
   {/if}
 {/snippet}
 
-<div class="app" class:with-sidebar={showSidebar}>
-  {#if showSidebar}
-    <Sidebar
+<div class="app">
+  {#if showTabs}
+    <TabBar
       items={[
         { id: "copy", label: "Copy" },
         { id: "mirror", label: "Mirror" },
@@ -370,7 +370,9 @@
       ]}
       selected={section}
       onSelect={(id) => go(id as "copy" | "mirror" | "queue")}
-    />
+    >
+      {#snippet trailing()}<Button icon="settings" onclick={openSettings}>Settings</Button>{/snippet}
+    </TabBar>
   {/if}
   <div class="screen">
     {#if screen === "setup"}
@@ -387,7 +389,6 @@
         onProfiles={(p) => (profiles = p)}
         onManageProfiles={() => open("profiles")}
         onMode={saveMode}
-        onSettings={openSettings}
         onQueued={(q) => (queue = q)}
       />
     {:else if screen === "progress" && progress}
@@ -405,7 +406,7 @@
         />
       {/key}
     {:else if screen === "summary" && summary}
-      <Summary {summary} {banner} onRetry={retry} onNewCopy={newCopy} onSettings={openSettings} />
+      <Summary {summary} {banner} onRetry={retry} onNewCopy={newCopy} />
     {:else if screen === "settings"}
       <SettingsScreen {settings} onSettings={(s) => (settings = s)} onDone={() => (screen = back)} />
     {:else if screen === "profiles"}
@@ -427,7 +428,6 @@
           screen = "mirror-preview";
         }}
         onQueue={(q) => (queue = q)}
-        onSettings={openSettings}
       />
     {:else if screen === "mirror-preview" && mirrorPreview}
       <MirrorPreview
@@ -437,9 +437,9 @@
         onCancel={() => (screen = "mirror")}
       />
     {:else if screen === "mirror-summary" && mirrorSummary}
-      <Summary summary={mirrorSummary} {banner} onDone={() => (screen = "mirror")} onSettings={openSettings} />
+      <Summary summary={mirrorSummary} {banner} onDone={() => (screen = "mirror")} />
     {:else if screen === "queue"}
-      <QueueScreen {queue} {banner} onQueue={(q) => (queue = q)} onRun={runQueue} onSettings={openSettings} />
+      <QueueScreen {queue} {banner} onQueue={(q) => (queue = q)} onRun={runQueue} />
     {:else if screen === "queue-summary" && queueSummary}
       <QueueSummary
         summary={queueSummary}
@@ -461,12 +461,15 @@
 </div>
 
 <style>
-  .app.with-sidebar {
-    display: grid;
-    grid-template-columns: 180px minmax(0, 1fr);
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
   }
 
   .screen {
+    flex: 1;
+    min-height: 0;
     min-width: 0;
   }
 

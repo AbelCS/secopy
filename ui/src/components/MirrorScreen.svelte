@@ -19,7 +19,6 @@
     onPresets,
     onPreview,
     onQueue,
-    onSettings,
     banner,
   }: {
     presets: MirrorPreset[];
@@ -27,7 +26,6 @@
     /** Preview… worked out what the preset would do. */
     onPreview: (view: MirrorPreviewView) => void;
     onQueue: (queue: QueueView) => void;
-    onSettings?: () => void;
     /** App-wide messages, shown first. */
     banner?: Snippet;
   } = $props();
@@ -124,11 +122,7 @@
 
 <AppShell>
   {#snippet header()}
-    <ScreenHeader title="Mirror">
-      {#snippet trailing()}
-        {#if onSettings}<Button icon="settings" onclick={onSettings}>Settings</Button>{/if}
-      {/snippet}
-    </ScreenHeader>
+    <ScreenHeader title="Mirror" />
   {/snippet}
 
   {@render banner?.()}

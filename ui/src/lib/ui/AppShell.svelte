@@ -18,7 +18,7 @@
   .shell {
     display: grid;
     grid-template-rows: auto 1fr auto;
-    height: 100vh;
+    height: 100%;
   }
 
   .header {

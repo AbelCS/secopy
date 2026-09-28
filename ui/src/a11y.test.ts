@@ -34,7 +34,7 @@ describe("accessibility (axe-core)", () => {
 
   test("Summary", async () => {
     const { api } = fakeApi();
-    const props = { summary: summaryView(), onRetry: () => {}, onNewCopy: () => {}, onSettings: () => {} };
+    const props = { summary: summaryView(), onRetry: () => {}, onNewCopy: () => {} };
     const { container } = render(Summary, { props, context: apiContext(api) });
     expect(await violations(container)).toEqual([]);
   });
