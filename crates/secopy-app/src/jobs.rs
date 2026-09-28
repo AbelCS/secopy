@@ -598,9 +598,21 @@ impl Job {
         let fatal = ended.is_none().then(|| INTERNAL_ERROR.to_string());
         ended.get_or_insert(done);
         drop(ended);
-        let mut view = self.progress(&last, true, fatal);
-        view.files_done = count(finished);
-        sink.send(view);
+        let full = AssertUnwindSafe(|| {
+            let mut view = self.progress(&last, true, fatal.clone());
+            view.files_done = count(finished);
+            sink.send(view);
+        });
+        if std::panic::catch_unwind(full).is_err() {
+            // The same bug again: a Done view built from nothing it could have broken.
+            let bare = ProgressView {
+                phase: JobPhase::Done,
+                files_done: count(finished),
+                fatal,
+                ..ProgressView::default()
+            };
+            let _ = std::panic::catch_unwind(AssertUnwindSafe(|| sink.send(bare)));
+        }
     }
 
     fn run_check(&self, plan: &CheckPlan, sink: &impl ProgressSink, reports_dir: &Path) {
@@ -1675,6 +1687,39 @@ mod tests {
         assert_eq!(s.outcome, JobOutcome::Stopped);
         assert!(s.check.is_some(), "a check summary");
         assert!(!s.checksum_off);
+    }
+
+    /// #70: the ending after a panic panics too (the same bug); the window still gets its
+    /// Done view.
+    #[test]
+    fn a_second_panic_while_ending_still_sends_done() {
+        /// Panics on its first two views: the job's, then the ending's.
+        #[derive(Clone, Default)]
+        struct PanicsTwice(Collect, Arc<AtomicU32>);
+        impl ProgressSink for PanicsTwice {
+            fn send(&self, view: ProgressView) {
+                if self.1.fetch_add(1, Relaxed) < 2 {
+                    panic!("a bug");
+                }
+                self.0.send(view);
+            }
+        }
+        let f = fixture(3, 10);
+        let sink = PanicsTwice::default();
+        f.jobs
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                sink.clone(),
+            )
+            .unwrap();
+        f.jobs.wait();
+        let views = sink.0.0.lock().unwrap().clone();
+        let last = views.last().expect("a view after the panics");
+        assert_eq!(last.phase, JobPhase::Done);
+        assert_eq!(last.fatal.as_deref(), Some(INTERNAL_ERROR));
+        assert_eq!(f.jobs.summary().unwrap().outcome, JobOutcome::Stopped);
     }
 
     /// #69: a panic in the job's thread still ends the job, as stopped and saying why, so the
