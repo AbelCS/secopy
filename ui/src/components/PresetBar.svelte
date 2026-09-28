@@ -1,10 +1,10 @@
 <script lang="ts">
-  // FROM's source profile (FR-38): pick one, see when this run differs from it, and save
-  // the difference with Update profile or Save as new….
+  // FROM's copy preset (FR-38): pick one, see when this run differs from it, and save
+  // the difference with Update preset or Save as new….
   import { messageOf } from "../lib/format";
   import { tick } from "svelte";
   import { useApi } from "../lib/api";
-  import type { Profile, ProfilesView, SessionView } from "../lib/bindings";
+  import type { CopyPreset, CopyPresetsView, SessionView } from "../lib/bindings";
   import Button from "../lib/ui/Button.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import Select from "../lib/ui/Select.svelte";
@@ -12,19 +12,19 @@
 
   let {
     view,
-    profiles,
+    presets,
     busy,
     onSelect,
     onApplied,
     onManage,
   }: {
     view: SessionView;
-    profiles: Profile[];
+    presets: CopyPreset[];
     /** A scan is running: its result decides what Update / Save as new would save. */
     busy: boolean;
     onSelect: (id: string | null) => void;
-    /** After Update profile / Save as new…: the profiles and the new view. */
-    onApplied: (result: ProfilesView) => void;
+    /** After Update preset / Save as new…: the presets and the new view. */
+    onApplied: (result: CopyPresetsView) => void;
     onManage: () => void;
   } = $props();
 
@@ -34,23 +34,23 @@
   let savingAs = $state(false);
   let name = $state("");
 
-  const selected = $derived(profiles.find((p) => p.id === view.profileId) ?? null);
-  /** Profiles apply to folders only (spec B4). */
+  const selected = $derived(presets.find((p) => p.id === view.presetId) ?? null);
+  /** Presets apply to folders only (spec B4). */
   const forFiles = $derived(!!view.source && !view.source.isFolder);
   const canSaveAs = $derived(
-    !!view.source?.isFolder && !view.source.isRetry && (!selected || view.profileChanged),
+    !!view.source?.isFolder && !view.source.isRetry && (!selected || view.presetChanged),
   );
 
-  /** The profile and the source; a new scan of the same source (filters) doesn't change it. */
-  const context = $derived(`${view.profileId ?? ""}\n${view.source?.label ?? ""}`);
-  // Another profile or source: an old error or an open Save as new… no longer applies.
+  /** The preset and the source; a new scan of the same source (filters) doesn't change it. */
+  const context = $derived(`${view.presetId ?? ""}\n${view.source?.label ?? ""}`);
+  // Another preset or source: an old error or an open Save as new… no longer applies.
   $effect(() => {
     void context;
     error = null;
     savingAs = false;
   });
 
-  async function act(call: () => Promise<ProfilesView>) {
+  async function act(call: () => Promise<CopyPresetsView>) {
     try {
       onApplied(await call());
       error = null;
@@ -62,13 +62,13 @@
 
   const options = $derived([
     { value: "", label: "None" },
-    ...profiles.map((p) => ({ value: p.id, label: p.name })),
-    { value: MANAGE, label: "Manage profiles…" },
+    ...presets.map((p) => ({ value: p.id, label: p.name })),
+    { value: MANAGE, label: "Manage presets…" },
   ]);
 
   function choose(value: string, menu: HTMLSelectElement) {
     if (value === MANAGE) {
-      menu.value = view.profileId ?? "";
+      menu.value = view.presetId ?? "";
       onManage();
       return;
     }
@@ -92,20 +92,20 @@
 
   function saveAs(event: SubmitEvent) {
     event.preventDefault();
-    void act(() => api.saveProfileAs(name));
+    void act(() => api.saveCopyPresetAs(name));
   }
 </script>
 
-<div class="profile" bind:this={bar}>
-  {#if profiles.length > 0}
-    <Select label="Profile" hideLabel value={view.profileId ?? ""} {options} disabled={forFiles} onChange={choose} />
+<div class="preset" bind:this={bar}>
+  {#if presets.length > 0}
+    <Select label="Preset" hideLabel value={view.presetId ?? ""} {options} disabled={forFiles} onChange={choose} />
   {:else if !canSaveAs}
     <!-- Nothing to choose yet: a menu with only None would be noise. -->
-    <Button onclick={onManage}>Create a profile…</Button>
+    <Button onclick={onManage}>Create a preset…</Button>
   {/if}
-  {#if selected && view.profileChanged}
+  {#if selected && view.presetChanged}
     <span class="muted">Changed for this run</span>
-    <Button disabled={busy} onclick={() => act(() => api.updateProfile())}>Update profile</Button>
+    <Button disabled={busy} onclick={() => act(() => api.updateCopyPreset())}>Update preset</Button>
   {/if}
   {#if canSaveAs}
     <Button disabled={busy} onclick={openSaveAs} data-save-as>Save as new…</Button>
@@ -134,7 +134,7 @@
 {#if error}<Notice tone="danger">{error}</Notice>{/if}
 
 <style>
-  .profile {
+  .preset {
     display: flex;
     flex-wrap: wrap;
     align-items: center;

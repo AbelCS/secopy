@@ -7,7 +7,7 @@
   import { doing, finishingMessage, NOT_STARTED, stopMessage, type JobKind } from "./lib/stopping";
   import { notificationFor, queueNotification } from "./lib/summaryText";
   import type {
-    Profile,
+    CopyPreset,
     ProgressView,
     MirrorPreset,
     MirrorPreviewView,
@@ -18,7 +18,7 @@
     SummaryView,
   } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
-  import ProfilesScreen from "./components/ProfilesScreen.svelte";
+  import CopyPresetsScreen from "./components/CopyPresetsScreen.svelte";
   import QueueScreen from "./components/QueueScreen.svelte";
   import QueueSummary from "./components/QueueSummary.svelte";
   import MirrorPreview from "./components/MirrorPreview.svelte";
@@ -41,7 +41,7 @@
     | "progress"
     | "summary"
     | "settings"
-    | "profiles"
+    | "copy-presets"
     | "queue"
     | "queue-summary"
     | "queue-job"
@@ -51,7 +51,7 @@
     | "verify"
     | "verify-summary";
   let screen = $state<Screen>("setup");
-  /** Where Settings and Profiles go back to. */
+  /** Where Settings and Copy presets go back to. */
   let back: "setup" | "summary" | "queue" | "mirror" | "mirror-summary" | "verify" | "verify-summary" = "setup";
   let queue: QueueView = $state({ jobs: [], onFailure: "continue" });
   /** The Copy section's screen to return to: New copy, or the last summary. */
@@ -138,13 +138,13 @@
     destination: null,
     conflicts: "keepBoth",
     plan: null,
-    profileId: null,
-    profileChanged: false,
+    presetId: null,
+    presetChanged: false,
     pickProblem: null,
     stale: false,
   });
   let verify = $state(true);
-  let profiles: Profile[] = $state([]);
+  let copyPresets: CopyPreset[] = $state([]);
   let settings: Settings = $state({ writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true });
   let recent: string[] = $state([]);
   let progress: ProgressView | null = $state(null);
@@ -240,8 +240,8 @@
     else recent = (await run(() => api.recentDestinations())) ?? recent;
   }
 
-  /** Settings or Profiles, over a section's screen; never during a copy. */
-  function open(next: "settings" | "profiles") {
+  /** Settings or Copy presets, over a section's screen; never during a copy. */
+  function open(next: "settings" | "copy-presets") {
     const sections: Screen[] = ["setup", "summary", "queue", "mirror", "mirror-summary", "verify", "verify-summary"];
     if (!sections.includes(screen)) return;
     back = screen as typeof back;
@@ -378,14 +378,14 @@
       if (!start) return;
       view = start.session;
       settings = start.settings;
-      profiles = start.profiles;
+      copyPresets = start.copyPresets;
       verify = start.verify;
       recent = start.recentDestinations;
       warnings = start.warnings;
-      // The profile last used is loaded again when its source is there (FR-36).
-      if (start.lastProfile) {
-        const id = start.lastProfile;
-        void run(() => api.selectProfile(id)).then((next) => {
+      // The copy preset last used is loaded again when its source is there (FR-36).
+      if (start.lastPreset) {
+        const id = start.lastPreset;
+        void run(() => api.selectCopyPreset(id)).then((next) => {
           if (next) view = next;
         });
       }
@@ -462,13 +462,13 @@
         bind:ready={setupReady}
         bind:view
         bind:verify
-        {profiles}
+        presets={copyPresets}
         {settings}
         {recent}
         {banner}
         onStart={start}
-        onProfiles={(p) => (profiles = p)}
-        onManageProfiles={() => open("profiles")}
+        onPresets={(p) => (copyPresets = p)}
+        onManagePresets={() => open("copy-presets")}
         onMode={saveMode}
         onQueued={(q) => (queue = q)}
       />
@@ -491,10 +491,10 @@
       <Summary {summary} {banner} onRetry={retry} onNewCopy={newCopy} />
     {:else if screen === "settings"}
       <SettingsScreen {settings} onSettings={(s) => (settings = s)} onDone={() => (screen = back)} />
-    {:else if screen === "profiles"}
-      <ProfilesScreen
-        {profiles}
-        onProfiles={(p) => (profiles = p)}
+    {:else if screen === "copy-presets"}
+      <CopyPresetsScreen
+        presets={copyPresets}
+        onPresets={(p) => (copyPresets = p)}
         onView={(v) => (view = v)}
         onDone={() => (screen = back)}
       />

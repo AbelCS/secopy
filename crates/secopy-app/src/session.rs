@@ -16,7 +16,7 @@ use crate::dto::{
     ConflictPolicy, DestinationView, ExtensionKey, ExtensionView, FileProblemView, PlanView,
     SessionView, SourceView, count, sentence, show,
 };
-use crate::store::Profile;
+use crate::store::CopyPreset;
 
 /// Where macOS mounts drives.
 const VOLUMES: &str = "/Volumes";
@@ -35,9 +35,9 @@ pub struct Session {
     /// The file types the pending scan starts with.
     next_filter: ExtensionFilter,
     /// What the user picked: a drop or Choose…. The source is this plus the
-    /// profile's folder (spec B3).
+    /// preset's folder (spec B3).
     picked: Option<Vec<PathBuf>>,
-    profile: Option<Profile>,
+    preset: Option<CopyPreset>,
     /// "Include the folder" for this run (FR-4).
     include_folder: bool,
     /// Why the pick has no source.
@@ -58,7 +58,7 @@ impl Default for Session {
             source_generation: 0,
             next_filter: ExtensionFilter::All,
             picked: None,
-            profile: None,
+            preset: None,
             include_folder: true,
             pick_problem: None,
             source: None,
@@ -78,8 +78,8 @@ pub enum Change {
     Pick(Vec<PathBuf>),
     /// The "Include the folder" checkbox; keeps this run's file types.
     IncludeFolder(bool),
-    /// A profile selected, or `None`.
-    Profile(Option<Profile>),
+    /// A copy preset selected, or `None`.
+    CopyPreset(Option<CopyPreset>),
 }
 
 /// A scan to run without the session locked, then hand to [`Session::finish_scan`].
@@ -142,7 +142,7 @@ impl Session {
     }
 
     /// Applies `change` and returns the scan it needs, or the view when there is nothing to
-    /// scan: nothing picked yet, or the pick can't be used (the profile's folder is missing,
+    /// scan: nothing picked yet, or the pick can't be used (the preset's folder is missing,
     /// a folder and files together).
     pub fn begin(&mut self, change: Change) -> Result<PendingScan, Box<SessionView>> {
         let keep_filter = matches!(change, Change::IncludeFolder(_));
@@ -155,18 +155,18 @@ impl Session {
         match change {
             Change::Pick(paths) => {
                 self.picked = Some(paths);
-                self.include_folder = self.profile.as_ref().is_none_or(|p| p.include_folder);
+                self.include_folder = self.preset.as_ref().is_none_or(|p| p.include_folder);
             }
             Change::IncludeFolder(include) => self.include_folder = include,
-            Change::Profile(profile) => {
-                if let Some(p) = &profile {
+            Change::CopyPreset(preset) => {
+                if let Some(p) = &preset {
                     self.include_folder = p.include_folder;
-                    // Choosing a profile loads its source (one without keeps what's picked).
+                    // Choosing a preset loads its source (one without keeps what's picked).
                     if !p.source.is_empty() {
                         self.picked = Some(vec![PathBuf::from(&p.source)]);
                     }
                 }
-                self.profile = profile;
+                self.preset = preset;
             }
         }
         self.generation += 1;
@@ -179,7 +179,7 @@ impl Session {
                 let filter = if keep_filter {
                     kept
                 } else {
-                    self.profile_filter(&source)
+                    self.preset_filter(&source)
                 };
                 self.next_filter = filter.clone();
                 Ok(PendingScan {
@@ -232,7 +232,7 @@ impl Session {
         self.recompute();
     }
 
-    /// The source for `paths`: one folder, otherwise files. A profile's source that is
+    /// The source for `paths`: one folder, otherwise files. A preset's source that is
     /// gone (its card isn't inserted) says so instead.
     fn resolve(&self, paths: &[PathBuf]) -> Result<Source, String> {
         if let [one] = paths
@@ -243,11 +243,11 @@ impl Session {
         Self::source_for(paths, !self.include_folder)
     }
 
-    /// The filter a new pick or profile starts with: the profile's file types for a folder.
-    fn profile_filter(&self, source: &Source) -> ExtensionFilter {
-        match (&self.profile, source) {
+    /// The filter a new pick or preset starts with: the preset's file types for a folder.
+    fn preset_filter(&self, source: &Source) -> ExtensionFilter {
+        match (&self.preset, source) {
             (
-                Some(Profile {
+                Some(CopyPreset {
                     extensions: Some(keys),
                     ..
                 }),
@@ -257,8 +257,8 @@ impl Session {
         }
     }
 
-    pub fn profile(&self) -> Option<&Profile> {
-        self.profile.as_ref()
+    pub fn preset(&self) -> Option<&CopyPreset> {
+        self.preset.as_ref()
     }
 
     pub fn destination(&self) -> Option<&Path> {
@@ -282,9 +282,9 @@ impl Session {
         self.generation != self.source_generation
     }
 
-    /// Whether this run's choices differ from the selected profile's.
-    fn profile_changed(&self) -> bool {
-        let (Some(profile), Some(picked)) = (&self.profile, &self.source) else {
+    /// Whether this run's choices differ from the selected preset's.
+    fn preset_changed(&self) -> bool {
+        let (Some(preset), Some(picked)) = (&self.preset, &self.source) else {
             return false;
         };
         if picked.is_retry || !matches!(picked.source, Source::Directory { .. }) {
@@ -292,29 +292,29 @@ impl Session {
         }
         !self
             .picked_source()
-            .is_some_and(|picked| same_dir(Path::new(&picked), Path::new(&profile.source)))
-            || profile.include_folder != self.include_folder
+            .is_some_and(|picked| same_dir(Path::new(&picked), Path::new(&preset.source)))
+            || preset.include_folder != self.include_folder
             || picked
                 .scan
                 .ext_stats
                 .keys()
-                .any(|key| profile.selects(key) != self.filter.matches(key))
+                .any(|key| preset.selects(key) != self.filter.matches(key))
     }
 
-    /// The selected profile with this run's choices (Update profile). File types the profile
+    /// The selected preset with this run's choices (Update preset). File types the preset
     /// lists that aren't on this card are kept.
-    pub fn updated_profile(&self) -> Option<Profile> {
+    pub fn updated_preset(&self) -> Option<CopyPreset> {
         if self.scan_pending() {
             return None;
         }
-        let profile = self.profile.as_ref()?;
+        let preset = self.preset.as_ref()?;
         let picked = self.source.as_ref()?;
         let present: Vec<&ExtensionKey> = picked.scan.ext_stats.keys().collect();
         let extensions =
-            if profile.extensions.is_none() && present.iter().all(|k| self.filter.matches(k)) {
+            if preset.extensions.is_none() && present.iter().all(|k| self.filter.matches(k)) {
                 None
             } else {
-                let mut keys: BTreeSet<ExtensionKey> = profile
+                let mut keys: BTreeSet<ExtensionKey> = preset
                     .extensions
                     .clone()
                     .unwrap_or_default()
@@ -329,19 +329,19 @@ impl Session {
                 );
                 Some(keys.into_iter().collect())
             };
-        Some(Profile {
+        Some(CopyPreset {
             source: self
                 .picked_source()
-                .unwrap_or_else(|| profile.source.clone()),
+                .unwrap_or_else(|| preset.source.clone()),
             include_folder: self.include_folder,
             extensions,
-            ..profile.clone()
+            ..preset.clone()
         })
     }
 
-    /// The selected profile was saved (Update profile, or edited in Settings).
-    pub fn profile_saved(&mut self, profile: Profile) -> SessionView {
-        self.profile = Some(profile);
+    /// The selected preset was saved (Update preset, or edited in Copy presets).
+    pub fn preset_saved(&mut self, preset: CopyPreset) -> SessionView {
+        self.preset = Some(preset);
         self.view()
     }
 
@@ -366,7 +366,7 @@ impl Session {
         })
     }
 
-    /// The picked directory, which a profile saves as its source; `None` for files.
+    /// The picked directory, which a preset saves as its source; `None` for files.
     pub fn picked_source(&self) -> Option<String> {
         match self.picked.as_deref() {
             Some([one]) if one.is_dir() => Some(show(one)),
@@ -479,8 +479,8 @@ impl Session {
             conflicts: self.policy,
             plan: self.plan.as_ref().map(plan_view),
             stale: false,
-            profile_id: self.profile.as_ref().map(|p| p.id.clone()),
-            profile_changed: self.profile_changed(),
+            preset_id: self.preset.as_ref().map(|p| p.id.clone()),
+            preset_changed: self.preset_changed(),
             pick_problem: self.pick_problem.clone(),
         }
     }
@@ -721,7 +721,7 @@ mod tests {
         }
     }
 
-    use crate::store::Profile;
+    use crate::store::CopyPreset;
 
     /// Applies `change` and runs its scan, like the commands do.
     fn apply(session: &mut Session, change: Change) -> SessionView {
@@ -743,9 +743,9 @@ mod tests {
         }
     }
 
-    /// A profile loading `source` (empty: whatever is picked).
-    fn profile(source: &Path, extensions: Option<&[&str]>) -> Profile {
-        Profile {
+    /// A preset loading `source` (empty: whatever is picked).
+    fn preset(source: &Path, extensions: Option<&[&str]>) -> CopyPreset {
+        CopyPreset {
             id: "fx3".into(),
             name: "Sony FX3".into(),
             source: show(source),
@@ -769,32 +769,32 @@ mod tests {
     }
 
     #[test]
-    fn choosing_a_profile_loads_its_source_and_settings() {
+    fn choosing_a_preset_loads_its_source_and_settings() {
         let f = fixture();
         let clip = card(&f);
         let mut s = Session::new();
-        let view = apply(&mut s, Change::Profile(Some(profile(&clip, None))));
+        let view = apply(&mut s, Change::CopyPreset(Some(preset(&clip, None))));
         let src = view.source.unwrap();
         assert_eq!(src.label, show(&clip));
         assert_eq!(src.root_dir.as_deref(), Some("CLIP"));
         assert_eq!(src.files, 3);
-        assert_eq!(view.profile_id.as_deref(), Some("fx3"));
-        assert!(!view.profile_changed && view.pick_problem.is_none());
+        assert_eq!(view.preset_id.as_deref(), Some("fx3"));
+        assert!(!view.preset_changed && view.pick_problem.is_none());
     }
 
     #[test]
-    fn a_profile_whose_source_is_gone_says_so_and_has_no_source() {
+    fn a_preset_whose_source_is_gone_says_so_and_has_no_source() {
         let f = fixture();
         let mut s = Session::new();
         let gone = f.card.parent().unwrap().join("gone");
-        let view = apply(&mut s, Change::Profile(Some(profile(&gone, None))));
+        let view = apply(&mut s, Change::CopyPreset(Some(preset(&gone, None))));
         assert!(view.source.is_none());
         assert_eq!(
             view.pick_problem,
             Some(format!("{} isn't there any more.", show(&gone)))
         );
         let card = Path::new("/Volumes/SECOPY_NO_SUCH_CARD/DCIM");
-        let view = apply(&mut s, Change::Profile(Some(profile(card, None))));
+        let view = apply(&mut s, Change::CopyPreset(Some(preset(card, None))));
         assert_eq!(
             view.pick_problem.as_deref(),
             Some("SECOPY_NO_SUCH_CARD isn't connected.")
@@ -804,13 +804,13 @@ mod tests {
     }
 
     #[test]
-    fn the_profile_file_types_become_the_filter() {
+    fn the_preset_file_types_become_the_filter() {
         let f = fixture();
         let clip = card(&f);
         let mut s = Session::new();
         let view = apply(
             &mut s,
-            Change::Profile(Some(profile(&clip, Some(&["mp4", "wav"])))),
+            Change::CopyPreset(Some(preset(&clip, Some(&["mp4", "wav"])))),
         );
         assert_eq!(view.selected_files, 2, "the two .mp4 files");
         assert_eq!(
@@ -818,7 +818,7 @@ mod tests {
             Some(vec![Some("mp4".into())]),
             "only the types on this card are shown as selected"
         );
-        assert!(!view.profile_changed);
+        assert!(!view.preset_changed);
     }
 
     #[test]
@@ -828,48 +828,51 @@ mod tests {
         let mut s = Session::new();
         apply(
             &mut s,
-            Change::Profile(Some(profile(&clip, Some(&["mp4"])))),
+            Change::CopyPreset(Some(preset(&clip, Some(&["mp4"])))),
         );
         assert!(
             s.set_filter(Some(vec![Some("mp4".into()), Some("xml".into())]))
-                .profile_changed
+                .preset_changed
         );
-        assert!(!s.set_filter(Some(vec![Some("mp4".into())])).profile_changed);
-        assert!(apply(&mut s, Change::IncludeFolder(false)).profile_changed);
+        assert!(!s.set_filter(Some(vec![Some("mp4".into())])).preset_changed);
+        assert!(apply(&mut s, Change::IncludeFolder(false)).preset_changed);
         apply(&mut s, Change::IncludeFolder(true));
         let view = apply(&mut s, Change::Pick(vec![f.card.clone()]));
-        assert!(view.profile_changed, "another source");
-        assert_eq!(s.updated_profile().unwrap().source, show(&f.card));
+        assert!(view.preset_changed, "another source");
+        assert_eq!(s.updated_preset().unwrap().source, show(&f.card));
     }
 
-    /// #69: the profile's directory picked in other letter case is the same directory on a
+    /// #69: the preset's directory picked in other letter case is the same directory on a
     /// case-insensitive drive, not "Changed for this run".
     #[test]
     fn the_same_directory_in_other_letter_case_isnt_a_change() {
         let f = fixture();
         let clip = card(&f);
         let mut s = Session::new();
-        apply(&mut s, Change::Profile(Some(profile(&clip, None))));
+        apply(&mut s, Change::CopyPreset(Some(preset(&clip, None))));
         let other_case = clip.with_file_name("clip");
         if !other_case.is_dir() {
             return; // a case-sensitive drive: that is another directory
         }
         let view = apply(&mut s, Change::Pick(vec![other_case]));
         assert!(view.source.is_some());
-        assert!(!view.profile_changed);
+        assert!(!view.preset_changed);
     }
 
     #[test]
-    fn a_profile_without_a_source_gets_one_with_update() {
+    fn a_preset_without_a_source_gets_one_with_update() {
         let f = fixture();
         let mut s = Session::new();
-        let view = apply(&mut s, Change::Profile(Some(profile(Path::new(""), None))));
+        let view = apply(
+            &mut s,
+            Change::CopyPreset(Some(preset(Path::new(""), None))),
+        );
         assert!(view.source.is_none() && view.pick_problem.is_none());
         let view = apply(&mut s, Change::Pick(vec![f.card.clone()]));
-        assert!(view.profile_changed);
-        let updated = s.updated_profile().unwrap();
+        assert!(view.preset_changed);
+        let updated = s.updated_preset().unwrap();
         assert_eq!(updated.source, show(&f.card));
-        assert!(!s.profile_saved(updated).profile_changed);
+        assert!(!s.preset_saved(updated).preset_changed);
     }
 
     #[test]
@@ -890,42 +893,42 @@ mod tests {
         let mut s = Session::new();
         apply(
             &mut s,
-            Change::Profile(Some(profile(&clip, Some(&["mp4", "wav"])))),
+            Change::CopyPreset(Some(preset(&clip, Some(&["mp4", "wav"])))),
         );
         s.set_filter(Some(vec![Some("xml".into())]));
-        let updated = s.updated_profile().unwrap();
+        let updated = s.updated_preset().unwrap();
         assert_eq!(
             updated.extensions,
             Some(vec![Some("wav".into()), Some("xml".into())]),
             ".wav isn't on this card, so it stays; .mp4 was turned off, .xml on"
         );
-        let view = s.profile_saved(updated);
-        assert!(!view.profile_changed);
+        let view = s.preset_saved(updated);
+        assert!(!view.preset_changed);
     }
 
     #[test]
-    fn an_all_types_profile_stays_all_when_nothing_is_turned_off() {
+    fn an_all_types_preset_stays_all_when_nothing_is_turned_off() {
         let f = fixture();
         let clip = card(&f);
         let mut s = Session::new();
-        apply(&mut s, Change::Profile(Some(profile(&clip, None))));
+        apply(&mut s, Change::CopyPreset(Some(preset(&clip, None))));
         apply(&mut s, Change::IncludeFolder(false));
-        let updated = s.updated_profile().unwrap();
+        let updated = s.updated_preset().unwrap();
         assert_eq!((updated.include_folder, updated.extensions), (false, None));
         s.set_filter(Some(vec![Some("mp4".into())]));
         assert_eq!(
-            s.updated_profile().unwrap().extensions,
+            s.updated_preset().unwrap().extensions,
             Some(vec![Some("mp4".into())])
         );
     }
 
     #[test]
-    fn a_files_pick_ignores_the_profile() {
+    fn a_files_pick_ignores_the_preset() {
         let f = fixture();
         let mut s = Session::new();
         apply(
             &mut s,
-            Change::Profile(Some(profile(Path::new(""), Some(&["mp4"])))),
+            Change::CopyPreset(Some(preset(Path::new(""), Some(&["mp4"])))),
         );
         let view = apply(
             &mut s,
@@ -934,7 +937,7 @@ mod tests {
         let src = view.source.unwrap();
         assert!(!src.is_folder);
         assert_eq!(view.selected_files, 2);
-        assert!(!view.profile_changed);
+        assert!(!view.preset_changed);
     }
 
     #[test]
@@ -944,18 +947,18 @@ mod tests {
         let mut s = Session::new();
         apply(
             &mut s,
-            Change::Profile(Some(profile(&clip, Some(&["mp4"])))),
+            Change::CopyPreset(Some(preset(&clip, Some(&["mp4"])))),
         );
         s.set_filter(Some(vec![Some("xml".into())]));
-        assert!(s.updated_profile().is_some() && s.choices().is_some());
-        let mut photos = profile(&f.card, Some(&["jpg"]));
+        assert!(s.updated_preset().is_some() && s.choices().is_some());
+        let mut photos = preset(&f.card, Some(&["jpg"]));
         photos.id = "photos".into();
-        let pending = s.begin(Change::Profile(Some(photos))).ok();
+        let pending = s.begin(Change::CopyPreset(Some(photos))).ok();
         assert!(s.scan_pending());
         assert_eq!(
-            s.updated_profile(),
+            s.updated_preset(),
             None,
-            "the choices belong to the old profile's scan"
+            "the choices belong to the old preset's scan"
         );
         assert_eq!(s.choices(), None);
         drop(pending);

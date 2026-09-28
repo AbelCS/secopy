@@ -8,7 +8,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::store::{Profile, Settings};
+use crate::store::{CopyPreset, Settings};
 
 /// Everything the main window shows. Every session command returns the whole view, so the
 /// UI never has to combine partial answers.
@@ -23,10 +23,10 @@ pub struct SessionView {
     pub destination: Option<DestinationView>,
     pub conflicts: ConflictPolicy,
     pub plan: Option<PlanView>,
-    /// The selected source profile's id (FR-38).
-    pub profile_id: Option<String>,
-    /// This run's choices differ from the profile's: offer Update profile / Save as new….
-    pub profile_changed: bool,
+    /// The selected copy preset's id (FR-38).
+    pub preset_id: Option<String>,
+    /// This run's choices differ from the preset's: offer Update preset / Save as new….
+    pub preset_changed: bool,
     /// Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP".
     pub pick_problem: Option<String>,
     /// A newer scan replaced this one while it ran (FR-3); the UI keeps its current view.
@@ -364,22 +364,22 @@ pub fn count(n: impl TryInto<u32>) -> u32 {
 pub struct StartView {
     pub session: SessionView,
     pub settings: Settings,
-    pub profiles: Vec<Profile>,
+    pub copy_presets: Vec<CopyPreset>,
     /// Copy & Verify (true) or Copy, as last used (FR-36).
     pub verify: bool,
     /// Recent destinations that still exist, most recent first.
     pub recent_destinations: Vec<String>,
     /// Saved files that couldn't be read; shown once.
     pub warnings: Vec<String>,
-    /// The profile last used, when its source is there: the window loads it again (FR-36).
-    pub last_profile: Option<String>,
+    /// The copy preset last used, when its source is there: the window loads it again (FR-36).
+    pub last_preset: Option<String>,
 }
 
-/// After a profile change: the profiles and what FROM shows now.
+/// After a copy preset change: the presets and what FROM shows now.
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ProfilesView {
-    pub profiles: Vec<Profile>,
+pub struct CopyPresetsView {
+    pub presets: Vec<CopyPreset>,
     pub session: SessionView,
 }
 

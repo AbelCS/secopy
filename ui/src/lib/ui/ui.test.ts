@@ -91,19 +91,19 @@ describe("design system", () => {
   });
 
   test("TextField: a visible label, and an error tied to the field", () => {
-    render(TextField, { props: { label: "Name", value: "FX3", error: "The profile needs a name." } });
+    render(TextField, { props: { label: "Name", value: "FX3", error: "The preset needs a name." } });
     const input = screen.getByLabelText("Name");
     expect(input).toHaveProperty("value", "FX3");
     const error = screen.getByRole("alert");
-    expect(error.textContent).toBe("The profile needs a name.");
+    expect(error.textContent).toBe("The preset needs a name.");
     expect(input.getAttribute("aria-describedby")).toBe(error.id);
     expect(input.getAttribute("aria-invalid")).toBe("true");
   });
 
   test("Select: a labelled menu", async () => {
     const onChange = vi.fn();
-    render(Select, { props: { label: "Profile", value: "", options: [{ value: "", label: "None" }, { value: "fx3", label: "Sony FX3" }], onChange } });
-    await fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "fx3" } });
+    render(Select, { props: { label: "Preset", value: "", options: [{ value: "", label: "None" }, { value: "fx3", label: "Sony FX3" }], onChange } });
+    await fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "fx3" } });
     expect(onChange).toHaveBeenCalledWith("fx3", expect.anything());
   });
 
@@ -145,10 +145,10 @@ describe("design system", () => {
   });
 
   test("Select: its label can be hidden when a row already names it", () => {
-    render(Select, { props: { label: "Profile", hideLabel: true, value: "", options: [{ value: "", label: "None" }], onChange: () => {} } });
-    const label = screen.getByText("Profile");
+    render(Select, { props: { label: "Preset", hideLabel: true, value: "", options: [{ value: "", label: "None" }], onChange: () => {} } });
+    const label = screen.getByText("Preset");
     expect(label.className).toContain("visually-hidden");
-    screen.getByLabelText("Profile");
+    screen.getByLabelText("Preset");
   });
 
   test("ScreenHeader takes focus, so a new screen is announced by its title", () => {

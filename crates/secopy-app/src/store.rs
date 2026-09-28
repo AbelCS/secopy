@@ -1,4 +1,4 @@
-//! What the app keeps between launches (plan 3b-1): settings, source profiles and remembered
+//! What the app keeps between launches (plan 3b-1): settings, copy presets and remembered
 //! state, as small versioned JSON files in the app's data folder.
 
 use std::collections::BTreeSet;
@@ -17,7 +17,8 @@ use crate::dto::ExtensionKey;
 
 const VERSION: u32 = 1;
 pub const SETTINGS: &str = "settings.json";
-pub const PROFILES: &str = "profiles.json";
+/// Copy presets. Their file kept its name from when they were called profiles (#72).
+pub const COPY_PRESETS: &str = "profiles.json";
 pub const REMEMBERED: &str = "state.json";
 /// Recent destinations kept (spec B7).
 pub const RECENT: usize = 5;
@@ -78,8 +79,8 @@ impl Default for Settings {
 /// A saved copy setup for FROM (FR-38): choosing it loads its source and settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct Profile {
-    /// Stays the same when the profile is renamed.
+pub struct CopyPreset {
+    /// Stays the same when the preset is renamed.
     pub id: String,
     pub name: String,
     /// The directory it loads, as a full path; empty until one is saved into it.
@@ -90,8 +91,8 @@ pub struct Profile {
     pub extensions: Option<Vec<ExtensionKey>>,
 }
 
-impl Profile {
-    /// Whether the profile copies files of type `key`.
+impl CopyPreset {
+    /// Whether the preset copies files of type `key`.
     pub fn selects(&self, key: &ExtensionKey) -> bool {
         self.extensions
             .as_ref()
@@ -99,11 +100,11 @@ impl Profile {
     }
 }
 
-/// `profiles.json` as read. Profiles saved before 0.6 kept a path on the card (`folder`)
-/// instead of a source; they load with no source.
+/// A copy preset in `profiles.json` as read. Presets saved before 0.6 kept a path on the card
+/// (`folder`) instead of a source; they load with no source.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ProfileOnDisk {
+struct CopyPresetOnDisk {
     id: String,
     name: String,
     #[serde(default)]
@@ -112,9 +113,9 @@ struct ProfileOnDisk {
     extensions: Option<Vec<ExtensionKey>>,
 }
 
-impl<'de> Deserialize<'de> for Profile {
+impl<'de> Deserialize<'de> for CopyPreset {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let p = ProfileOnDisk::deserialize(d)?;
+        let p = CopyPresetOnDisk::deserialize(d)?;
         Ok(Self {
             id: p.id,
             name: p.name,
@@ -125,10 +126,10 @@ impl<'de> Deserialize<'de> for Profile {
     }
 }
 
-/// A profile as typed in a form (Save as new…, the Profiles screen).
+/// A copy preset as typed in a form (Save as new…, the Copy presets screen).
 #[derive(Debug, Clone, PartialEq, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ProfileInput {
+pub struct CopyPresetInput {
     pub name: String,
     /// A full path, or empty.
     pub source: String,
@@ -138,8 +139,10 @@ pub struct ProfileInput {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
-pub struct Profiles {
-    pub profiles: Vec<Profile>,
+pub struct CopyPresets {
+    /// Saved under the key they had as profiles (#72).
+    #[serde(rename = "profiles")]
+    pub presets: Vec<CopyPreset>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -155,7 +158,9 @@ pub struct Remembered {
     /// Copy & Verify (true) or Copy.
     pub verify: bool,
     pub window: Option<WindowSize>,
-    pub last_profile: Option<String>,
+    /// The copy preset last used; saved under its name from when presets were profiles (#72).
+    #[serde(rename = "lastProfile")]
+    pub last_preset: Option<String>,
     /// The last destinations a job started with, most recent first (B7).
     pub recent_destinations: Vec<String>,
 }
@@ -165,7 +170,7 @@ impl Default for Remembered {
         Self {
             verify: true,
             window: None,
-            last_profile: None,
+            last_preset: None,
             recent_destinations: Vec::new(),
         }
     }
@@ -180,64 +185,68 @@ impl Remembered {
     }
 }
 
-impl Profiles {
-    pub fn get(&self, id: &str) -> Option<&Profile> {
-        self.profiles.iter().find(|p| p.id == id)
+impl CopyPresets {
+    pub fn get(&self, id: &str) -> Option<&CopyPreset> {
+        self.presets.iter().find(|p| p.id == id)
     }
 
-    pub fn add(&mut self, input: ProfileInput) -> Result<Profile, String> {
+    pub fn add(&mut self, input: CopyPresetInput) -> Result<CopyPreset, String> {
         let input = self.check(input, None)?;
-        let profile = Profile {
+        let preset = CopyPreset {
             id: self.new_id(),
             name: input.name,
             source: input.source,
             include_folder: input.include_folder,
             extensions: input.extensions,
         };
-        self.profiles.push(profile.clone());
-        Ok(profile)
+        self.presets.push(preset.clone());
+        Ok(preset)
     }
 
-    pub fn edit(&mut self, id: &str, input: ProfileInput) -> Result<Profile, String> {
+    pub fn edit(&mut self, id: &str, input: CopyPresetInput) -> Result<CopyPreset, String> {
         let input = self.check(input, Some(id))?;
-        let profile = self
-            .profiles
+        let preset = self
+            .presets
             .iter_mut()
             .find(|p| p.id == id)
-            .ok_or("That profile no longer exists.")?;
-        profile.name = input.name;
-        profile.source = input.source;
-        profile.include_folder = input.include_folder;
-        profile.extensions = input.extensions;
-        Ok(profile.clone())
+            .ok_or("That preset no longer exists.")?;
+        preset.name = input.name;
+        preset.source = input.source;
+        preset.include_folder = input.include_folder;
+        preset.extensions = input.extensions;
+        Ok(preset.clone())
     }
 
-    /// Stores `profile` over the one with its id (Update profile).
-    pub fn replace(&mut self, profile: Profile) {
-        if let Some(old) = self.profiles.iter_mut().find(|p| p.id == profile.id) {
-            *old = profile;
+    /// Stores `preset` over the one with its id (Update preset).
+    pub fn replace(&mut self, preset: CopyPreset) {
+        if let Some(old) = self.presets.iter_mut().find(|p| p.id == preset.id) {
+            *old = preset;
         }
     }
 
     pub fn delete(&mut self, id: &str) -> bool {
-        let before = self.profiles.len();
-        self.profiles.retain(|p| p.id != id);
-        self.profiles.len() < before
+        let before = self.presets.len();
+        self.presets.retain(|p| p.id != id);
+        self.presets.len() < before
     }
 
-    /// Validates and normalizes `input`; `editing` is the id of the profile being edited.
-    fn check(&self, input: ProfileInput, editing: Option<&str>) -> Result<ProfileInput, String> {
+    /// Validates and normalizes `input`; `editing` is the id of the preset being edited.
+    fn check(
+        &self,
+        input: CopyPresetInput,
+        editing: Option<&str>,
+    ) -> Result<CopyPresetInput, String> {
         let name = input.name.trim().to_string();
         if name.is_empty() {
-            return Err("The profile needs a name.".into());
+            return Err("The preset needs a name.".into());
         }
-        let taken = self.profiles.iter().any(|p| {
+        let taken = self.presets.iter().any(|p| {
             Some(p.id.as_str()) != editing && p.name.to_lowercase() == name.to_lowercase()
         });
         if taken {
-            return Err(format!("There is already a profile called “{name}”."));
+            return Err(format!("There is already a preset called “{name}”."));
         }
-        Ok(ProfileInput {
+        Ok(CopyPresetInput {
             name,
             source: source(&input.source)?,
             include_folder: input.include_folder,
@@ -249,34 +258,34 @@ impl Profiles {
         new_id(|id| self.get(id).is_some())
     }
 
-    /// Profiles read from `profiles.json`, put right the way new ones are (#69): names
+    /// Presets read from `profiles.json`, put right the way new ones are (#69): names
     /// trimmed, file types in lowercase without dots, sources as full paths. One with no name,
     /// or whose name or id another has, gets a free one instead of being dropped; the changes
     /// the user would notice come back as messages.
     pub fn repaired(self) -> (Self, Vec<String>) {
-        let loaded_ids: Vec<String> = self.profiles.iter().map(|p| p.id.clone()).collect();
+        let loaded_ids: Vec<String> = self.presets.iter().map(|p| p.id.clone()).collect();
         let mut out = Self::default();
         let mut notes = Vec::new();
-        for p in self.profiles {
+        for p in self.presets {
             let trimmed = p.name.trim();
             let wanted = if trimmed.is_empty() {
-                "Unnamed profile"
+                "Unnamed preset"
             } else {
                 trimmed
             };
             let name = out.free_name(wanted);
             if trimmed.is_empty() {
                 notes.push(format!(
-                    "A profile in {PROFILES} had no name; it is now “{name}”."
+                    "A copy preset in {COPY_PRESETS} had no name; it is now “{name}”."
                 ));
             } else if name != wanted {
                 notes.push(format!(
-                    "Two profiles in {PROFILES} were called “{wanted}”; the second is now “{name}”."
+                    "Two copy presets in {COPY_PRESETS} were called “{wanted}”; the second is now “{name}”."
                 ));
             }
             let source = source(&p.source).unwrap_or_else(|_| {
                 notes.push(format!(
-                    "The profile “{name}” had a source that isn't a full path ({}); choose its directory again.",
+                    "The copy preset “{name}” had a source that isn't a full path ({}); choose its directory again.",
                     p.source.trim()
                 ));
                 String::new()
@@ -286,7 +295,7 @@ impl Profiles {
             } else {
                 p.id
             };
-            out.profiles.push(Profile {
+            out.presets.push(CopyPreset {
                 id,
                 name,
                 source,
@@ -297,10 +306,10 @@ impl Profiles {
         (out, notes)
     }
 
-    /// `name`, or else `name (2)`, `name (3)`…: the first no profile has, in any letter case.
+    /// `name`, or else `name (2)`, `name (3)`…: the first no preset has, in any letter case.
     fn free_name(&self, name: &str) -> String {
         let taken = |n: &str| {
-            self.profiles
+            self.presets
                 .iter()
                 .any(|p| p.name.to_lowercase() == n.to_lowercase())
         };
@@ -314,7 +323,7 @@ impl Profiles {
     }
 }
 
-/// A profile's file types: lowercase, without leading dots, sorted and without duplicates.
+/// A copy preset's file types: lowercase, without leading dots, sorted and without duplicates.
 fn extensions(keys: Option<Vec<ExtensionKey>>) -> Option<Vec<ExtensionKey>> {
     keys.map(|keys| {
         let keys: BTreeSet<ExtensionKey> = keys
@@ -492,7 +501,7 @@ fn full_path(text: &str, what: &str, example: &str) -> Result<String, String> {
     Ok(if trimmed.is_empty() { "/" } else { trimmed }.to_string())
 }
 
-/// A profile's source, normalized: a full path without a trailing `/`, or empty.
+/// A copy preset's source, normalized: a full path without a trailing `/`, or empty.
 fn source(text: &str) -> Result<String, String> {
     let text = text.trim();
     if text.is_empty() {
@@ -601,8 +610,8 @@ impl Store {
 mod tests {
     use super::*;
 
-    fn input(name: &str, source: &str) -> ProfileInput {
-        ProfileInput {
+    fn input(name: &str, source: &str) -> CopyPresetInput {
+        CopyPresetInput {
             name: name.into(),
             source: source.into(),
             include_folder: true,
@@ -623,7 +632,7 @@ mod tests {
             (Settings::default(), None)
         );
         assert!(store.load::<Remembered>(REMEMBERED).0.verify);
-        assert!(store.load::<Profiles>(PROFILES).0.profiles.is_empty());
+        assert!(store.load::<CopyPresets>(COPY_PRESETS).0.presets.is_empty());
     }
 
     #[test]
@@ -638,12 +647,12 @@ mod tests {
         assert_eq!(store.load::<Settings>(SETTINGS), (settings, None));
         let text = fs::read_to_string(dir.path().join("data").join(SETTINGS)).unwrap();
         assert!(text.contains("\"version\": 1") && text.contains("\"writeChecksumFile\": false"));
-        let mut profiles = Profiles::default();
-        profiles
+        let mut presets = CopyPresets::default();
+        presets
             .add(input("Sony FX3", "/Volumes/CARD/PRIVATE/M4ROOT/CLIP"))
             .unwrap();
-        store.save(PROFILES, &profiles).unwrap();
-        assert_eq!(store.load::<Profiles>(PROFILES), (profiles, None));
+        store.save(COPY_PRESETS, &presets).unwrap();
+        assert_eq!(store.load::<CopyPresets>(COPY_PRESETS), (presets, None));
         assert!(!dir.path().join("data").join("profiles.json.tmp").exists());
     }
 
@@ -719,9 +728,9 @@ mod tests {
     }
 
     #[test]
-    fn profiles_are_checked_and_normalized() {
-        let mut profiles = Profiles::default();
-        let p = profiles
+    fn copy_presets_are_checked_and_normalized() {
+        let mut presets = CopyPresets::default();
+        let p = presets
             .add(input("  Sony FX3 ", " /Volumes/CARD/PRIVATE/M4ROOT/CLIP/ "))
             .unwrap();
         assert_eq!(p.name, "Sony FX3");
@@ -731,34 +740,31 @@ mod tests {
             Some(vec![None, Some("mp4".into()), Some("xml".into())])
         );
         assert!(!p.id.is_empty());
-        let err = |r: Result<Profile, String>| r.unwrap_err();
+        let err = |r: Result<CopyPreset, String>| r.unwrap_err();
+        assert_eq!(err(presets.add(input(" ", ""))), "The preset needs a name.");
         assert_eq!(
-            err(profiles.add(input(" ", ""))),
-            "The profile needs a name."
+            err(presets.add(input("sony fx3", ""))),
+            "There is already a preset called “sony fx3”."
         );
         assert_eq!(
-            err(profiles.add(input("sony fx3", ""))),
-            "There is already a profile called “sony fx3”."
-        );
-        assert_eq!(
-            err(profiles.add(input("A", "DCIM"))),
+            err(presets.add(input("A", "DCIM"))),
             "The source must be a full path, like /Volumes/CARD_A/DCIM."
         );
         assert_eq!(
-            profiles.add(input("B", " ")).unwrap().source,
+            presets.add(input("B", " ")).unwrap().source,
             "",
             "no source yet"
         );
-        assert_eq!(profiles.profiles.len(), 2);
+        assert_eq!(presets.presets.len(), 2);
     }
 
     #[test]
     fn editing_keeps_the_id_and_deleting_removes() {
-        let mut profiles = Profiles::default();
-        let a = profiles.add(input("A", "/Volumes/CARD/DCIM")).unwrap();
-        let b = profiles.add(input("B", "")).unwrap();
+        let mut presets = CopyPresets::default();
+        let a = presets.add(input("A", "/Volumes/CARD/DCIM")).unwrap();
+        let b = presets.add(input("B", "")).unwrap();
         assert_ne!(a.id, b.id);
-        let edited = profiles
+        let edited = presets
             .edit(&a.id, input("A2", "/Volumes/CARD/DCIM/100MSDCF"))
             .unwrap();
         assert_eq!(
@@ -766,24 +772,24 @@ mod tests {
             (a.id.as_str(), "A2")
         );
         assert_eq!(
-            profiles.get(&a.id).unwrap().source,
+            presets.get(&a.id).unwrap().source,
             "/Volumes/CARD/DCIM/100MSDCF"
         );
         assert!(
-            profiles.edit(&a.id, input("b", "")).is_err(),
+            presets.edit(&a.id, input("b", "")).is_err(),
             "B's name is taken"
         );
         assert!(
-            profiles.edit(&a.id, input("a2", "")).is_ok(),
+            presets.edit(&a.id, input("a2", "")).is_ok(),
             "its own name is fine"
         );
-        assert!(profiles.delete(&b.id));
-        assert!(!profiles.delete(&b.id));
-        assert_eq!(profiles.profiles.len(), 1);
-        let mut replaced = profiles.get(&a.id).unwrap().clone();
+        assert!(presets.delete(&b.id));
+        assert!(!presets.delete(&b.id));
+        assert_eq!(presets.presets.len(), 1);
+        let mut replaced = presets.get(&a.id).unwrap().clone();
         replaced.include_folder = false;
-        profiles.replace(replaced.clone());
-        assert_eq!(profiles.get(&a.id), Some(&replaced));
+        presets.replace(replaced.clone());
+        assert_eq!(presets.get(&a.id), Some(&replaced));
     }
 
     #[test]
@@ -796,8 +802,8 @@ mod tests {
     }
 
     #[test]
-    fn a_profile_selects_its_file_types_or_all() {
-        let mut p = Profile {
+    fn a_preset_selects_its_file_types_or_all() {
+        let mut p = CopyPreset {
             id: "x".into(),
             name: "A".into(),
             source: String::new(),
@@ -823,19 +829,20 @@ mod tests {
         assert!(!store.load::<Settings>(SETTINGS).0.notify_when_done);
     }
 
-    /// 0.5 profiles kept a path on the card; they load with no source, not as damaged.
+    /// 0.5 presets kept a path on the card; they load with no source, not as damaged.
     #[test]
-    fn a_profile_saved_with_a_card_folder_loads_with_no_source() {
+    fn a_preset_saved_with_a_card_folder_loads_with_no_source() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(
-            dir.path().join(PROFILES),
+            dir.path().join(COPY_PRESETS),
             r#"{"version": 1, "profiles": [{"id": "a", "name": "FX3", "folder": "PRIVATE/M4ROOT/CLIP", "includeFolder": true, "extensions": null}]}"#,
         )
         .unwrap();
-        let (profiles, warning) = Store::new(dir.path().to_path_buf()).load::<Profiles>(PROFILES);
+        let (presets, warning) =
+            Store::new(dir.path().to_path_buf()).load::<CopyPresets>(COPY_PRESETS);
         assert_eq!(warning, None);
-        assert_eq!(profiles.profiles[0].name, "FX3");
-        assert_eq!(profiles.profiles[0].source, "");
+        assert_eq!(presets.presets[0].name, "FX3");
+        assert_eq!(presets.presets[0].source, "");
     }
     fn mirror_input(name: &str, origin: &str, destination: &str) -> MirrorPresetInput {
         MirrorPresetInput {

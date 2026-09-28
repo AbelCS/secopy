@@ -1,8 +1,8 @@
 // Fake data and a fake Api for the gallery: every screen without Tauri. Dev only.
 import type { Api } from "../lib/api";
-import type { FinishedRow, MirrorPreset, MirrorPreviewView, PreviewRow, Profile, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
+import type { CopyPreset, FinishedRow, MirrorPreset, MirrorPreviewView, PreviewRow, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
 
-export const profiles: Profile[] = [
+export const copyPresets: CopyPreset[] = [
   { id: "fx3", name: "Sony FX3", source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
   { id: "dji", name: "DJI Mini 4", source: "/Volumes/DJI/DCIM", includeFolder: false, extensions: null },
 ];
@@ -46,8 +46,8 @@ export const session: SessionView = {
   },
   conflicts: "keepBoth",
   plan: { filesToWrite: 106, bytesToWrite: 180_000_000_000, blocker: null },
-  profileId: "fx3",
-  profileChanged: true,
+  presetId: "fx3",
+  presetChanged: true,
   pickProblem: null,
   stale: false,
 };
@@ -198,16 +198,16 @@ const ok =
     Promise.resolve(value);
 
 /** Answers every call with the fake data above. */
-export function fakeApi(start: Partial<{ profiles: Profile[] }> = {}): Api {
+export function fakeApi(start: Partial<{ copyPresets: CopyPreset[] }> = {}): Api {
   const table: Record<string, unknown> = {
     appStart: ok({
       session,
       settings,
-      profiles: start.profiles ?? profiles,
+      copyPresets: start.copyPresets ?? copyPresets,
       verify: true,
       recentDestinations: ["/Volumes/V001/Day01", "/Volumes/V001/Day00"],
       warnings: [],
-      lastProfile: null,
+      lastPreset: null,
     }),
     finishedPage: (offset: number, limit: number) =>
       Promise.resolve(Array.from({ length: Math.max(0, Math.min(limit, 40 - offset)) }, (_, i) => row(offset + i + 1))),
