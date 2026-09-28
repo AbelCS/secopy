@@ -36,21 +36,22 @@ section says, which also checks those first-launch steps), then:
     window and the app quits; open it again and ⌘Q quits at once, without asking.
 12. **Drops.** Drop a card (or a directory on it) on FROM: Source shows it with its files
     and size. Drop a directory on TO: it becomes the destination, not the source.
-13. **A profile on a real card.** Choose the card's clip folder (e.g.
+13. **A copy preset on a real card.** Choose the card's clip folder (e.g.
     `PRIVATE/M4ROOT/CLIP`), keep only the video types, and Save as new… (only a name is
-    asked). Choose None, then the profile again: the source and types come back. Eject the
-    card and choose the profile: "<card> isn't connected", nothing copies. Quit with the
-    card in and open again: the profile and its source are loaded. In Profile → Manage
-    profiles…, Choose… another directory as the source and Save.
-14. **Changed for this run.** With a profile applied, turn a type off: "changed for this
-    run" appears. Copy without saving; after New copy the profile is as it was. Change it
-    again and Update profile: the next card uses the change.
+    asked). Choose None, then the preset again: the source and types come back. Eject the
+    card and choose the preset: "<card> isn't connected", nothing copies. Quit with the
+    card in and open again: the preset and its source are loaded. In Preset → Manage
+    presets…, Choose… another directory as the source and Save.
+14. **Changed for this run.** With a preset applied, turn a type off: "changed for this
+    run" appears. Copy without saving; after New copy the preset is as it was. Change it
+    again and Update preset: the next card uses the change.
 15. **Settings.** Change a setting and Cancel: nothing changed. Turn the checksum file off
     and Save: the next job writes none and the summary says so. Turn it on with "report next to it": the report files appear next to the checksum
     file.
-16. **Remembered, and not.** Choose Copy, resize the window, select a profile, run a job,
-    quit and open again: Copy, the size and the profile are back; the destination is empty
-    and the used one is in Recent ▾.
+16. **Remembered, and not.** Choose Copy, resize the window, select a preset, run a job,
+    quit and open again: Copy, the size and the preset are back; the destination is empty
+    and the used one is in Recent ▾. After updating from 0.10, the profiles saved then are
+    the copy presets, and the last one used is selected.
 17. **The identifier move.** After updating from 0.2.0, `~/Library/Application Support/
     com.latecommits.secopy/reports/` holds the old reports.
 18. **Notification.** Start a copy, switch to another app: when it ends, a notification says
@@ -58,7 +59,7 @@ section says, which also checks those first-launch steps), then:
 19. **Card gone before Retry.** After a copy with a failed file, eject the card in Finder
     and press Retry failed: it says the source isn't there any more; nothing starts.
 20. **Keyboard.** ⌘O, ⌘D, ⌘↩ from the File menu (greyed out when they don't apply); Space
-    pauses and resumes; ⌘. asks to cancel; Esc cancels Settings and leaves Profiles.
+    pauses and resumes; ⌘. asks to cancel; Esc cancels Settings and leaves Copy presets.
 21. **VoiceOver.** With VoiceOver on (⌘F5), do a whole copy with the keyboard: every control
     is read with its name, each new screen reads its title, and the end is announced.
 22. **Queue.** Set up three copies (two cards, one directory) with Add to queue; reorder them;
