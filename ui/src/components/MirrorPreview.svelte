@@ -1,6 +1,6 @@
 <script lang="ts">
   // What a mirror would do (FR-47): the counts, every file by kind, and what looks wrong
-  // (FR-50). Run mirror runs exactly this.
+  // (FR-50). Start runs exactly this.
   import { useApi } from "../lib/api";
   import type { MirrorPreviewView, PreviewKind, PreviewRow, QueueView } from "../lib/bindings";
   import { formatBytes, formatCount, messageOf, plural } from "../lib/format";
@@ -153,7 +153,7 @@
       {#snippet start()}<Button onclick={onCancel}>Cancel</Button>{/snippet}
       {#snippet end()}
         <Button disabled={busy} onclick={queue}>Add to queue</Button>
-        <Button variant="primary" disabled={inSync} onclick={run}>Run mirror</Button>
+        <Button variant="primary" disabled={inSync} onclick={run}>Start</Button>
       {/snippet}
     </ActionBar>
   {/snippet}

@@ -95,7 +95,7 @@ export const tauriApi = {
   editMirrorPreset: (id: string, input: MirrorPresetInput): Promise<MirrorPreset[]> =>
     unwrap(commands.editMirrorPreset(id, input)),
   deleteMirrorPreset: (id: string): Promise<MirrorPreset[]> => unwrap(commands.deleteMirrorPreset(id)),
-  /** What a preset would do now; Run mirror then runs exactly this (FR-47). */
+  /** What a preset would do now; the preview's Start then runs exactly this (FR-47). */
   previewMirror: (id: string, onCompared: (c: ComparedView) => void): Promise<MirrorPreviewView> => {
     const channel = new Channel<ComparedView>();
     channel.onmessage = onCompared;
@@ -114,7 +114,7 @@ export const tauriApi = {
   addMirrorToQueue: (id: string): Promise<QueueView> => unwrap(commands.addMirrorToQueue(id)),
   /** Verify's Choose…: what the directory's checksum files list (plan 8). */
   checkDirectory: (path: string): Promise<CheckView> => unwrap(commands.checkDirectory(path)),
-  /** Start verify: checks the directory chosen last, once. */
+  /** Verify's Start: checks the directory chosen last, once. */
   startCheck: (path: string, onProgress: (p: ProgressView) => void): Promise<null> => {
     const channel = new Channel<ProgressView>();
     channel.onmessage = onProgress;

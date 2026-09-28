@@ -265,7 +265,7 @@ impl Session {
         self.dest.as_deref()
     }
 
-    /// This run's include-folder choice and file types, for Save as new….
+    /// This run's include-folder choice and file types, for Save as….
     pub fn choices(&self) -> Option<(bool, Option<Vec<ExtensionKey>>)> {
         if self.scan_pending() {
             return None;
@@ -301,7 +301,7 @@ impl Session {
                 .any(|key| preset.selects(key) != self.filter.matches(key))
     }
 
-    /// The selected preset with this run's choices (Update preset). File types the preset
+    /// The selected preset with this run's choices (Update). File types the preset
     /// lists that aren't on this card are kept.
     pub fn updated_preset(&self) -> Option<CopyPreset> {
         if self.scan_pending() {
@@ -339,13 +339,13 @@ impl Session {
         })
     }
 
-    /// The selected preset was saved (Update preset, or edited in Copy presets).
+    /// The selected preset was saved (Update, or edited in Copy presets).
     pub fn preset_saved(&mut self, preset: CopyPreset) -> SessionView {
         self.preset = Some(preset);
         self.view()
     }
 
-    /// This setup as a queued job (FR-39); `None` unless Start copy would start it. A
+    /// This setup as a queued job (FR-39); `None` unless Start would start it. A
     /// retry can't be queued: it copies a failed job's files, not a source.
     pub fn copy_job(&self, verify: bool) -> Option<crate::queue::CopyJob> {
         self.ready()?;
@@ -374,7 +374,7 @@ impl Session {
         }
     }
 
-    /// For "Retry failed": the failed files of the last job, checked again (RFD §5.4).
+    /// For "Retry": the failed files of the last job, checked again (RFD §5.4).
     pub fn install_retry(&mut self, source: Source, selection: Selection) -> SessionView {
         self.generation += 1;
         self.source_generation = self.generation;

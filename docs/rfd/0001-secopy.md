@@ -97,7 +97,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - **Honest progress.** Byte-accurate progress, real throughput, a stable ETA, and a clear
   phase label (Scanning → Copying → Verifying → Done).
 - **Errors are data, not dead ends.** One bad file never aborts the job. Everything is
-  listed in the final summary with a "Retry failed" action.
+  listed in the final summary with a "Retry" action.
 - **Dark, calm, legible.** A dark-only interface (§5.6): deep grey surfaces, light-grey text
   that stands out clearly, and one accent colour for the primary action and progress.
   Restrained motion, good typography, no clutter.
@@ -127,7 +127,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 │                                                               │
 │ MODE   [ Copy ]  [● Copy & Verify ]                           │
 │                                                               │
-│                                         [   Start copy   ]    │
+│                                         [     Start      ]    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -186,7 +186,7 @@ to files already copied). The OS is kept awake while the job runs.
 - Stats: file count, total size, duration, average speed. Files skipped because they were
   already at the destination are counted separately and marked as not checked (FR-17).
 - Failure list with the reason for each file (permission denied, hash mismatch, disk full…).
-- Actions, what you'd do next first: **Retry failed**, **Show in Finder/Explorer/Files**,
+- Actions, what you'd do next first: **Retry**, **Show in Finder/Explorer/Files**,
   **Open checksum file**, **Save report…**, and **New copy** on the right. Ejecting is left
   to the OS (Finder, the desktop, the menu bar).
 - System notification when the job ends while the window is in the background (a setting,
@@ -252,9 +252,9 @@ Tabs at the top hold the kinds of job: **Copy** (the main window above), **Mirro
 of queued jobs (highlighted while the Queue is open) and Settings. The bar is hidden while jobs
 run and on Settings and Copy presets.
 
-- **Add to queue** next to Start copy (and on a mirror preset) saves the job as set up; the
+- **Add to queue** next to Start (and on a mirror preset) saves the job as set up; the
   Queue screen lists the jobs (reorder, remove, clear), the choice for failures (continue with
-  the next job, or stop the queue) and **Run queue**.
+  the next job, or stop the queue) and **Start**.
 - A queue run uses the Copying screen with "Job n of m" in its status, then a queue summary with one row per
   job that opens the job's own summary, and one notification. Finished jobs leave the queue;
   failed and not-run ones stay with their reason.
@@ -265,7 +265,7 @@ Design: [job queue](../superpowers/specs/2026-09-28-job-queue-design.md).
 
 Mirror presets (name, origin, destination, what to do with deleted files, deep check) live in
 the **Mirror** section. **Preview…** shows every change before anything is touched (new,
-changed, deleted in the origin, unchanged); **Run mirror** runs it on the Copying screen; a
+changed, deleted in the origin, unchanged); **Start** runs it on the Copying screen; a
 preset can also be added to the queue.
 
 Design: [mirror](../superpowers/specs/2026-09-28-mirror-design.md).
@@ -351,14 +351,14 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-35 | Each job produces a report as plain text and as JSON: settings, start/end, counts, per-file result (including skipped files), failures with reasons, whether cache bypass was active, leftover partial files removed, and files left out of the checksum file. It is kept in the app's data folder, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
 | FR-36 | The app remembers the mode, the window size and the last selected copy preset, which is loaded again at launch when its source is there. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
 | FR-37 | Keyboard, in a File menu: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `⌘/Ctrl+.` cancel the copy (asks first); items greyed out when they don't apply. `Space` pauses and resumes a copy; `Esc` goes back from Settings and Copy presets and cancels dialogs. | S |
-| FR-38 | **Copy presets**, chosen by hand: a saved copy setup for FROM. A name, the source (a full path, e.g. `/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one loads its source and settings (or says its card isn't connected); changes last for one run unless saved with "Update preset" or "Save as new…" (which asks only for a name). The destination is never part of a preset. No automatic card detection, and nothing is written to cards. | S |
+| FR-38 | **Copy presets**, chosen by hand: a saved copy setup for FROM. A name, the source (a full path, e.g. `/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one loads its source and settings (or says its card isn't connected); changes last for one run unless saved with "Update" or "Save as…" (which asks only for a name). The destination is never part of a preset. No automatic card detection, and nothing is written to cards. | S |
 
 ### 6.9 Job queue
 
 | ID | Req | Pri |
 |---|---|---|
 | FR-39 | Any job that can be run by hand (Copy, Copy & Verify, a mirror run) can be added to a queue, as set up at that moment. Queued jobs can be reordered and removed, not edited. | S |
-| FR-40 | **Run queue** runs the jobs one after another. Each job is scanned and checked when its turn comes; one that can't start fails with its reason. | S |
+| FR-40 | **Start** on the Queue screen runs the jobs one after another. Each job is scanned and checked when its turn comes; one that can't start fails with its reason. | S |
 | FR-41 | If a job fails (can't start, or ends with failed files), the queue continues with the next job or stops, as chosen for the queue. Cancel stops the current job and the queue. | S |
 | FR-42 | The queue is saved across launches. After a run, finished jobs leave it; failed and not-run jobs stay with their reason. | S |
 | FR-43 | A queue summary lists every job with its result and opens its summary; one notification for the whole queue; the system stays awake for the whole run. | S |
@@ -567,7 +567,7 @@ The stack meets these constraints:
 | 2026-09-28 | On macOS, keep-awake is an IOKit power assertion inside the app instead of a `caffeinate` process: macOS 27 reports an app whose helper process is running as "running in the background". |
 | 2026-09-28 | Settings are saved with Save and dropped with Cancel, instead of applying at once: simpler to predict, and the same as profiles. Back sits in the action bar with every other button. |
 | 2026-09-28 | No drives row in FROM (was B8, plan 3b-1): Source shows the chosen source, as Destination does in TO; a card is picked by dropping it or with Choose…. |
-| 2026-09-28 | No Eject button and no "Safe to eject" line on the summary (were C1, C2 in plan 3b-2): macOS already ejects from Finder, the desktop and the menu bar, and a finished copy is already flushed. Retry failed still says when the card is gone. |
+| 2026-09-28 | No Eject button and no "Safe to eject" line on the summary (were C1, C2 in plan 3b-2): macOS already ejects from Finder, the desktop and the menu bar, and a finished copy is already flushed. Retry still says when the card is gone. |
 | 2026-09-28 | A profile saves the full source path instead of a folder relative to the card (B3 in plan 3b-1): a profile is a saved copy setup you load in one step, which is what the user expected. The Start button says "Start copy"; the mode is chosen next to it. |
 | 2026-09-28 | **Job queue and mirror in the same app** (#50, #51): a sidebar with Copy · Mirror · Queue. One engine and one look; the queue holds every kind of job. A separate mirror app was rejected (a duplicated engine, no shared queue). Queue first (0.7.0), mirror next (0.8.0); performance and packaging move after them. |
 | 2026-09-28 | **Mirror safety:** one way only; a manual run previews first; deletions happen last and only after every copy succeeded; deleted files are archived (kept N days) or deleted per preset; a guard stops runs with a missing or empty origin or that would remove more than half of the destination. Changed = size or date (2 s tolerance), with an optional deep check by checksum. |
@@ -577,3 +577,4 @@ The stack meets these constraints:
 | 2026-09-28 | **The Queue apart from the tabs** (#67): the tabs are the kinds of job (Copy, Mirror, Verify), underlined when selected; the Queue, where any of them waits and runs, is a button with its count on the right, next to Settings. |
 | 2026-09-28 | **No multiple destinations** (#69 discussion): two copy jobs in the queue copy a source to two destinations, reading it twice. A job that reads once and writes N copies was dropped: it's a new path through the copy engine for something the queue already does. This replaces the v1.1 plan (2026-09-26). |
 | 2026-09-28 | **Presets** (#72): copy profiles are now copy presets, like mirror presets: one word for saved setups. The saved file keeps its name, profiles.json. |
+| 2026-09-28 | **Short button labels** (#72): the fewest words that can't be read two ways. Every job starts with **Start** (copy, verify, mirror, queue: the tab says which, like ⌘↩); **Update**, **Save as…**, **New preset…**, **Clear…**, **Retry**. **Add to queue**, **Save report…** and **Show in Finder** keep their words: one word would be ambiguous. Replaces "Start copy" (#45). |

@@ -147,7 +147,7 @@
       {#snippet start()}
         <!-- What you'd do next comes first. -->
         <!-- Not after a cancel that removed the copied files: a retry would copy only a few. -->
-        {#if summary.failed > 0 && onRetry && !summary.undone && !summary.check}<Button onclick={onRetry}>Retry failed</Button>{/if}
+        {#if summary.failed > 0 && onRetry && !summary.undone && !summary.check}<Button onclick={onRetry}>Retry</Button>{/if}
         <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>Show in Finder</Button>
         {#if summary.checksumFile}
           <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>Open checksum file</Button>

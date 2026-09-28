@@ -42,7 +42,7 @@ describe("Summary", () => {
   test("a cancel that removed files says what it couldn't put back", () => {
     show(summaryView({ outcome: "cancelled", failed: 1, undone: { removed: 5, notRestored: 2, failed: 1 } }));
     // Retrying only the failed files would leave a partial copy: the others were removed.
-    expect(screen.queryByRole("button", { name: "Retry failed" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     screen.getByRole("heading", { name: /Cancelled: the copied files were removed/ });
     screen.getByText("2 files this job replaced couldn't be brought back: their new versions stay.");
     screen.getByText("1 file couldn't be removed (see the report).");
@@ -93,7 +93,7 @@ describe("Summary", () => {
     screen.getByRole("heading", { name: /1 file changed/ });
     within(screen.getByRole("region", { name: "Problems" })).getByText("a.xxh64:3: bad line");
     expect(hintOf(screen.getByText("12 not checked"))).toMatch(/no checksum file lists/);
-    expect(screen.queryByRole("button", { name: "Retry failed" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     expect(screen.queryByText(/No checksum file/)).toBeNull();
   });
 
@@ -159,7 +159,7 @@ describe("Summary", () => {
     screen.getByText("212.4 GB written");
     screen.getByText("took 4:12");
     screen.getByText("284 already at the destination, not checked");
-    expect(screen.queryByRole("button", { name: "Retry failed" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
   test("failures are listed with reasons and can be retried", async () => {
@@ -183,7 +183,7 @@ describe("Summary", () => {
       }),
     );
     screen.getByText(/Hash mismatch/);
-    await fireEvent.click(screen.getByRole("button", { name: "Retry failed" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(calls).toEqual(["retry"]);
   });
 
@@ -224,7 +224,7 @@ describe("Summary", () => {
     );
     const bar = within(screen.getByRole("group", { name: "Actions" }));
     expect(bar.getAllByRole("button").map((b) => b.textContent?.trim())).toEqual([
-      "Retry failed",
+      "Retry",
       "Show in Finder",
       "Open checksum file",
       "Save report…",

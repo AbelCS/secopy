@@ -1,6 +1,6 @@
 <script lang="ts">
   // FROM's copy preset (FR-38): pick one, see when this run differs from it, and save
-  // the difference with Update preset or Save as new….
+  // the difference with Update or Save as….
   import { messageOf } from "../lib/format";
   import { tick } from "svelte";
   import { useApi } from "../lib/api";
@@ -20,10 +20,10 @@
   }: {
     view: SessionView;
     presets: CopyPreset[];
-    /** A scan is running: its result decides what Update / Save as new would save. */
+    /** A scan is running: its result decides what Update / Save as would save. */
     busy: boolean;
     onSelect: (id: string | null) => void;
-    /** After Update preset / Save as new…: the presets and the new view. */
+    /** After Update / Save as…: the presets and the new view. */
     onApplied: (result: CopyPresetsView) => void;
     onManage: () => void;
   } = $props();
@@ -43,7 +43,7 @@
 
   /** The preset and the source; a new scan of the same source (filters) doesn't change it. */
   const context = $derived(`${view.presetId ?? ""}\n${view.source?.label ?? ""}`);
-  // Another preset or source: an old error or an open Save as new… no longer applies.
+  // Another preset or source: an old error or an open Save as… no longer applies.
   $effect(() => {
     void context;
     error = null;
@@ -77,7 +77,7 @@
 
   let bar: HTMLElement;
 
-  /** Closes Save as new… and gives focus back to the button that opened it. */
+  /** Closes Save as… and gives focus back to the button that opened it. */
   async function closeSaveAs() {
     savingAs = false;
     await tick();
@@ -101,14 +101,14 @@
     <Select label="Preset" hideLabel value={view.presetId ?? ""} {options} disabled={forFiles} onChange={choose} />
   {:else if !canSaveAs}
     <!-- Nothing to choose yet: a menu with only None would be noise. -->
-    <Button onclick={onManage}>Create a preset…</Button>
+    <Button onclick={onManage}>New preset…</Button>
   {/if}
   {#if selected && view.presetChanged}
     <span class="muted">Changed for this run</span>
-    <Button disabled={busy} onclick={() => act(() => api.updateCopyPreset())}>Update preset</Button>
+    <Button disabled={busy} onclick={() => act(() => api.updateCopyPreset())}>Update</Button>
   {/if}
   {#if canSaveAs}
-    <Button disabled={busy} onclick={openSaveAs} data-save-as>Save as new…</Button>
+    <Button disabled={busy} onclick={openSaveAs} data-save-as>Save as…</Button>
   {/if}
 </div>
 {#if savingAs}
