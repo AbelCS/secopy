@@ -836,7 +836,7 @@ async fn blocking<T: Send + 'static>(
 fn session(state: &AppState) -> MutexGuard<'_, Session> {
     state.session.lock().unwrap_or_else(|poisoned| {
         let mut session = poisoned.into_inner();
-        *session = Session::new();
+        session.restart();
         state.session.clear_poison();
         session
     })

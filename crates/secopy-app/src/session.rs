@@ -112,6 +112,17 @@ impl Session {
     }
 
     /// One folder → a folder source; otherwise only files (RFD Q6).
+    /// Starts afresh, as after a panic while the session was held. The generation keeps
+    /// counting up, so a scan begun before stays stale.
+    pub fn restart(&mut self) {
+        let generation = self.generation + 1;
+        *self = Session {
+            generation,
+            source_generation: generation,
+            ..Session::new()
+        };
+    }
+
     pub fn source_for(paths: &[PathBuf], contents_only: bool) -> Result<Source, String> {
         match paths {
             [] => Err("nothing was picked".into()),
@@ -948,6 +959,21 @@ mod tests {
         );
         assert_eq!(s.choices(), None);
         drop(pending);
+    }
+
+    /// #69 review: a scan started before the session was started afresh stays stale, even
+    /// though a newer one was begun since.
+    #[test]
+    fn a_scan_from_before_a_restart_is_stale() {
+        let f = fixture();
+        let mut s = Session::new();
+        let old = s.begin(Change::Pick(vec![f.card.clone()])).ok().unwrap();
+        s.restart();
+        let new = s.begin(Change::Pick(vec![card(&f)])).ok().unwrap();
+        let old_scan = scan_source(&old.source);
+        assert!(s.finish_scan(old, old_scan).stale);
+        let new_scan = scan_source(&new.source);
+        assert!(!s.finish_scan(new, new_scan).stale);
     }
 
     #[test]
