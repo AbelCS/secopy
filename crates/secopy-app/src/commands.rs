@@ -8,20 +8,21 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 
-use crate::dto::{ComparedView, MirrorPreviewView, PreviewKind, PreviewRow, count};
+use crate::dto::{CheckView, ComparedView, MirrorPreviewView, PreviewKind, PreviewRow, count};
 use crate::dto::{
     ConflictPolicy, ExtensionKey, FinishedRow, JobOutcome, ProfilesView, ProgressView, QueueEvent,
     QueueResult, QueueResultView, QueueSummaryView, QueueView, QueuedJobView, SessionView,
     StartView, SummaryView, show,
 };
-use crate::jobs::{JobHandle, JobSettings, Jobs, ProgressSink};
+use crate::jobs::{JobHandle, JobSettings, Jobs, ProgressSink, Work};
 use crate::mirrors::MirrorJob;
 use crate::queue::{Entry, OnFailure, QUEUE, Queue, QueuedJob};
-use crate::session::{Change, Ready, Session, scan_source as scan};
+use crate::session::{Change, Session, scan_source as scan};
 use crate::store::{
     MIRRORS, MirrorPreset, MirrorPresetInput, MirrorPresets, PROFILES, Profile, ProfileInput,
     Profiles, REMEMBERED, Remembered, SETTINGS, Settings, Store, WindowSize,
 };
+use secopy_core::check::CheckPlan;
 use secopy_core::control::JobControl;
 
 /// Everything the app keeps between commands.
@@ -43,6 +44,8 @@ pub struct AppState {
     preview: Mutex<Option<(MirrorPreset, MirrorJob)>>,
     /// Stops a mirror being planned (its deep check), for Preview's Cancel and the queue's.
     planning: Mutex<Vec<Arc<JobControl>>>,
+    /// The directory last chosen on Verify, planned: Start verify runs exactly this, once.
+    checking: Mutex<Option<(PathBuf, Arc<CheckPlan>)>>,
     pub(crate) queue_run: Mutex<QueueRun>,
 }
 
@@ -80,6 +83,7 @@ impl AppState {
             mirrors: Mutex::new(mirrors),
             preview: Mutex::new(None),
             planning: Mutex::new(Vec::new()),
+            checking: Mutex::new(None),
             queue: Mutex::new(queue),
             queue_run: Mutex::new(QueueRun::default()),
         }
@@ -353,6 +357,15 @@ fn job_view(entry: &Entry, mirrors: &MirrorPresets) -> QueuedJobView {
                 name: None,
             },
         },
+        QueuedJob::Check { directory } => QueuedJobView {
+            kind: "check".into(),
+            verify: true,
+            source: show(directory),
+            destination: String::new(),
+            last_error: entry.last_error.clone(),
+            supported: true,
+            name: None,
+        },
         QueuedJob::Unknown(_) => QueuedJobView {
             kind: "unknown".into(),
             verify: false,
@@ -587,7 +600,12 @@ impl AppState {
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
                 let settings = JobSettings::from(&*lock(&self.settings));
-                let ran = self.start_and_wait(ready, job.verify, settings, started, sink);
+                let work = Work::Copy {
+                    ready: Box::new(ready),
+                    verify: job.verify,
+                    settings,
+                };
+                let ran = self.start_and_wait(work, started, sink);
                 if ran.2.is_some() {
                     self.remember(|r| r.used_destination(&show(&job.destination)));
                 }
@@ -617,7 +635,22 @@ impl AppState {
                     return (QueueResult::Failed, Some(guard.clone()), None);
                 }
                 let settings = JobSettings::for_mirror(&job, chrono::Local::now());
-                self.start_and_wait(job.ready(), true, settings, started, sink)
+                let work = Work::Copy {
+                    ready: Box::new(job.ready()),
+                    verify: true,
+                    settings,
+                };
+                self.start_and_wait(work, started, sink)
+            }
+            QueuedJob::Check { directory } => {
+                let plan = match plan_check(directory) {
+                    Ok(plan) => plan,
+                    Err(reason) => return (QueueResult::Failed, Some(reason), None),
+                };
+                if plan.files.is_empty() {
+                    return (QueueResult::Failed, Some(NOTHING_TO_VERIFY.into()), None);
+                }
+                self.start_and_wait(Work::Check(Arc::new(plan)), started, sink)
             }
             QueuedJob::Unknown(_) => (
                 QueueResult::Failed,
@@ -631,9 +664,7 @@ impl AppState {
     /// for it, and says how it ended.
     fn start_and_wait(
         &self,
-        ready: Ready,
-        verify: bool,
-        settings: JobSettings,
+        work: Work,
         started: QueueEvent,
         sink: &impl QueueSink,
     ) -> (QueueResult, Option<String>, Option<JobHandle>) {
@@ -646,10 +677,7 @@ impl AppState {
             }
             // The checks passed: the window shows this job's Copying screen from here.
             sink.send(started);
-            if let Err(reason) = self
-                .jobs
-                .start(ready, verify, settings, Forward(sink.clone()))
-            {
+            if let Err(reason) = self.jobs.start_work(work, Forward(sink.clone())) {
                 return (QueueResult::Failed, Some(reason), None);
             }
         }
@@ -675,6 +703,21 @@ impl AppState {
 
 /// Why a job ended with failures: its failed files, or a mirror's files not removed.
 fn failure_reason(s: &SummaryView) -> String {
+    if let Some(c) = &s.check {
+        let mut parts: Vec<String> = [
+            (c.changed, "changed"),
+            (c.missing, "missing"),
+            (c.failed, "couldn't be read"),
+        ]
+        .into_iter()
+        .filter(|(n, _)| *n > 0)
+        .map(|(n, what)| format!("{n} {what}"))
+        .collect();
+        if !c.problems.is_empty() {
+            parts.push(format!("{} checksum file problems", c.problems.len()));
+        }
+        return format!("{}.", parts.join(", "));
+    }
     let files = |n: u32| if n == 1 { "file" } else { "files" };
     if s.failed > 0 {
         return format!("{} {} failed.", s.failed, files(s.failed));
@@ -705,6 +748,19 @@ fn failure_reason(s: &SummaryView) -> String {
         Some(e) => format!("The destination couldn't confirm the files are saved: {e}"),
         None => "It didn't complete.".into(),
     }
+}
+
+const NOTHING_TO_VERIFY: &str = "No checksum files here: there's nothing to verify.";
+
+/// Plans a check of `dir`: a directory that is there.
+fn plan_check(dir: &Path) -> Result<CheckPlan, String> {
+    if !dir.exists() {
+        return Err(crate::session::gone(dir));
+    }
+    if !dir.is_dir() {
+        return Err("Choose a directory.".into());
+    }
+    secopy_core::check::plan(dir).map_err(|e| format!("{}: {e}", show(dir)))
 }
 
 fn count_of(results: &[QueueResultView], kind: QueueResult) -> u32 {
@@ -1020,6 +1076,51 @@ impl AppState {
         Ok(())
     }
 
+    /// Verify's Choose…: plans a check of `path` and keeps it for Start verify.
+    pub fn check_directory(&self, path: &Path) -> Result<CheckView, String> {
+        let plan = plan_check(path)?;
+        let view = CheckView {
+            directory: show(path),
+            checksum_files: count(plan.checksum_files.len()),
+            files: count(plan.files.len()),
+            bytes: plan.total_bytes,
+            not_checked: count(plan.not_checked.len()),
+            problems: plan
+                .problems
+                .iter()
+                .map(|p| match p.line {
+                    Some(line) => format!("{}:{line}: {}", show(&p.file), p.reason),
+                    None => format!("{}: {}", show(&p.file), p.reason),
+                })
+                .collect(),
+        };
+        *lock(&self.checking) = Some((path.to_path_buf(), Arc::new(plan)));
+        Ok(view)
+    }
+
+    /// Start verify: runs the plan made for `path`, once.
+    pub fn start_check(&self, path: &str, sink: impl ProgressSink) -> Result<(), String> {
+        if lock(&self.queue_run).running {
+            return Err("A copy or the queue is already running.".into());
+        }
+        let planned = lock(&self.checking).take();
+        let Some((dir, plan)) = planned.filter(|(dir, _)| show(dir) == path) else {
+            return Err("Choose the directory again.".into());
+        };
+        if plan.files.is_empty() {
+            *lock(&self.checking) = Some((dir, plan));
+            return Err(NOTHING_TO_VERIFY.into());
+        }
+        self.jobs.start_work(Work::Check(plan), sink)
+    }
+
+    pub fn add_check_to_queue(&self, path: &str) -> Result<QueueView, String> {
+        self.change_queue(|q| {
+            q.add_check(PathBuf::from(path));
+            true
+        })
+    }
+
     pub fn add_mirror_to_queue(&self, id: &str) -> Result<QueueView, String> {
         if lock(&self.mirrors).get(id).is_none() {
             return Err(PRESET_GONE.into());
@@ -1229,6 +1330,30 @@ pub async fn run_mirror(
 #[specta::specta]
 pub async fn add_mirror_to_queue(app: AppHandle, id: String) -> Result<QueueView, String> {
     blocking(app, move |state| state.add_mirror_to_queue(&id)).await?
+}
+
+/// Verify's Choose…: what `path`'s checksum files list (plan 8).
+#[tauri::command]
+#[specta::specta]
+pub async fn check_directory(app: AppHandle, path: String) -> Result<CheckView, String> {
+    blocking(app, move |state| state.check_directory(Path::new(&path))).await?
+}
+
+/// Start verify: checks the directory chosen last; progress arrives on `on_progress`.
+#[tauri::command]
+#[specta::specta]
+pub async fn start_check(
+    app: AppHandle,
+    path: String,
+    on_progress: Channel<ProgressView>,
+) -> Result<(), String> {
+    blocking(app, move |state| state.start_check(&path, on_progress)).await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn add_check_to_queue(app: AppHandle, path: String) -> Result<QueueView, String> {
+    blocking(app, move |state| state.add_check_to_queue(&path)).await?
 }
 
 /// "Retry failed": only the failed files, checked again (RFD §5.4).
@@ -2130,6 +2255,66 @@ mod tests {
         assert_eq!(
             summary.results[0].reason.as_deref(),
             Some("The mirror preset no longer exists.")
+        );
+    }
+
+    #[test]
+    fn a_directory_is_checked_then_verified() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        let root = dir.path().join("Day01");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("a.mov"), b"a").unwrap();
+        secopy_core::checksum_file::write(
+            &root,
+            &[(PathBuf::from("a.mov"), secopy_core::hash::hash_bytes(b"a"))],
+            chrono::Local::now(),
+        )
+        .unwrap();
+        fs::write(root.join("extra.mov"), b"x").unwrap();
+        let v = state.check_directory(&root).unwrap();
+        assert_eq!((v.checksum_files, v.files, v.not_checked), (1, 1, 1));
+        state.start_check(&show(&root), Sink::default()).unwrap();
+        state.jobs.wait();
+        assert_eq!(state.jobs.summary().unwrap().outcome, JobOutcome::Complete);
+        assert_eq!(
+            state
+                .start_check(&show(&root), Sink::default())
+                .unwrap_err(),
+            "Choose the directory again."
+        );
+    }
+
+    #[test]
+    fn a_queued_check_that_finds_a_change_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        let root = dir.path().join("Day01");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("a.mov"), b"A").unwrap();
+        secopy_core::checksum_file::write(
+            &root,
+            &[(PathBuf::from("a.mov"), secopy_core::hash::hash_bytes(b"a"))],
+            chrono::Local::now(),
+        )
+        .unwrap();
+        state.add_check_to_queue(&show(&root)).unwrap();
+        assert_eq!(state.queue_view().jobs[0].kind, "check");
+        let summary = state.run_queue(Events::default()).unwrap();
+        assert_eq!(summary.results[0].result, QueueResult::Failed);
+        assert_eq!(summary.results[0].reason.as_deref(), Some("1 changed."));
+    }
+
+    #[test]
+    fn a_directory_without_checksum_files_cant_be_verified() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        state.check_directory(dir.path()).unwrap();
+        assert_eq!(
+            state
+                .start_check(&show(dir.path()), Sink::default())
+                .unwrap_err(),
+            "No checksum files here: there's nothing to verify."
         );
     }
 }

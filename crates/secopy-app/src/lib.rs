@@ -65,6 +65,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::run_mirror,
         commands::cancel_mirror_preview,
         commands::add_mirror_to_queue,
+        commands::check_directory,
+        commands::start_check,
+        commands::add_check_to_queue,
     ])
 }
 
@@ -173,15 +176,17 @@ const CANCEL_COPY: &str = "cancel-copy";
 pub const MENU_EVENT: &str = "menu";
 const SHOW_COPY: &str = "show-copy";
 const SHOW_MIRROR: &str = "show-mirror";
+const SHOW_VERIFY: &str = "show-verify";
 const SHOW_QUEUE: &str = "show-queue";
 /// Menu items the window handles (File and View).
-const MENU_ITEMS: [&str; 7] = [
+const MENU_ITEMS: [&str; 8] = [
     CHOOSE_SOURCE,
     CHOOSE_DESTINATION,
     START_COPY,
     CANCEL_COPY,
     SHOW_COPY,
     SHOW_MIRROR,
+    SHOW_VERIFY,
     SHOW_QUEUE,
 ];
 
@@ -339,7 +344,8 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         &[
             &MenuItem::with_id(app, SHOW_COPY, "Copy", true, Some("CmdOrCtrl+1"))?,
             &MenuItem::with_id(app, SHOW_MIRROR, "Mirror", true, Some("CmdOrCtrl+2"))?,
-            &MenuItem::with_id(app, SHOW_QUEUE, "Queue", true, Some("CmdOrCtrl+3"))?,
+            &MenuItem::with_id(app, SHOW_VERIFY, "Verify", true, Some("CmdOrCtrl+3"))?,
+            &MenuItem::with_id(app, SHOW_QUEUE, "Queue", true, Some("CmdOrCtrl+4"))?,
         ],
     )?;
     Menu::with_items(app, &[&app_menu, &file, &view, &edit, &window])

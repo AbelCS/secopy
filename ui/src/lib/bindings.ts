@@ -107,6 +107,11 @@ export const commands = {
 	/**  Stops a preview's deep check. */
 	cancelMirrorPreview: () => __TAURI_INVOKE<void>("cancel_mirror_preview"),
 	addMirrorToQueue: (id: string) => typedError<QueueView, string>(__TAURI_INVOKE("add_mirror_to_queue", { id })),
+	/**  Verify's Choose…: what `path`'s checksum files list (plan 8). */
+	checkDirectory: (path: string) => typedError<CheckView, string>(__TAURI_INVOKE("check_directory", { path })),
+	/**  Start verify: checks the directory chosen last; progress arrives on `on_progress`. */
+	startCheck: (path: string, onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("start_check", { path, onProgress })),
+	addCheckToQueue: (path: string) => typedError<QueueView, string>(__TAURI_INVOKE("add_check_to_queue", { path })),
 };
 
 /* Types */
@@ -129,6 +134,18 @@ export type CheckSummaryView = {
 	/**  Files no checksum file lists. */
 	notChecked: number,
 	checksumFiles: number,
+	/**  Problems in the checksum files: "file:line: why". */
+	problems: string[],
+};
+
+/**  A directory about to be checked (plan 8): what its checksum files list. */
+export type CheckView = {
+	directory: string,
+	checksumFiles: number,
+	/**  Files the checksum files list. */
+	files: number,
+	bytes: number,
+	notChecked: number,
 	/**  Problems in the checksum files: "file:line: why". */
 	problems: string[],
 };

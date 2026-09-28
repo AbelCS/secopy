@@ -274,6 +274,21 @@ pub struct SummaryView {
     pub check: Option<CheckSummaryView>,
 }
 
+/// A directory about to be checked (plan 8): what its checksum files list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckView {
+    pub directory: String,
+    pub checksum_files: u32,
+    /// Files the checksum files list.
+    pub files: u32,
+    #[specta(type = specta_typescript::Number)]
+    pub bytes: u64,
+    pub not_checked: u32,
+    /// Problems in the checksum files: "file:line: why".
+    pub problems: Vec<String>,
+}
+
 /// What a check found (plan 8).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]

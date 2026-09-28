@@ -30,6 +30,10 @@ pub enum QueuedJob {
     Mirror {
         preset: String,
     },
+    /// A directory checked against its checksum files, planned at its turn (plan 8).
+    Check {
+        directory: PathBuf,
+    },
     Unknown(serde_json::Value),
 }
 
@@ -59,6 +63,13 @@ impl Queue {
     pub fn add(&mut self, job: CopyJob) {
         self.jobs.push(Entry {
             job: QueuedJob::Copy(job),
+            last_error: None,
+        });
+    }
+
+    pub fn add_check(&mut self, directory: PathBuf) {
+        self.jobs.push(Entry {
+            job: QueuedJob::Check { directory },
             last_error: None,
         });
     }
@@ -142,6 +153,9 @@ impl Serialize for Entry {
             QueuedJob::Mirror { preset } => {
                 serde_json::json!({ "kind": "mirror", "preset": preset })
             }
+            QueuedJob::Check { directory } => {
+                serde_json::json!({ "kind": "check", "directory": directory.to_string_lossy() })
+            }
             QueuedJob::Unknown(v) => v.clone(),
         };
         if let Some(object) = value.as_object_mut() {
@@ -165,6 +179,12 @@ impl<'de> Deserialize<'de> for Entry {
             Some("mirror") => match value.get("preset").and_then(|p| p.as_str()) {
                 Some(preset) => QueuedJob::Mirror {
                     preset: preset.to_string(),
+                },
+                None => QueuedJob::Unknown(value),
+            },
+            Some("check") => match value.get("directory").and_then(|d| d.as_str()) {
+                Some(directory) => QueuedJob::Check {
+                    directory: PathBuf::from(directory),
                 },
                 None => QueuedJob::Unknown(value),
             },
@@ -305,7 +325,9 @@ mod tests {
                 .iter()
                 .map(|e| match &e.job {
                     QueuedJob::Copy(c) => c.sources[0].display().to_string(),
-                    QueuedJob::Mirror { .. } | QueuedJob::Unknown(_) => "?".into(),
+                    QueuedJob::Mirror { .. } | QueuedJob::Check { .. } | QueuedJob::Unknown(_) => {
+                        "?".into()
+                    }
                 })
                 .collect()
         };
@@ -355,5 +377,20 @@ mod tests {
         store.save(QUEUE, &q).unwrap();
         let (again, _) = store.load::<Queue>(QUEUE);
         assert_eq!(again, q);
+    }
+
+    #[test]
+    fn a_check_is_saved_and_read_back() {
+        let mut q = Queue::default();
+        q.add_check(PathBuf::from("/Volumes/Backup/Day01"));
+        let json = serde_json::to_string(&q).unwrap();
+        assert!(json.contains(r#""kind":"check""#), "{json}");
+        let back: Queue = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            back.jobs[0].job,
+            QueuedJob::Check {
+                directory: PathBuf::from("/Volumes/Backup/Day01")
+            }
+        );
     }
 }
