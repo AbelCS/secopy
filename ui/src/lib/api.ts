@@ -20,6 +20,9 @@ import {
   type CopyPresetInput,
   type CopyPresetsView,
   type ExportWhat,
+  type ImportChoices,
+  type ImportDone,
+  type ImportView,
   type MirrorPreset,
   type MirrorPresetInput,
   type MirrorPreviewView,
@@ -152,6 +155,16 @@ export const tauriApi = {
   exportAll: (path: string, what: ExportWhat): Promise<string> => unwrap(commands.exportAll(path, what)),
   exportCopyPreset: (id: string, path: string): Promise<string> => unwrap(commands.exportCopyPreset(id, path)),
   exportMirrorPreset: (id: string, path: string): Promise<string> => unwrap(commands.exportMirrorPreset(id, path)),
+  /** A .secopy file to import. */
+  pickImportFile: async (): Promise<string | null> =>
+    asList(
+      await open({ multiple: false, directory: false, filters: [{ name: "Secopy settings", extensions: ["secopy"] }] }),
+    )?.[0] ?? null,
+  openImport: (path: string): Promise<ImportView> => unwrap(commands.openImport(path)),
+  applyImport: (choices: ImportChoices): Promise<ImportDone> => unwrap(commands.applyImport(choices)),
+  /** A .secopy file opened from Finder, once. */
+  takeOpenedFile: (): Promise<string | null> => commands.takeOpenedFile(),
+  onOpenFile: (cb: () => void): Promise<() => void> => listen("open-file", () => cb()),
   /** Where to save a .secopy file. */
   pickExportPath: (suggested: string): Promise<string | null> =>
     save({ defaultPath: suggested, filters: [{ name: "Secopy settings", extensions: ["secopy"] }] }),

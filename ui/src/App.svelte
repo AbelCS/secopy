@@ -9,6 +9,8 @@
   import type {
     CopyPreset,
     ExportWhat,
+    ImportChoices,
+    ImportView,
     ProgressView,
     MirrorPreset,
     MirrorPreviewView,
@@ -21,6 +23,7 @@
   import JobProgress from "./components/JobProgress.svelte";
   import CopyPresetsScreen from "./components/CopyPresetsScreen.svelte";
   import ExportDialog from "./components/ExportDialog.svelte";
+  import ImportScreen from "./components/ImportScreen.svelte";
   import QueueScreen from "./components/QueueScreen.svelte";
   import QueueSummary from "./components/QueueSummary.svelte";
   import MirrorPreview from "./components/MirrorPreview.svelte";
@@ -51,7 +54,8 @@
     | "mirror-preview"
     | "mirror-summary"
     | "verify"
-    | "verify-summary";
+    | "verify-summary"
+    | "import";
   let screen = $state<Screen>("setup");
   /** Where Settings and Copy presets go back to. */
   let back: "setup" | "summary" | "queue" | "mirror" | "mirror-summary" | "verify" | "verify-summary" = "setup";
@@ -156,6 +160,9 @@
   let info: { text: string; on: Screen } | null = $state(null);
   /** File › Export…'s dialog is open. */
   let exporting = $state(false);
+  /** The Import screen's file, and the screen it goes back to. */
+  let importing: ImportView | null = $state(null);
+  let importBack: Screen = "setup";
   let setupScreen: Setup | undefined = $state();
   let progressScreen: JobProgress | undefined = $state();
   /** Start is enabled on New copy. */
@@ -179,6 +186,7 @@
     else if (item === "start-copy" && screen === "setup") setupScreen?.startIfReady();
     else if (item === "cancel-copy" && screen === "progress") void progressScreen?.cancel();
     else if (item === "export-file") exporting = true;
+    else if (item === "import-file") void chooseImport();
     else if (item === "show-copy") go("copy");
     else if (item === "show-mirror") go("mirror");
     else if (item === "show-verify") go("verify");
@@ -222,6 +230,38 @@
     if (!path) return;
     const said = await run(() => api.exportAll(path, what));
     if (said) info = { text: said, on: screen };
+  }
+
+  /** Import (#77): reads the file and shows what's in it; nothing changes yet. */
+  async function showImport(path: string) {
+    const v = await run(() => api.openImport(path));
+    if (!v) return;
+    if (screen !== "import") importBack = screen;
+    importing = v;
+    screen = "import";
+  }
+
+  async function chooseImport() {
+    const path = await api.pickImportFile();
+    if (path) await showImport(path);
+  }
+
+  async function doImport(choices: ImportChoices) {
+    const done = await run(() => api.applyImport(choices));
+    if (!done) return;
+    settings = done.settings;
+    copyPresets = done.copyPresets;
+    mirrorPresets = done.mirrorPresets;
+    importing = null;
+    screen = importBack;
+    if (done.failed) error = done.message;
+    else info = { text: done.message, on: screen };
+  }
+
+  /** A .secopy file opened from Finder, also at launch. */
+  async function openedFromFinder() {
+    const path = await api.takeOpenedFile();
+    if (path) await showImport(path);
   }
 
   async function run<T>(action: () => Promise<T>): Promise<T | undefined> {
@@ -415,6 +455,8 @@
     });
     const unlistenSettings = api.onOpenSettings(openSettings);
     const unlistenMenu = api.onMenu(onMenu);
+    const unlistenOpen = api.onOpenFile(() => void openedFromFinder());
+    void openedFromFinder();
     // Closing during a copy asks first; if closed anyway, the app stops the copy cleanly.
     const unlisten = api.onCloseRequested(async (prevent) => {
       if (!(await api.jobRunning())) return;
@@ -442,6 +484,7 @@
       unlisten.then((stop) => stop());
       unlistenSettings.then((stop) => stop());
       unlistenMenu.then((stop) => stop());
+      unlistenOpen.then((stop) => stop());
     };
   });
 </script>
@@ -513,7 +556,18 @@
         {banner}
         onSettings={(s) => (settings = s)}
         onExport={() => (exporting = true)}
+        onImport={chooseImport}
         onDone={() => (screen = back)}
+      />
+    {:else if screen === "import" && importing}
+      <ImportScreen
+        view={importing}
+        {banner}
+        onImport={doImport}
+        onBack={() => {
+          importing = null;
+          screen = importBack;
+        }}
       />
     {:else if screen === "copy-presets"}
       <CopyPresetsScreen

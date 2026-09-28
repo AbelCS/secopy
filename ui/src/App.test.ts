@@ -13,6 +13,7 @@ import {
   queuedJob,
   queueView,
   mirrorPreview,
+  importView,
 } from "./test/fake-api";
 
 function app(view = readyView()) {
@@ -552,5 +553,27 @@ describe("App", () => {
     );
     expect(api.pickExportPath.mock.calls[0][0]).toMatch(/^Secopy settings \d{4}-\d{2}-\d{2}\.secopy$/);
     await screen.findByText("Exported 1 copy preset and the settings.");
+  });
+
+  test("File › Import… opens the file's Import screen; Import says what went in", async () => {
+    const { api, state } = app();
+    await startButton();
+    api.pickImportFile.mockResolvedValue("/Users/me/Team.secopy");
+    api.openImport.mockResolvedValue(importView());
+    api.applyImport.mockResolvedValue({ message: "Imported 1 copy preset.", failed: false, settings: settingsView(), copyPresets: [copyPreset()], mirrorPresets: [] });
+    state.menu!("import-file");
+    await screen.findByRole("heading", { level: 1, name: "Import" });
+    await fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    await screen.findByText("Imported 1 copy preset.");
+    expect(screen.queryByRole("heading", { level: 1, name: "Import" })).toBeNull();
+  });
+
+  test("a file opened from Finder while copying says to wait", async () => {
+    const { api, state } = app();
+    await startButton();
+    api.takeOpenedFile.mockResolvedValue("/Users/me/Team.secopy");
+    api.openImport.mockRejectedValue(new Error("Import it when the copy has finished."));
+    state.openFile!();
+    await screen.findByText("Import it when the copy has finished.");
   });
 });

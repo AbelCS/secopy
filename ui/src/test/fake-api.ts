@@ -26,6 +26,9 @@ import type {
   SourceView,
   StartView,
   SummaryView,
+  ImportChoices,
+  ImportDone,
+  ImportView,
 } from "../lib/bindings";
 
 export function sourceView(over: Partial<SourceView> = {}): SourceView {
@@ -241,6 +244,21 @@ export function queueView(over: Partial<QueueView> = {}): QueueView {
 }
 
 /** Every method is a spy; `session` is what the session commands answer. */
+/** A .secopy file's Import screen: a clash, a path not connected, a preset that can't come in. */
+export function importView(over: Partial<ImportView> = {}): ImportView {
+  return {
+    fileName: "Team presets.secopy",
+    settings: { changes: ["Write the checksum file: on → off"], problem: null },
+    copyPresets: [
+      { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null },
+      { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null },
+      { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: "Its details can't be read (…)." },
+    ],
+    mirrorPresets: [],
+    ...over,
+  };
+}
+
 export function fakeApi(session: SessionView = sessionView()) {
   const state = {
     session,
@@ -250,6 +268,8 @@ export function fakeApi(session: SessionView = sessionView()) {
     start: startView({ session }),
     openSettings: null as (() => void) | null,
     menu: null as ((item: string) => void) | null,
+    /** The handler `onOpenFile` was given: a .secopy file opened from Finder. */
+    openFile: null as (() => void) | null,
     queue: queueView(),
     /** The handler `runQueue` was given: the test sends queue events through it. */
     queueEvent: null as ((e: QueueEvent) => void) | null,
@@ -325,6 +345,16 @@ export function fakeApi(session: SessionView = sessionView()) {
       state.menu = handler;
       return Promise.resolve(() => {});
     }),
+    onOpenFile: vi.fn((handler: () => void) => {
+      state.openFile = handler;
+      return Promise.resolve(() => {});
+    }),
+    takeOpenedFile: vi.fn(() => Promise.resolve(null as string | null)),
+    pickImportFile: vi.fn(() => Promise.resolve(null as string | null)),
+    openImport: vi.fn((_p: string) => Promise.resolve(importView())),
+    applyImport: vi.fn((_c: ImportChoices) =>
+      Promise.resolve({ message: "Imported.", failed: false, settings: settingsView(), copyPresets: [], mirrorPresets: [] } as ImportDone),
+    ),
     setMenuState: vi.fn((_setup: boolean, _canStart: boolean, _copying: boolean) => Promise.resolve()),
     pickSource: vi.fn(() => Promise.resolve(["/Volumes/CARD/DCIM"] as string[] | null)),
     pickDirectory: vi.fn(() => Promise.resolve("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP" as string | null)),
