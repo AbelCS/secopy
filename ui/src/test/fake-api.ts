@@ -144,6 +144,7 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
     reportError: null,
     mirror: null,
     undone: null,
+    check: null,
     finished: 1284,
     ...over,
   };

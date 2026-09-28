@@ -114,6 +114,7 @@ export const summary: SummaryView = {
   reportError: null,
   mirror: null,
   undone: null,
+  check: null,
 };
 
 export const mirrors: MirrorPreset[] = [

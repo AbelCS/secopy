@@ -10,8 +10,10 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Local};
+use secopy_core::check::{CheckOptions, CheckPlan, CheckReport};
 use secopy_core::checksum_file;
 use secopy_core::control::JobControl;
+use secopy_core::error::FileError;
 use secopy_core::job::{
     Event, FileOutcome, FileStatus, JobOptions, JobReport, Progress, SkipReason, Undone, run_job,
     undo,
@@ -23,8 +25,8 @@ use secopy_core::scan::Selection;
 use secopy_core::source::Source;
 
 use crate::dto::{
-    ActiveFileView, FinishedRow, JobOutcome, JobPhase, MirrorSummaryView, ProgressView, RowStatus,
-    SmallFilesView, SummaryView, UndoneView, count, sentence, show,
+    ActiveFileView, CheckSummaryView, FinishedRow, JobOutcome, JobPhase, MirrorSummaryView,
+    ProgressView, RowStatus, SmallFilesView, SummaryView, UndoneView, count, sentence, show,
 };
 use crate::mirrors::MirrorJob;
 use crate::session::Ready;
@@ -93,6 +95,16 @@ pub trait ProgressSink: Send + Sync + 'static {
     fn send(&self, view: ProgressView);
 }
 
+/// What a job does: copy (a copy or a mirror), or check a directory (plan 8).
+pub enum Work {
+    Copy {
+        ready: Box<Ready>,
+        verify: bool,
+        settings: JobSettings,
+    },
+    Check(Arc<CheckPlan>),
+}
+
 /// The one job the app runs at a time.
 pub struct Jobs {
     reports_dir: PathBuf,
@@ -101,9 +113,7 @@ pub struct Jobs {
 }
 
 struct Job {
-    ready: Ready,
-    verify: bool,
-    settings: JobSettings,
+    work: Work,
     control: JobControl,
     started: DateTime<Local>,
     clock: Instant,
@@ -131,6 +141,8 @@ struct Done {
     removals: Option<Result<mirror::Finished, String>>,
     /// What a cancel with "Also remove the files already copied" removed (#54).
     undone: Option<Undone>,
+    /// A check's report beyond the files: what nothing lists, checksum file problems.
+    check: Option<CheckReport>,
 }
 
 impl Jobs {
@@ -151,23 +163,34 @@ impl Jobs {
         settings: JobSettings,
         sink: impl ProgressSink,
     ) -> Result<(), String> {
+        self.start_work(
+            Work::Copy {
+                ready: Box::new(ready),
+                verify,
+                settings,
+            },
+            sink,
+        )
+    }
+
+    /// Starts `work`. Fails if a job is already running.
+    pub fn start_work(&self, work: Work, sink: impl ProgressSink) -> Result<(), String> {
         // Held until the job is in place, so two starts can't both get past the check.
         let mut current = self.current.lock().expect("jobs lock poisoned");
         if current.as_ref().is_some_and(|job| job.running()) {
             return Err("A copy is already running.".into());
         }
-        let small_total = count(
-            ready
+        let small_total = count(match &work {
+            Work::Copy { ready, .. } => ready
                 .plan
                 .files
                 .iter()
                 .filter(|f| f.action.writes() && f.entry.size < OWN_ROW)
                 .count(),
-        );
+            Work::Check(plan) => plan.files.iter().filter(|f| f.size < OWN_ROW).count(),
+        });
         let job = Arc::new(Job {
-            ready,
-            verify,
-            settings,
+            work,
             control: JobControl::new(),
             started: Local::now(),
             clock: Instant::now(),
@@ -257,14 +280,15 @@ impl Jobs {
         if ids.is_empty() {
             return None;
         }
-        let plan = &job.ready.plan;
+        let (ready, _, _) = job.copy()?;
+        let plan = &ready.plan;
         let all = Selection {
             files: plan.files.iter().map(|f| f.entry.clone()).collect(),
             dirs: plan.dirs.clone(),
             total_bytes: plan.total_bytes(),
             unread: Vec::new(),
         };
-        Some((job.ready.source.clone(), all.subset(&ids)))
+        Some((ready.source.clone(), all.subset(&ids)))
     }
 
     fn job(&self) -> Option<Arc<Job>> {
@@ -291,6 +315,60 @@ impl JobHandle {
 }
 
 impl Job {
+    /// A copy's setup; `None` for a check.
+    fn copy(&self) -> Option<(&Ready, bool, &JobSettings)> {
+        match &self.work {
+            Work::Copy {
+                ready,
+                verify,
+                settings,
+            } => Some((ready, *verify, settings)),
+            Work::Check(_) => None,
+        }
+    }
+
+    fn check_plan(&self) -> Option<&CheckPlan> {
+        match &self.work {
+            Work::Check(plan) => Some(plan),
+            Work::Copy { .. } => None,
+        }
+    }
+
+    fn settings(&self) -> Option<&JobSettings> {
+        self.copy().map(|(_, _, settings)| settings)
+    }
+
+    fn mirror(&self) -> Option<&MirrorRun> {
+        self.settings().and_then(|s| s.mirror.as_ref())
+    }
+
+    /// A check always reads every file back, like Copy & Verify.
+    fn verify(&self) -> bool {
+        self.copy().is_none_or(|(_, verify, _)| verify)
+    }
+
+    fn label(&self) -> String {
+        match &self.work {
+            Work::Copy { ready, .. } => ready.label.clone(),
+            Work::Check(plan) => format!("Verify · {}", show(&plan.dir)),
+        }
+    }
+
+    fn root(&self) -> &Path {
+        match &self.work {
+            Work::Copy { ready, .. } => &ready.copy_root,
+            Work::Check(plan) => &plan.dir,
+        }
+    }
+
+    /// The files and bytes the job works through.
+    fn totals(&self) -> (usize, u64) {
+        match &self.work {
+            Work::Copy { ready, .. } => (ready.plan.files.len(), ready.plan.bytes_to_write()),
+            Work::Check(plan) => (plan.files.len(), plan.total_bytes),
+        }
+    }
+
     /// Rows of the finished list, in the order files finished.
     fn finished_page(&self, offset: u32, limit: u32, failed_only: bool) -> Vec<FinishedRow> {
         let outcomes = self.outcomes.lock().expect("job lock poisoned");
@@ -299,7 +377,7 @@ impl Job {
             .filter(|o| !failed_only || matches!(o.status, FileStatus::Failed(_)))
             .skip(offset as usize)
             .take(limit as usize)
-            .map(row)
+            .map(|o| row(o, self.check_plan().is_some()))
             .collect()
     }
 
@@ -311,11 +389,31 @@ impl Job {
         let report = job.report(done);
         let outcomes = job.outcomes.lock().expect("job lock poisoned");
         let c = &report.counts;
-        let mirror = self
-            .settings
-            .mirror
-            .as_ref()
-            .map(|m| mirror_summary(m, done, &outcomes));
+        let mirror = self.mirror().map(|m| mirror_summary(m, done, &outcomes));
+        let checking = self.check_plan().is_some();
+        let check = match (self.check_plan(), &done.check) {
+            (Some(plan), Some(checked)) => {
+                let n = checked.counts();
+                Some(CheckSummaryView {
+                    intact: count(n.intact),
+                    changed: count(n.changed),
+                    missing: count(n.missing),
+                    failed: count(n.failed),
+                    not_checked: count(checked.not_checked.len()),
+                    checksum_files: count(plan.checksum_files.len()),
+                    problems: checked
+                        .problems
+                        .iter()
+                        .take(FAILURES_SHOWN)
+                        .map(|p| match p.line {
+                            Some(line) => format!("{}:{line}: {}", show(&p.file), p.reason),
+                            None => format!("{}: {}", show(&p.file), p.reason),
+                        })
+                        .collect(),
+                })
+            }
+            _ => None,
+        };
         let removal_failed = mirror
             .as_ref()
             .is_some_and(|m| !m.removal_failures.is_empty());
@@ -330,13 +428,14 @@ impl Job {
                 || done.report.checksum_error.is_some()
                 || done.report.durability_error.is_some()
                 || !done.report.dir_errors.is_empty()
+                || check.as_ref().is_some_and(|c| !c.problems.is_empty())
             {
                 JobOutcome::Failures
             } else {
                 JobOutcome::Complete
             },
             stopped_because: done.report.fatal.as_ref().map(|f| sentence(&f.to_string())),
-            verify: job.verify,
+            verify: job.verify(),
             files: count(c.files),
             copied: count(c.copied),
             verified: count(c.verified),
@@ -379,15 +478,15 @@ impl Job {
                     outcomes
                         .iter()
                         .filter(|o| matches!(o.status, FileStatus::Failed(_)))
-                        .map(row),
+                        .map(|o| row(o, checking)),
                 )
                 .take(FAILURES_SHOWN)
                 .collect(),
             finished: count(outcomes.len()),
-            copy_root: show(&job.ready.copy_root),
+            copy_root: show(job.root()),
             checksum_file: done.report.checksum_file.as_deref().map(show),
             checksum_error: done.report.checksum_error.clone(),
-            checksum_off: !job.settings.write_checksum_file,
+            checksum_off: !job.settings().is_some_and(|s| s.write_checksum_file),
             report_file: done.report_file.as_deref().ok().map(show),
             report_error: {
                 let errors: Vec<String> = done
@@ -406,6 +505,7 @@ impl Job {
                 not_restored: count(u.not_restored),
                 failed: count(u.failed.len()),
             }),
+            check,
         })
     }
 
@@ -425,7 +525,52 @@ impl Job {
     }
 
     fn run(&self, sink: &impl ProgressSink, reports_dir: &Path) {
-        let mirroring = self.settings.mirror.as_ref();
+        match &self.work {
+            Work::Check(plan) => self.run_check(plan, sink, reports_dir),
+            Work::Copy { ready, .. } => self.run_copy(ready, sink, reports_dir),
+        }
+    }
+
+    fn run_check(&self, plan: &CheckPlan, sink: &impl ProgressSink, reports_dir: &Path) {
+        let opts = CheckOptions {
+            progress_interval: PROGRESS_INTERVAL,
+            ..CheckOptions::default()
+        };
+        let checked = secopy_core::check::run(plan, &opts, &self.control, &|event| match event {
+            Event::Progress(p) => {
+                sink.send(self.progress(&p, false, None));
+                *self.last.lock().expect("job lock poisoned") = p;
+            }
+            Event::FileFinished(o) => {
+                if matches!(o.status, FileStatus::Failed(_)) {
+                    self.failed.fetch_add(1, Relaxed);
+                }
+                if plan.files[o.id].size < OWN_ROW {
+                    self.small_done.fetch_add(1, Relaxed);
+                }
+                self.outcomes.lock().expect("job lock poisoned").push(o);
+            }
+        });
+        let mut done = Done {
+            finished: Local::now(),
+            report_file: Err(String::new()),
+            next_to_error: None,
+            report: checked.job.clone(),
+            removals: None,
+            undone: None,
+            check: Some(checked),
+        };
+        done.report_file = self.save(&done, reports_dir);
+        let last = self.last.lock().expect("job lock poisoned").clone();
+        let mut view = self.progress(&last, true, None);
+        view.files_done = count(done.report.outcomes.len());
+        *self.done.lock().expect("job lock poisoned") = Some(done);
+        sink.send(view);
+    }
+
+    fn run_copy(&self, ready: &Ready, sink: &impl ProgressSink, reports_dir: &Path) {
+        let settings = self.settings().expect("a copy has settings");
+        let mirroring = settings.mirror.as_ref();
         // Archive runs older than the preset keeps them go first (FR-49).
         if let Some(m) = mirroring
             && let Deleted::Archive { days } = m.plan.options.deleted
@@ -433,13 +578,13 @@ impl Job {
             mirror::clean_archives(&m.plan.copy.dest, days, Local::now());
         }
         let opts = JobOptions {
-            verify: self.verify,
-            write_checksum_file: self.settings.write_checksum_file,
+            verify: self.verify(),
+            write_checksum_file: settings.write_checksum_file,
             progress_interval: PROGRESS_INTERVAL,
             archive_replaced: mirroring.and_then(|m| m.archive.clone()),
             ..JobOptions::default()
         };
-        let plan: &Plan = &self.ready.plan;
+        let plan: &Plan = &ready.plan;
         let mut report = run_job(plan, &opts, &self.control, &|event| match event {
             Event::Progress(p) => {
                 sink.send(self.progress(&p, false, None));
@@ -472,7 +617,14 @@ impl Job {
                 view.archiving = m.archive.is_some();
                 sink.send(view);
             }
-            mirror::finish(&m.plan, &report, m.archive.as_deref())
+            let finished = mirror::finish(&m.plan, &report, m.archive.as_deref());
+            // The mirror's checksum file, only after a run that ended cleanly (plan 8).
+            if let Ok(finished) = &finished
+                && let Err(e) = mirror::write_checksums(&m.plan, &report, finished)
+            {
+                report.checksum_error = Some(format!("the mirror's checksum file: {e}"));
+            }
+            finished
         });
         let mut done = Done {
             finished: Local::now(),
@@ -481,9 +633,10 @@ impl Job {
             report,
             removals,
             undone,
+            check: None,
         };
         done.report_file = self.save(&done, reports_dir);
-        if self.settings.report_next_to_checksum
+        if settings.report_next_to_checksum
             && let Some(checksum) = &done.report.checksum_file
         {
             done.next_to_error = self
@@ -503,7 +656,7 @@ impl Job {
     }
 
     fn progress(&self, p: &Progress, finished: bool, fatal: Option<String>) -> ProgressView {
-        let total_bytes = self.ready.plan.bytes_to_write();
+        let (total_files, total_bytes) = self.totals();
         let mut active = Vec::new();
         // Small files are one steady row below; only big ones are worth a bar each.
         for f in p.active.iter().filter(|f| f.size >= OWN_ROW) {
@@ -527,15 +680,17 @@ impl Job {
         ProgressView {
             phase: if finished {
                 JobPhase::Done
-            } else if self.verify && !copying && p.copied_bytes >= total_bytes {
+            } else if self.check_plan().is_some()
+                || (self.verify() && !copying && p.copied_bytes >= total_bytes)
+            {
                 JobPhase::Verifying
             } else {
                 JobPhase::Copying
             },
             elapsed_ms: self.clock.elapsed().as_millis() as u64,
             paused: p.paused,
-            verify: self.verify,
-            total_files: count(self.ready.plan.files.len()),
+            verify: self.verify(),
+            total_files: count(total_files),
             total_bytes,
             copied_bytes: p.copied_bytes,
             verified_bytes: p.verified_bytes,
@@ -556,15 +711,27 @@ impl Job {
     fn report(&self, done: &Done) -> Report {
         let meta = JobMeta {
             app_version: env!("CARGO_PKG_VERSION").to_string(),
-            source: self.ready.label.clone(),
-            verify: self.verify,
+            source: self.label(),
+            verify: self.verify(),
             started: self.started,
             finished: done.finished,
         };
         let mut job_report = done.report.clone();
         job_report.outcomes = self.outcomes.lock().expect("job lock poisoned").clone();
-        let report = Report::new(&self.ready.plan, &job_report, &meta);
-        match (&done.removals, &self.settings.mirror) {
+        let ready = match (&self.work, &done.check) {
+            (Work::Check(plan), Some(checked)) => return Report::for_check(plan, checked, &meta),
+            (Work::Check(plan), None) => {
+                let checked = CheckReport {
+                    job: job_report,
+                    not_checked: plan.not_checked.clone(),
+                    problems: plan.problems.clone(),
+                };
+                return Report::for_check(plan, &checked, &meta);
+            }
+            (Work::Copy { ready, .. }, _) => ready,
+        };
+        let report = Report::new(&ready.plan, &job_report, &meta);
+        match (&done.removals, self.mirror()) {
             (Some(removals), Some(m)) => {
                 report.with_mirror(mirror::report_part(removals, m.archive.is_some()))
             }
@@ -665,10 +832,16 @@ fn append_undone(text: &Path, u: &Undone) -> std::io::Result<()> {
     Ok(())
 }
 
-fn row(o: &FileOutcome) -> FinishedRow {
+/// One row of the finished list; `check` for a check's files (intact, changed, missing).
+fn row(o: &FileOutcome, check: bool) -> FinishedRow {
     let (status, reason) = match &o.status {
         FileStatus::Copied => (RowStatus::Copied, None),
+        FileStatus::Verified if check => (RowStatus::Intact, None),
         FileStatus::Verified => (RowStatus::Verified, None),
+        FileStatus::Failed(e @ FileError::Changed { .. }) => {
+            (RowStatus::Changed, Some(sentence(&e.to_string())))
+        }
+        FileStatus::Failed(FileError::Missing) => (RowStatus::Missing, None),
         FileStatus::Skipped(SkipReason::Identical) => (
             RowStatus::Skipped,
             Some("Already at the destination (not checked)".to_string()),
@@ -1302,5 +1475,83 @@ mod tests {
                 .unwrap(),
             "SECOPY_NO_SUCH isn't connected."
         );
+    }
+
+    fn check_fixture() -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Day01");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("a.mov"), b"a").unwrap();
+        fs::write(root.join("b.mov"), b"b").unwrap();
+        let entries = vec![
+            (PathBuf::from("a.mov"), secopy_core::hash::hash_bytes(b"a")),
+            (PathBuf::from("b.mov"), secopy_core::hash::hash_bytes(b"b")),
+        ];
+        secopy_core::checksum_file::write(&root, &entries, Local::now()).unwrap();
+        (dir, root)
+    }
+
+    /// Plan 8: a check job ends with a check summary and rows that say intact or changed.
+    #[test]
+    fn a_check_job_reports_intact_and_changed_files() {
+        let (dir, root) = check_fixture();
+        fs::write(root.join("b.mov"), b"B").unwrap();
+        let jobs = Jobs::new(dir.path().join("reports"));
+        let plan = Arc::new(secopy_core::check::plan(&root).unwrap());
+        jobs.start_work(Work::Check(plan), Collect::default())
+            .unwrap();
+        jobs.wait();
+        let s = jobs.summary().unwrap();
+        assert_eq!(s.outcome, JobOutcome::Failures);
+        let c = s.check.expect("a check summary");
+        assert_eq!((c.intact, c.changed, c.missing), (1, 1, 0));
+        let rows = jobs.finished_page(0, 10, false);
+        let mut statuses: Vec<RowStatus> = rows.iter().map(|r| r.status).collect();
+        statuses.sort_by_key(|s| format!("{s:?}"));
+        assert_eq!(statuses, [RowStatus::Changed, RowStatus::Intact]);
+        let report = fs::read_to_string(s.report_file.unwrap()).unwrap();
+        assert!(report.contains("Result:       1 changed"), "{report}");
+    }
+
+    #[test]
+    fn an_intact_check_is_complete() {
+        let (dir, root) = check_fixture();
+        let jobs = Jobs::new(dir.path().join("reports"));
+        let plan = Arc::new(secopy_core::check::plan(&root).unwrap());
+        jobs.start_work(Work::Check(plan), Collect::default())
+            .unwrap();
+        jobs.wait();
+        assert_eq!(jobs.summary().unwrap().outcome, JobOutcome::Complete);
+    }
+
+    /// Plan 8: a clean mirror job writes the mirror's checksum file.
+    #[test]
+    fn a_mirror_job_writes_its_checksum_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        fs::create_dir_all(&o).unwrap();
+        fs::create_dir_all(&d).unwrap();
+        fs::write(o.join("a.mov"), b"a").unwrap();
+        fs::write(o.join("b.mov"), b"b").unwrap();
+        let job = crate::mirrors::prepare(
+            &preset(&o, &d, crate::store::DeletedMode::Archive),
+            &JobControl::new(),
+            &|_, _| {},
+        )
+        .unwrap();
+        let jobs = Jobs::new(dir.path().join("reports"));
+        jobs.start(
+            job.ready(),
+            true,
+            JobSettings::for_mirror(&job, Local::now()),
+            Collect::default(),
+        )
+        .unwrap();
+        jobs.wait();
+        assert_eq!(jobs.summary().unwrap().outcome, JobOutcome::Complete);
+        let text = fs::read_to_string(d.join(secopy_core::check::MIRROR_CHECKSUMS)).unwrap();
+        let (entries, bad) = secopy_core::check::parse(&text);
+        assert!(bad.is_empty(), "{bad:?}");
+        assert_eq!(entries.len(), 2);
     }
 }
