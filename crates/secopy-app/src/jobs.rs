@@ -6,7 +6,7 @@ use std::fs;
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering::Relaxed};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -29,6 +29,7 @@ use crate::dto::{
     ActiveFileView, CheckSummaryView, FinishedRow, JobOutcome, JobPhase, MirrorSummaryView,
     ProgressView, RowStatus, SmallFilesView, SummaryView, UndoneView, count, sentence, show,
 };
+use crate::lock;
 use crate::mirrors::MirrorJob;
 use crate::session::Ready;
 use crate::store::Settings;
@@ -183,7 +184,7 @@ impl Jobs {
     /// Starts `work`. Fails if a job is already running.
     pub fn start_work(&self, work: Work, sink: impl ProgressSink) -> Result<(), String> {
         // Held until the job is in place, so two starts can't both get past the check.
-        let mut current = self.current.lock().expect("jobs lock poisoned");
+        let mut current = lock(&self.current);
         if current.as_ref().is_some_and(|job| job.running()) {
             return Err("A copy is already running.".into());
         }
@@ -218,7 +219,7 @@ impl Jobs {
                 job.end_after_panic(&sink);
             }
         });
-        *self.thread.lock().expect("jobs lock poisoned") = Some(handle);
+        *lock(&self.thread) = Some(handle);
         Ok(())
     }
 
@@ -249,7 +250,7 @@ impl Jobs {
 
     /// Waits for the job's thread to end (after a cancel, or at quit).
     pub fn wait(&self) {
-        let handle = self.thread.lock().expect("jobs lock poisoned").take();
+        let handle = lock(&self.thread).take();
         if let Some(handle) = handle {
             let _ = handle.join();
         }
@@ -282,10 +283,7 @@ impl Jobs {
     /// The failed files of the last job, for "Retry failed" (RFD §5.4).
     pub fn retry(&self) -> Option<(Source, Selection)> {
         let job = self.job()?;
-        let ids: Vec<usize> = job
-            .outcomes
-            .lock()
-            .expect("job lock poisoned")
+        let ids: Vec<usize> = lock(&job.outcomes)
             .iter()
             .filter(|o| matches!(o.status, FileStatus::Failed(_)))
             .map(|o| o.id)
@@ -305,7 +303,7 @@ impl Jobs {
     }
 
     fn job(&self) -> Option<Arc<Job>> {
-        self.current.lock().expect("jobs lock poisoned").clone()
+        lock(&self.current).clone()
     }
 }
 
@@ -384,7 +382,7 @@ impl Job {
 
     /// Rows of the finished list, in the order files finished.
     fn finished_page(&self, offset: u32, limit: u32, failed_only: bool) -> Vec<FinishedRow> {
-        let outcomes = self.outcomes.lock().expect("job lock poisoned");
+        let outcomes = lock(&self.outcomes);
         outcomes
             .iter()
             .filter(|o| !failed_only || matches!(o.status, FileStatus::Failed(_)))
@@ -397,10 +395,10 @@ impl Job {
     /// The summary once the job has ended; `None` while it runs.
     fn summary(&self) -> Option<SummaryView> {
         let job = self;
-        let done = job.done.lock().expect("job lock poisoned");
+        let done = lock(&job.done);
         let done = done.as_ref()?;
         let report = job.report(done);
-        let outcomes = job.outcomes.lock().expect("job lock poisoned");
+        let outcomes = lock(&job.outcomes);
         let c = &report.counts;
         let mirror = self.mirror().map(|m| mirror_summary(m, done, &outcomes));
         let checking = self.check_plan().is_some();
@@ -528,7 +526,7 @@ impl Job {
     /// "Save report…": the text report at `path` and the JSON next to it (FR-35).
     fn save_report(&self, path: &Path) -> Result<(), String> {
         let job = self;
-        let done = job.done.lock().expect("job lock poisoned");
+        let done = lock(&job.done);
         let done = done.as_ref().ok_or("The copy is still running.")?;
         if done.panicked {
             return Err(NO_REPORT.into());
@@ -540,7 +538,7 @@ impl Job {
     }
 
     fn running(&self) -> bool {
-        self.done.lock().expect("job lock poisoned").is_none()
+        lock(&self.done).is_none()
     }
 
     fn run(&self, sink: &impl ProgressSink, reports_dir: &Path) {
@@ -553,11 +551,7 @@ impl Job {
     /// Ends a job whose thread panicked: stopped, with the files that finished and no report,
     /// then the Done view the window waits for (#69).
     fn end_after_panic(&self, sink: &impl ProgressSink) {
-        let finished = self
-            .outcomes
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .len();
+        let finished = lock(&self.outcomes).len();
         let report = JobReport {
             outcomes: Vec::new(),
             not_started: (self.totals().0.saturating_sub(finished)) as u64,
@@ -584,12 +578,8 @@ impl Job {
             check: None,
             panicked: true,
         };
-        let last = self
-            .last
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
-        let mut ended = self.done.lock().unwrap_or_else(PoisonError::into_inner);
+        let last = lock(&self.last).clone();
+        let mut ended = lock(&self.done);
         // Past its end (sending the last view), the job stands as it ended.
         let fatal = ended.is_none().then(|| INTERNAL_ERROR.to_string());
         ended.get_or_insert(done);
@@ -607,7 +597,7 @@ impl Job {
         let checked = secopy_core::check::run(plan, &opts, &self.control, &|event| match event {
             Event::Progress(p) => {
                 sink.send(self.progress(&p, false, None));
-                *self.last.lock().expect("job lock poisoned") = p;
+                *lock(&self.last) = p;
             }
             Event::FileFinished(o) => {
                 if matches!(o.status, FileStatus::Failed(_)) {
@@ -616,7 +606,7 @@ impl Job {
                 if plan.files[o.id].size < OWN_ROW {
                     self.small_done.fetch_add(1, Relaxed);
                 }
-                self.outcomes.lock().expect("job lock poisoned").push(o);
+                lock(&self.outcomes).push(o);
             }
         });
         let mut done = Done {
@@ -630,10 +620,10 @@ impl Job {
             panicked: false,
         };
         done.report_file = self.save(&done, reports_dir);
-        let last = self.last.lock().expect("job lock poisoned").clone();
+        let last = lock(&self.last).clone();
         let mut view = self.progress(&last, true, None);
         view.files_done = count(done.report.outcomes.len());
-        *self.done.lock().expect("job lock poisoned") = Some(done);
+        *lock(&self.done) = Some(done);
         sink.send(view);
     }
 
@@ -657,7 +647,7 @@ impl Job {
         let mut report = run_job(plan, &opts, &self.control, &|event| match event {
             Event::Progress(p) => {
                 sink.send(self.progress(&p, false, None));
-                *self.last.lock().expect("job lock poisoned") = p;
+                *lock(&self.last) = p;
             }
             Event::FileFinished(o) => {
                 if matches!(o.status, FileStatus::Failed(_)) {
@@ -667,7 +657,7 @@ impl Job {
                 if file.action.writes() && file.entry.size < OWN_ROW {
                     self.small_done.fetch_add(1, Relaxed);
                 }
-                self.outcomes.lock().expect("job lock poisoned").push(o);
+                lock(&self.outcomes).push(o);
             }
         });
         // Cancel with "Also remove the files already copied": the destination as it was.
@@ -679,7 +669,7 @@ impl Job {
         // A mirror removes what's gone from its origin, only after a clean copy phase.
         let removals = mirroring.map(|m| {
             if !report.cancelled {
-                let last = self.last.lock().expect("job lock poisoned").clone();
+                let last = lock(&self.last).clone();
                 let mut view = self.progress(&last, false, None);
                 view.phase = JobPhase::Removing;
                 view.removing = count(m.plan.removals.len());
@@ -717,11 +707,11 @@ impl Job {
         }
         let fatal = done.report.fatal.as_ref().map(|f| sentence(&f.to_string()));
         // The engine's last progress, so a stopped job's bars stay where it stopped.
-        let last = self.last.lock().expect("job lock poisoned").clone();
+        let last = lock(&self.last).clone();
         let mut view = self.progress(&last, true, fatal);
         view.files_done = count(done.report.outcomes.len());
         view.files_skipped = count(done.report.skipped().count());
-        *self.done.lock().expect("job lock poisoned") = Some(done);
+        *lock(&self.done) = Some(done);
         sink.send(view);
     }
 
@@ -787,7 +777,7 @@ impl Job {
             finished: done.finished,
         };
         let mut job_report = done.report.clone();
-        job_report.outcomes = self.outcomes.lock().expect("job lock poisoned").clone();
+        job_report.outcomes = lock(&self.outcomes).clone();
         let ready = match (&self.work, &done.check) {
             (Work::Check(plan), Some(checked)) => return Report::for_check(plan, checked, &meta),
             (Work::Check(plan), None) => {
@@ -1635,6 +1625,20 @@ mod tests {
             f.jobs.save_report(&f.dir.path().join("mine.txt")).is_err(),
             "a report would call it complete"
         );
+    }
+
+    /// #69: a panic while a job's lock was held doesn't take its summary and rows with it.
+    #[test]
+    fn a_poisoned_job_lock_still_gives_the_summary() {
+        let f = fixture(2, 10);
+        run(&f, true);
+        let job = f.jobs.job().unwrap();
+        crate::tests::poison(&job.outcomes);
+        crate::tests::poison(&job.done);
+        crate::tests::poison(&f.jobs.current);
+        assert_eq!(f.jobs.summary().unwrap().outcome, JobOutcome::Complete);
+        assert_eq!(f.jobs.finished_page(0, 10, false).len(), 2);
+        assert!(!f.jobs.is_running());
     }
 
     /// Plan 8: a clean mirror job writes the mirror's checksum file.

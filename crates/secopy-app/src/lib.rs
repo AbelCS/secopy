@@ -13,9 +13,19 @@ pub mod store;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, Runtime, WindowEvent};
 
+use std::sync::{Mutex, MutexGuard, PoisonError};
+
 use store::WindowSize;
 
 use commands::AppState;
+
+/// Locks `m`, also after a panic while it was held (#69). What these locks guard is plain
+/// data changed by assigning whole values or swapping in a changed copy, so a panic can't
+/// leave it half written; failing every later command instead would strand the window.
+/// The session is the exception: see `commands::session`.
+pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 /// The commands and types the UI sees; `ui/src/lib/bindings.ts` is generated from this.
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
@@ -151,12 +161,8 @@ pub fn run() {
                 state.remember(|_| {}); // writes the window size
                 state.cancel(false); // quitting keeps the files already copied
                 state.jobs.wait();
-                if let Some(thread) = state
-                    .queue_run
-                    .lock()
-                    .ok()
-                    .and_then(|mut r| r.thread.take())
-                {
+                let thread = lock(&state.queue_run).thread.take();
+                if let Some(thread) = thread {
                     let _ = thread.join();
                 }
             }
@@ -354,6 +360,16 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+    use std::sync::Mutex;
+
+    /// Leaves `m` poisoned, like a panic while it was held.
+    pub(crate) fn poison<T>(m: &Mutex<T>) {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _held = m.lock().unwrap();
+            panic!("a bug while it was held");
+        }));
+        assert!(m.is_poisoned());
+    }
 
     use super::{Quit, quit_action};
 

@@ -6,6 +6,8 @@ use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use crate::lock;
+
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 
@@ -58,10 +60,6 @@ pub(crate) struct QueueRun {
     pub handles: Vec<Option<JobHandle>>,
     /// The thread running the queue, joined at quit.
     pub thread: Option<std::thread::JoinHandle<()>>,
-}
-
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
-    m.lock().expect("app state lock poisoned")
 }
 
 impl AppState {
@@ -523,7 +521,7 @@ impl AppState {
         struct Release<'a>(&'a Mutex<QueueRun>);
         impl Drop for Release<'_> {
             fn drop(&mut self) {
-                self.0.lock().unwrap_or_else(|e| e.into_inner()).running = false;
+                lock(self.0).running = false;
             }
         }
         let _release = Release(&self.queue_run);
@@ -819,8 +817,16 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| e.to_string())
 }
 
-fn session(state: &AppState) -> std::sync::MutexGuard<'_, Session> {
-    state.session.lock().expect("session lock poisoned")
+/// The session, started afresh after a panic while it was held (#69): a change may have
+/// been left half made (a new source with the old plan), and a copy must never start from
+/// something the window didn't show.
+fn session(state: &AppState) -> MutexGuard<'_, Session> {
+    state.session.lock().unwrap_or_else(|poisoned| {
+        let mut session = poisoned.into_inner();
+        *session = Session::new();
+        state.session.clear_poison();
+        session
+    })
 }
 
 /// FROM's Choose…: a folder or files, in one panel (FR-1, FR-2). `None` when cancelled.
@@ -1891,6 +1897,29 @@ mod tests {
             "the two jobs left"
         );
         assert_eq!(state.queue_view().jobs.len(), 2, "B and C stay queued");
+    }
+
+    /// #69: a panic while a lock was held doesn't fail every later command.
+    #[test]
+    fn a_panic_while_a_lock_was_held_doesnt_break_later_commands() {
+        use crate::tests::poison;
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        poison(&state.queue);
+        poison(&state.settings);
+        poison(&state.profiles);
+        poison(&state.queue_run);
+        assert_eq!(state.queue_view().jobs.len(), 1, "the queue as it was");
+        assert!(!state.busy());
+        state.set_settings(Settings::default()).unwrap();
+        state.create_profile(input("FX3", Path::new(""))).unwrap();
+        // The session may be half changed: it starts afresh rather than copy from that.
+        state.rescan(Change::Pick(vec![dir.path().join("A")]));
+        poison(&state.session);
+        assert!(session(&state).view().source.is_none());
+        assert!(!state.session.is_poisoned(), "afresh once, not every time");
+        let view = state.rescan(Change::Pick(vec![dir.path().join("A")]));
+        assert!(view.source.is_some());
     }
 
     /// #57: the run is claimed before its thread starts, so two can't both start.
