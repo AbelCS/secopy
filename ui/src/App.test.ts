@@ -87,7 +87,7 @@ describe("App", () => {
     state.start = startView({ session: readyView(), verify: false, profiles: [profile()] });
     render(App, { props: { api } });
     await screen.findByRole("button", { name: "Start copy" });
-    expect(screen.getByLabelText("Copy")).toHaveProperty("checked", true);
+    expect(screen.getByRole("radio", { name: "Copy" })).toHaveProperty("checked", true);
     screen.getByRole("option", { name: "Sony FX3" });
   });
 
@@ -122,7 +122,7 @@ describe("App", () => {
 
   test("the mode is remembered", async () => {
     const { api } = app();
-    await fireEvent.click(await screen.findByLabelText("Copy"));
+    await fireEvent.click(await screen.findByRole("radio", { name: "Copy" }));
     await waitFor(() => expect(api.setMode).toHaveBeenCalledWith(false));
   });
 
@@ -210,5 +210,17 @@ describe("App", () => {
     state.start = startView({ session: sessionView(), profiles: [profile()], lastProfile: "fx3" });
     render(App, { props: { api } });
     await waitFor(() => expect(api.selectProfile).toHaveBeenCalledWith("fx3"));
+  });
+
+  test("the sidebar switches between Copy and Queue, and hides while copying", async () => {
+    const { state } = app();
+    await startButton();
+    await fireEvent.click(screen.getByRole("button", { name: /^Queue/ }));
+    await screen.findByRole("heading", { level: 1, name: "Queue" });
+    state.menu!("show-copy");
+    await screen.findByRole("heading", { level: 1, name: "New copy" });
+    await fireEvent.click(await startButton());
+    await screen.findByRole("heading", { name: "Copying & verifying" });
+    expect(screen.queryByRole("navigation", { name: "Sections" })).toBeNull();
   });
 });

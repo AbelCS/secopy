@@ -14,10 +14,13 @@ import {
   commands,
   type ConflictPolicy,
   type FinishedRow,
+  type OnFailure,
   type Profile,
   type ProfileInput,
   type ProfilesView,
   type ProgressView,
+  type QueueEvent,
+  type QueueView,
   type SessionView,
   type Settings,
   type StartView,
@@ -65,6 +68,20 @@ export const tauriApi = {
   jobSummary: (): Promise<SummaryView | null> => unwrap(commands.jobSummary()),
   saveReport: (path: string): Promise<null> => unwrap(commands.saveReport(path)),
   retryFailed: (): Promise<SessionView> => unwrap(commands.retryFailed()),
+  queue: (): Promise<QueueView> => unwrap(commands.queue()),
+  addToQueue: (verify: boolean): Promise<QueueView> => unwrap(commands.addToQueue(verify)),
+  removeFromQueue: (index: number): Promise<QueueView> => unwrap(commands.removeFromQueue(index)),
+  moveInQueue: (from: number, to: number): Promise<QueueView> => unwrap(commands.moveInQueue(from, to)),
+  clearQueue: (): Promise<QueueView> => unwrap(commands.clearQueue()),
+  setQueueOnFailure: (onFailure: OnFailure): Promise<QueueView> => unwrap(commands.setQueueOnFailure(onFailure)),
+  runQueue: (onEvent: (e: QueueEvent) => void): Promise<null> => {
+    const channel = new Channel<QueueEvent>();
+    channel.onmessage = onEvent;
+    return unwrap(commands.runQueue(channel));
+  },
+  queueFinishedPage: (index: number, offset: number, limit: number, failedOnly: boolean): Promise<FinishedRow[]> =>
+    unwrap(commands.queueFinishedPage(index, offset, limit, failedOnly)),
+  queueSaveReport: (index: number, path: string): Promise<null> => unwrap(commands.queueSaveReport(index, path)),
   appStart: (): Promise<StartView> => unwrap(commands.appStart()),
   recentDestinations: (): Promise<string[]> => unwrap(commands.recentDestinations()),
   selectProfile: (id: string | null): Promise<SessionView> => unwrap(commands.selectProfile(id)),
