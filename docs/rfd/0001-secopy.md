@@ -63,7 +63,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 ### Non-goals (v1)
 
 - Two-way sync. (One-way mirroring is a goal, §5.8.)
-- Multiple destinations in one job (planned for v1.1, §11).
+- Multiple destinations in one job: two copy jobs in the queue do it (§14, 2026-09-28).
 - Network protocols (SFTP, S3…). Mounted network shares work as ordinary folders.
 - Scheduling, watch folders, background daemons (the queue runs while the app is open).
 - Resuming a job after the app is closed or crashes (planned, §11).
@@ -255,7 +255,7 @@ run and on Settings and Profiles.
 - **Add to queue** next to Start copy (and on a mirror preset) saves the job as set up; the
   Queue screen lists the jobs (reorder, remove, clear), the choice for failures (continue with
   the next job, or stop the queue) and **Run queue**.
-- A queue run uses the Copying screen with "Job n of m", then a queue summary with one row per
+- A queue run uses the Copying screen with "Job n of m" in its status, then a queue summary with one row per
   job that opens the job's own summary, and one notification. Finished jobs leave the queue;
   failed and not-run ones stay with their reason.
 
@@ -488,13 +488,12 @@ derives speeds, ETAs and smoothing from them (§5.3).
 
 **v1.1 — media offload** (the main audience, see §14):
 
-- **Multiple destinations** in one job: read the source once, write and verify N copies.
 - **ASC MHL** output (the media-industry standard, which supports xxHash64), alongside the
   `.xxh64` file.
 
 **Later:** include system files (setting) · light theme · paranoid verify (a second,
 independent read of the source) · XXH3-64/XXH128 options · resume interrupted jobs ·
-"Verify existing copy" as a full feature · CLI front-end on the same engine · extended
+CLI front-end on the same engine · extended
 attributes / Finder tags / ACLs · mirror: scheduling (intervals, when a drive connects),
 detecting moved and renamed files, several destinations, exclusions, restoring from the
 archive inside the app · the queue: skipping one job without stopping the queue.
@@ -576,3 +575,4 @@ The stack meets these constraints:
 | 2026-09-28 | **Sections as tabs at the top** (#64), not a sidebar: three items don't need 180 px of width, and paths and file lists do. Settings sits on the tab bar, once for the app. |
 | 2026-09-28 | **Verify an existing copy** (#67): a directory, and every checksum file inside it; files nothing lists are "not checked" (shown, not a failure); mirrors keep a hidden checksum file so their backups can be verified. A separate check engine; the copy engine is unchanged. |
 | 2026-09-28 | **The Queue apart from the tabs** (#67): the tabs are the kinds of job (Copy, Mirror, Verify), underlined when selected; the Queue, where any of them waits and runs, is a button with its count on the right, next to Settings. |
+| 2026-09-28 | **No multiple destinations** (#69 discussion): two copy jobs in the queue copy a source to two destinations, reading it twice. A job that reads once and writes N copies was dropped: it's a new path through the copy engine for something the queue already does. This replaces the v1.1 plan (2026-09-26). |

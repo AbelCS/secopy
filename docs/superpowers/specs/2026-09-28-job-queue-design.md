@@ -65,10 +65,11 @@ IF A JOB FAILS   (●) Continue with the next job   ( ) Stop the queue
 
 ## 4. Running
 
-- The Copying screen is the one used today, with "Job 2 of 3" next to the title and the
-  queue's progress in the status ("Job 2 of 3 · 40 / 106 files").
+- The Copying screen is the one used today, with the queue's progress in the status
+  ("Job 2 of 3 · 40 / 106 files").
 - A job that can't start (source or destination missing, nothing to copy, destination
-  blocked) gets its reason and counts as failed (Q4) without showing a Copying screen.
+  blocked) gets its reason and counts as failed (Q4); the screen shows "Checking…" while
+  it's checked.
 - Pause pauses the current job. Cancel asks "Stop copying and stop the queue?" (Q5).
 - Quitting during a run asks, as today; the current job is stopped and marked "Stopped",
   the rest stay queued.
@@ -81,7 +82,7 @@ Queue done: 2 of 3 jobs complete                              took 1:42:10
  ✓  Copy & Verify  CARD_A/…/CLIP → V001/Day01   All 212 files copied and verified   [Summary]
  ✗  Copy           CARD_B/DCIM   → V001/Day01   3 files failed                       [Summary]
  –  Copy & Verify  Desktop/A     → Media/A      Not run: the queue stopped
-[Show queue]                                                            [Done]
+                                                                        [Done]
 ```
 
 - One row per job run in this queue run: result icon and word, the job, its headline.
@@ -99,7 +100,7 @@ Queue done: 2 of 3 jobs complete                              took 1:42:10
 | `secopy-app` `jobs` | Keeps each finished job's summary for the queue run (today it keeps only the last job). |
 | `secopy-app` queue runner | Runs the jobs one after another on the existing job runner: builds each job's session from its snapshot (scan, plan, checks), starts it, waits, records the result; one keep-awake for the run. |
 | commands | `queue`, `add_to_queue`, `remove_from_queue`, `move_in_queue`, `clear_queue`, `set_queue_on_failure`, `run_queue` (progress on a channel, with the job index), `queue_summary`, `queue_job_summary(index)`. |
-| UI | `Sidebar`, the Queue screen, Add to queue on New copy, "Job n of m" on Copying, the queue summary. |
+| UI | `Sidebar`, the Queue screen, Add to queue on New copy, "Job n of m" in the Copying status, the queue summary. |
 
 `queue.json` (version 1): `{ "version": 1, "onFailure": "continue", "jobs": [ { "kind": "copy",
 "sources": ["/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"], "includeFolder": true, "extensions":
@@ -136,3 +137,9 @@ Queue done: 2 of 3 jobs complete                              took 1:42:10
 5. **Memory over a long queue:** every job's finished list is kept for the queue summary;
    many large jobs must stay within NFR-4 (bounded memory), e.g. by keeping only the current
    job's list in memory and reading earlier ones back from their saved reports.
+
+## Changed after release
+
+2026-09-28 (#69): "Job n of m" stays in the status line, not next to the title; a job that
+can't start shows "Checking…" briefly instead of no screen; the queue summary has no
+**Show queue** (Done opens the Queue). What was built works, so the spec follows it.
