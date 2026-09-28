@@ -50,13 +50,21 @@ pub enum Change {
 pub struct Seen {
     pub len: u64,
     pub modified: Option<std::time::SystemTime>,
+    /// The file itself (device and inode): a file saved in its place is another one, even
+    /// with the same size and time.
+    #[cfg(unix)]
+    pub file: (u64, u64),
 }
 
 impl Seen {
     fn of(meta: &fs::Metadata) -> Seen {
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt;
         Seen {
             len: meta.len(),
             modified: meta.modified().ok(),
+            #[cfg(unix)]
+            file: (meta.dev(), meta.ino()),
         }
     }
 }
@@ -460,6 +468,13 @@ pub fn finish(
             "Files deleted in the origin were left in the destination: {failed} {} failed.",
             if failed == 1 { "file" } else { "files" }
         ));
+    }
+    // Anything else that went wrong (unread items, directories, the device): no removals.
+    if !report.is_success() {
+        return Err(
+            "Files deleted in the origin were left in the destination: the copy didn't end cleanly."
+                .into(),
+        );
     }
     let dest = &plan.copy.dest;
     let mut done = Vec::new();

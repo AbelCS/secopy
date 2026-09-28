@@ -63,6 +63,24 @@ describe("Summary", () => {
     expect(screen.queryByText(/left in the destination/)).toBeNull();
   });
 
+  test("failures from different places (unread items, directories, files) all show", () => {
+    const row = { id: 0, finalPath: "x", size: 0, millis: 0, hash: null, status: "failed" as const };
+    show(
+      summaryView({
+        outcome: "failures",
+        failed: 1,
+        unread: 1,
+        dirErrors: 1,
+        failures: [
+          { ...row, path: "DCIM/locked", reason: "Couldn't be read: permission denied" },
+          { ...row, path: "EMPTY", reason: "Empty directory not created: file exists" },
+          { ...row, path: "A001.mov", reason: "Hash mismatch" },
+        ],
+      }),
+    );
+    expect(within(screen.getByRole("region", { name: "Failed" })).getAllByRole("listitem")).toHaveLength(3);
+  });
+
   test("not started explains itself", () => {
     show(summaryView({ outcome: "cancelled", notStarted: 150 }));
     expect(hintOf(screen.getByText("150 not started"))).toMatch(/cancelled or stopped/);

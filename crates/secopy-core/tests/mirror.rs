@@ -563,3 +563,49 @@ fn the_report_has_the_removals_and_their_failures() {
         "{text}"
     );
 }
+
+/// #58 check: removals wait for a job that ended cleanly in every way, not only without
+/// failed files (here an empty directory couldn't be created).
+#[test]
+fn nothing_is_removed_after_any_problem() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    fs::create_dir_all(o.join("EMPTY")).unwrap();
+    write(
+        &d,
+        &[
+            ("a.mov", b"a"),
+            ("gone.mov", b"g"),
+            ("EMPTY", b"a file in the way"),
+        ],
+    );
+    same_time(&o.join("a.mov"), &d.join("a.mov"));
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let (report, finished) = run(&p, None);
+    assert!(!report.dir_errors.is_empty(), "{report:?}");
+    assert!(finished.is_err());
+    assert!(d.join("gone.mov").exists());
+}
+
+/// #58 check: a file replaced after the preview by another with the same size and time
+/// (another app saving through a new file) is still a different file: kept.
+#[cfg(unix)]
+#[test]
+fn a_replaced_file_with_the_same_size_and_time_is_kept() {
+    let (dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), ("b.mov", b"b")]);
+    write(
+        &d,
+        &[("a.mov", b"a"), ("b.mov", b"b"), ("gone.mov", b"old")],
+    );
+    same_time(&o.join("a.mov"), &d.join("a.mov"));
+    same_time(&o.join("b.mov"), &d.join("b.mov"));
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let new = dir.path().join("new.mov");
+    fs::write(&new, b"new").unwrap();
+    same_time(&d.join("gone.mov"), &new);
+    fs::rename(&new, d.join("gone.mov")).unwrap();
+    let (_, finished) = run(&p, None);
+    assert!(finished.unwrap().removals[0].result.is_err());
+    assert_eq!(fs::read(d.join("gone.mov")).unwrap(), b"new");
+}

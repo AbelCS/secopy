@@ -350,22 +350,26 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
 /// Makes the new names and the drive's cache durable. `Some` when the device reported an
 /// error doing so: the destination can't confirm the files are on disk.
 fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<String> {
-    // Folders that were never created fail to open and are skipped.
+    // Every directory, then the drive's cache, whatever happened before: the first device
+    // error is kept. Folders that were never created don't exist, which is no error.
     #[cfg(unix)]
-    let problem = dirs
+    let problems: Vec<Option<String>> = dirs
         .iter()
         .map(|d| dest.join(&d.rel))
         .chain([dest.to_path_buf()])
-        .filter_map(|dir| fs::File::open(dir).ok())
-        .fold(None, |problem, f| {
-            problem.or_else(|| durability_problem(os::sync_file(&f)))
-        });
+        .map(|dir| match fs::File::open(&dir) {
+            Ok(f) => durability_problem(os::sync_file(&f)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => durability_problem(Err(e)),
+        })
+        .collect();
     #[cfg(not(unix))]
-    let problem = {
+    let problems: Vec<Option<String>> = {
         let _ = dirs;
-        None
+        Vec::new()
     };
-    problem.or_else(|| durability_problem(os::full_barrier(dest)))
+    let barrier = durability_problem(os::full_barrier(dest));
+    problems.into_iter().flatten().next().or(barrier)
 }
 
 /// A device error (not a file system that can't sync a directory or flush its cache).

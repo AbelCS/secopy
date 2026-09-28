@@ -480,12 +480,18 @@ fn archive_old(old: &Path, to: &Path) -> Result<Archived, FileError> {
     if let Some(parent) = to.parent() {
         fs::create_dir_all(parent).map_err(FileError::write_dest)?;
     }
-    if fs::hard_link(old, to).is_ok() {
-        return Ok(Archived::Linked);
+    // Something already archived under this name is never overwritten.
+    if fs::symlink_metadata(to).is_ok() {
+        return Err(FileError::AlreadyExists);
     }
-    fs::rename(old, to)
-        .map(|()| Archived::Moved)
-        .map_err(FileError::write_dest)
+    match fs::hard_link(old, to) {
+        Ok(()) => Ok(Archived::Linked),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err(FileError::AlreadyExists),
+        // No hard links here (exFAT, some shares): move it instead.
+        Err(_) => fs::rename(old, to)
+            .map(|()| Archived::Moved)
+            .map_err(FileError::write_dest),
+    }
 }
 
 /// The source's size or modification time isn't what the scan saw.

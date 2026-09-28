@@ -102,7 +102,8 @@
   {#if summary.failures.length > 0}
     <Section title="Failed">
       <ul class="failures">
-        {#each summary.failures as f (f.id)}
+        <!-- By place: unread items, directories and files each count their own ids. -->
+        {#each summary.failures as f, i (i)}
           <li><span class="mono">{f.path}</span>: {f.reason}</li>
         {/each}
         {#if summary.failed + summary.unread + summary.dirErrors > summary.failures.length}
@@ -118,7 +119,7 @@
   {#if summary.mirror && summary.mirror.removalFailures.length > 0}
     <Section title="Not removed">
       <ul class="failures">
-        {#each summary.mirror.removalFailures as f (f.id)}
+        {#each summary.mirror.removalFailures as f, i (i)}
           <li><span class="mono">{f.path}</span>: {f.reason}</li>
         {/each}
       </ul>
