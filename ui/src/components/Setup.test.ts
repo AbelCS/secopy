@@ -252,6 +252,37 @@ describe("Setup", () => {
     await screen.findByText("There is already a profile called “FX3”.");
   });
 
+  test("choosing another profile drops Save as new… and its error", async () => {
+    const { api } = setup(readyView(), readyView({ profileId: "fx3" }), { profiles: [profile()] });
+    api.saveProfileAs.mockRejectedValueOnce(new Error("There is already a profile called “FX3”."));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("There is already a profile called “FX3”.");
+    await fireEvent.change(screen.getByRole("combobox", { name: "Profile" }), { target: { value: "fx3" } });
+    await waitFor(() => expect(screen.queryByText("There is already a profile called “FX3”.")).toBeNull());
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+  });
+
+  test("another source drops Save as new… and its error", async () => {
+    const { api, rerender } = setup(readyView());
+    api.saveProfileAs.mockRejectedValueOnce(new Error("There is already a profile called “FX3”."));
+    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("There is already a profile called “FX3”.");
+    const other = "/Volumes/CARD_B/DCIM";
+    await rerender({ view: readyView({ source: sourceView({ label: other, folder: other }) }) });
+    expect(screen.queryByText("There is already a profile called “FX3”.")).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+  });
+
+  test("a new scan of the same source keeps Save as new… open", async () => {
+    const { rerender } = setup(readyView());
+    await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
+    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3" } });
+    await rerender({ view: readyView({ source: sourceView({ selectedExtensions: ["mov"] }) }) });
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "FX3");
+  });
+
   test("profiles don't apply to files", () => {
     setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: "2 files" }) }), undefined, {
       profiles: [profile()],

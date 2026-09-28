@@ -41,6 +41,15 @@
     !!view.source?.isFolder && !view.source.isRetry && (!selected || view.profileChanged),
   );
 
+  /** The profile and the source; a new scan of the same source (filters) doesn't change it. */
+  const context = $derived(`${view.profileId ?? ""}\n${view.source?.label ?? ""}`);
+  // Another profile or source: an old error or an open Save as new… no longer applies.
+  $effect(() => {
+    void context;
+    error = null;
+    savingAs = false;
+  });
+
   async function act(call: () => Promise<ProfilesView>) {
     try {
       onApplied(await call());
