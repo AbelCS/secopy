@@ -68,6 +68,8 @@ export const commands = {
 	reportFile: string | null,
 	/**  Why the report couldn't be saved there. */
 	reportError: string | null,
+	/**  A mirror's own figures (plan 7); `None` for a copy. */
+	mirror: MirrorSummaryView | null,
 } | null, string>(__TAURI_INVOKE("job_summary")),
 	saveReport: (path: string) => typedError<null, string>(__TAURI_INVOKE("save_report", { path })),
 	/**  "Retry failed": only the failed files, checked again (RFD §5.4). */
@@ -152,7 +154,25 @@ export type FinishedRow = {
 
 export type JobOutcome = "complete" | "failures" | "cancelled" | "stopped";
 
-export type JobPhase = "copying" | "verifying" | "done";
+export type JobPhase = "copying" | "verifying" | 
+/**  A mirror archiving or deleting what's gone from its origin (plan 7). */
+"removing" | "done";
+
+/**  What a mirror did besides copying (FR-52). */
+export type MirrorSummaryView = {
+	/**  Files new in the origin, copied. */
+	new: number,
+	/**  Files changed in the origin, replaced. */
+	updated: number,
+	/**  Files gone from the origin, archived or deleted. */
+	removed: number,
+	/**  Removed files were archived (or deleted). */
+	archived: boolean,
+	/**  Files that couldn't be archived or deleted, with why. */
+	removalFailures: FinishedRow[],
+	/**  Why nothing was removed: the copy phase failed or was cancelled. */
+	nothingRemoved: string | null,
+};
 
 export type OnFailure = "continue" | "stop";
 
@@ -209,6 +229,10 @@ export type ProgressView = {
 	active: ActiveFileView[],
 	/**  Smaller files in progress, summed into one row. */
 	smallFiles: SmallFilesView | null,
+	/**  Files a mirror is archiving or deleting, while it does (`JobPhase::Removing`). */
+	removing: number,
+	/**  Whether they are archived (or deleted). */
+	archiving: boolean,
 	/**  Set once, when the job has stopped for good. */
 	fatal: string | null,
 };
@@ -364,6 +388,8 @@ export type SummaryView = {
 	reportFile: string | null,
 	/**  Why the report couldn't be saved there. */
 	reportError: string | null,
+	/**  A mirror's own figures (plan 7); `None` for a copy. */
+	mirror: MirrorSummaryView | null,
 };
 
 /* Tauri Specta runtime */

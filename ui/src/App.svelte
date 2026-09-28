@@ -119,6 +119,8 @@
     active: [],
     smallFiles: null,
     fatal: null,
+    removing: 0,
+    archiving: false,
   });
 
   async function run<T>(action: () => Promise<T>): Promise<T | undefined> {

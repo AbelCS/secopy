@@ -153,6 +153,10 @@ pub struct ProgressView {
     pub active: Vec<ActiveFileView>,
     /// Smaller files in progress, summed into one row.
     pub small_files: Option<SmallFilesView>,
+    /// Files a mirror is archiving or deleting, while it does (`JobPhase::Removing`).
+    pub removing: u32,
+    /// Whether they are archived (or deleted).
+    pub archiving: bool,
     /// Set once, when the job has stopped for good.
     pub fatal: Option<String>,
 }
@@ -163,6 +167,8 @@ pub enum JobPhase {
     #[default]
     Copying,
     Verifying,
+    /// A mirror archiving or deleting what's gone from its origin (plan 7).
+    Removing,
     Done,
 }
 
@@ -248,6 +254,8 @@ pub struct SummaryView {
     pub report_file: Option<String>,
     /// Why the report couldn't be saved there.
     pub report_error: Option<String>,
+    /// A mirror's own figures (plan 7); `None` for a copy.
+    pub mirror: Option<MirrorSummaryView>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
@@ -354,4 +362,22 @@ pub enum QueueEvent {
     JobStarted { index: u32, count: u32 },
     Progress { view: ProgressView },
     Done { summary: QueueSummaryView },
+}
+
+/// What a mirror did besides copying (FR-52).
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MirrorSummaryView {
+    /// Files new in the origin, copied.
+    pub new: u32,
+    /// Files changed in the origin, replaced.
+    pub updated: u32,
+    /// Files gone from the origin, archived or deleted.
+    pub removed: u32,
+    /// Removed files were archived (or deleted).
+    pub archived: bool,
+    /// Files that couldn't be archived or deleted, with why.
+    pub removal_failures: Vec<FinishedRow>,
+    /// Why nothing was removed: the copy phase failed or was cancelled.
+    pub nothing_removed: Option<String>,
 }

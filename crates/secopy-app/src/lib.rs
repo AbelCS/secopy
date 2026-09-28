@@ -4,6 +4,7 @@ pub mod commands;
 pub mod dto;
 pub mod jobs;
 mod migrate;
+pub mod mirrors;
 mod picker;
 pub mod queue;
 pub mod session;

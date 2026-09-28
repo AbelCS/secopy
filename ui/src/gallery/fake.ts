@@ -70,6 +70,8 @@ export const progress: ProgressView = {
   ],
   smallFiles: null,
   fatal: null,
+  removing: 0,
+  archiving: false,
 };
 
 function row(i: number, status: FinishedRow["status"] = "verified"): FinishedRow {
@@ -107,6 +109,7 @@ export const summary: SummaryView = {
   checksumOff: false,
   reportFile: "/x/r.txt",
   reportError: null,
+  mirror: null,
 };
 
 export const queue: QueueView = {

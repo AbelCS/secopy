@@ -15,15 +15,17 @@ use secopy_core::control::JobControl;
 use secopy_core::job::{
     Event, FileOutcome, FileStatus, JobOptions, JobReport, Progress, SkipReason, run_job,
 };
+use secopy_core::mirror::{self, Change, Deleted, MirrorPlan, Removal};
 use secopy_core::plan::Plan;
 use secopy_core::report::{JobMeta, Report};
 use secopy_core::scan::Selection;
 use secopy_core::source::Source;
 
 use crate::dto::{
-    ActiveFileView, FinishedRow, JobOutcome, JobPhase, ProgressView, RowStatus, SmallFilesView,
-    SummaryView, count, show,
+    ActiveFileView, FinishedRow, JobOutcome, JobPhase, MirrorSummaryView, ProgressView, RowStatus,
+    SmallFilesView, SummaryView, count, show,
 };
+use crate::mirrors::MirrorJob;
 use crate::session::Ready;
 use crate::store::Settings;
 
@@ -35,10 +37,38 @@ const OWN_ROW: u64 = 8 << 20;
 const FAILURES_SHOWN: usize = 1000;
 
 /// The settings a job starts with (RFD §5.5); changing them later doesn't affect it.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct JobSettings {
     pub write_checksum_file: bool,
     pub report_next_to_checksum: bool,
+    /// A mirror's removals, done after its copy phase (plan 7); `None` for a copy.
+    pub mirror: Option<MirrorRun>,
+}
+
+/// What a mirror job does once its files are copied and verified.
+#[derive(Debug, Clone)]
+pub struct MirrorRun {
+    pub plan: Arc<MirrorPlan>,
+    /// This run's archive directory (archive mode); `None` deletes.
+    pub archive: Option<PathBuf>,
+}
+
+impl JobSettings {
+    /// A mirror job: no checksum file (it would be part of the mirror), its removals after.
+    pub fn for_mirror(job: &MirrorJob, now: DateTime<Local>) -> Self {
+        let archive = match job.plan.options.deleted {
+            Deleted::Archive { .. } => Some(mirror::archive_dir(&job.plan.copy.dest, now)),
+            Deleted::Delete => None,
+        };
+        Self {
+            write_checksum_file: false,
+            report_next_to_checksum: false,
+            mirror: Some(MirrorRun {
+                plan: job.plan.clone(),
+                archive,
+            }),
+        }
+    }
 }
 
 impl Default for JobSettings {
@@ -52,6 +82,7 @@ impl From<&Settings> for JobSettings {
         Self {
             write_checksum_file: s.write_checksum_file,
             report_next_to_checksum: s.report_next_to_checksum,
+            mirror: None,
         }
     }
 }
@@ -90,6 +121,8 @@ struct Done {
     report_file: Result<PathBuf, String>,
     /// Why the report couldn't also be written next to the checksum file.
     next_to_error: Option<String>,
+    /// A mirror's removals, or why nothing was removed (plan 7).
+    removals: Option<Result<Vec<Removal>, String>>,
 }
 
 impl Jobs {
@@ -256,12 +289,20 @@ impl Job {
         let report = job.report(done);
         let outcomes = job.outcomes.lock().expect("job lock poisoned");
         let c = &report.counts;
+        let mirror = self
+            .settings
+            .mirror
+            .as_ref()
+            .map(|m| mirror_summary(m, done, &outcomes));
+        let removal_failed = mirror
+            .as_ref()
+            .is_some_and(|m| !m.removal_failures.is_empty());
         Some(SummaryView {
             outcome: if done.report.fatal.is_some() {
                 JobOutcome::Stopped
             } else if done.report.cancelled {
                 JobOutcome::Cancelled
-            } else if c.failed > 0 {
+            } else if c.failed > 0 || removal_failed {
                 JobOutcome::Failures
             } else {
                 JobOutcome::Complete
@@ -300,6 +341,7 @@ impl Job {
                     .collect();
                 (!errors.is_empty()).then(|| errors.join("; "))
             },
+            mirror,
         })
     }
 
@@ -319,10 +361,18 @@ impl Job {
     }
 
     fn run(&self, sink: &impl ProgressSink, reports_dir: &Path) {
+        let mirroring = self.settings.mirror.as_ref();
+        // Archive runs older than the preset keeps them go first (FR-49).
+        if let Some(m) = mirroring
+            && let Deleted::Archive { days } = m.plan.options.deleted
+        {
+            mirror::clean_archives(&m.plan.copy.dest, days, Local::now());
+        }
         let opts = JobOptions {
             verify: self.verify,
             write_checksum_file: self.settings.write_checksum_file,
             progress_interval: PROGRESS_INTERVAL,
+            archive_replaced: mirroring.and_then(|m| m.archive.clone()),
             ..JobOptions::default()
         };
         let plan: &Plan = &self.ready.plan;
@@ -338,11 +388,22 @@ impl Job {
                 self.outcomes.lock().expect("job lock poisoned").push(o);
             }
         });
+        // A mirror removes what's gone from its origin, only after a clean copy phase.
+        let removals = mirroring.map(|m| {
+            let last = self.last.lock().expect("job lock poisoned").clone();
+            let mut view = self.progress(&last, false, None);
+            view.phase = JobPhase::Removing;
+            view.removing = count(m.plan.removals.len());
+            view.archiving = m.archive.is_some();
+            sink.send(view);
+            mirror::finish(&m.plan, &report, m.archive.as_deref())
+        });
         let mut done = Done {
             finished: Local::now(),
             report_file: Err(String::new()),
             next_to_error: None,
             report,
+            removals,
         };
         done.report_file = self.save(&done, reports_dir);
         if self.settings.report_next_to_checksum
@@ -417,6 +478,8 @@ impl Job {
             active,
             small_files: (small.count > 0).then_some(small),
             fatal,
+            removing: 0,
+            archiving: false,
         }
     }
 
@@ -446,11 +509,96 @@ impl Job {
             Some(stem) => stem.to_string_lossy().into_owned(),
             None => checksum_file::file_name(self.started).replace(".xxh64", ""),
         };
-        self.report(done)
+        let text = self
+            .report(done)
             .write(reports_dir, &stem)
             .map(|(text, _)| text)
-            .map_err(failed)
+            .map_err(failed)?;
+        if let Some(removals) = &done.removals {
+            let archived = self
+                .settings
+                .mirror
+                .as_ref()
+                .is_some_and(|m| m.archive.is_some());
+            append_removals(&text, removals, archived).map_err(failed)?;
+        }
+        Ok(text)
     }
+}
+
+/// A mirror's figures: files copied as new or updated, and its removals.
+fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> MirrorSummaryView {
+    let written: std::collections::HashSet<usize> = outcomes
+        .iter()
+        .filter(|o| matches!(o.status, FileStatus::Copied | FileStatus::Verified))
+        .map(|o| o.id)
+        .collect();
+    let done_as = |new: bool| {
+        m.plan
+            .changes
+            .iter()
+            .filter(|(i, c)| (*c == Change::New) == new && written.contains(i))
+            .count()
+    };
+    let (removed, removal_failures, nothing_removed) = match &done.removals {
+        Some(Ok(list)) => (
+            list.iter().filter(|r| r.result.is_ok()).count(),
+            list.iter()
+                .enumerate()
+                .filter_map(|(i, r)| {
+                    r.result.as_ref().err().map(|e| FinishedRow {
+                        id: count(i),
+                        path: show(&r.rel),
+                        final_path: show(&r.rel),
+                        size: 0,
+                        millis: 0,
+                        hash: None,
+                        status: RowStatus::Failed,
+                        reason: Some(format!("Not removed: {e}")),
+                    })
+                })
+                .collect(),
+            None,
+        ),
+        Some(Err(why)) => (0, Vec::new(), Some(why.clone())),
+        None => (0, Vec::new(), None),
+    };
+    MirrorSummaryView {
+        new: count(done_as(true)),
+        updated: count(done_as(false)),
+        removed: count(removed),
+        archived: m.archive.is_some(),
+        removal_failures,
+        nothing_removed,
+    }
+}
+
+/// Adds a mirror's removals to its saved text report (FR-52).
+fn append_removals(
+    text: &Path,
+    removals: &Result<Vec<Removal>, String>,
+    archived: bool,
+) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut out = fs::OpenOptions::new().append(true).open(text)?;
+    match removals {
+        Ok(list) => {
+            let how = if archived { "archived" } else { "deleted" };
+            writeln!(
+                out,
+                "\nRemoved from the destination ({how}): {}",
+                list.len()
+            )?;
+            for r in list {
+                match &r.result {
+                    Ok(()) => writeln!(out, "  {}", r.rel.display())?,
+                    Err(e) => writeln!(out, "  {} — NOT REMOVED: {e}", r.rel.display())?,
+                }
+            }
+        }
+        Err(why) => writeln!(out, "\n{why}")?,
+    }
+    Ok(())
 }
 
 fn row(o: &FileOutcome) -> FinishedRow {
@@ -866,6 +1014,93 @@ mod tests {
             jobs.summary().unwrap().files,
             2,
             "the current job is the last one"
+        );
+    }
+    fn preset(o: &Path, d: &Path, mode: crate::store::DeletedMode) -> crate::store::MirrorPreset {
+        crate::store::MirrorPreset {
+            id: "m".into(),
+            name: "Footage".into(),
+            origin: show(o),
+            destination: show(d),
+            deleted: crate::store::DeletedFiles { mode, days: 30 },
+            deep_check: false,
+        }
+    }
+
+    #[test]
+    fn a_mirror_job_copies_then_removes_and_says_so() {
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        std::fs::create_dir_all(&o).unwrap();
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(o.join("a.mov"), b"a").unwrap();
+        std::fs::write(d.join("x.mov"), b"x").unwrap();
+        let job =
+            crate::mirrors::prepare(&preset(&o, &d, crate::store::DeletedMode::Archive)).unwrap();
+        let jobs = Jobs::new(dir.path().join("reports"));
+        let sink = Collect::default();
+        jobs.start(
+            job.ready(),
+            true,
+            JobSettings::for_mirror(&job, Local::now()),
+            sink.clone(),
+        )
+        .unwrap();
+        jobs.wait();
+        let s = jobs.summary().unwrap();
+        let m = s.mirror.unwrap();
+        assert_eq!((m.new, m.updated, m.removed, m.archived), (1, 0, 1, true));
+        assert!(s.checksum_file.is_none());
+        assert!(!d.join("x.mov").exists());
+        assert!(
+            sink.0
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|v| v.phase == JobPhase::Removing)
+        );
+        assert_eq!(sink.last().phase, JobPhase::Done);
+    }
+
+    #[test]
+    fn a_mirror_that_failed_says_nothing_was_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        std::fs::create_dir_all(&o).unwrap();
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(o.join("a.mov"), b"a").unwrap();
+        std::fs::write(d.join("x.mov"), b"x").unwrap();
+        let job =
+            crate::mirrors::prepare(&preset(&o, &d, crate::store::DeletedMode::Delete)).unwrap();
+        std::fs::remove_file(o.join("a.mov")).unwrap();
+        let jobs = Jobs::new(dir.path().join("reports"));
+        jobs.start(
+            job.ready(),
+            true,
+            JobSettings::for_mirror(&job, Local::now()),
+            Collect::default(),
+        )
+        .unwrap();
+        jobs.wait();
+        let m = jobs.summary().unwrap().mirror.unwrap();
+        assert_eq!(
+            m.nothing_removed.as_deref(),
+            Some("Nothing was removed: 1 file failed.")
+        );
+        assert!(d.join("x.mov").exists());
+    }
+
+    #[test]
+    fn a_missing_origin_says_so() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = preset(
+            Path::new("/Volumes/SECOPY_NO_SUCH/Footage"),
+            dir.path(),
+            crate::store::DeletedMode::Archive,
+        );
+        assert_eq!(
+            crate::mirrors::prepare(&p).err().unwrap(),
+            "SECOPY_NO_SUCH isn't connected."
         );
     }
 }
