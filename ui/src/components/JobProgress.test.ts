@@ -159,20 +159,21 @@ describe("JobProgress", () => {
     screen.getByRole("dialog", { name: "Stop mirroring?" });
   });
 
-  test("big files get a row, small ones are grouped", () => {
+  test("big files get a row, small ones one steady row counted in files", () => {
     show(
       progressView({
         active: [
           { id: 1, name: "A001C014.mov", path: "DCIM/A001C014.mov", verifying: false, size: 8_400_000_000, bytesDone: 5_100_000_000 },
         ],
-        smallFiles: { count: 12, size: 41_000_000, bytesDone: 18_000_000 },
+        smallFiles: { done: 1234, total: 5000 },
       }),
     );
     screen.getByText("A001C014.mov");
     screen.getByText("5.1 GB of 8.4 GB");
     screen.getByRole("progressbar", { name: "A001C014.mov" });
-    screen.getByText("+ 12 small files");
-    screen.getByText("18.0 MB of 41.0 MB");
+    screen.getByText("Small files");
+    screen.getByText("1,234 of 5,000");
+    expect(screen.getByRole("progressbar", { name: "Small files" }).getAttribute("aria-valuenow")).toBe("25");
   });
 
   test("a fatal error shows a banner", () => {
