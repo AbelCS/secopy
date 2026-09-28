@@ -86,6 +86,15 @@ pub struct Report {
     pub mirror: Option<MirrorPart>,
     /// Empty directories that couldn't be created (#58).
     pub dir_errors: Vec<Unread>,
+    /// A check's own parts (plan 8): its checksum files, their problems, what nothing lists.
+    pub check: Option<CheckPart>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CheckPart {
+    pub checksum_files: Vec<String>,
+    pub not_checked: Vec<String>,
+    pub problems: Vec<Unread>,
 }
 
 /// What a mirror did after copying: removals, and names changed to the origin's spelling.
@@ -191,6 +200,7 @@ impl Report {
             files,
             durability_error: job.durability_error.clone(),
             mirror: None,
+            check: None,
             dir_errors: job
                 .dir_errors
                 .iter()
@@ -207,6 +217,105 @@ impl Report {
                     reason: p.message.clone(),
                 })
                 .collect(),
+        }
+    }
+
+    /// A check's report (plan 8): every listed file with what was found.
+    pub fn for_check(
+        plan: &crate::check::CheckPlan,
+        r: &crate::check::CheckReport,
+        meta: &JobMeta,
+    ) -> Report {
+        use crate::error::FileError;
+        let by_id: HashMap<usize, _> = r.job.outcomes.iter().map(|o| (o.id, o)).collect();
+        let c = r.counts();
+        let files = plan
+            .files
+            .iter()
+            .enumerate()
+            .map(|(id, f)| {
+                let (status, reason) = match by_id.get(&id).map(|o| &o.status) {
+                    Some(FileStatus::Verified) => ("intact", None),
+                    Some(FileStatus::Failed(e @ FileError::Changed { .. })) => {
+                        ("changed", Some(e.to_string()))
+                    }
+                    Some(FileStatus::Failed(FileError::Missing)) => ("missing", None),
+                    Some(FileStatus::Failed(e)) => ("failed", Some(e.to_string())),
+                    Some(FileStatus::Cancelled) => ("cancelled", None),
+                    _ => ("not started", None),
+                };
+                ReportFile {
+                    path: slash_path(&f.rel),
+                    copied_to: None,
+                    size: f.size,
+                    status,
+                    reason,
+                    xxh64: Some(crate::hash::to_hex(f.expected)),
+                    in_checksum_file: true,
+                }
+            })
+            .collect();
+        let mut parts: Vec<String> = [
+            (c.changed, "changed"),
+            (c.missing, "missing"),
+            (c.failed, "couldn't be read"),
+        ]
+        .into_iter()
+        .filter(|(n, _)| *n > 0)
+        .map(|(n, what)| format!("{n} {what}"))
+        .collect();
+        if !r.problems.is_empty() {
+            parts.push(format!("{} checksum file problems", r.problems.len()));
+        }
+        if r.job.cancelled {
+            parts.push("cancelled".into());
+        }
+        let shown = |p: &Path| slash_path(p);
+        Report {
+            app_version: meta.app_version.clone(),
+            mode: "check",
+            source: plan.dir.display().to_string(),
+            destination: plan.dir.display().to_string(),
+            started: meta.started.to_rfc3339(),
+            finished: meta.finished.to_rfc3339(),
+            duration_secs: r.job.elapsed.as_secs_f64(),
+            result: if r.is_intact() {
+                "all intact".into()
+            } else {
+                parts.join(", ")
+            },
+            counts: Counts {
+                files: plan.files.len() as u64,
+                verified: c.intact,
+                failed: c.changed + c.missing + c.failed,
+                not_started: r.job.not_started,
+                ..Counts::default()
+            },
+            cache_bypass: r.job.cache_bypass.map(|b| b == CacheBypass::Active),
+            checksum_file: None,
+            checksum_error: None,
+            checksum_off: true,
+            removed_partials: 0,
+            files,
+            unread: Vec::new(),
+            durability_error: None,
+            mirror: None,
+            dir_errors: Vec::new(),
+            check: Some(CheckPart {
+                checksum_files: plan.checksum_files.iter().map(|p| shown(p)).collect(),
+                not_checked: r.not_checked.iter().map(|p| shown(p)).collect(),
+                problems: r
+                    .problems
+                    .iter()
+                    .map(|p| Unread {
+                        path: match p.line {
+                            Some(n) => format!("{}:{n}", shown(&p.file)),
+                            None => shown(&p.file),
+                        },
+                        reason: p.reason.clone(),
+                    })
+                    .collect(),
+            }),
         }
     }
 
@@ -295,6 +404,27 @@ impl Report {
                 "Removed {} partial file(s) left by an interrupted copy",
                 self.removed_partials
             );
+        }
+        if let Some(c) = &self.check {
+            let _ = writeln!(t);
+            let _ = writeln!(t, "CHECKSUM FILES");
+            for f in &c.checksum_files {
+                let _ = writeln!(t, "  {f}");
+            }
+            if !c.problems.is_empty() {
+                let _ = writeln!(t);
+                let _ = writeln!(t, "PROBLEMS IN CHECKSUM FILES");
+                for p in &c.problems {
+                    let _ = writeln!(t, "  {}: {}", p.path, p.reason);
+                }
+            }
+            if !c.not_checked.is_empty() {
+                let _ = writeln!(t);
+                let _ = writeln!(t, "NOT CHECKED (no checksum)");
+                for p in &c.not_checked {
+                    let _ = writeln!(t, "  {p}");
+                }
+            }
         }
         if !self.unread.is_empty() {
             let _ = writeln!(t);

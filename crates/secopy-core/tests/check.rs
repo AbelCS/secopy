@@ -242,3 +242,29 @@ fn progress_counts_bytes_checked() {
         (2, 15_000, 15_000)
     );
 }
+
+#[test]
+fn the_report_says_what_was_checked() {
+    let (_dir, root) = copy_of(&[("a.mov", b"aaaa"), ("b.mov", b"b")]);
+    fs::write(root.join("a.mov"), b"aaab").unwrap();
+    fs::write(root.join("extra.mov"), b"x").unwrap();
+    let p = check::plan(&root).unwrap();
+    let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
+    let meta = secopy_core::report::JobMeta {
+        app_version: "test".into(),
+        source: root.display().to_string(),
+        verify: true,
+        started: chrono::Local::now(),
+        finished: chrono::Local::now(),
+    };
+    let report = secopy_core::report::Report::for_check(&p, &r, &meta);
+    assert_eq!(report.mode, "check");
+    assert_eq!(report.result, "1 changed");
+    let text = report.to_text();
+    assert!(
+        text.contains("NOT CHECKED (no checksum)\n  extra.mov"),
+        "{text}"
+    );
+    assert!(text.contains("changed since it was copied"), "{text}");
+    assert!(report.to_json().contains("\"not_checked\""));
+}
