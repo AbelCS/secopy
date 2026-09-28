@@ -13,6 +13,8 @@
   import TabBar from "../lib/ui/TabBar.svelte";
   import QueueSummary from "../components/QueueSummary.svelte";
   import SettingsScreen from "../components/SettingsScreen.svelte";
+  import ImportScreen from "../components/ImportScreen.svelte";
+  import ExportDialog from "../components/ExportDialog.svelte";
   import Summary from "../components/Summary.svelte";
   import { provideApi } from "../lib/api";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -28,7 +30,7 @@
   import Select from "../lib/ui/Select.svelte";
   import Stats from "../lib/ui/Stats.svelte";
   import TextField from "../lib/ui/TextField.svelte";
-  import { fakeApi, mirrorPreview, mirrorSummary, verifySummary, mirrors, copyPresets, progress, queue, queueSummary, settings, summary } from "./fake";
+  import { fakeApi, mirrorPreview, mirrorSummary, verifySummary, mirrors, copyPresets, progress, queue, queueSummary, settings, summary, importView } from "./fake";
 
   const page = location.hash.slice(1) || "components";
   // For screenshots: ?tips shows every Hint's explanation and every Button's help at once,
@@ -64,7 +66,12 @@
 {:else if page === "summary"}
   <Summary {summary} onRetry={() => {}} onNewCopy={() => {}} />
 {:else if page === "settings"}
-  <SettingsScreen {settings} onSettings={() => {}} onDone={() => {}} />
+  <SettingsScreen {settings} onSettings={() => {}} onExport={() => {}} onImport={() => {}} onDone={() => {}} />
+{:else if page === "import"}
+  <ImportScreen view={importView} onImport={() => {}} onBack={() => {}} />
+{:else if page === "export"}
+  <SettingsScreen {settings} onSettings={() => {}} onExport={() => {}} onImport={() => {}} onDone={() => {}} />
+  <ExportDialog copyPresets={2} mirrorPresets={1} onExport={() => {}} onClose={() => {}} />
 {:else if page === "mirror"}
   <MirrorScreen presets={mirrors} onPresets={() => {}} onPreview={() => {}} onQueue={() => {}} />
 {:else if page === "tabs"}

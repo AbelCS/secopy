@@ -1,6 +1,6 @@
 // Fake data and a fake Api for the gallery: every screen without Tauri. Dev only.
 import type { Api } from "../lib/api";
-import type { CopyPreset, FinishedRow, MirrorPreset, MirrorPreviewView, PreviewRow, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
+import type { CopyPreset, FinishedRow, ImportView, MirrorPreset, MirrorPreviewView, PreviewRow, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
 
 export const copyPresets: CopyPreset[] = [
   { id: "fx3", name: "Sony FX3", source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
@@ -198,6 +198,21 @@ const ok =
     Promise.resolve(value);
 
 /** Answers every call with the fake data above. */
+/** A team's .secopy file on the Import screen: settings that change, a clash, a path not
+ *  connected, and a preset that can't come in. */
+export const importView: ImportView = {
+  fileName: "Team presets.secopy",
+  settings: { changes: ["Write the checksum file: on → off", "Notify when a copy finishes: on → off"], problem: null },
+  copyPresets: [
+    { name: "Sony FX3", paths: ["/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null },
+    { name: "DJI Mini 4", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI Mini 4", missing: ["/Volumes/DJI/DCIM"], problem: null },
+    { name: "Old camera", paths: [], clash: null, newName: "Old camera", missing: [], problem: "Its details can't be read (invalid type: number, expected a string)." },
+  ],
+  mirrorPresets: [
+    { name: "Footage", paths: ["/Volumes/SSD/Footage", "/Volumes/NAS/Footage"], clash: null, newName: "Footage", missing: ["/Volumes/NAS/Footage"], problem: null },
+  ],
+};
+
 export function fakeApi(start: Partial<{ copyPresets: CopyPreset[] }> = {}): Api {
   const table: Record<string, unknown> = {
     appStart: ok({

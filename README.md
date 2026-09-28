@@ -15,6 +15,8 @@ copied.
 - **Verify:** point at a backup, a copy or a whole drive; every file its checksum files list
   is read again and compared, so silent damage shows up. Mirrors keep a checksum file too.
 - **Cancel** can also remove the files already copied, leaving the destination as it was.
+- **Export and import:** settings and presets in a `.secopy` file, for a new Mac or to share
+  presets; importing shows what's inside first and never overwrites anything silently.
 
 > **Status:** early development, Apple Silicon Macs only. Secopy is macOS only by design:
 > there are no Windows or Linux versions. Design:

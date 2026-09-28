@@ -206,7 +206,8 @@ apply when saved (Save); Cancel or Esc drops them.
 | Advanced: files in flight, buffer size | Auto | §7.2. Folded under "Advanced". Plan 4 (performance). |
 | Include system files | — | Reserved (FR-14). Not shown in v1. |
 
-Settings are stored per user in the OS's standard app-config location.
+Settings are stored per user in the OS's standard app-config location. A section below them
+exports and imports settings and presets (§6.11).
 
 ### 5.6 Visual design
 
@@ -376,6 +377,14 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-50 | **Guard:** a missing or empty origin, or a run removing more than half of the destination's files, needs confirmation by hand and fails in the queue. | M |
 | FR-51 | System files, symlinks and the archive are ignored on both sides; names are compared after Unicode normalization, and a case-only rename on a case-insensitive destination is an update, not a delete and a copy. | S |
 | FR-52 | A mirror summary: what was copied, updated, archived or deleted, failures with reasons, and a report like a copy's. After a clean run a mirror keeps `.secopy-checksums.xxh64` in its destination (new and changed files' verified hashes added, removed files dropped), written whole or not at all, so its backup can be verified (FR-34). | S |
+
+### 6.11 Export and import
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-53 | **Export** (File › Export…, Settings): a `.secopy` file (versioned JSON) with any of the settings, the copy presets and the mirror presets, as chosen; one preset from its own screen. Never the queue, recent destinations, the remembered window or reports. Written to a temporary name and renamed, never half-written. | S |
+| FR-54 | **Import** (File › Import…, Settings) shows what the file holds before anything changes: settings that differ, each preset with its paths, name clashes (**Keep both**, the default, as "Name (2)", or **Replace**, which keeps the preset's place in the queue), paths not on this Mac (a note), and presets that can't be imported (with why). Imported presets get the same checks as hand-made ones. A newer or foreign file, or one over 10 MB, is refused with nothing changed. Nothing is imported while a job or the queue runs. A save that fails partway says exactly what went in. | S |
+| FR-55 | Opening a `.secopy` file from Finder opens the Import screen. | C |
 
 ## 7. Engine design (performance)
 
@@ -578,3 +587,4 @@ The stack meets these constraints:
 | 2026-09-28 | **No multiple destinations** (#69 discussion): two copy jobs in the queue copy a source to two destinations, reading it twice. A job that reads once and writes N copies was dropped: it's a new path through the copy engine for something the queue already does. This replaces the v1.1 plan (2026-09-26). |
 | 2026-09-28 | **Presets** (#72): copy profiles are now copy presets, like mirror presets: one word for saved setups. The saved file keeps its name, profiles.json. |
 | 2026-09-28 | **Short button labels** (#72): the fewest words that can't be read two ways. Every job starts with **Start** (copy, verify, mirror, queue: the tab says which, like ⌘↩); **Update**, **Save as…**, **New preset…**, **Clear…**, **Retry**. **Add to queue**, **Save report…** and **Show in Finder** keep their words: one word would be ambiguous. Replaces "Start copy" (#45). |
+| 2026-09-29 | **Export and import** (#77): one `.secopy` file for settings and presets, for backups, new Macs and sharing; clashes Keep both by default or Replace (keeping the preset's id); paths not on this Mac are a note, not an error; nothing imported while a job runs. |

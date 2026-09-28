@@ -6,7 +6,7 @@ How the app's screens are built, so they look and behave the same. The colours c
 To see every component and screen: `cd ui && npm run dev`, then open
 <http://localhost:5173/gallery.html> (add `#setup`, `#progress`, `#summary`, `#settings`,
 `#presets`, `#presets-empty`, `#queue`, `#queue-summary`, `#mirror`, `#mirror-preview`,
-`#mirror-summary`, `#mirroring`, `#verify`, `#verify-summary`, `#tabs` or `#cancel` for a screen; `?tips` shows every `Hint`
+`#mirror-summary`, `#mirroring`, `#verify`, `#verify-summary`, `#import`, `#export`, `#tabs` or `#cancel` for a screen; `?tips` shows every `Hint`
 and every button's help, `?help` only the buttons' help, `?help=primary` only the primary button's, as in
 `gallery.html?help=primary#setup`). The
 gallery is dev only and not in the app.
@@ -85,7 +85,7 @@ Components use tokens only, never raw colours or sizes.
 | `EmptyState` | What an empty part is for and how to fill it |
 | `Icon` | A few Lucide icons, always next to words |
 | `Hint` | A term that isn't clear on its own, explained on hover and keyboard focus: dotted underline, or an ⓘ mark with no term. `FormRow` (`hint`) and `Stats` items take one |
-| `Dialog` | A question over the screen, only when a system dialog can't hold it (a checkbox): safe answer first and focused, the other on the right; Esc is the safe answer |
+| `Dialog` | A question over the screen, only when a system dialog can't hold it (a checkbox): safe answer first and focused, the other on the right; Esc is the safe answer. Export's choice of what goes in the file (`ExportDialog`) is one |
 
 ## Rules
 

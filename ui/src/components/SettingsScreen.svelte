@@ -9,7 +9,6 @@
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
   import Checkbox from "../lib/ui/Checkbox.svelte";
-  import FormRow from "../lib/ui/FormRow.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
   import Section from "../lib/ui/Section.svelte";
@@ -105,18 +104,16 @@
 
   {#if onExport || onImport}
     <Section title="Settings and presets">
-      <FormRow label="Another Mac">
-        <div class="transfer">
-          {#if onExport}
-            <Button
-              help={changed ? "Exports your saved settings; save first to include these changes." : ""}
-              onclick={onExport}>Export…</Button
-            >
-          {/if}
-          {#if onImport}<Button onclick={onImport}>Import…</Button>{/if}
-        </div>
-        <p class="muted">A .secopy file with your settings and presets, for a new Mac or to share presets.</p>
-      </FormRow>
+      <p class="muted">Move your settings and presets to a new Mac, or share presets, in a .secopy file.</p>
+      <div class="transfer">
+        {#if onExport}
+          <Button
+            help={changed ? "Exports your saved settings; save first to include these changes." : ""}
+            onclick={onExport}>Export…</Button
+          >
+        {/if}
+        {#if onImport}<Button onclick={onImport}>Import…</Button>{/if}
+      </div>
     </Section>
   {/if}
 
@@ -136,10 +133,9 @@
     gap: var(--space-2);
   }
 
-  .transfer + .muted {
-    margin: var(--space-2) 0 0;
+  .muted {
+    margin: 0 0 var(--space-3);
     color: var(--text-muted);
-    font-size: var(--text-sm);
   }
 
   .options {
