@@ -39,6 +39,8 @@ pub struct Counts {
     pub cancelled: u64,
     pub not_started: u64,
     pub bytes_written: u64,
+    /// A check: the files read in full (intact or changed). A copy: 0.
+    pub bytes_read: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -297,12 +299,25 @@ impl Report {
                 verified: c.intact,
                 failed: c.changed + c.missing + c.failed,
                 not_started: r.job.not_started,
+                bytes_read: r
+                    .job
+                    .outcomes
+                    .iter()
+                    .filter(|o| {
+                        matches!(
+                            o.status,
+                            FileStatus::Verified | FileStatus::Failed(FileError::Changed { .. })
+                        )
+                    })
+                    .map(|o| o.size)
+                    .sum(),
                 ..Counts::default()
             },
             cache_bypass: r.job.cache_bypass.map(|b| b == CacheBypass::Active),
+            // A check writes nothing: no checksum file was asked for, or turned off.
             checksum_file: None,
             checksum_error: None,
-            checksum_off: true,
+            checksum_off: false,
             removed_partials: 0,
             files,
             unread: Vec::new(),
@@ -346,24 +361,30 @@ impl Report {
     pub fn to_text(&self) -> String {
         let mut t = String::new();
         let c = &self.counts;
-        let mode = if self.mode == "copy" {
-            "Copy"
-        } else {
-            "Copy & Verify"
+        // A check reads one directory and writes nothing.
+        let check = self.mode == "check";
+        let mode = match self.mode {
+            "copy" => "Copy",
+            "check" => "Verify",
+            _ => "Copy & Verify",
         };
         let _ = writeln!(t, "Secopy {} report", self.app_version);
         let _ = writeln!(t);
         let _ = writeln!(t, "Result:       {}", self.result);
         let _ = writeln!(t, "Mode:         {mode}");
-        let _ = writeln!(t, "Source:       {}", self.source);
-        let _ = writeln!(t, "Destination:  {}", self.destination);
+        if check {
+            let _ = writeln!(t, "Directory:    {}", self.source);
+        } else {
+            let _ = writeln!(t, "Source:       {}", self.source);
+            let _ = writeln!(t, "Destination:  {}", self.destination);
+        }
         let _ = writeln!(t, "Started:      {}", self.started);
         let _ = writeln!(t, "Finished:     {}", self.finished);
         let _ = writeln!(t, "Duration:     {:.1} s", self.duration_secs);
         let _ = writeln!(t);
         let _ = writeln!(t, "Files:        {}", c.files);
         for (label, n) in [
-            ("verified", c.verified),
+            (if check { "intact" } else { "verified" }, c.verified),
             ("copied", c.copied),
             (
                 "skipped, already at the destination (not checked)",
@@ -378,7 +399,11 @@ impl Report {
                 let _ = writeln!(t, "  {n} {label}");
             }
         }
-        let _ = writeln!(t, "Written:      {} bytes", c.bytes_written);
+        if check {
+            let _ = writeln!(t, "Read:         {} bytes", c.bytes_read);
+        } else {
+            let _ = writeln!(t, "Written:      {} bytes", c.bytes_written);
+        }
         match self.cache_bypass {
             Some(true) => {
                 let _ = writeln!(t, "Verify read:  from the device (cache bypassed)");
@@ -398,7 +423,7 @@ impl Report {
             (None, Some(e)) => {
                 let _ = writeln!(t, "Checksum file NOT written: {e}");
             }
-            (None, None) if self.checksum_off => {
+            (None, None) if self.checksum_off && !check => {
                 let _ = writeln!(t, "Checksum file: off (not written)");
             }
             (None, None) => {}

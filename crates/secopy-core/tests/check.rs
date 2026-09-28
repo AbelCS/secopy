@@ -384,6 +384,46 @@ fn only_secopys_reports_are_left_out() {
     assert_eq!(p.not_checked, [PathBuf::from("sales_report.txt")]);
 }
 
+/// #69 V7: a check's report says Verify, names the directory once, counts bytes read, and
+/// claims no write, destination or checksum file.
+#[test]
+fn a_checks_report_is_a_verify_not_a_copy() {
+    let (_dir, root) = copy_of(&[("a.mov", b"aaaa"), ("b.mov", b"bb"), ("gone.mov", b"g")]);
+    fs::write(root.join("a.mov"), b"aaab").unwrap();
+    fs::remove_file(root.join("gone.mov")).unwrap();
+    let p = check::plan(&root).unwrap();
+    let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
+    let meta = secopy_core::report::JobMeta {
+        app_version: "test".into(),
+        source: root.display().to_string(),
+        verify: true,
+        started: chrono::Local::now(),
+        finished: chrono::Local::now(),
+    };
+    let report = secopy_core::report::Report::for_check(&p, &r, &meta);
+    let text = report.to_text();
+    assert!(text.contains("Mode:         Verify\n"), "{text}");
+    let dir_line = format!("Directory:    {}\n", root.display());
+    assert!(text.contains(&dir_line), "{text}");
+    assert!(text.contains("  1 intact\n"), "{text}");
+    assert!(text.contains("Read:         6 bytes\n"), "{text}");
+    for claim in [
+        "Copy",
+        "Source:",
+        "Destination:",
+        "Written:",
+        "Checksum file",
+    ] {
+        assert!(!text.contains(claim), "{claim:?} in\n{text}");
+    }
+    let json: serde_json::Value = serde_json::from_str(&report.to_json()).unwrap();
+    assert_eq!(json["mode"], "check");
+    assert_eq!(json["counts"]["bytes_written"], 0);
+    assert_eq!(json["counts"]["bytes_read"], 6);
+    assert_eq!(json["checksum_file"], serde_json::Value::Null);
+    assert_eq!(json["checksum_off"], false);
+}
+
 /// #69 V3: each problem file in a check's report names the checksum file that listed it.
 #[test]
 fn the_report_names_the_checksum_file_that_listed_a_problem() {
