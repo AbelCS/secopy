@@ -162,7 +162,14 @@
     }
   }
 
+  /** A new job replaces the backend's last one: no old mirror summary acts on it. */
+  function forgetMirrorSummary() {
+    mirrorSummary = null;
+    mirrorScreen = "mirror";
+  }
+
   async function start() {
+    forgetMirrorSummary();
     progress = waiting();
     screen = "progress";
     const started = await run(() =>
@@ -233,6 +240,7 @@
     // old Summary acts on a queue job.
     summary = null;
     copyScreen = "setup";
+    forgetMirrorSummary();
     queueRun = { index: 0, count: queue.jobs.length };
     progress = waiting();
     screen = "progress";

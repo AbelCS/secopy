@@ -312,4 +312,24 @@ describe("App", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Done" }));
     await screen.findByRole("heading", { level: 1, name: "Mirror" });
   });
+
+  test("a copy after a mirror: Mirror no longer shows the mirror's summary", async () => {
+    const { api, state } = app();
+    const mirror = { new: 2, updated: 1, removed: 1, archived: true, removalFailures: [], nothingRemoved: null };
+    api.jobSummary.mockResolvedValueOnce(summaryView({ mirror }));
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-mirror");
+    await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
+    state.progress!(progressView({ phase: "done" }));
+    await screen.findByText("Mirrored: 2 new, 1 updated, 1 archived");
+    state.menu!("show-copy");
+    await fireEvent.click(await startButton());
+    state.progress!(progressView({ phase: "done" }));
+    await screen.findByRole("heading", { level: 1, name: "Summary" });
+    state.menu!("show-mirror");
+    await screen.findByRole("heading", { level: 1, name: "Mirror" });
+    expect(screen.queryByText("Mirrored: 2 new, 1 updated, 1 archived")).toBeNull();
+  });
 });
