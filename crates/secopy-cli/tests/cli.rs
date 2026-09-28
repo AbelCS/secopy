@@ -283,3 +283,13 @@ fn check_says_intact_then_changed() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stdout).contains("CHANGED CARD/A001.mov"));
 }
+
+/// Final review: nothing to verify is not a success.
+#[test]
+fn check_with_nothing_to_verify_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.mov"), b"a").unwrap();
+    let out = cli().arg("--check").arg(dir.path()).output().unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stdout).contains("nothing to verify"));
+}

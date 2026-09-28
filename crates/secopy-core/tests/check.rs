@@ -268,3 +268,68 @@ fn the_report_says_what_was_checked() {
     assert!(text.contains("changed since it was copied"), "{text}");
     assert!(report.to_json().contains("\"not_checked\""));
 }
+
+/// Final review: macOS's own directories on a drive (unreadable ones included) aren't
+/// problems or "not checked".
+#[test]
+fn a_whole_drive_skips_the_systems_directories() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, root) = copy_of(&[("a.mov", b"a")]);
+    fs::create_dir_all(root.join(".Trashes")).unwrap();
+    fs::create_dir_all(root.join(".Spotlight-V100")).unwrap();
+    fs::write(root.join(".Spotlight-V100/store.db"), b"x").unwrap();
+    fs::set_permissions(root.join(".Trashes"), fs::Permissions::from_mode(0o000)).unwrap();
+    let p = check::plan(&root).unwrap();
+    fs::set_permissions(root.join(".Trashes"), fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(p.problems.is_empty(), "{:?}", p.problems);
+    assert!(p.not_checked.is_empty(), "{:?}", p.not_checked);
+}
+
+/// Final review: a listed path can't leave the directory through a directory link.
+#[test]
+fn a_path_through_a_link_is_a_problem() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("backup");
+    let outside = dir.path().join("outside");
+    fs::create_dir_all(&root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(outside.join("x.mov"), b"x").unwrap();
+    std::os::unix::fs::symlink(&outside, root.join("link")).unwrap();
+    fs::write(
+        root.join("a.xxh64"),
+        format!("{:016x}  link/x.mov\n", secopy_core::hash::hash_bytes(b"x")),
+    )
+    .unwrap();
+    let p = check::plan(&root).unwrap();
+    assert!(p.files.is_empty(), "{:?}", p.files);
+    assert_eq!(p.problems.len(), 1);
+    assert!(p.problems[0].reason.contains("outside"), "{:?}", p.problems);
+}
+
+/// Final review: `./a`, as `find . | xargs xxhsum` writes it, is the file `a`.
+#[test]
+fn dot_slash_paths_are_the_same_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().to_path_buf();
+    fs::write(root.join("a.mov"), b"a").unwrap();
+    fs::write(
+        root.join("x.xxh64"),
+        format!("{:016x}  ./a.mov\n", secopy_core::hash::hash_bytes(b"a")),
+    )
+    .unwrap();
+    let p = check::plan(&root).unwrap();
+    assert_eq!(p.files.len(), 1);
+    assert_eq!(p.files[0].rel, PathBuf::from("a.mov"));
+    assert!(p.not_checked.is_empty(), "{:?}", p.not_checked);
+}
+
+/// Final review: only Secopy's own reports are left out; a person's `sales_report.txt` is
+/// "not checked" like any file.
+#[test]
+fn only_secopys_reports_are_left_out() {
+    let (_dir, root) = copy_of(&[("a.mov", b"a")]);
+    fs::write(root.join("sales_report.txt"), b"s").unwrap();
+    fs::write(root.join("secopy_2026-09-28_120000_report.txt"), b"r").unwrap();
+    let p = check::plan(&root).unwrap();
+    assert_eq!(p.not_checked, [PathBuf::from("sales_report.txt")]);
+}

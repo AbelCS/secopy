@@ -136,7 +136,12 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
         .min_depth(1)
         .follow_links(false)
         .into_iter()
-        .filter_entry(|e| !(e.file_type().is_dir() && e.file_name() == ARCHIVE_DIR));
+        // The archive, and the system's own directories (.Spotlight-V100, .Trashes…): not the
+        // backup's, and often unreadable.
+        .filter_entry(|e| {
+            !(e.file_type().is_dir()
+                && (e.file_name() == ARCHIVE_DIR || is_system_file(e.file_name())))
+        });
     for entry in walk {
         let entry = match entry {
             Ok(entry) => entry,
@@ -165,8 +170,8 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
         if name.ends_with(".xxh64") {
             sums.push((rel, entry.metadata().ok().and_then(|m| m.modified().ok())));
         } else if !is_system_file(entry.file_name())
-            && !name.ends_with("_report.txt")
-            && !name.ends_with("_report.json")
+            && !(name.starts_with("secopy_")
+                && (name.ends_with("_report.txt") || name.ends_with("_report.json")))
         {
             others.push(rel);
         }
@@ -196,7 +201,8 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
         }
         let base = sum.parent().unwrap_or(Path::new(""));
         for (line, path, expected) in entries {
-            if !inside(&path) {
+            let rel = base.join(plain(&path));
+            if !inside(&path) || through_a_link(dir, &rel) {
                 problems.push(Problem {
                     file: sum.clone(),
                     line: Some(line),
@@ -204,7 +210,6 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
                 });
                 continue;
             }
-            let rel = base.join(&path);
             let size = fs::metadata(dir.join(&rel)).map_or(0, |m| m.len());
             listed.insert(
                 rel.clone(),
@@ -233,6 +238,21 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
         not_checked,
         problems,
     })
+}
+
+/// `path` without its `./` parts: `./a` (as `find . | xargs xxhsum` writes it) is `a`.
+fn plain(path: &Path) -> PathBuf {
+    path.components()
+        .filter(|c| matches!(c, Component::Normal(_)))
+        .collect()
+}
+
+/// A directory on the way to `rel` is a link: it could lead out of the checked directory.
+fn through_a_link(dir: &Path, rel: &Path) -> bool {
+    rel.ancestors()
+        .skip(1)
+        .filter(|a| !a.as_os_str().is_empty())
+        .any(|a| fs::symlink_metadata(dir.join(a)).is_ok_and(|m| m.file_type().is_symlink()))
 }
 
 /// Only plain names: no `..`, no root, nothing that leaves the checked directory.
@@ -444,15 +464,20 @@ fn check_one(
     no_bypass: &AtomicBool,
 ) -> (FileStatus, Option<u64>, u64) {
     let path = dir.join(&file.rel);
-    match fs::symlink_metadata(&path) {
+    let size = match fs::symlink_metadata(&path) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return (FileStatus::Failed(FileError::Missing), None, file.size);
         }
         Ok(m) if !m.is_file() => return (FileStatus::Failed(FileError::Missing), None, file.size),
         Err(e) => return (FileStatus::Failed(FileError::read_back(e)), None, file.size),
-        Ok(_) => {}
-    }
+        Ok(m) => m.len(),
+    };
     match hash_from_device(&path, opts.buffer_size, progress, control) {
+        // Written to while it was read: what was hashed is no version of the file.
+        Ok(_) if resized(&path, size) => {
+            let e = io::Error::other("it changed while it was read");
+            (FileStatus::Failed(FileError::read_back(e)), None, file.size)
+        }
         Ok((actual, bypass)) => {
             if bypass == CacheBypass::Unavailable {
                 no_bypass.store(true, Relaxed);
@@ -469,5 +494,28 @@ fn check_one(
         }
         Err(FileError::Cancelled) => (FileStatus::Cancelled, None, 0),
         Err(e) => (FileStatus::Failed(e), None, file.size),
+    }
+}
+
+/// `path` no longer has the size it had when it was opened (or is gone).
+fn resized(path: &Path, size: u64) -> bool {
+    fs::symlink_metadata(path).map_or(true, |m| m.len() != size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Final review: a file that grew (or shrank) while it was read isn't what was hashed.
+    #[test]
+    fn a_file_that_changed_size_while_read_is_noticed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a.mov");
+        fs::write(&path, b"12345").unwrap();
+        assert!(!resized(&path, 5));
+        fs::write(&path, b"123456").unwrap();
+        assert!(resized(&path, 5));
+        fs::remove_file(&path).unwrap();
+        assert!(resized(&path, 5));
     }
 }
