@@ -274,7 +274,11 @@ fn key(p: &Path) -> String {
 
 #[derive(Debug, Clone)]
 pub struct CheckOptions {
-    pub lanes: usize,
+    /// Files up to this size go to the small-file lanes, as in a copy (RFD §7.2).
+    pub small_file_threshold: u64,
+    pub small_file_lanes: usize,
+    /// Few: parallel reads of large files make a spinning disk seek.
+    pub large_file_lanes: usize,
     pub buffer_size: usize,
     pub progress_interval: Duration,
     pub keep_awake: bool,
@@ -282,8 +286,11 @@ pub struct CheckOptions {
 
 impl Default for CheckOptions {
     fn default() -> Self {
+        let copy = crate::job::JobOptions::default();
         Self {
-            lanes: 4,
+            small_file_threshold: copy.small_file_threshold,
+            small_file_lanes: copy.small_file_lanes,
+            large_file_lanes: copy.large_file_lanes,
             buffer_size: 4 << 20,
             progress_interval: Duration::from_millis(50),
             keep_awake: true,
@@ -336,7 +343,8 @@ pub fn run(
 ) -> CheckReport {
     let started = Instant::now();
     let _awake = opts.keep_awake.then(crate::awake::KeepAwake::new);
-    let next = AtomicUsize::new(0);
+    let queues = queues(&plan.files, opts);
+    let next = [AtomicUsize::new(0), AtomicUsize::new(0)];
     let finished_bytes = AtomicU64::new(0);
     let files_done = AtomicU64::new(0);
     let active: Mutex<Vec<(usize, u64)>> = Mutex::new(Vec::new());
@@ -365,6 +373,52 @@ pub fn run(
             paused: control.is_paused(),
         }
     };
+    // One lane: takes the next file of its queue until the queue is empty.
+    let lane = |ids: &[usize], next: &AtomicUsize| {
+        loop {
+            if control.is_stopped() {
+                break;
+            }
+            let Some(&id) = ids.get(next.fetch_add(1, Relaxed)) else {
+                break;
+            };
+            let file = &plan.files[id];
+            let began = Instant::now();
+            active.lock().expect("active lock poisoned").push((id, 0));
+            let set = |bytes: u64| {
+                if let Some(slot) = active
+                    .lock()
+                    .expect("active lock poisoned")
+                    .iter_mut()
+                    .find(|(i, _)| *i == id)
+                {
+                    slot.1 = bytes;
+                }
+            };
+            let (status, hash, read) = check_one(&plan.dir, file, opts, control, &set, &no_bypass);
+            active
+                .lock()
+                .expect("active lock poisoned")
+                .retain(|(i, _)| *i != id);
+            finished_bytes.fetch_add(read, Relaxed);
+            files_done.fetch_add(1, Relaxed);
+            let outcome = FileOutcome {
+                id,
+                rel: file.rel.clone(),
+                final_rel: file.rel.clone(),
+                size: file.size,
+                hash,
+                status,
+                in_checksum_file: true,
+                elapsed: began.elapsed(),
+            };
+            outcomes
+                .lock()
+                .expect("outcomes lock poisoned")
+                .push(outcome.clone());
+            on_event(Event::FileFinished(outcome));
+        }
+    };
     std::thread::scope(|s| {
         let (stop_ticker, stop) = mpsc::channel::<()>();
         let tick = &snapshot;
@@ -375,56 +429,13 @@ pub fn run(
                 on_event(Event::Progress(tick()));
             }
         });
-        let lanes: Vec<_> = (0..opts.lanes.max(1))
-            .map(|_| {
-                s.spawn(|| {
-                    loop {
-                        if control.is_stopped() {
-                            break;
-                        }
-                        let id = next.fetch_add(1, Relaxed);
-                        let Some(file) = plan.files.get(id) else {
-                            break;
-                        };
-                        let began = Instant::now();
-                        active.lock().expect("active lock poisoned").push((id, 0));
-                        let set = |bytes: u64| {
-                            if let Some(slot) = active
-                                .lock()
-                                .expect("active lock poisoned")
-                                .iter_mut()
-                                .find(|(i, _)| *i == id)
-                            {
-                                slot.1 = bytes;
-                            }
-                        };
-                        let (status, hash, read) =
-                            check_one(&plan.dir, file, opts, control, &set, &no_bypass);
-                        active
-                            .lock()
-                            .expect("active lock poisoned")
-                            .retain(|(i, _)| *i != id);
-                        finished_bytes.fetch_add(read, Relaxed);
-                        files_done.fetch_add(1, Relaxed);
-                        let outcome = FileOutcome {
-                            id,
-                            rel: file.rel.clone(),
-                            final_rel: file.rel.clone(),
-                            size: file.size,
-                            hash,
-                            status,
-                            in_checksum_file: true,
-                            elapsed: began.elapsed(),
-                        };
-                        outcomes
-                            .lock()
-                            .expect("outcomes lock poisoned")
-                            .push(outcome.clone());
-                        on_event(Event::FileFinished(outcome));
-                    }
-                })
-            })
-            .collect();
+        let lane = &lane;
+        let mut lanes = Vec::new();
+        for ((ids, count), next) in queues.iter().zip(&next) {
+            for _ in 0..*count {
+                lanes.push(s.spawn(move || lane(ids, next)));
+            }
+        }
         for lane in lanes {
             lane.join().expect("check lane panicked");
         }
@@ -457,6 +468,16 @@ pub fn run(
         not_checked: plan.not_checked.clone(),
         problems: plan.problems.clone(),
     }
+}
+
+/// The small files and the large ones (indexes in `files`), each with its number of lanes.
+fn queues(files: &[Listed], opts: &CheckOptions) -> [(Vec<usize>, usize); 2] {
+    let (small, large) =
+        (0..files.len()).partition(|&i| files[i].size <= opts.small_file_threshold);
+    [
+        (small, opts.small_file_lanes.max(1)),
+        (large, opts.large_file_lanes.max(1)),
+    ]
 }
 
 /// Reads one listed file in full from the device: (status, hash read, bytes counted).
@@ -532,5 +553,23 @@ mod tests {
         assert!(resized(&path, 5));
         fs::remove_file(&path).unwrap();
         assert!(resized(&path, 5));
+    }
+
+    /// #69 V1: a check reads with the copy's lanes (RFD §7.2): many small files at once,
+    /// large ones few at a time, so a spinning disk isn't asked for parallel large reads.
+    #[test]
+    fn large_files_are_read_with_the_copys_few_lanes() {
+        let job = crate::job::JobOptions::default();
+        let listed = |size| Listed {
+            rel: PathBuf::new(),
+            expected: 0,
+            size,
+            from: PathBuf::new(),
+        };
+        let t = job.small_file_threshold;
+        let files = [listed(1 << 10), listed(1 << 30), listed(t), listed(t + 1)];
+        let [small, large] = queues(&files, &CheckOptions::default());
+        assert_eq!(small, (vec![0, 2], job.small_file_lanes));
+        assert_eq!(large, (vec![1, 3], job.large_file_lanes));
     }
 }

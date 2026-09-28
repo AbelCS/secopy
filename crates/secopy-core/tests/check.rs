@@ -219,6 +219,18 @@ fn a_listed_link_or_directory_is_a_failure_not_missing() {
     assert!(!r.is_intact());
 }
 
+/// #69 V1: small and large files go to different lanes; every one is still checked.
+#[test]
+fn small_and_large_files_are_all_checked() {
+    let large = vec![7u8; (4 << 20) + 1];
+    let (_dir, root) = copy_of(&[("a.mov", b"a"), ("big.mov", &large), ("c.mov", b"c")]);
+    fs::write(root.join("c.mov"), b"x").unwrap();
+    let r = check_all(&root);
+    let c = r.counts();
+    assert_eq!((c.intact, c.changed), (2, 1), "{:?}", r.job.outcomes);
+    assert_eq!(r.job.not_started, 0);
+}
+
 /// Review focus 2.
 #[test]
 fn a_file_that_changed_size_is_changed() {
