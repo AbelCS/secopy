@@ -67,7 +67,14 @@ impl AppState {
     pub fn new(data_dir: PathBuf) -> Self {
         let store = Store::new(data_dir.clone());
         let (settings, w1) = store.load::<Settings>(SETTINGS);
-        let (profiles, w2) = store.load::<Profiles>(PROFILES);
+        let (loaded, w2) = store.load::<Profiles>(PROFILES);
+        let (profiles, repairs) = loaded.clone().repaired();
+        // Saved as put right, so its messages show once.
+        if profiles != loaded
+            && let Err(e) = store.save(PROFILES, &profiles)
+        {
+            eprintln!("Secopy: couldn't save {PROFILES}: {e}");
+        }
         let (remembered, w3) = store.load::<Remembered>(REMEMBERED);
         let (queue, w4) = store.load::<Queue>(QUEUE);
         let (mirrors, w5) = store.load::<MirrorPresets>(MIRRORS);
@@ -78,7 +85,13 @@ impl AppState {
             settings: Mutex::new(settings),
             profiles: Mutex::new(profiles),
             remembered: Mutex::new(remembered),
-            warnings: Mutex::new([w1, w2, w3, w4, w5].into_iter().flatten().collect()),
+            warnings: Mutex::new(
+                [w1, w2, w3, w4, w5]
+                    .into_iter()
+                    .flatten()
+                    .chain(repairs)
+                    .collect(),
+            ),
             mirrors: Mutex::new(mirrors),
             preview: Mutex::new(None),
             planning: Mutex::new(Vec::new()),
@@ -1546,6 +1559,48 @@ mod tests {
         assert_eq!(first.warnings.len(), 1);
         assert!(first.settings.write_checksum_file, "defaults");
         assert!(state.start_view().warnings.is_empty());
+    }
+
+    /// #69: profiles read from disk are put right like new ones; one that clashes with
+    /// another or has no name is kept under a free name, never dropped.
+    #[test]
+    fn loaded_profiles_are_normalized_and_none_is_lost() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join(PROFILES),
+            r#"{"version": 1, "profiles": [
+                {"id": "a", "name": " FX3 ", "source": " /Volumes/CARD/DCIM/ ", "includeFolder": true, "extensions": ["MP4", ".XML", "mp4"]},
+                {"id": "b", "name": "fx3", "source": "", "includeFolder": true, "extensions": null},
+                {"id": "a", "name": "A7", "source": "", "includeFolder": false, "extensions": null},
+                {"id": "c", "name": "  ", "source": "DCIM", "includeFolder": true, "extensions": null}
+            ]}"#,
+        )
+        .unwrap();
+        let state = AppState::new(dir.path().to_path_buf());
+        let start = state.start_view();
+        let p = &start.profiles;
+        let names: Vec<&str> = p.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["FX3", "fx3 (2)", "A7", "Unnamed profile"]);
+        assert_eq!(p[0].source, "/Volumes/CARD/DCIM");
+        assert_eq!(
+            p[0].extensions,
+            Some(vec![Some("mp4".into()), Some("xml".into())])
+        );
+        assert_eq!(p[0].id, "a");
+        let ids: std::collections::HashSet<&str> = p.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids.len(), 4, "every id its own");
+        assert_eq!(p[3].source, "", "not a full path: no source");
+        assert_eq!(start.warnings.len(), 3, "{:?}", start.warnings);
+        assert!(start.warnings.iter().any(|w| w.contains("“fx3 (2)”")));
+        assert!(start.warnings.iter().any(|w| w.contains("(DCIM)")));
+        let saved = Store::new(dir.path().to_path_buf()).load::<Profiles>(PROFILES);
+        assert_eq!(saved, (state.profiles.lock().unwrap().clone(), None));
+        assert!(
+            AppState::new(dir.path().to_path_buf())
+                .start_view()
+                .warnings
+                .is_empty()
+        );
     }
 
     #[test]
