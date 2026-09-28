@@ -1,6 +1,6 @@
 //! Command-line front-end for the Secopy engine, used for development and benchmarks (RFD §10, M0).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -25,11 +25,15 @@ use secopy_core::source::{DirMode, Source};
 )]
 struct Args {
     /// One directory, or one or more files.
-    #[arg(required = true)]
+    #[arg(required_unless_present = "check")]
     sources: Vec<PathBuf>,
     /// Destination directory (must exist).
-    #[arg(long, short = 't')]
-    to: PathBuf,
+    #[arg(long, short = 't', required_unless_present = "check")]
+    to: Option<PathBuf>,
+    /// Check a directory against its checksum files: every listed file is read again and
+    /// compared (plan 8). Exit 0 when all are intact, 1 otherwise.
+    #[arg(long, value_name = "DIR", conflicts_with_all = ["sources", "to", "mirror"])]
+    check: Option<PathBuf>,
     /// Copy only what is inside the source directory, not the directory itself.
     #[arg(long)]
     contents: bool,
@@ -97,11 +101,21 @@ fn main() -> ExitCode {
     }
 }
 
+impl Args {
+    /// `--to`; clap requires it unless `--check` is given.
+    fn to(&self) -> &Path {
+        self.to.as_deref().expect("--to is required unless --check")
+    }
+}
+
 fn run(args: Args) -> Result<ExitCode, String> {
-    if !args.to.is_dir() {
+    if let Some(dir) = &args.check {
+        return check_run(dir);
+    }
+    if !args.to().is_dir() {
         return Err(format!(
             "destination {} is not a directory",
-            args.to.display()
+            args.to().display()
         ));
     }
     if args.mirror {
@@ -133,7 +147,7 @@ fn run(args: Args) -> Result<ExitCode, String> {
         fmt_bytes(selection.total_bytes),
         scan.skipped_system
     );
-    let pf = preflight(&source, &selection, &args.to).map_err(|e| e.to_string())?;
+    let pf = preflight(&source, &selection, args.to()).map_err(|e| e.to_string())?;
     let plan = Plan::resolve(&selection, &pf, args.on_conflict.into());
     print_preflight(&pf, &plan);
     if let Some(blocker) = plan.blockers().first() {
@@ -223,7 +237,7 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
         deleted,
         deep_check: args.deep,
     };
-    let plan = mirror::plan(origin, &args.to, &options)?;
+    let plan = mirror::plan(origin, args.to(), &options)?;
     let new = plan
         .changes
         .iter()
@@ -249,8 +263,8 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
     let now = Local::now();
     let archive = match deleted {
         Deleted::Archive { days } => {
-            mirror::clean_archives(&args.to, days, now);
-            Some(mirror::archive_dir(&args.to, now))
+            mirror::clean_archives(args.to(), days, now);
+            Some(mirror::archive_dir(args.to(), now))
         }
         Deleted::Delete => None,
     };
@@ -278,6 +292,10 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
             );
             if !finished.renamed.is_empty() {
                 println!("renamed to match the origin: {}", finished.renamed.len());
+            }
+            if let Err(e) = mirror::write_checksums(&plan, &report, &finished) {
+                println!("checksum file NOT written: {e}");
+                ok = false;
             }
             ok
         }
@@ -430,4 +448,42 @@ fn fmt_bytes(n: u64) -> String {
     } else {
         format!("{value:.1} {}", UNITS[unit])
     }
+}
+
+/// `--check`: every file the directory's checksum files list, read again (plan 8).
+fn check_run(dir: &Path) -> Result<ExitCode, String> {
+    use secopy_core::{check, error::FileError, job::FileStatus};
+    let plan = check::plan(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let r = check::run(
+        &plan,
+        &check::CheckOptions::default(),
+        &JobControl::new(),
+        &|_| {},
+    );
+    let c = r.counts();
+    println!("intact: {}", c.intact);
+    println!("changed: {}", c.changed);
+    println!("missing: {}", c.missing);
+    println!("couldn't be read: {}", c.failed);
+    println!("not checked: {}", r.not_checked.len());
+    for o in &r.job.outcomes {
+        let path = o.rel.display();
+        match &o.status {
+            FileStatus::Failed(FileError::Changed { .. }) => println!("CHANGED {path}"),
+            FileStatus::Failed(FileError::Missing) => println!("MISSING {path}"),
+            FileStatus::Failed(e) => println!("FAILED {path}: {e}"),
+            _ => {}
+        }
+    }
+    for p in &r.problems {
+        match p.line {
+            Some(n) => println!("PROBLEM {}:{n}: {}", p.file.display(), p.reason),
+            None => println!("PROBLEM {}: {}", p.file.display(), p.reason),
+        }
+    }
+    Ok(if r.is_intact() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    })
 }
