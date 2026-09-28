@@ -155,11 +155,16 @@
   /** Start is enabled on New copy. */
   let setupReady = $state(false);
 
-  // The File menu offers only what applies here (spec §3).
+  // The File menu offers only what applies here (spec §3). Derived, so a progress update that
+  // changes nothing here doesn't send it again.
+  const onSetup = $derived(screen === "setup");
+  const canStart = $derived(onSetup && setupReady);
+  // A mirror's removals can't be cancelled, as on the progress screen.
+  const cancellable = $derived.by(
+    () => screen === "progress" && progress?.phase !== "done" && progress?.phase !== "removing",
+  );
   $effect(() => {
-    // A mirror's removals can't be cancelled, as on the progress screen.
-    const copying = screen === "progress" && progress?.phase !== "done" && progress?.phase !== "removing";
-    void api.setMenuState(screen === "setup", screen === "setup" && setupReady, copying).catch(() => {});
+    void api.setMenuState(onSetup, canStart, cancellable).catch(() => {});
   });
 
   function onMenu(item: string) {
