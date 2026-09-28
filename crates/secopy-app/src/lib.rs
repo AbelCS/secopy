@@ -428,6 +428,29 @@ mod tests {
         );
     }
 
+    /// #69: the UI only asks whether it may notify, asks for permission and notifies, so
+    /// that's all it may do with notifications.
+    #[test]
+    fn notifications_are_only_what_the_ui_uses() {
+        let permissions = capability()["permissions"].clone();
+        let mut granted: Vec<&str> = permissions
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|p| p.as_str())
+            .filter(|p| p.starts_with("notification:"))
+            .collect();
+        granted.sort();
+        assert_eq!(
+            granted,
+            [
+                "notification:allow-is-permission-granted",
+                "notification:allow-notify",
+                "notification:allow-request-permission",
+            ]
+        );
+    }
+
     /// Without a signature over the whole bundle, macOS calls a downloaded app "damaged"
     /// and offers no Open Anyway (#36). Ad-hoc ("-") until it is signed with a Developer ID.
     #[test]
