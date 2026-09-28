@@ -1625,6 +1625,113 @@ mod tests {
         );
     }
 
+    /// #72: `profiles.json` and `state.json` as Secopy 0.10 wrote them. Renaming profiles
+    /// to copy presets must not change a byte of what is saved.
+    const PROFILES_0_10: &str = r#"{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "19a2f0c4e8b1d3",
+      "name": "Sony FX3",
+      "source": "/Volumes/FX3_A/PRIVATE/M4ROOT/CLIP",
+      "includeFolder": true,
+      "extensions": [
+        null,
+        "mp4",
+        "xml"
+      ]
+    },
+    {
+      "id": "19a2f0c4e8b1d4",
+      "name": "Photos",
+      "source": "",
+      "includeFolder": false,
+      "extensions": null
+    }
+  ]
+}"#;
+    const REMEMBERED_0_10: &str = r#"{
+  "version": 1,
+  "verify": false,
+  "window": {
+    "width": 1120.0,
+    "height": 760.0
+  },
+  "lastProfile": "19a2f0c4e8b1d4",
+  "recentDestinations": [
+    "/Volumes/SSD/Footage"
+  ]
+}"#;
+
+    #[test]
+    fn presets_and_the_last_one_saved_by_0_10_load() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join(PROFILES), PROFILES_0_10).unwrap();
+        fs::write(dir.path().join(REMEMBERED), REMEMBERED_0_10).unwrap();
+        let start = AppState::new(dir.path().to_path_buf()).start_view();
+        assert!(start.warnings.is_empty(), "{:?}", start.warnings);
+        let p = &start.profiles;
+        assert_eq!(p.len(), 2);
+        assert_eq!(
+            (p[0].id.as_str(), p[0].name.as_str(), p[0].source.as_str()),
+            (
+                "19a2f0c4e8b1d3",
+                "Sony FX3",
+                "/Volumes/FX3_A/PRIVATE/M4ROOT/CLIP"
+            )
+        );
+        assert!(p[0].include_folder);
+        assert_eq!(
+            p[0].extensions,
+            Some(vec![None, Some("mp4".into()), Some("xml".into())])
+        );
+        assert_eq!((p[1].name.as_str(), p[1].source.as_str()), ("Photos", ""));
+        assert!(!p[1].include_folder && p[1].extensions.is_none());
+        assert_eq!(start.last_profile.as_deref(), Some("19a2f0c4e8b1d4"));
+        assert!(!start.verify);
+        assert_eq!(
+            fs::read_to_string(dir.path().join(PROFILES)).unwrap(),
+            PROFILES_0_10,
+            "nothing to put right, so the file isn't rewritten"
+        );
+    }
+
+    #[test]
+    fn saving_writes_the_keys_0_10_wrote() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().to_path_buf());
+        let id = state.create_profile(input("FX3", Path::new(""))).unwrap()[0]
+            .id
+            .clone();
+        state.select_profile(Some(id.clone())).unwrap();
+        let read = |name: &str| -> serde_json::Value {
+            serde_json::from_str(&fs::read_to_string(dir.path().join(name)).unwrap()).unwrap()
+        };
+        let keys = |v: &serde_json::Value| -> Vec<String> {
+            let mut keys: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
+            keys.sort();
+            keys
+        };
+        let saved = read("profiles.json");
+        assert_eq!(keys(&saved), ["profiles", "version"]);
+        assert_eq!(
+            keys(&saved["profiles"][0]),
+            ["extensions", "id", "includeFolder", "name", "source"]
+        );
+        let remembered = read("state.json");
+        assert_eq!(
+            keys(&remembered),
+            [
+                "lastProfile",
+                "recentDestinations",
+                "verify",
+                "version",
+                "window"
+            ]
+        );
+        assert_eq!(remembered["lastProfile"], serde_json::Value::String(id));
+    }
+
     #[test]
     fn a_damaged_file_is_reported_once() {
         let dir = tempfile::tempdir().unwrap();
