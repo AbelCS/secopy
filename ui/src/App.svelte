@@ -4,7 +4,7 @@
   import { messageOf } from "./lib/format";
   import { onMount } from "svelte";
   import { provideApi, tauriApi, type Api } from "./lib/api";
-  import { stopMessage } from "./lib/stopping";
+  import { doing, NOT_STARTED, stopMessage, type JobKind } from "./lib/stopping";
   import { notificationFor, queueNotification } from "./lib/summaryText";
   import type {
     Profile,
@@ -113,6 +113,14 @@
   $effect(() => {
     if (screen !== "progress") mirrorRunning = checkRunning = false;
   });
+  /** What the running job does, for its screen and the stop questions. */
+  const runningKind: JobKind = $derived.by(() =>
+    checkRunning || queueRun?.kind === "check"
+      ? "check"
+      : mirrorRunning || queueRun?.kind === "mirror"
+        ? "mirror"
+        : "copy",
+  );
   /** The job of the queue summary whose own summary is open. */
   let openedJob: number | null = $state(null);
 
@@ -387,7 +395,15 @@
     const unlisten = api.onCloseRequested(async (prevent) => {
       if (!(await api.jobRunning())) return;
       // Settings can't change during a copy, so these are the running job's.
-      const stop = await api.confirm(stopMessage(settings.writeChecksumFile), "Stop copying and quit?");
+      const work = doing(runningKind);
+      const stop = queueRun?.checking
+        ? await api.confirm(NOT_STARTED, "Stop the queue and quit?", "Stop the queue", "Continue")
+        : await api.confirm(
+            stopMessage(runningKind, settings.writeChecksumFile),
+            `Stop ${work} and quit?`,
+            `Stop ${work}`,
+            `Keep ${work}`,
+          );
       if (!stop) prevent();
     });
     return () => {
@@ -452,8 +468,8 @@
           queue={queueRun ?? undefined}
           checking={queueRun?.checking ?? false}
           compared={queueRun?.compared}
-          title={mirrorRunning || queueRun?.kind === "mirror" ? "Mirroring" : undefined}
-          check={checkRunning || queueRun?.kind === "check"}
+          title={runningKind === "mirror" ? "Mirroring" : undefined}
+          check={runningKind === "check"}
         />
       {/key}
     {:else if screen === "summary" && summary}

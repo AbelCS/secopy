@@ -1,7 +1,7 @@
 <script lang="ts">
   // The progress view (RFD §5.3): phase and time, one bar per phase, active files, finished
   // files, Pause / Resume and Cancel.
-  import { stopMessage } from "../lib/stopping";
+  import { doing, NOT_STARTED, stopMessage, type JobKind } from "../lib/stopping";
   import { useApi } from "../lib/api";
   import type { ProgressView } from "../lib/bindings";
   import { formatBytes, formatCount, formatDuration, formatPercent, plural } from "../lib/format";
@@ -103,14 +103,13 @@
   let asking = $state(false);
   /** Also remove the files already copied (#54); off each time it opens. */
   let removeCopied = $state(false);
+  const kind: JobKind = $derived(check ? "check" : title === "Mirroring" ? "mirror" : "copy");
   const question = $derived(
-    queue
-      ? "Stop copying and stop the queue?"
-      : check
-        ? "Stop verifying?"
-        : title === "Mirroring"
-          ? "Stop mirroring?"
-          : "Stop copying?",
+    queue && checking
+      ? "Stop the queue?"
+      : queue
+        ? `Stop ${doing(kind)} and stop the queue?`
+        : `Stop ${doing(kind)}?`,
   );
   // A job that ends (or starts removing) while the question is open has nothing to stop.
   $effect(() => {
@@ -273,11 +272,13 @@
 {#if asking}
   <Dialog title={question} onClose={() => (asking = false)}>
     <p>
-      {check
-        ? "Nothing was changed: the files checked so far are in the summary."
-        : removeCopied
-          ? "The file in progress and the files already copied are removed."
-          : stopMessage(checksumFile)}
+      {checking
+        ? NOT_STARTED
+        : check
+          ? "Nothing was changed: the files checked so far are in the summary."
+          : removeCopied
+            ? "The file in progress and the files already copied are removed."
+            : stopMessage(kind, checksumFile)}
     </p>
     {#if !checking && !check}
       <Checkbox label="Also remove the files already copied" checked={removeCopied} onChange={(on) => (removeCopied = on)}>
