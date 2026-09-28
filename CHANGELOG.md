@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.0](https://github.com/AbelCS/secopy/compare/v0.6.0...v0.7.0) (2026-09-28)
+
+
+### Features
+
+* **app:** a job queue saved in queue.json ([82d315c](https://github.com/AbelCS/secopy/commit/82d315cb08e0c9681480563ac217099a82408c4e)), closes [#50](https://github.com/AbelCS/secopy/issues/50)
+* **app:** a queued copy is rebuilt and checked at its turn ([9e1e280](https://github.com/AbelCS/secopy/commit/9e1e28018477dd47d0bb20c60e492ad60ac47a6e)), closes [#50](https://github.com/AbelCS/secopy/issues/50)
+* **app:** queue commands and a View menu ([88ce1cc](https://github.com/AbelCS/secopy/commit/88ce1cc40d0aa2b4991a5a4de95e932b2dd2b7cc)), closes [#50](https://github.com/AbelCS/secopy/issues/50)
+* **app:** run the queue one job after another ([09eb0d1](https://github.com/AbelCS/secopy/commit/09eb0d1e64690171e5d9a2fee6b7b6c125fe29f9)), closes [#50](https://github.com/AbelCS/secopy/issues/50)
+* **ui:** a sidebar with Copy and Queue ([0783d9f](https://github.com/AbelCS/secopy/commit/0783d9fe6085c5ad8ba1cc9b78ddfcf8dab12281)), closes [#50](https://github.com/AbelCS/secopy/issues/50)
+* **ui:** Add to queue on New copy ([e00c2e4](https://github.com/AbelCS/secopy/commit/e00c2e4ee8189af48641b048e494d06de4d069d4)), closes [#50](https://github.com/AbelCS/secopy/issues/50)
+* **ui:** run the queue, with a queue summary ([0a2d2b4](https://github.com/AbelCS/secopy/commit/0a2d2b4981e6b49377bbebd15666a5b7d2147d91)), closes [#50](https://github.com/AbelCS/secopy/issues/50)
+* **ui:** the Queue screen ([4acc652](https://github.com/AbelCS/secopy/commit/4acc65280afa79470a5d315b210c6f9586aac517)), closes [#50](https://github.com/AbelCS/secopy/issues/50)
+
+
+### Bug Fixes
+
+* **app:** review fixes for the queue ([b445ca8](https://github.com/AbelCS/secopy/commit/b445ca8a1d1b8a44a3afca3d7010683c5f8c0a96)), closes [#50](https://github.com/AbelCS/secopy/issues/50)
+
 ## [0.6.0](https://github.com/AbelCS/secopy/compare/v0.5.1...v0.6.0) (2026-09-28)
 
 
