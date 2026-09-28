@@ -157,6 +157,9 @@ pub struct ProgressView {
     pub removing: u32,
     /// Whether they are archived (or deleted).
     pub archiving: bool,
+    /// A cancelled job removing the files it copied (Cancel's "Also remove…"), while it does
+    /// (`JobPhase::Removing`).
+    pub undoing: bool,
     /// Set once, when the job has stopped for good.
     pub fatal: Option<String>,
 }

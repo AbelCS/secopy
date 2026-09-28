@@ -352,6 +352,11 @@ export type ProgressView = {
 	removing: number,
 	/**  Whether they are archived (or deleted). */
 	archiving: boolean,
+	/**
+	 *  A cancelled job removing the files it copied (Cancel's "Also remove…"), while it does
+	 *  (`JobPhase::Removing`).
+	 */
+	undoing: boolean,
 	/**  Set once, when the job has stopped for good. */
 	fatal: string | null,
 };

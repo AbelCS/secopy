@@ -72,6 +72,7 @@ export const progress: ProgressView = {
   fatal: null,
   removing: 0,
   archiving: false,
+  undoing: false,
 };
 
 function row(i: number, status: FinishedRow["status"] = "verified"): FinishedRow {
