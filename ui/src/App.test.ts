@@ -341,6 +341,32 @@ describe("App", () => {
     await screen.findByRole("heading", { level: 1, name: "New copy" });
   });
 
+  test("the Verify tab and ⌘3 open Verify; Queue is ⌘4", async () => {
+    const { state } = app();
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-verify");
+    await screen.findByRole("heading", { level: 1, name: "Verify" });
+    state.menu!("show-queue");
+    await screen.findByRole("heading", { level: 1, name: "Queue" });
+  });
+
+  test("a check runs as Verifying and ends in its summary on the Verify tab", async () => {
+    const { api, state } = app();
+    api.jobSummary.mockResolvedValue(summaryView({ check: { intact: 2, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: [] } }));
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-verify");
+    api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
+    await fireEvent.click(await screen.findByRole("button", { name: "Choose…" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start verify" }));
+    await screen.findByRole("heading", { level: 1, name: "Verifying" });
+    state.progress!(progressView({ phase: "done" }));
+    await screen.findByText("All 2 files intact");
+    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await screen.findByRole("heading", { level: 1, name: "Verify" });
+  });
+
   test("the Mirror tab and ⌘2 open Mirror", async () => {
     const { state } = app();
     await startButton();

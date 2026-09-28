@@ -158,6 +158,18 @@ export const mirrorSummary: SummaryView = {
   mirror: { new: 12, updated: 3, removed: 5, archived: true, removalFailures: [], nothingRemoved: null },
 };
 
+export const verifySummary: SummaryView = {
+  ...summary,
+  outcome: "failures",
+  files: 1284,
+  failed: 2,
+  checksumOff: true,
+  checksumFile: null,
+  copyRoot: "/Volumes/Backup/Day01",
+  failures: [],
+  check: { intact: 1282, changed: 1, missing: 1, failed: 0, notChecked: 12, checksumFiles: 3, problems: [] },
+};
+
 export const queue: QueueView = {
   onFailure: "continue",
   jobs: [
@@ -206,6 +218,15 @@ export function fakeApi(start: Partial<{ profiles: Profile[] }> = {}): Api {
     confirm: ok(true),
     queue: ok(queue),
     mirrorPresets: ok(mirrors),
+    pickDirectory: ok("/Volumes/Backup/Day01"),
+    checkDirectory: ok({
+      directory: "/Volumes/Backup/Day01",
+      checksumFiles: 3,
+      files: 1284,
+      bytes: 212_400_000_000,
+      notChecked: 12,
+      problems: [],
+    }),
     mirrorPreviewPage: (kind: string | null) => Promise.resolve(previewRows.filter((r) => kind === null || r.kind === kind)),
   };
   return new Proxy({} as Api, { get: (_target, key: string) => table[key] ?? ok(session) });

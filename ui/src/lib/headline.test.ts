@@ -67,3 +67,11 @@ test("empty directories that couldn't be created aren't a success", () => {
     "2 empty directories couldn't be created",
   );
 });
+
+test("a check says intact, or what it found", () => {
+  const check = { intact: 1284, changed: 0, missing: 0, failed: 0, notChecked: 12, checksumFiles: 3, problems: [] };
+  expect(headline(summaryView({ check }))).toBe("All 1,284 files intact");
+  expect(headline(summaryView({ outcome: "failures", check: { ...check, intact: 1280, changed: 3, missing: 1 } }))).toBe(
+    "3 files changed · 1 missing",
+  );
+});

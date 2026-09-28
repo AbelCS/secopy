@@ -4,6 +4,17 @@ import type { SummaryView } from "./bindings";
 import { formatCount, plural } from "./format";
 
 export function headline(s: SummaryView): string {
+  const c = s.check;
+  if (c) {
+    if (s.outcome === "cancelled") return "Cancelled";
+    const parts = [
+      c.changed > 0 ? plural(c.changed, "file") + " changed" : "",
+      c.missing > 0 ? `${formatCount(c.missing)} missing` : "",
+      c.failed > 0 ? `${formatCount(c.failed)} couldn't be read` : "",
+      c.problems.length > 0 ? plural(c.problems.length, "checksum file problem") : "",
+    ].filter(Boolean);
+    return parts.length === 0 ? `All ${plural(c.intact, "file")} intact` : parts.join(" · ");
+  }
   const m = s.mirror;
   // Failures other than files: what couldn't be read, removals, the checksum file.
   if (s.outcome === "failures" && s.failed === 0) {

@@ -7,6 +7,7 @@ import ProfilesScreen from "./components/ProfilesScreen.svelte";
 import QueueScreen from "./components/QueueScreen.svelte";
 import MirrorPreview from "./components/MirrorPreview.svelte";
 import MirrorScreen from "./components/MirrorScreen.svelte";
+import VerifyScreen from "./components/VerifyScreen.svelte";
 import SettingsScreen from "./components/SettingsScreen.svelte";
 import Summary from "./components/Summary.svelte";
 import { apiContext } from "./lib/api";
@@ -81,6 +82,15 @@ describe("accessibility (axe-core)", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     screen.getByRole("dialog");
     expect(await violations(container.ownerDocument.body)).toEqual([]);
+  });
+
+  test("Verify", async () => {
+    const { api } = fakeApi();
+    api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
+    const { container } = render(VerifyScreen, { props: { onStart: () => {}, onQueue: () => {} }, context: apiContext(api) });
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await screen.findByText(/checksum files/);
+    expect(await violations(container)).toEqual([]);
   });
 
   test("Mirror preview", async () => {

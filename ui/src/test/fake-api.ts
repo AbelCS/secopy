@@ -4,6 +4,7 @@
 import { vi } from "vitest";
 import type { Api } from "../lib/api";
 import type {
+  CheckView,
   ComparedView,
   DestinationView,
   Profile,
@@ -203,6 +204,18 @@ export function mirrorPreset(over: Partial<MirrorPreset> = {}): MirrorPreset {
   };
 }
 
+export function checkView(over: Partial<CheckView> = {}): CheckView {
+  return {
+    directory: "/Volumes/Backup/Day01",
+    checksumFiles: 3,
+    files: 1284,
+    bytes: 212_400_000_000,
+    notChecked: 12,
+    problems: [],
+    ...over,
+  };
+}
+
 export function mirrorPreview(over: Partial<MirrorPreviewView> = {}): MirrorPreviewView {
   return {
     presetId: "m1",
@@ -287,6 +300,12 @@ export function fakeApi(session: SessionView = sessionView()) {
       return Promise.resolve(null);
     }),
     addMirrorToQueue: vi.fn((_id: string) => queueAnswer()),
+    checkDirectory: vi.fn((_path: string) => Promise.resolve(checkView())),
+    startCheck: vi.fn((_path: string, onProgress: (p: ProgressView) => void) => {
+      state.progress = onProgress;
+      return Promise.resolve(null);
+    }),
+    addCheckToQueue: vi.fn((_path: string) => queueAnswer()),
     appStart: vi.fn(() => Promise.resolve(state.start)),
     recentDestinations: vi.fn(() => Promise.resolve(state.start.recentDestinations)),
     selectProfile: vi.fn((_id: string | null) => answer()),

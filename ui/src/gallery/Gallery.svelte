@@ -9,6 +9,7 @@
   import QueueScreen from "../components/QueueScreen.svelte";
   import MirrorPreview from "../components/MirrorPreview.svelte";
   import MirrorScreen from "../components/MirrorScreen.svelte";
+  import VerifyScreen from "../components/VerifyScreen.svelte";
   import QueueSummary from "../components/QueueSummary.svelte";
   import SettingsScreen from "../components/SettingsScreen.svelte";
   import Summary from "../components/Summary.svelte";
@@ -26,7 +27,7 @@
   import Select from "../lib/ui/Select.svelte";
   import Stats from "../lib/ui/Stats.svelte";
   import TextField from "../lib/ui/TextField.svelte";
-  import { fakeApi, mirrorPreview, mirrorSummary, mirrors, profiles, progress, queue, queueSummary, settings, summary } from "./fake";
+  import { fakeApi, mirrorPreview, mirrorSummary, verifySummary, mirrors, profiles, progress, queue, queueSummary, settings, summary } from "./fake";
 
   const page = location.hash.slice(1) || "components";
   // ?tips shows every Hint's explanation at once, for screenshots.
@@ -56,6 +57,10 @@
   <SettingsScreen {settings} onSettings={() => {}} onDone={() => {}} />
 {:else if page === "mirror"}
   <MirrorScreen presets={mirrors} onPresets={() => {}} onPreview={() => {}} onQueue={() => {}} />
+{:else if page === "verify"}
+  <VerifyScreen onStart={() => {}} onQueue={() => {}} />
+{:else if page === "verify-summary"}
+  <Summary summary={verifySummary} onDone={() => {}} />
 {:else if page === "cancel"}
   <JobProgress bind:this={progressScreen} {progress} />
 {:else if page === "mirror-preview"}

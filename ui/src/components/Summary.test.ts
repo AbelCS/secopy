@@ -81,6 +81,22 @@ describe("Summary", () => {
     expect(within(screen.getByRole("region", { name: "Failed" })).getAllByRole("listitem")).toHaveLength(3);
   });
 
+  test("a check: problems in checksum files, what wasn't checked, no Retry or checksum note", () => {
+    show(
+      summaryView({
+        outcome: "failures",
+        failed: 1,
+        checksumOff: true,
+        check: { intact: 5, changed: 1, missing: 0, failed: 0, notChecked: 12, checksumFiles: 2, problems: ["a.xxh64:3: bad line"] },
+      }),
+    );
+    screen.getByRole("heading", { name: /1 file changed/ });
+    within(screen.getByRole("region", { name: "Problems" })).getByText("a.xxh64:3: bad line");
+    expect(hintOf(screen.getByText("12 not checked"))).toMatch(/no checksum file lists/);
+    expect(screen.queryByRole("button", { name: "Retry failed" })).toBeNull();
+    expect(screen.queryByText(/No checksum file/)).toBeNull();
+  });
+
   test("not started explains itself", () => {
     show(summaryView({ outcome: "cancelled", notStarted: 150 }));
     expect(hintOf(screen.getByText("150 not started"))).toMatch(/cancelled or stopped/);

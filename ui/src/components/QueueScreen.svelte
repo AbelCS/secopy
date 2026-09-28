@@ -71,7 +71,7 @@
   <Section title="Queue">
     {#if count === 0}
       <EmptyState>
-        <p>Nothing queued. Set up a copy or a mirror and press Add to queue: it runs here, one after another with the others.</p>
+        <p>Nothing queued. Set up a copy, a mirror or a verify and press Add to queue: it runs here, one after another with the others.</p>
       </EmptyState>
     {:else}
       <!-- role="list": Safari drops list semantics when the bullets are hidden. -->
@@ -80,7 +80,10 @@
           <li class="job">
             <span class="number">{i + 1}</span>
             <div class="what">
-              {#if job.supported}
+              {#if job.supported && job.kind === "check"}
+                <span class="mode">Verify</span>
+                <span class="path mono" title={job.source}><bdi>{job.source}</bdi></span>
+              {:else if job.supported}
                 <span class="mode">{job.kind === "mirror" ? `Mirror · ${job.name ?? ""}` : job.verify ? "Copy & Verify" : "Copy"}</span>
                 <!-- A long path keeps its end visible; <bdi> keeps its slashes in place. -->
                 <span class="path mono" title={job.source}><bdi>{job.source}</bdi></span>

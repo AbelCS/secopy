@@ -27,6 +27,7 @@
     title,
     checking = false,
     compared,
+    check = false,
   }: {
     progress: ProgressView;
     /** What the job is called while it runs ("Mirroring"); by default Copying. */
@@ -35,6 +36,8 @@
     checking?: boolean;
     /** While checking a mirror with the deep check: files compared, of how many. */
     compared?: { done: number; total: number };
+    /** A check (Verify): every listed file read again; nothing is written. */
+    check?: boolean;
     /** The running job writes a checksum file (Settings). */
     checksumFile?: boolean;
     /** In a queue run: this job's place (0-based) and the number of jobs. */
@@ -54,8 +57,10 @@
   /** Milliseconds left for the whole job; `null` until there is a speed to go by. */
   let timeLeft: number | null = $state(null);
 
-  const work = $derived(progress.verify ? 2 * progress.totalBytes : progress.totalBytes);
-  const workDone = $derived(progress.copiedBytes + (progress.verify ? progress.verifiedBytes : 0));
+  const work = $derived(check || !progress.verify ? progress.totalBytes : 2 * progress.totalBytes);
+  const workDone = $derived(
+    check ? progress.verifiedBytes : progress.copiedBytes + (progress.verify ? progress.verifiedBytes : 0),
+  );
 
   $effect(() => {
     copyMeter.push(progress.elapsedMs, progress.copiedBytes);
@@ -73,6 +78,8 @@
         ? "Paused"
         : checking
           ? "Checking…"
+          : check
+          ? "Verifying"
           : title
           ? title
           : progress.phase === "verifying"
@@ -97,7 +104,13 @@
   /** Also remove the files already copied (#54); off each time it opens. */
   let removeCopied = $state(false);
   const question = $derived(
-    queue ? "Stop copying and stop the queue?" : title === "Mirroring" ? "Stop mirroring?" : "Stop copying?",
+    queue
+      ? "Stop copying and stop the queue?"
+      : check
+        ? "Stop verifying?"
+        : title === "Mirroring"
+          ? "Stop mirroring?"
+          : "Stop copying?",
   );
   // A job that ends (or starts removing) while the question is open has nothing to stop.
   $effect(() => {
@@ -192,8 +205,12 @@
           {/if}
         </span>
       {/snippet}
-      <ProgressBar label="Copied" done={progress.copiedBytes} total={progress.totalBytes} speed={copySpeed} />
-      {#if progress.verify}
+      {#if check}
+        <ProgressBar label="Checked" done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} />
+      {:else}
+        <ProgressBar label="Copied" done={progress.copiedBytes} total={progress.totalBytes} speed={copySpeed} />
+      {/if}
+      {#if progress.verify && !check}
         <ProgressBar label="Verified" done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} />
       {/if}
       {#if progress.phase === "removing"}
@@ -256,9 +273,13 @@
 {#if asking}
   <Dialog title={question} onClose={() => (asking = false)}>
     <p>
-      {removeCopied ? "The file in progress and the files already copied are removed." : stopMessage(checksumFile)}
+      {check
+        ? "Nothing was changed: the files checked so far are in the summary."
+        : removeCopied
+          ? "The file in progress and the files already copied are removed."
+          : stopMessage(checksumFile)}
     </p>
-    {#if !checking}
+    {#if !checking && !check}
       <Checkbox label="Also remove the files already copied" checked={removeCopied} onChange={(on) => (removeCopied = on)}>
         {#snippet help()}
           The destination goes back to how it was. Files this job replaced come back only from a mirror's archive.

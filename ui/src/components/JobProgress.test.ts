@@ -153,6 +153,22 @@ describe("JobProgress", () => {
     expect(screen.queryByText(/elapsed/)).toBeNull();
   });
 
+  test("a check: Verifying, one Checked bar, and nothing to remove on Cancel", async () => {
+    const { api } = fakeApi();
+    render(JobProgress, {
+      props: { progress: progressView({ verifiedBytes: 50, totalBytes: 200, copiedBytes: 0 }), check: true },
+      context: apiContext(api),
+    });
+    screen.getByRole("heading", { name: "Verifying" });
+    expect(screen.getAllByRole("progressbar", { name: /Copied|Verified|Checked/ }).map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Checked",
+    ]);
+    within(screen.getByRole("region", { name: "Progress" })).getByText("25.0 %");
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    screen.getByRole("dialog", { name: "Stop verifying?" });
+    expect(screen.queryByRole("checkbox", { name: "Also remove the files already copied" })).toBeNull();
+  });
+
   test("a mirror asks Stop mirroring?", async () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), title: "Mirroring" }, context: apiContext(api) });

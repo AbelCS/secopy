@@ -79,7 +79,7 @@
     {/if}
     <!-- After removing the copies, "left in the destination" would only confuse. -->
     {#if summary.mirror?.nothingRemoved && !summary.undone}<Notice tone="danger">{summary.mirror.nothingRemoved}</Notice>{/if}
-    {#if summary.checksumOff && !summary.mirror}<p class="muted">No checksum file (off in Settings)</p>{/if}
+    {#if summary.checksumOff && !summary.mirror && !summary.check}<p class="muted">No checksum file (off in Settings)</p>{/if}
     {#if summary.checksumError}
       <Notice tone="danger">The checksum file could not be written: {summary.checksumError}</Notice>
     {/if}
@@ -110,6 +110,14 @@
     </Section>
   {/if}
 
+  {#if summary.check && summary.check.problems.length > 0}
+    <Section title="Problems">
+      <ul class="failures">
+        {#each summary.check.problems as p, i (i)}<li class="mono">{p}</li>{/each}
+      </ul>
+    </Section>
+  {/if}
+
   {#if summary.mirror && summary.mirror.removalFailures.length > 0}
     <Section title="Not removed">
       <ul class="failures">
@@ -136,7 +144,7 @@
       {#snippet start()}
         <!-- What you'd do next comes first. -->
         <!-- Not after a cancel that removed the copied files: a retry would copy only a few. -->
-        {#if summary.failed > 0 && onRetry && !summary.undone}<Button onclick={onRetry}>Retry failed</Button>{/if}
+        {#if summary.failed > 0 && onRetry && !summary.undone && !summary.check}<Button onclick={onRetry}>Retry failed</Button>{/if}
         <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>Show in Finder</Button>
         {#if summary.checksumFile}
           <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>Open checksum file</Button>

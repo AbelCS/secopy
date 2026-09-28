@@ -55,10 +55,15 @@
             {#if !r.job.supported}
               <span>{r.job.kind === "mirror" ? "A mirror that was deleted" : "A job for a newer Secopy"}</span>
             {:else}
-              {#if r.job.kind === "mirror"}<span>Mirror · {r.job.name ?? ""}</span>{/if}
-              <span class="mono path"><bdi>{r.job.source}</bdi></span>
-              <span class="muted" aria-hidden="true">→</span>
-              <span class="mono path"><bdi>{r.job.destination}</bdi></span>
+              {#if r.job.kind === "check"}
+                <span>Verify</span>
+                <span class="mono path"><bdi>{r.job.source}</bdi></span>
+              {:else}
+                {#if r.job.kind === "mirror"}<span>Mirror · {r.job.name ?? ""}</span>{/if}
+                <span class="mono path"><bdi>{r.job.source}</bdi></span>
+                <span class="muted" aria-hidden="true">→</span>
+                <span class="mono path"><bdi>{r.job.destination}</bdi></span>
+              {/if}
             {/if}
             <span class="line">{r.summary ? headline(r.summary) : (r.reason ?? "")}</span>
           </div>

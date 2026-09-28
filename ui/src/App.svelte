@@ -23,6 +23,7 @@
   import QueueSummary from "./components/QueueSummary.svelte";
   import MirrorPreview from "./components/MirrorPreview.svelte";
   import MirrorScreen from "./components/MirrorScreen.svelte";
+  import VerifyScreen from "./components/VerifyScreen.svelte";
   import SettingsScreen from "./components/SettingsScreen.svelte";
   import Button from "./lib/ui/Button.svelte";
   import Notice from "./lib/ui/Notice.svelte";
@@ -46,10 +47,12 @@
     | "queue-job"
     | "mirror"
     | "mirror-preview"
-    | "mirror-summary";
+    | "mirror-summary"
+    | "verify"
+    | "verify-summary";
   let screen = $state<Screen>("setup");
   /** Where Settings and Profiles go back to. */
-  let back: "setup" | "summary" | "queue" | "mirror" | "mirror-summary" = "setup";
+  let back: "setup" | "summary" | "queue" | "mirror" | "mirror-summary" | "verify" | "verify-summary" = "setup";
   let queue: QueueView = $state({ jobs: [], onFailure: "continue" });
   /** The Copy section's screen to return to: New copy, or the last summary. */
   let copyScreen: "setup" | "summary" = "setup";
@@ -58,12 +61,23 @@
   });
   const queueScreens: Screen[] = ["queue", "queue-summary", "queue-job"];
   const mirrorScreens: Screen[] = ["mirror", "mirror-preview", "mirror-summary"];
+  const verifyScreens: Screen[] = ["verify", "verify-summary"];
   const section = $derived(
-    queueScreens.includes(screen) ? "queue" : mirrorScreens.includes(screen) ? "mirror" : "copy",
+    queueScreens.includes(screen)
+      ? "queue"
+      : mirrorScreens.includes(screen)
+        ? "mirror"
+        : verifyScreens.includes(screen)
+          ? "verify"
+          : "copy",
   );
   /** The tabs show on the sections' own screens; not while jobs run, nor on Settings. */
   const showTabs = $derived(
-    screen === "setup" || screen === "summary" || queueScreens.includes(screen) || mirrorScreens.includes(screen),
+    screen === "setup" ||
+      screen === "summary" ||
+      queueScreens.includes(screen) ||
+      mirrorScreens.includes(screen) ||
+      verifyScreens.includes(screen),
   );
   let mirrorPresets: MirrorPreset[] = $state([]);
   /** The preview the Mirror section's Preview… worked out; Run mirror runs it. */
@@ -88,15 +102,24 @@
   let queueSummary: QueueSummaryView | null = $state(null);
   /** The job running is a mirror. */
   let mirrorRunning = $state(false);
+  /** The job running is a check (Verify). */
+  let checkRunning = $state(false);
+  /** The last check's summary, shown on the Verify tab. */
+  let verifySummary: SummaryView | null = $state(null);
+  let verifyScreen: "verify" | "verify-summary" = "verify";
   $effect(() => {
-    if (screen !== "progress") mirrorRunning = false;
+    if (screen === "verify" || screen === "verify-summary") verifyScreen = screen;
+  });
+  $effect(() => {
+    if (screen !== "progress") mirrorRunning = checkRunning = false;
   });
   /** The job of the queue summary whose own summary is open. */
   let openedJob: number | null = $state(null);
 
-  function go(next: "copy" | "mirror" | "queue") {
+  function go(next: "copy" | "mirror" | "verify" | "queue") {
     if (!showTabs) return;
-    screen = next === "queue" ? "queue" : next === "mirror" ? mirrorScreen : copyScreen;
+    screen =
+      next === "queue" ? "queue" : next === "mirror" ? mirrorScreen : next === "verify" ? verifyScreen : copyScreen;
   }
   /** Saved files that couldn't be read, shown once. */
   let warnings: string[] = $state([]);
@@ -137,6 +160,7 @@
     else if (item === "cancel-copy" && screen === "progress") void progressScreen?.cancel();
     else if (item === "show-copy") go("copy");
     else if (item === "show-mirror") go("mirror");
+    else if (item === "show-verify") go("verify");
     else if (item === "show-queue") go("queue");
   }
 
@@ -183,6 +207,8 @@
   function forgetMirrorSummary() {
     mirrorSummary = null;
     mirrorScreen = "mirror";
+    verifySummary = null;
+    verifyScreen = "verify";
   }
 
   async function start() {
@@ -201,9 +227,9 @@
 
   /** Settings or Profiles, over a section's screen; never during a copy. */
   function open(next: "settings" | "profiles") {
-    if (screen !== "setup" && screen !== "summary" && screen !== "queue" && screen !== "mirror" && screen !== "mirror-summary")
-      return;
-    back = screen;
+    const sections: Screen[] = ["setup", "summary", "queue", "mirror", "mirror-summary", "verify", "verify-summary"];
+    if (!sections.includes(screen)) return;
+    back = screen as typeof back;
     screen = next;
   }
 
@@ -216,7 +242,10 @@
   async function finish() {
     const done = (await run(() => api.jobSummary())) ?? null;
     if (!done) return;
-    if (done.mirror) {
+    if (done.check) {
+      verifySummary = done;
+      screen = "verify-summary";
+    } else if (done.mirror) {
       mirrorSummary = done;
       screen = "mirror-summary";
     } else {
@@ -229,11 +258,31 @@
     }
   }
 
+  /** Verify (plan 8): the Verifying screen, then the check's summary on the Verify tab. */
+  async function runCheck(path: string) {
+    // The check replaces the backend's last job: no old Summary acts on it.
+    summary = null;
+    copyScreen = "setup";
+    forgetMirrorSummary();
+    progress = { ...waiting(), verify: true, totalFiles: 0, totalBytes: 0 };
+    checkRunning = true;
+    screen = "progress";
+    const started = await run(() =>
+      api.startCheck(path, (p) => {
+        progress = p;
+        if (p.phase === "done") void finish();
+      }),
+    );
+    if (started === undefined) screen = "verify";
+  }
+
   /** Runs the previewed mirror (FR-47): the Mirroring screen, then its summary. */
   async function runMirror(preview: MirrorPreviewView) {
     // The mirror replaces the backend's last copy: no old Summary acts on it.
     summary = null;
     copyScreen = "setup";
+    verifySummary = null;
+    verifyScreen = "verify";
     progress = {
       ...waiting(),
       verify: true,
@@ -366,10 +415,11 @@
       items={[
         { id: "copy", label: "Copy" },
         { id: "mirror", label: "Mirror" },
+        { id: "verify", label: "Verify" },
         { id: "queue", label: "Queue", count: queue.jobs.length },
       ]}
       selected={section}
-      onSelect={(id) => go(id as "copy" | "mirror" | "queue")}
+      onSelect={(id) => go(id as "copy" | "mirror" | "verify" | "queue")}
     >
       {#snippet trailing()}<Button icon="settings" onclick={openSettings}>Settings</Button>{/snippet}
     </TabBar>
@@ -403,6 +453,7 @@
           checking={queueRun?.checking ?? false}
           compared={queueRun?.compared}
           title={mirrorRunning || queueRun?.kind === "mirror" ? "Mirroring" : undefined}
+          check={checkRunning || queueRun?.kind === "check"}
         />
       {/key}
     {:else if screen === "summary" && summary}
@@ -438,6 +489,10 @@
       />
     {:else if screen === "mirror-summary" && mirrorSummary}
       <Summary summary={mirrorSummary} {banner} onDone={() => (screen = "mirror")} />
+    {:else if screen === "verify"}
+      <VerifyScreen {banner} onStart={runCheck} onQueue={(q) => (queue = q)} />
+    {:else if screen === "verify-summary" && verifySummary}
+      <Summary summary={verifySummary} {banner} onDone={() => (screen = "verify")} />
     {:else if screen === "queue"}
       <QueueScreen {queue} {banner} onQueue={(q) => (queue = q)} onRun={runQueue} />
     {:else if screen === "queue-summary" && queueSummary}

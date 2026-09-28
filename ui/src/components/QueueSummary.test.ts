@@ -78,4 +78,20 @@ describe("QueueSummary", () => {
     screen.getByText("A mirror that was deleted");
     expect(screen.queryByText("A job for a newer Secopy")).toBeNull();
   });
+
+  test("a check job's row says Verify", () => {
+    render(QueueSummary, {
+      props: {
+        summary: {
+          complete: 1, count: 1, millis: 1000,
+          results: [{ job: queuedJob({ kind: "check", source: "/Volumes/Backup/Day01", destination: "" }), result: "complete", reason: null, summary: summaryView() }],
+          saveError: null,
+        },
+        onOpen: () => {},
+        onDone: () => {},
+      },
+    });
+    screen.getByText("Verify");
+    expect(screen.queryByText("→")).toBeNull();
+  });
 });
