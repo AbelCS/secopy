@@ -10,6 +10,7 @@ use clap::{Parser, ValueEnum};
 use secopy_core::checksum_file;
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::job::{self, Event, FileStatus, JobControl, JobOptions, JobReport, Progress};
+use secopy_core::mirror::{self, Change, Deleted, MirrorOptions};
 use secopy_core::plan::{DiffersPolicy, Plan};
 use secopy_core::preflight::{ConflictKind, Preflight, preflight};
 use secopy_core::report::{JobMeta, Report};
@@ -51,6 +52,22 @@ struct Args {
     /// Also write the job report (text and JSON) into this folder.
     #[arg(long, value_name = "DIR")]
     report: Option<PathBuf>,
+    /// Mirror the one source directory to the destination: new and changed files copied
+    /// and verified, files gone from the source archived (or deleted with --delete).
+    #[arg(long)]
+    mirror: bool,
+    /// With --mirror: delete files gone from the source instead of archiving them.
+    #[arg(long, requires = "mirror")]
+    delete: bool,
+    /// With --mirror: days to keep archived files.
+    #[arg(long, requires = "mirror", default_value_t = 30, value_name = "N")]
+    archive_days: u32,
+    /// With --mirror: also compare the contents of files whose size and date match.
+    #[arg(long, requires = "mirror")]
+    deep: bool,
+    /// With --mirror: only show what would change.
+    #[arg(long, requires = "mirror")]
+    dry_run: bool,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -86,6 +103,9 @@ fn run(args: Args) -> Result<ExitCode, String> {
             "destination {} is not a directory",
             args.to.display()
         ));
+    }
+    if args.mirror {
+        return mirror_run(&args);
     }
     let source = source_from(&args)?;
     let scan = scan::scan(
@@ -125,28 +145,8 @@ fn run(args: Args) -> Result<ExitCode, String> {
         write_checksum_file: !args.no_checksum,
         ..JobOptions::default()
     };
-    let control = Arc::new(JobControl::new());
-    let handler_control = control.clone();
-    ctrlc::set_handler(move || handler_control.cancel()).map_err(|e| e.to_string())?;
-
-    let started = Instant::now();
     let started_at = Local::now();
-    let last_print = Mutex::new(Instant::now());
-    let report = job::run_job(&plan, &opts, &control, &|event| match event {
-        Event::Progress(p) => {
-            let mut last = last_print.lock().unwrap();
-            if last.elapsed() >= Duration::from_millis(500) {
-                *last = Instant::now();
-                eprint!("\r{}", progress_line(&p, started.elapsed()));
-            }
-        }
-        Event::FileFinished(o) => {
-            if let FileStatus::Failed(e) = &o.status {
-                eprintln!("\rFAILED {}: {e}", o.rel.display());
-            }
-        }
-    });
-    eprintln!();
+    let report = run_with_progress(&plan, &opts)?;
     print_summary(&report, plan.bytes_to_write());
     if let Some(dir) = &args.report {
         let meta = JobMeta {
@@ -176,6 +176,113 @@ fn run(args: Args) -> Result<ExitCode, String> {
         println!("report: {}", text.display());
     }
     Ok(if report.is_success() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    })
+}
+
+/// Runs `plan`, showing progress and failures; Ctrl-C cancels.
+fn run_with_progress(plan: &Plan, opts: &JobOptions) -> Result<JobReport, String> {
+    let control = Arc::new(JobControl::new());
+    let handler_control = control.clone();
+    ctrlc::set_handler(move || handler_control.cancel()).map_err(|e| e.to_string())?;
+    let started = Instant::now();
+    let last_print = Mutex::new(Instant::now());
+    let report = job::run_job(plan, opts, &control, &|event| match event {
+        Event::Progress(p) => {
+            let mut last = last_print.lock().unwrap();
+            if last.elapsed() >= Duration::from_millis(500) {
+                *last = Instant::now();
+                eprint!("\r{}", progress_line(&p, started.elapsed()));
+            }
+        }
+        Event::FileFinished(o) => {
+            if let FileStatus::Failed(e) = &o.status {
+                eprintln!("\rFAILED {}: {e}", o.rel.display());
+            }
+        }
+    });
+    eprintln!();
+    Ok(report)
+}
+
+/// `--mirror`: the destination becomes a copy of the one source directory (RFD §5.8).
+fn mirror_run(args: &Args) -> Result<ExitCode, String> {
+    let [origin] = args.sources.as_slice() else {
+        return Err("--mirror takes one source directory".into());
+    };
+    let deleted = if args.delete {
+        Deleted::Delete
+    } else {
+        Deleted::Archive {
+            days: args.archive_days,
+        }
+    };
+    let options = MirrorOptions {
+        deleted,
+        deep_check: args.deep,
+    };
+    let plan = mirror::plan(origin, &args.to, &options)?;
+    let new = plan
+        .changes
+        .iter()
+        .filter(|(_, c)| *c == Change::New)
+        .count();
+    println!("+ new: {new}");
+    println!("~ changed: {}", plan.changes.len() - new);
+    let how = if args.delete { "deleted" } else { "archived" };
+    println!("- removed: {} ({how})", plan.removals.len());
+    println!(
+        "= unchanged: {}",
+        plan.copy.files.len() - plan.changes.len()
+    );
+    if let Some(guard) = &plan.guard {
+        println!("guard: {guard}");
+    }
+    if args.dry_run {
+        return Ok(ExitCode::SUCCESS);
+    }
+    if let Some(guard) = &plan.guard {
+        return Err(format!("{guard} Not mirroring: that looks wrong."));
+    }
+    let now = Local::now();
+    let archive = match deleted {
+        Deleted::Archive { days } => {
+            mirror::clean_archives(&args.to, days, now);
+            Some(mirror::archive_dir(&args.to, now))
+        }
+        Deleted::Delete => None,
+    };
+    let opts = JobOptions {
+        verify: true,
+        write_checksum_file: false,
+        archive_replaced: archive.clone(),
+        ..JobOptions::default()
+    };
+    let report = run_with_progress(&plan.copy, &opts)?;
+    print_summary(&report, plan.copy.bytes_to_write());
+    let removed_ok = match mirror::finish(&plan, &report, archive.as_deref()) {
+        Ok(removals) => {
+            let mut ok = true;
+            for r in &removals {
+                if let Err(e) = &r.result {
+                    eprintln!("NOT REMOVED {}: {e}", r.rel.display());
+                    ok = false;
+                }
+            }
+            println!(
+                "removed: {}",
+                removals.iter().filter(|r| r.result.is_ok()).count()
+            );
+            ok
+        }
+        Err(why) => {
+            println!("{why}");
+            false
+        }
+    };
+    Ok(if report.is_success() && removed_ok {
         ExitCode::SUCCESS
     } else {
         ExitCode::from(1)
