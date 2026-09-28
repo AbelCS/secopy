@@ -4,7 +4,7 @@
   import { messageOf } from "./lib/format";
   import { onMount } from "svelte";
   import { provideApi, tauriApi, type Api } from "./lib/api";
-  import { doing, NOT_STARTED, stopMessage, type JobKind } from "./lib/stopping";
+  import { doing, finishingMessage, NOT_STARTED, stopMessage, type JobKind } from "./lib/stopping";
   import { notificationFor, queueNotification } from "./lib/summaryText";
   import type {
     Profile,
@@ -403,7 +403,15 @@
       if (!(await api.jobRunning())) return;
       // Settings can't change during a copy, so these are the running job's.
       const work = doing(runningKind);
-      const stop = queueRun?.checking
+      const removing = progress?.phase === "removing";
+      const stop = removing
+        ? await api.confirm(
+            finishingMessage(progress!.undoing, progress!.archiving),
+            "Quit when it's done?",
+            "Quit",
+            "Keep open",
+          )
+        : queueRun?.checking
         ? await api.confirm(NOT_STARTED, "Stop the queue and quit?", "Stop the queue", "Continue")
         : await api.confirm(
             stopMessage(runningKind, settings.writeChecksumFile),
