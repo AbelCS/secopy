@@ -197,6 +197,33 @@ describe("App", () => {
     );
   });
 
+  test("quitting while files are removed says Secopy finishes that first", async () => {
+    const { api, state } = app();
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-mirror");
+    await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
+    await screen.findByRole("heading", { level: 1, name: "Mirroring" });
+    api.jobRunning.mockResolvedValue(true);
+    state.progress!(progressView({ phase: "removing", removing: 3, archiving: true }));
+    await state.close!(() => {});
+    expect(api.confirm).toHaveBeenLastCalledWith(
+      "Secopy finishes archiving the files gone from the origin first, then quits.",
+      "Quit when it's done?",
+      "Quit",
+      "Keep open",
+    );
+    state.progress!(progressView({ phase: "removing", undoing: true }));
+    await state.close!(() => {});
+    expect(api.confirm).toHaveBeenLastCalledWith(
+      "Secopy finishes putting the destination back as it was first, then quits.",
+      "Quit when it's done?",
+      "Quit",
+      "Keep open",
+    );
+  });
+
   test("quitting during a queued check says verifying; while a job is checked, the queue", async () => {
     const { api, state } = fakeApi(readyView());
     state.queue = queueView({ jobs: [queuedJob({ kind: "check" })] });

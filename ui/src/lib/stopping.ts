@@ -21,3 +21,11 @@ export function stopMessage(kind: JobKind, checksumFile: boolean): string {
     ? "Files already copied stay and are listed in the checksum file; the file in progress is removed."
     : "Files already copied stay; the file in progress is removed.";
 }
+
+/** Quitting while a job removes files: that can't be stopped, so Secopy finishes it first. */
+export function finishingMessage(undoing: boolean, archiving: boolean): string {
+  const what = undoing
+    ? "putting the destination back as it was"
+    : `${archiving ? "archiving" : "deleting"} the files gone from the origin`;
+  return `Secopy finishes ${what} first, then quits.`;
+}
