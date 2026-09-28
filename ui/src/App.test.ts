@@ -302,6 +302,20 @@ describe("App", () => {
     await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, false));
   });
 
+  test("progress updates don't send the menu state again", async () => {
+    const { api, state } = app();
+    await fireEvent.click(await startButton());
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true));
+    state.progress!(progressView({ copiedBytes: 1000, elapsedMs: 500 }));
+    await screen.findByText(/^0 \/ 1,284 files/);
+    const sent = api.setMenuState.mock.calls.length;
+    for (let i = 2; i <= 6; i++) {
+      state.progress!(progressView({ copiedBytes: i * 1000, elapsedMs: i * 500 }));
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    expect(api.setMenuState).toHaveBeenCalledTimes(sent);
+  });
+
   test("the last profile is loaded again at start", async () => {
     const { api, state } = fakeApi(sessionView());
     state.start = startView({ session: sessionView(), profiles: [profile()], lastProfile: "fx3" });
