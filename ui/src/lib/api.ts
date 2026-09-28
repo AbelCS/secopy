@@ -69,8 +69,7 @@ export const tauriApi = {
   recentDestinations: (): Promise<string[]> => unwrap(commands.recentDestinations()),
   selectProfile: (id: string | null): Promise<SessionView> => unwrap(commands.selectProfile(id)),
   updateProfile: (): Promise<ProfilesView> => unwrap(commands.updateProfile()),
-  saveProfileAs: (name: string, folder: string): Promise<ProfilesView> =>
-    unwrap(commands.saveProfileAs(name, folder)),
+  saveProfileAs: (name: string): Promise<ProfilesView> => unwrap(commands.saveProfileAs(name)),
   createProfile: (input: ProfileInput): Promise<Profile[]> => unwrap(commands.createProfile(input)),
   editProfile: (id: string, input: ProfileInput): Promise<ProfilesView> =>
     unwrap(commands.editProfile(id, input)),
@@ -88,8 +87,9 @@ export const tauriApi = {
   /** FROM's Choose…: a folder or files, in one panel. */
   pickSource: (): Promise<string[] | null> => unwrap(commands.pickSource()),
   /** A folder on a card, for a profile's folder. */
-  pickCardFolder: async (): Promise<string | null> =>
-    asList(await open({ directory: true, multiple: false, title: "Directory on the card" }))?.[0] ?? null,
+  /** A profile's source: one directory. */
+  pickDirectory: async (): Promise<string | null> =>
+    asList(await open({ directory: true, multiple: false, title: "Source" }))?.[0] ?? null,
   pickDestination: async (): Promise<string | null> =>
     asList(await open({ directory: true, multiple: false, title: "Copy to" }))?.[0] ?? null,
   pickReportPath: (suggested: string): Promise<string | null> =>

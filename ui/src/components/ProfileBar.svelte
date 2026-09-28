@@ -32,7 +32,6 @@
   let error: string | null = $state(null);
   let savingAs = $state(false);
   let name = $state("");
-  let folder = $state("");
 
   const selected = $derived(profiles.find((p) => p.id === view.profileId) ?? null);
   /** Profiles apply to folders only (spec B4). */
@@ -77,14 +76,13 @@
 
   function openSaveAs() {
     name = "";
-    folder = view.suggestedFolder;
     error = null;
     savingAs = true;
   }
 
   function saveAs(event: SubmitEvent) {
     event.preventDefault();
-    void act(() => api.saveProfileAs(name, folder));
+    void act(() => api.saveProfileAs(name));
   }
 </script>
 
@@ -117,7 +115,6 @@
     }}
   >
     <TextField label="Name" bind:value={name} placeholder="e.g. Sony FX3" />
-    <TextField label="Directory on the card" bind:value={folder} mono placeholder="e.g. PRIVATE/M4ROOT/CLIP" />
     <div class="buttons">
       <Button onclick={closeSaveAs}>Cancel</Button>
       <Button variant="primary" type="submit" disabled={busy}>Save</Button>

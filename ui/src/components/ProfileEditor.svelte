@@ -1,9 +1,8 @@
 <script lang="ts">
-  // One source profile's fields (FR-38): its name, where the clips are on the card, whether
-  // that folder itself is copied, and which file types. Problems show next to their field.
+  // One profile's fields (FR-38): its name, the source it loads, whether that directory itself
+  // is copied, and which file types. Problems show next to their field.
   import { useApi } from "../lib/api";
   import type { Profile, ProfileInput } from "../lib/bindings";
-  import { relativeToDrive } from "../lib/drive";
   import Button from "../lib/ui/Button.svelte";
   import Checkbox from "../lib/ui/Checkbox.svelte";
   import Chip from "../lib/ui/Chip.svelte";
@@ -37,28 +36,28 @@
   // svelte-ignore state_referenced_locally
   const start = {
     name: profile?.name ?? "",
-    folder: profile?.folder ?? "",
+    source: profile?.source ?? "",
     includeFolder: profile?.includeFolder ?? true,
     all: profile ? profile.extensions === null : true,
     types: profile?.extensions ?? [],
   };
   let name = $state(start.name);
-  let folder = $state(start.folder);
+  let source = $state(start.source);
   let includeFolder = $state(start.includeFolder);
   let all = $state(start.all);
   let types: (string | null)[] = $state([...start.types]);
   let newType = $state("");
   let saving = $state(false);
   let nameProblem: string | null = $state(null);
-  let folderProblem: string | null = $state(null);
+  let sourceProblem: string | null = $state(null);
   let otherProblem: string | null = $state(null);
 
-  const folderName = $derived(folder.split("/").filter(Boolean).pop() ?? "");
+  const folderName = $derived(source.split("/").filter(Boolean).pop() ?? "");
   const isChanged = $derived(
     profile === null
       ? name.trim() !== ""
       : name !== start.name ||
-          folder !== start.folder ||
+          source !== start.source ||
           includeFolder !== start.includeFolder ||
           all !== start.all ||
           (!all && types.join("\n") !== start.types.join("\n")),
@@ -72,12 +71,12 @@
   /** Back to the saved profile. */
   export function revert() {
     name = start.name;
-    folder = start.folder;
+    source = start.source;
     includeFolder = start.includeFolder;
     all = start.all;
     types = [...start.types];
     newType = "";
-    nameProblem = folderProblem = otherProblem = null;
+    nameProblem = sourceProblem = otherProblem = null;
   }
 
   const label = (key: string | null) => (key === null ? NO_EXTENSION : `.${key}`);
@@ -88,27 +87,22 @@
     if (key && !types.includes(key)) types = [...types, key];
   }
 
-  async function chooseFolder() {
-    const path = await api.pickCardFolder();
+  async function chooseSource() {
+    const path = await api.pickDirectory();
     if (path === null) return;
-    const relative = relativeToDrive(path);
-    if (relative === null) {
-      folderProblem = "Choose a directory on a card or drive.";
-    } else {
-      folder = relative;
-      folderProblem = null;
-    }
+    source = path;
+    sourceProblem = null;
   }
 
   async function save(event: SubmitEvent) {
     event.preventDefault();
     saving = true;
-    nameProblem = folderProblem = otherProblem = null;
+    nameProblem = sourceProblem = otherProblem = null;
     try {
-      await onSave({ name, folder, includeFolder, extensions: all ? null : types });
+      await onSave({ name, source, includeFolder, extensions: all ? null : types });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      if (message.startsWith("The directory")) folderProblem = message;
+      if (message.startsWith("The source")) sourceProblem = message;
       else if (/name|profile called/.test(message)) nameProblem = message;
       else otherProblem = message;
     } finally {
@@ -122,16 +116,16 @@
     <TextField label="Name" hideLabel bind:value={name} error={nameProblem} placeholder="e.g. Sony FX3" />
   </FormRow>
 
-  <FormRow label="Directory">
+  <FormRow label="Source">
     <TextField
-      label="Directory on the card"
+      label="Source"
       hideLabel
-      bind:value={folder}
-      error={folderProblem}
+      bind:value={source}
+      error={sourceProblem}
       mono
-      placeholder="empty = the directory or card you pick"
+      placeholder="e.g. /Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"
     />
-    {#snippet aside()}<Button onclick={chooseFolder}>Choose…</Button>{/snippet}
+    {#snippet aside()}<Button onclick={chooseSource}>Choose…</Button>{/snippet}
   </FormRow>
 
   <FormRow label="Options">

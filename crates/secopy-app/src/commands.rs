@@ -42,17 +42,8 @@ impl AppState {
         let (settings, w1) = store.load::<Settings>(SETTINGS);
         let (profiles, w2) = store.load::<Profiles>(PROFILES);
         let (remembered, w3) = store.load::<Remembered>(REMEMBERED);
-        let mut session = Session::new();
-        // The last profile is selected again (B6); nothing is picked yet, so nothing scans.
-        if let Some(p) = remembered
-            .last_profile
-            .as_deref()
-            .and_then(|id| profiles.get(id))
-        {
-            let _ = session.begin(Change::Profile(Some(p.clone())));
-        }
         Self {
-            session: Mutex::new(session),
+            session: Mutex::new(Session::new()),
             jobs: Jobs::new(data_dir.join("reports")),
             store,
             settings: Mutex::new(settings),
@@ -69,6 +60,14 @@ impl AppState {
         let profiles = lock(&self.profiles).profiles.clone();
         let verify = lock(&self.remembered).verify;
         let warnings = std::mem::take(&mut *lock(&self.warnings));
+        // Loaded again only when its source is there: no error at launch for a card that
+        // isn't inserted.
+        let last = lock(&self.remembered).last_profile.clone();
+        let last_profile = last.filter(|id| {
+            profiles
+                .iter()
+                .any(|p| &p.id == id && (p.source.is_empty() || Path::new(&p.source).exists()))
+        });
         StartView {
             session,
             settings,
@@ -76,6 +75,7 @@ impl AppState {
             verify,
             recent_destinations: self.recent(),
             warnings,
+            last_profile,
         }
     }
 
@@ -171,15 +171,20 @@ impl AppState {
         Ok(self.profiles_view(view))
     }
 
-    /// Save as new…: this run's choices under a new name, then selected.
-    pub fn save_profile_as(&self, name: String, folder: String) -> Result<ProfilesView, String> {
-        let (include_folder, extensions) = session(self)
-            .choices()
-            .ok_or("Wait until the scan finishes.")?;
+    /// Save as new…: this run's source and choices under a new name, then selected.
+    pub fn save_profile_as(&self, name: String) -> Result<ProfilesView, String> {
+        let (source, (include_folder, extensions)) = {
+            let s = session(self);
+            let choices = s.choices().ok_or("Wait until the scan finishes.")?;
+            let source = s
+                .picked_source()
+                .ok_or("A profile saves a directory as its source; pick a directory first.")?;
+            (source, choices)
+        };
         let profile = self.change_profiles(|p| {
             p.add(ProfileInput {
                 name,
-                folder,
+                source,
                 include_folder,
                 extensions,
             })
@@ -465,12 +470,8 @@ pub async fn update_profile(app: AppHandle) -> Result<ProfilesView, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_profile_as(
-    app: AppHandle,
-    name: String,
-    folder: String,
-) -> Result<ProfilesView, String> {
-    blocking(app, move |state| state.save_profile_as(name, folder)).await?
+pub async fn save_profile_as(app: AppHandle, name: String) -> Result<ProfilesView, String> {
+    blocking(app, move |state| state.save_profile_as(name)).await?
 }
 
 #[tauri::command]
@@ -525,10 +526,10 @@ mod tests {
         }
     }
 
-    fn input(name: &str, folder: &str) -> ProfileInput {
+    fn input(name: &str, source: &Path) -> ProfileInput {
         ProfileInput {
             name: name.into(),
-            folder: folder.into(),
+            source: show(source),
             include_folder: true,
             extensions: None,
         }
@@ -544,27 +545,35 @@ mod tests {
         .unwrap();
         let state = AppState::new(dir.path().to_path_buf());
         let start = state.start_view();
-        assert_eq!(start.session.profile_id, None);
+        assert_eq!(start.last_profile, None);
         assert!(start.warnings.is_empty());
     }
 
     #[test]
     fn the_last_profile_and_mode_come_back() {
         let dir = tempfile::tempdir().unwrap();
-        let state = AppState::new(dir.path().to_path_buf());
-        let id = state.create_profile(input("FX3", "DCIM")).unwrap()[0]
+        let card = dir.path().join("CARD");
+        fs::create_dir_all(&card).unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        let id = state.create_profile(input("FX3", &card)).unwrap()[0]
             .id
             .clone();
         state.select_profile(Some(id.clone())).unwrap();
         state.remember(|r| r.verify = false);
-        let again = AppState::new(dir.path().to_path_buf()).start_view();
-        assert_eq!(again.session.profile_id, Some(id));
+        let again = AppState::new(dir.path().join("data")).start_view();
+        assert_eq!(again.last_profile, Some(id), "the UI loads it again");
         assert!(!again.verify);
         assert!(
             again.session.destination.is_none(),
             "the destination is never restored"
         );
         assert_eq!(again.profiles.len(), 1);
+        fs::remove_dir(&card).unwrap();
+        let later = AppState::new(dir.path().join("data")).start_view();
+        assert_eq!(
+            later.last_profile, None,
+            "its card isn't there: nothing to load, and no error at launch"
+        );
     }
 
     #[test]
@@ -582,7 +591,7 @@ mod tests {
     fn deleting_the_selected_profile_selects_none() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::new(dir.path().to_path_buf());
-        let id = state.create_profile(input("FX3", "")).unwrap()[0]
+        let id = state.create_profile(input("FX3", Path::new(""))).unwrap()[0]
             .id
             .clone();
         state.select_profile(Some(id.clone())).unwrap();
@@ -598,17 +607,17 @@ mod tests {
     fn editing_the_selected_profile_applies_it() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::new(dir.path().to_path_buf());
-        let id = state.create_profile(input("FX3", "")).unwrap()[0]
+        let clip = dir.path().join("CLIP");
+        fs::create_dir_all(&clip).unwrap();
+        fs::write(clip.join("a.mp4"), b"a").unwrap();
+        let id = state.create_profile(input("FX3", Path::new(""))).unwrap()[0]
             .id
             .clone();
         state.select_profile(Some(id.clone())).unwrap();
-        let after = state.edit_profile(&id, input("FX3 A-cam", "CLIP")).unwrap();
+        let after = state.edit_profile(&id, input("FX3 A-cam", &clip)).unwrap();
         assert_eq!(after.profiles[0].name, "FX3 A-cam");
         assert_eq!(after.session.profile_id, Some(id));
-        assert_eq!(
-            state.session.lock().unwrap().profile().unwrap().folder,
-            "CLIP"
-        );
+        assert_eq!(after.session.source.unwrap().label, show(&clip), "loaded");
     }
 
     #[test]
@@ -618,22 +627,23 @@ mod tests {
         fs::create_dir_all(card.join("DCIM")).unwrap();
         fs::write(card.join("DCIM/a.jpg"), b"a").unwrap();
         let state = AppState::new(dir.path().join("data"));
-        state.rescan(Change::Pick(vec![card.clone()]));
-        let after = state
-            .save_profile_as("Photos".into(), "DCIM".into())
-            .unwrap();
+        state.rescan(Change::Pick(vec![card.join("DCIM")]));
+        let after = state.save_profile_as("Photos".into()).unwrap();
         let id = after.profiles[0].id.clone();
+        assert_eq!(after.profiles[0].source, show(&card.join("DCIM")));
         assert_eq!(after.session.profile_id, Some(id.clone()));
-        assert_eq!(
-            after.session.source.unwrap().label,
-            show(&card.join("DCIM"))
-        );
+        assert!(!after.session.profile_changed);
         assert_eq!(state.remembered.lock().unwrap().last_profile, Some(id));
         assert!(
             state
-                .save_profile_as("photos".into(), String::new())
+                .save_profile_as("photos".into())
                 .unwrap_err()
                 .contains("already a profile")
+        );
+        state.rescan(Change::Pick(vec![card.join("DCIM/a.jpg")]));
+        assert_eq!(
+            state.save_profile_as("One file".into()).unwrap_err(),
+            "A profile saves a directory as its source; pick a directory first."
         );
     }
 
@@ -685,7 +695,9 @@ mod tests {
                             notify_when_done: i % 7 == 0,
                         };
                         let a = state.set_settings(settings).err();
-                        let b = state.create_profile(input(&format!("P{i}"), "")).err();
+                        let b = state
+                            .create_profile(input(&format!("P{i}"), Path::new("")))
+                            .err();
                         a.into_iter().chain(b).collect::<Vec<_>>()
                     })
                 })

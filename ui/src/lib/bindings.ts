@@ -20,7 +20,7 @@ export const commands = {
 	recentDestinations: () => typedError<string[], string>(__TAURI_INVOKE("recent_destinations")),
 	selectProfile: (id: string | null) => typedError<SessionView, string>(__TAURI_INVOKE("select_profile", { id })),
 	updateProfile: () => typedError<ProfilesView, string>(__TAURI_INVOKE("update_profile")),
-	saveProfileAs: (name: string, folder: string) => typedError<ProfilesView, string>(__TAURI_INVOKE("save_profile_as", { name, folder })),
+	saveProfileAs: (name: string) => typedError<ProfilesView, string>(__TAURI_INVOKE("save_profile_as", { name })),
 	createProfile: (input: ProfileInput) => typedError<Profile[], string>(__TAURI_INVOKE("create_profile", { input })),
 	editProfile: (id: string, input: ProfileInput) => typedError<ProfilesView, string>(__TAURI_INVOKE("edit_profile", { id, input })),
 	deleteProfile: (id: string) => typedError<ProfilesView, string>(__TAURI_INVOKE("delete_profile", { id })),
@@ -151,13 +151,13 @@ export type PlanView = {
 	blocker: string | null,
 };
 
-/**  A source profile (FR-38). */
+/**  A saved copy setup for FROM (FR-38): choosing it loads its source and settings. */
 export type Profile = {
 	/**  Stays the same when the profile is renamed. */
 	id: string,
 	name: string,
-	/**  Relative to what was picked, `/`-separated; empty = the picked folder itself. */
-	folder: string,
+	/**  The directory it loads, as a full path; empty until one is saved into it. */
+	source: string,
 	/**  "Include the folder" (FR-4). */
 	includeFolder: boolean,
 	/**  `None` = every file type, including ones never seen. */
@@ -167,7 +167,8 @@ export type Profile = {
 /**  A profile as typed in a form (Save as new…, Settings). */
 export type ProfileInput = {
 	name: string,
-	folder: string,
+	/**  A full path, or empty. */
+	source: string,
 	includeFolder: boolean,
 	extensions: (string | null)[] | null,
 };
@@ -220,8 +221,6 @@ export type SessionView = {
 	profileChanged: boolean,
 	/**  Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP". */
 	pickProblem: string | null,
-	/**  What Save as new… suggests for the profile's folder. */
-	suggestedFolder: string,
 	/**  A newer scan replaced this one while it ran (FR-3); the UI keeps its current view. */
 	stale: boolean,
 };
@@ -281,6 +280,8 @@ export type StartView = {
 	recentDestinations: string[],
 	/**  Saved files that couldn't be read; shown once. */
 	warnings: string[],
+	/**  The profile last used, when its source is there: the window loads it again (FR-36). */
+	lastProfile: string | null,
 };
 
 /**  The summary after a job (RFD §5.4). */

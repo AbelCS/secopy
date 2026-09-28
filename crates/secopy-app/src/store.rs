@@ -75,15 +75,15 @@ impl Default for Settings {
     }
 }
 
-/// A source profile (FR-38).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+/// A saved copy setup for FROM (FR-38): choosing it loads its source and settings.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
     /// Stays the same when the profile is renamed.
     pub id: String,
     pub name: String,
-    /// Relative to what was picked, `/`-separated; empty = the picked folder itself.
-    pub folder: String,
+    /// The directory it loads, as a full path; empty until one is saved into it.
+    pub source: String,
     /// "Include the folder" (FR-4).
     pub include_folder: bool,
     /// `None` = every file type, including ones never seen.
@@ -99,12 +99,39 @@ impl Profile {
     }
 }
 
+/// `profiles.json` as read. Profiles saved before 0.6 kept a path on the card (`folder`)
+/// instead of a source; they load with no source.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfileOnDisk {
+    id: String,
+    name: String,
+    #[serde(default)]
+    source: String,
+    include_folder: bool,
+    extensions: Option<Vec<ExtensionKey>>,
+}
+
+impl<'de> Deserialize<'de> for Profile {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let p = ProfileOnDisk::deserialize(d)?;
+        Ok(Self {
+            id: p.id,
+            name: p.name,
+            source: p.source,
+            include_folder: p.include_folder,
+            extensions: p.extensions,
+        })
+    }
+}
+
 /// A profile as typed in a form (Save as new…, Settings).
 #[derive(Debug, Clone, PartialEq, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileInput {
     pub name: String,
-    pub folder: String,
+    /// A full path, or empty.
+    pub source: String,
     pub include_folder: bool,
     pub extensions: Option<Vec<ExtensionKey>>,
 }
@@ -163,7 +190,7 @@ impl Profiles {
         let profile = Profile {
             id: self.new_id(),
             name: input.name,
-            folder: input.folder,
+            source: input.source,
             include_folder: input.include_folder,
             extensions: input.extensions,
         };
@@ -179,7 +206,7 @@ impl Profiles {
             .find(|p| p.id == id)
             .ok_or("That profile no longer exists.")?;
         profile.name = input.name;
-        profile.folder = input.folder;
+        profile.source = input.source;
         profile.include_folder = input.include_folder;
         profile.extensions = input.extensions;
         Ok(profile.clone())
@@ -222,7 +249,7 @@ impl Profiles {
         });
         Ok(ProfileInput {
             name,
-            folder: folder(&input.folder)?,
+            source: source(&input.source)?,
             include_folder: input.include_folder,
             extensions,
         })
@@ -245,18 +272,17 @@ impl Profiles {
     }
 }
 
-/// A profile's folder, normalized: relative, `/`-separated, no `.` or `..`. Empty = the
-/// picked folder itself.
-pub fn folder(text: &str) -> Result<String, String> {
+/// A profile's source, normalized: a full path without a trailing `/`, or empty.
+fn source(text: &str) -> Result<String, String> {
     let text = text.trim();
-    if text.starts_with('/') {
-        return Err("The directory is inside the card, so it can't start with “/”.".into());
+    if text.is_empty() {
+        return Ok(String::new());
     }
-    let parts: Vec<&str> = text.split('/').filter(|p| !p.is_empty()).collect();
-    if parts.iter().any(|p| *p == ".." || *p == ".") {
-        return Err("The directory can't contain “..” or “.”.".into());
+    if !text.starts_with('/') {
+        return Err("The source must be a full path, like /Volumes/CARD_A/DCIM.".into());
     }
-    Ok(parts.join("/"))
+    let trimmed = text.trim_end_matches('/');
+    Ok(if trimmed.is_empty() { "/" } else { trimmed }.to_string())
 }
 
 /// On disk: the data next to a version number.
@@ -355,10 +381,10 @@ impl Store {
 mod tests {
     use super::*;
 
-    fn input(name: &str, folder: &str) -> ProfileInput {
+    fn input(name: &str, source: &str) -> ProfileInput {
         ProfileInput {
             name: name.into(),
-            folder: folder.into(),
+            source: source.into(),
             include_folder: true,
             extensions: Some(vec![
                 Some("MP4".into()),
@@ -394,7 +420,7 @@ mod tests {
         assert!(text.contains("\"version\": 1") && text.contains("\"writeChecksumFile\": false"));
         let mut profiles = Profiles::default();
         profiles
-            .add(input("Sony FX3", "PRIVATE/M4ROOT/CLIP"))
+            .add(input("Sony FX3", "/Volumes/CARD/PRIVATE/M4ROOT/CLIP"))
             .unwrap();
         store.save(PROFILES, &profiles).unwrap();
         assert_eq!(store.load::<Profiles>(PROFILES), (profiles, None));
@@ -477,10 +503,10 @@ mod tests {
     fn profiles_are_checked_and_normalized() {
         let mut profiles = Profiles::default();
         let p = profiles
-            .add(input("  Sony FX3 ", "PRIVATE//M4ROOT/CLIP/"))
+            .add(input("  Sony FX3 ", " /Volumes/CARD/PRIVATE/M4ROOT/CLIP/ "))
             .unwrap();
         assert_eq!(p.name, "Sony FX3");
-        assert_eq!(p.folder, "PRIVATE/M4ROOT/CLIP");
+        assert_eq!(p.source, "/Volumes/CARD/PRIVATE/M4ROOT/CLIP");
         assert_eq!(
             p.extensions,
             Some(vec![None, Some("mp4".into()), Some("xml".into())])
@@ -496,28 +522,34 @@ mod tests {
             "There is already a profile called “sony fx3”."
         );
         assert_eq!(
-            err(profiles.add(input("A", "/Volumes/CARD"))),
-            "The directory is inside the card, so it can't start with “/”."
+            err(profiles.add(input("A", "DCIM"))),
+            "The source must be a full path, like /Volumes/CARD_A/DCIM."
         );
         assert_eq!(
-            err(profiles.add(input("B", "DCIM/../x"))),
-            "The directory can't contain “..” or “.”."
+            profiles.add(input("B", " ")).unwrap().source,
+            "",
+            "no source yet"
         );
-        assert_eq!(profiles.profiles.len(), 1);
+        assert_eq!(profiles.profiles.len(), 2);
     }
 
     #[test]
     fn editing_keeps_the_id_and_deleting_removes() {
         let mut profiles = Profiles::default();
-        let a = profiles.add(input("A", "DCIM")).unwrap();
+        let a = profiles.add(input("A", "/Volumes/CARD/DCIM")).unwrap();
         let b = profiles.add(input("B", "")).unwrap();
         assert_ne!(a.id, b.id);
-        let edited = profiles.edit(&a.id, input("A2", "DCIM/100MSDCF")).unwrap();
+        let edited = profiles
+            .edit(&a.id, input("A2", "/Volumes/CARD/DCIM/100MSDCF"))
+            .unwrap();
         assert_eq!(
             (edited.id.as_str(), edited.name.as_str()),
             (a.id.as_str(), "A2")
         );
-        assert_eq!(profiles.get(&a.id).unwrap().folder, "DCIM/100MSDCF");
+        assert_eq!(
+            profiles.get(&a.id).unwrap().source,
+            "/Volumes/CARD/DCIM/100MSDCF"
+        );
         assert!(
             profiles.edit(&a.id, input("b", "")).is_err(),
             "B's name is taken"
@@ -549,7 +581,7 @@ mod tests {
         let mut p = Profile {
             id: "x".into(),
             name: "A".into(),
-            folder: String::new(),
+            source: String::new(),
             include_folder: true,
             extensions: Some(vec![Some("mp4".into())]),
         };
@@ -570,5 +602,20 @@ mod tests {
         };
         store.save(SETTINGS, &off).unwrap();
         assert!(!store.load::<Settings>(SETTINGS).0.notify_when_done);
+    }
+
+    /// 0.5 profiles kept a path on the card; they load with no source, not as damaged.
+    #[test]
+    fn a_profile_saved_with_a_card_folder_loads_with_no_source() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join(PROFILES),
+            r#"{"version": 1, "profiles": [{"id": "a", "name": "FX3", "folder": "PRIVATE/M4ROOT/CLIP", "includeFolder": true, "extensions": null}]}"#,
+        )
+        .unwrap();
+        let (profiles, warning) = Store::new(dir.path().to_path_buf()).load::<Profiles>(PROFILES);
+        assert_eq!(warning, None);
+        assert_eq!(profiles.profiles[0].name, "FX3");
+        assert_eq!(profiles.profiles[0].source, "");
     }
 }

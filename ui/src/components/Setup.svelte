@@ -86,8 +86,8 @@
     if (!destination) return "Choose where to copy to.";
     if (destination.blocker || view.plan?.blocker) return "Something above blocks the copy.";
     if (!view.plan || view.plan.filesToWrite === 0) return "Nothing to copy.";
-    // Ready: the Start button says what it will do.
-    return "";
+    // Ready: what Start will copy.
+    return `${plural(view.plan.filesToWrite, "file")} · ${formatBytes(view.plan.bytesToWrite)}`;
   });
 
   function setMode(mode: "copy" | "verify") {
@@ -298,14 +298,8 @@
         />
       {/snippet}
       {#snippet end()}
-        <Button variant="primary" disabled={!canStart} onclick={onStart}>
-          {#if view.plan && view.plan.filesToWrite > 0}
-            {verify ? "Copy & verify" : "Copy"}
-            {plural(view.plan.filesToWrite, "file")} · {formatBytes(view.plan.bytesToWrite)}
-          {:else}
-            Start copy
-          {/if}
-        </Button>
+        <!-- The mode is chosen next to it; the figures are in the status. -->
+        <Button variant="primary" disabled={!canStart} onclick={onStart}>Start copy</Button>
       {/snippet}
     </ActionBar>
   {/snippet}

@@ -322,9 +322,9 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-35 | Each job produces a report as plain text and as JSON: settings, start/end, counts, per-file result (including skipped files), failures with reasons, whether cache bypass was active, leftover partial files removed, and files left out of the checksum file. It is kept in the app's data folder, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
-| FR-36 | The app remembers the mode, the window size and the last selected source profile. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
+| FR-36 | The app remembers the mode, the window size and the last selected source profile, which is loaded again at launch when its source is there. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
 | FR-37 | Keyboard, in a File menu: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `⌘/Ctrl+.` cancel the copy (asks first); items greyed out when they don't apply. `Space` pauses and resumes a copy; `Esc` goes back from Settings and Profiles and cancels dialogs. | S |
-| FR-38 | **Source profiles**, chosen by hand: a name, a folder inside the card (e.g. `PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one applies it; changes last for one run unless saved with "Update profile" or "Save as new profile". No automatic card detection, and nothing is written to cards. | S |
+| FR-38 | **Source profiles**, chosen by hand: a saved copy setup for FROM. A name, the source (a full path, e.g. `/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one loads its source and settings (or says its card isn't connected); changes last for one run unless saved with "Update profile" or "Save as new…" (which asks only for a name). The destination is never part of a profile. No automatic card detection, and nothing is written to cards. | S |
 
 ## 7. Engine design (performance)
 
@@ -522,3 +522,4 @@ The stack meets these constraints:
 | 2026-09-28 | Settings are saved with Save and dropped with Cancel, instead of applying at once: simpler to predict, and the same as profiles. Back sits in the action bar with every other button. |
 | 2026-09-28 | No drives row in FROM (was B8, plan 3b-1): Source shows the chosen source, as Destination does in TO; a card is picked by dropping it or with Choose…. |
 | 2026-09-28 | No Eject button and no "Safe to eject" line on the summary (were C1, C2 in plan 3b-2): macOS already ejects from Finder, the desktop and the menu bar, and a finished copy is already flushed. Retry failed still says when the card is gone. |
+| 2026-09-28 | A profile saves the full source path instead of a folder relative to the card (B3 in plan 3b-1): a profile is a saved copy setup you load in one step, which is what the user expected. The Start button says "Start copy"; the mode is chosen next to it. |

@@ -68,7 +68,6 @@ export function sessionView(over: Partial<SessionView> = {}): SessionView {
     profileId: null,
     profileChanged: false,
     pickProblem: null,
-    suggestedFolder: "",
     stale: false,
     ...over,
   };
@@ -136,7 +135,7 @@ export function profile(over: Partial<Profile> = {}): Profile {
   return {
     id: "fx3",
     name: "Sony FX3",
-    folder: "PRIVATE/M4ROOT/CLIP",
+    source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
     includeFolder: true,
     extensions: ["mp4"],
     ...over,
@@ -155,6 +154,7 @@ export function startView(over: Partial<StartView> = {}): StartView {
     verify: true,
     recentDestinations: [],
     warnings: [],
+    lastProfile: null,
     ...over,
   };
 }
@@ -197,7 +197,7 @@ export function fakeApi(session: SessionView = sessionView()) {
     recentDestinations: vi.fn(() => Promise.resolve(state.start.recentDestinations)),
     selectProfile: vi.fn((_id: string | null) => answer()),
     updateProfile: vi.fn(profilesAnswer),
-    saveProfileAs: vi.fn((_name: string, _folder: string) => profilesAnswer()),
+    saveProfileAs: vi.fn((_name: string) => profilesAnswer()),
     createProfile: vi.fn((_input: ProfileInput) => Promise.resolve(state.start.profiles)),
     editProfile: vi.fn((_id: string, _input: ProfileInput) => profilesAnswer()),
     deleteProfile: vi.fn((_id: string) => profilesAnswer()),
@@ -213,7 +213,7 @@ export function fakeApi(session: SessionView = sessionView()) {
     }),
     setMenuState: vi.fn((_setup: boolean, _canStart: boolean, _copying: boolean) => Promise.resolve()),
     pickSource: vi.fn(() => Promise.resolve(["/Volumes/CARD/DCIM"] as string[] | null)),
-    pickCardFolder: vi.fn(() => Promise.resolve("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP" as string | null)),
+    pickDirectory: vi.fn(() => Promise.resolve("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP" as string | null)),
     pickDestination: vi.fn(() => Promise.resolve("/Volumes/RAID/Day01" as string | null)),
     pickReportPath: vi.fn((_s: string) => Promise.resolve("/tmp/report.txt" as string | null)),
     confirm: vi.fn((_m: string, _t: string, _ok?: string, _cancel?: string) => Promise.resolve(true)),

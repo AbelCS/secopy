@@ -175,4 +175,14 @@ describe("JobProgress", () => {
     for (const name of ["File", "Size", "Time", "Speed", "Checksum", "Status"]) finished.getByText(name);
     expect((container.querySelector(".viewport") as HTMLElement).style.height).toBe("112px");
   });
+
+  test("verifying a file is a new row, so its bar never runs backwards", async () => {
+    const file = { id: 7, name: "C0007.MP4", path: "CLIP/C0007.MP4", size: 8_000_000_000 };
+    const { rerender } = show(progressView({ active: [{ ...file, verifying: false, bytesDone: 8_000_000_000 }] }));
+    const copying = screen.getByRole("progressbar", { name: "C0007.MP4" });
+    await rerender({ progress: progressView({ active: [{ ...file, verifying: true, bytesDone: 800_000_000 }] }) });
+    const verifying = screen.getByRole("progressbar", { name: "C0007.MP4" });
+    expect(verifying).not.toBe(copying);
+    expect(verifying.getAttribute("aria-valuenow")).toBe("10");
+  });
 });

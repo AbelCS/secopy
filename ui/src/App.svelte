@@ -33,7 +33,6 @@
     profileId: null,
     profileChanged: false,
     pickProblem: null,
-    suggestedFolder: "",
     stale: false,
   });
   let verify = $state(true);
@@ -151,6 +150,13 @@
       verify = start.verify;
       recent = start.recentDestinations;
       warnings = start.warnings;
+      // The profile last used is loaded again when its source is there (FR-36).
+      if (start.lastProfile) {
+        const id = start.lastProfile;
+        void run(() => api.selectProfile(id)).then((next) => {
+          if (next) view = next;
+        });
+      }
     });
     const unlistenSettings = api.onOpenSettings(openSettings);
     const unlistenMenu = api.onMenu(onMenu);
