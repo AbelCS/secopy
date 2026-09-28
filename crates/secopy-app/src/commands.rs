@@ -42,6 +42,8 @@ pub(crate) struct QueueRun {
     pub running: bool,
     pub cancelled: bool,
     pub handles: Vec<Option<JobHandle>>,
+    /// The thread running the queue, joined at quit.
+    pub thread: Option<std::thread::JoinHandle<()>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -643,13 +645,13 @@ pub fn resume_job(app: AppHandle) {
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_job(app: AppHandle) {
-    app.state::<AppState>().jobs.cancel();
+    app.state::<AppState>().cancel();
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn job_running(app: AppHandle) -> bool {
-    app.state::<AppState>().jobs.is_running()
+    app.state::<AppState>().busy()
 }
 
 #[tauri::command]
@@ -688,6 +690,116 @@ pub fn set_menu_state(app: AppHandle, setup: bool, can_start: bool, copying: boo
     if let Some(menu) = app.try_state::<crate::FileMenu<tauri::Wry>>() {
         menu.update(setup, can_start, copying);
     }
+}
+
+impl QueueSink for Channel<QueueEvent> {
+    fn send(&self, event: QueueEvent) {
+        let _ = Channel::send(self, event);
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn queue(app: AppHandle) -> Result<QueueView, String> {
+    blocking(app, |state| state.queue_view()).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn add_to_queue(app: AppHandle, verify: bool) -> Result<QueueView, String> {
+    blocking(app, move |state| state.add_to_queue(verify)).await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_from_queue(app: AppHandle, index: u32) -> Result<QueueView, String> {
+    blocking(app, move |state| {
+        state.change_queue(|q| q.remove(index as usize))
+    })
+    .await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn move_in_queue(app: AppHandle, from: u32, to: u32) -> Result<QueueView, String> {
+    blocking(app, move |state| {
+        state.change_queue(|q| q.move_job(from as usize, to as usize))
+    })
+    .await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_queue(app: AppHandle) -> Result<QueueView, String> {
+    blocking(app, |state| {
+        state.change_queue(|q| {
+            q.clear();
+            true
+        })
+    })
+    .await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_queue_on_failure(
+    app: AppHandle,
+    on_failure: OnFailure,
+) -> Result<QueueView, String> {
+    blocking(app, move |state| {
+        state.change_queue(|q| {
+            q.on_failure = on_failure;
+            true
+        })
+    })
+    .await?
+}
+
+/// Starts the queue on its own thread; events arrive on `on_event`.
+#[tauri::command]
+#[specta::specta]
+pub fn run_queue(app: AppHandle, on_event: Channel<QueueEvent>) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    if state.busy() {
+        return Err("A copy or the queue is already running.".into());
+    }
+    let runner = app.clone();
+    let thread = std::thread::spawn(move || {
+        let _ = runner.state::<AppState>().run_queue(on_event);
+    });
+    lock(&state.queue_run).thread = Some(thread);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn queue_finished_page(
+    app: AppHandle,
+    index: u32,
+    offset: u32,
+    limit: u32,
+    failed_only: bool,
+) -> Result<Vec<FinishedRow>, String> {
+    blocking(app, move |state| {
+        state
+            .queue_job(index as usize)
+            .map_or_else(Vec::new, |job| {
+                job.finished_page(offset, limit, failed_only)
+            })
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn queue_save_report(app: AppHandle, index: u32, path: String) -> Result<(), String> {
+    blocking(app, move |state| {
+        state
+            .queue_job(index as usize)
+            .ok_or("That job has no report.")?
+            .save_report(&PathBuf::from(path))
+    })
+    .await?
 }
 
 /// "Retry failed": only the failed files, checked again (RFD §5.4).

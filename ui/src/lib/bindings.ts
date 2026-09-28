@@ -74,6 +74,16 @@ export const commands = {
 	retryFailed: () => typedError<SessionView, string>(__TAURI_INVOKE("retry_failed")),
 	/**  The UI says which File menu items apply. */
 	setMenuState: (setup: boolean, canStart: boolean, copying: boolean) => __TAURI_INVOKE<void>("set_menu_state", { setup, canStart, copying }),
+	queue: () => typedError<QueueView, string>(__TAURI_INVOKE("queue")),
+	addToQueue: (verify: boolean) => typedError<QueueView, string>(__TAURI_INVOKE("add_to_queue", { verify })),
+	removeFromQueue: (index: number) => typedError<QueueView, string>(__TAURI_INVOKE("remove_from_queue", { index })),
+	moveInQueue: (from: number, to: number) => typedError<QueueView, string>(__TAURI_INVOKE("move_in_queue", { from, to })),
+	clearQueue: () => typedError<QueueView, string>(__TAURI_INVOKE("clear_queue")),
+	setQueueOnFailure: (onFailure: OnFailure) => typedError<QueueView, string>(__TAURI_INVOKE("set_queue_on_failure", { onFailure })),
+	/**  Starts the queue on its own thread; events arrive on `on_event`. */
+	runQueue: (onEvent: Channel<QueueEvent>) => typedError<null, string>(__TAURI_INVOKE("run_queue", { onEvent })),
+	queueFinishedPage: (index: number, offset: number, limit: number, failedOnly: boolean) => typedError<FinishedRow[], string>(__TAURI_INVOKE("queue_finished_page", { index, offset, limit, failedOnly })),
+	queueSaveReport: (index: number, path: string) => typedError<null, string>(__TAURI_INVOKE("queue_save_report", { index, path })),
 };
 
 /* Types */
@@ -144,6 +154,8 @@ export type JobOutcome = "complete" | "failures" | "cancelled" | "stopped";
 
 export type JobPhase = "copying" | "verifying" | "done";
 
+export type OnFailure = "continue" | "stop";
+
 export type PlanView = {
 	filesToWrite: number,
 	bytesToWrite: number,
@@ -199,6 +211,46 @@ export type ProgressView = {
 	smallFiles: SmallFilesView | null,
 	/**  Set once, when the job has stopped for good. */
 	fatal: string | null,
+};
+
+/**  What a queue run sends to the window. */
+export type QueueEvent = { type: "jobStarted"; index: number; count: number } | { type: "progress"; view: ProgressView } | { type: "done"; summary: QueueSummaryView };
+
+/**  How a queued job ended. */
+export type QueueResult = "complete" | "failed" | "cancelled" | "notRun";
+
+export type QueueResultView = {
+	job: QueuedJobView,
+	result: QueueResult,
+	/**  Why it failed, was cancelled or didn't run. */
+	reason: string | null,
+	/**  The job's summary, when it ran. */
+	summary: SummaryView | null,
+};
+
+export type QueueSummaryView = {
+	results: QueueResultView[],
+	complete: number,
+	count: number,
+	millis: number,
+};
+
+export type QueueView = {
+	jobs: QueuedJobView[],
+	onFailure: OnFailure,
+	running: boolean,
+};
+
+/**  A queued job as the Queue screen shows it (plan 6). */
+export type QueuedJobView = {
+	/**  "copy", or "unknown" for a job a newer Secopy wrote. */
+	kind: string,
+	verify: boolean,
+	/**  The source as shown ("3 files" for several). */
+	source: string,
+	destination: string,
+	lastError: string | null,
+	supported: boolean,
 };
 
 export type RowStatus = "copied" | "verified" | "skipped" | "failed";

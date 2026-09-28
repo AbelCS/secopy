@@ -47,6 +47,15 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::save_report,
         commands::retry_failed,
         commands::set_menu_state,
+        commands::queue,
+        commands::add_to_queue,
+        commands::remove_from_queue,
+        commands::move_in_queue,
+        commands::clear_queue,
+        commands::set_queue_on_failure,
+        commands::run_queue,
+        commands::queue_finished_page,
+        commands::queue_save_report,
     ])
 }
 
@@ -76,10 +85,7 @@ pub fn run() {
                 quit(app);
             } else if event.id() == SETTINGS_MENU {
                 let _ = app.emit(OPEN_SETTINGS, ());
-            } else if let Some(item) = [CHOOSE_SOURCE, CHOOSE_DESTINATION, START_COPY, CANCEL_COPY]
-                .into_iter()
-                .find(|id| event.id() == *id)
-            {
+            } else if let Some(item) = MENU_ITEMS.into_iter().find(|id| event.id() == *id) {
                 let _ = app.emit(MENU_EVENT, item);
             }
         })
@@ -131,8 +137,16 @@ pub fn run() {
             if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
                 let state = app.state::<AppState>();
                 state.remember(|_| {}); // writes the window size
-                state.jobs.cancel();
+                state.cancel();
                 state.jobs.wait();
+                if let Some(thread) = state
+                    .queue_run
+                    .lock()
+                    .ok()
+                    .and_then(|mut r| r.thread.take())
+                {
+                    let _ = thread.join();
+                }
             }
         });
 }
@@ -148,6 +162,17 @@ const CHOOSE_DESTINATION: &str = "choose-destination";
 const START_COPY: &str = "start-copy";
 const CANCEL_COPY: &str = "cancel-copy";
 pub const MENU_EVENT: &str = "menu";
+const SHOW_COPY: &str = "show-copy";
+const SHOW_QUEUE: &str = "show-queue";
+/// Menu items the window handles (File and View).
+const MENU_ITEMS: [&str; 6] = [
+    CHOOSE_SOURCE,
+    CHOOSE_DESTINATION,
+    START_COPY,
+    CANCEL_COPY,
+    SHOW_COPY,
+    SHOW_QUEUE,
+];
 
 /// The File menu's items, kept to grey them out.
 pub struct FileMenu<R: Runtime> {
@@ -291,7 +316,16 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::close_window(app, None)?,
         ],
     )?;
-    Menu::with_items(app, &[&app_menu, &file, &edit, &window])
+    let view = Submenu::with_items(
+        app,
+        "View",
+        true,
+        &[
+            &MenuItem::with_id(app, SHOW_COPY, "Copy", true, Some("CmdOrCtrl+1"))?,
+            &MenuItem::with_id(app, SHOW_QUEUE, "Queue", true, Some("CmdOrCtrl+3"))?,
+        ],
+    )?;
+    Menu::with_items(app, &[&app_menu, &file, &view, &edit, &window])
 }
 
 #[cfg(test)]
@@ -299,6 +333,13 @@ mod tests {
     use std::path::Path;
 
     use super::{Quit, quit_action};
+
+    #[test]
+    fn the_view_menu_items_reach_the_window() {
+        assert!(
+            super::MENU_ITEMS.contains(&"show-copy") && super::MENU_ITEMS.contains(&"show-queue")
+        );
+    }
 
     #[test]
     fn the_file_menu_offers_only_what_applies() {
