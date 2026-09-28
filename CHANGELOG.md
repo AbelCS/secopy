@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0](https://github.com/AbelCS/secopy/compare/v0.5.1...v0.6.0) (2026-09-28)
+
+
+### Features
+
+* **app:** profiles save the source; Start says Start copy ([fa4376c](https://github.com/AbelCS/secopy/commit/fa4376cc9f0ec62bb078205df29343a8f3eb015e)), closes [#44](https://github.com/AbelCS/secopy/issues/44) [#45](https://github.com/AbelCS/secopy/issues/45) [#46](https://github.com/AbelCS/secopy/issues/46)
+* **ui:** clearer New copy labels and status ([3cb9d42](https://github.com/AbelCS/secopy/commit/3cb9d42ed2eae9b1253147d873addb756c66f079)), closes [#42](https://github.com/AbelCS/secopy/issues/42)
+* **ui:** leave ejecting to macOS ([eea4a78](https://github.com/AbelCS/secopy/commit/eea4a783e37ed2b280445ed63cb4f5d18e609800)), closes [#39](https://github.com/AbelCS/secopy/issues/39)
+
 ## [0.5.1](https://github.com/AbelCS/secopy/compare/v0.5.0...v0.5.1) (2026-09-28)
 
 
