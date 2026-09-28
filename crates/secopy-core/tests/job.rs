@@ -1244,3 +1244,57 @@ fn a_file_stopped_by_cancel_is_cancelled_not_failed() {
     let text = r.to_text();
     assert!(text.contains(" cancelled\n"), "{text}");
 }
+
+/// #58: what the scan couldn't read wasn't copied: the job isn't a success, and says so.
+#[cfg(unix)]
+#[test]
+fn items_the_scan_couldnt_read_make_the_job_not_complete() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    write_files(&src, &[("a.bin", b"a"), ("locked/b.bin", b"b")]);
+    fs::set_permissions(src.join("locked"), fs::Permissions::from_mode(0o000)).unwrap();
+    let plan = plan(&src, &dest);
+    fs::set_permissions(src.join("locked"), fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(plan.unread.len(), 1, "{:?}", plan.unread);
+    let (report, _) = run(&plan, &opts(true));
+    assert_eq!(report.unread.len(), 1);
+    assert!(!report.is_success(), "the locked directory wasn't copied");
+    let r = secopy_core::report::Report::new(&plan, &report, &meta());
+    assert_eq!(r.result, "1 item couldn't be read");
+    let text = r.to_text();
+    assert!(text.contains("COULDN'T BE READ"), "{text}");
+    assert!(text.contains("locked"), "{text}");
+    assert_eq!(r.unread.len(), 1);
+}
+
+/// #58: a checksum file that couldn't be written means the job isn't a success.
+#[cfg(unix)]
+#[test]
+fn a_checksum_file_that_couldnt_be_written_is_not_a_success() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = fixture();
+    fs::create_dir_all(f.dest.join("CARD/clips")).unwrap();
+    let plan = plan(&f.src, &f.dest);
+    // The files go into CARD; the checksum file into the destination, which is read-only.
+    fs::set_permissions(&f.dest, fs::Permissions::from_mode(0o555)).unwrap();
+    let (report, _) = run(&plan, &opts(true));
+    fs::set_permissions(&f.dest, fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(report.checksum_error.is_some(), "{report:?}");
+    assert_eq!(report.failed().count(), 0);
+    assert!(!report.is_success());
+    let r = secopy_core::report::Report::new(&plan, &report, &meta());
+    assert_eq!(r.result, "checksum file not written");
+}
+
+fn meta() -> secopy_core::report::JobMeta {
+    secopy_core::report::JobMeta {
+        app_version: "test".into(),
+        source: "src".into(),
+        verify: true,
+        started: chrono::Local::now(),
+        finished: chrono::Local::now(),
+    }
+}

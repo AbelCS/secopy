@@ -78,6 +78,14 @@ pub struct Report {
     pub removed_partials: u64,
     /// In plan order.
     pub files: Vec<ReportFile>,
+    /// What the scan couldn't read, so it wasn't copied (#58).
+    pub unread: Vec<Unread>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Unread {
+    pub path: String,
+    pub reason: String,
 }
 
 impl Report {
@@ -163,6 +171,14 @@ impl Report {
             removed_partials: job.removed_partials,
             counts,
             files,
+            unread: job
+                .unread
+                .iter()
+                .map(|p| Unread {
+                    path: p.path.display().to_string(),
+                    reason: p.message.clone(),
+                })
+                .collect(),
         }
     }
 
@@ -237,6 +253,13 @@ impl Report {
                 self.removed_partials
             );
         }
+        if !self.unread.is_empty() {
+            let _ = writeln!(t);
+            let _ = writeln!(t, "COULDN'T BE READ (not copied)");
+            for u in &self.unread {
+                let _ = writeln!(t, "  {}: {}", u.path, u.reason);
+            }
+        }
         let problems: Vec<&ReportFile> = self
             .files
             .iter()
@@ -291,6 +314,11 @@ fn result_line(job: &JobReport, counts: &Counts) -> String {
         return "cancelled".to_string();
     }
     match counts.failed {
+        0 if !job.unread.is_empty() => match job.unread.len() {
+            1 => "1 item couldn't be read".to_string(),
+            n => format!("{n} items couldn't be read"),
+        },
+        0 if job.checksum_error.is_some() => "checksum file not written".to_string(),
         0 => "complete".to_string(),
         1 => "1 file failed".to_string(),
         n => format!("{n} files failed"),

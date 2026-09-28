@@ -226,3 +226,31 @@ fn mirror_makes_the_destination_match() {
     );
     assert!(d.join("a.mov").exists() && !d.join("x.mov").exists());
 }
+
+/// #58: a directory the scan couldn't read wasn't copied: exit 1, and say so.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_directory_is_not_a_success() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(src.join("locked")).unwrap();
+    fs::create_dir_all(&dest).unwrap();
+    fs::write(src.join("A001.mov"), b"movie").unwrap();
+    fs::set_permissions(src.join("locked"), fs::Permissions::from_mode(0o000)).unwrap();
+    let out = cli()
+        .arg(&src)
+        .arg("--to")
+        .arg(&dest)
+        .arg("--verify")
+        .output()
+        .unwrap();
+    fs::set_permissions(src.join("locked"), fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("1 item couldn't be read (not copied)"),
+        "{stdout}"
+    );
+}

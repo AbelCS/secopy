@@ -99,8 +99,10 @@
         {#each summary.failures as f (f.id)}
           <li><span class="mono">{f.path}</span>: {f.reason}</li>
         {/each}
-        {#if summary.failed > summary.failures.length}
-          <li class="muted">and {formatCount(summary.failed - summary.failures.length)} more (see the report)</li>
+        {#if summary.failed + summary.unread > summary.failures.length}
+          <li class="muted">
+            and {formatCount(summary.failed + summary.unread - summary.failures.length)} more (see the report)
+          </li>
         {/if}
       </ul>
     </Section>

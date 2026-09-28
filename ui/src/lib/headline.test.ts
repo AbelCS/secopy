@@ -38,3 +38,11 @@ test("a cancel that removed the copied files says so", () => {
     "Cancelled: the copied files were removed",
   );
 });
+
+test("what couldn't be read, and a checksum file that wasn't written, aren't a success", () => {
+  expect(headline(summaryView({ outcome: "failures", failed: 0, unread: 2 }))).toBe("2 items couldn't be read");
+  expect(headline(summaryView({ outcome: "failures", failed: 0, unread: 1 }))).toBe("1 item couldn't be read");
+  expect(headline(summaryView({ outcome: "failures", failed: 0, checksumError: "Permission denied" }))).toBe(
+    "The checksum file couldn't be written",
+  );
+});

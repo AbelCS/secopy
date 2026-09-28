@@ -680,11 +680,21 @@ fn failure_reason(s: &SummaryView) -> String {
     if s.failed > 0 {
         return format!("{} {} failed.", s.failed, files(s.failed));
     }
+    if s.unread > 0 {
+        let items = if s.unread == 1 { "item" } else { "items" };
+        return format!("{} {items} couldn't be read.", s.unread);
+    }
     let n = s
         .mirror
         .as_ref()
         .map_or(0, |m| m.removal_failures.len() as u32);
-    format!("{n} {} couldn't be removed.", files(n))
+    if n > 0 {
+        return format!("{n} {} couldn't be removed.", files(n));
+    }
+    match &s.checksum_error {
+        Some(e) => format!("The checksum file couldn't be written: {e}"),
+        None => "It didn't complete.".into(),
+    }
 }
 
 fn count_of(results: &[QueueResultView], kind: QueueResult) -> u32 {
@@ -1610,6 +1620,27 @@ mod tests {
         let left = state.queue_view().jobs;
         assert_eq!(left.len(), 1, "the failed job stays");
         assert!(left[0].last_error.is_some());
+    }
+
+    /// #58: a queued job whose source couldn't all be read fails, stays queued and says why:
+    /// nobody was watching when it was scanned.
+    #[cfg(unix)]
+    #[test]
+    fn a_queued_job_with_unreadable_items_fails() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        let locked = dir.path().join("A/locked");
+        fs::create_dir_all(&locked).unwrap();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+        let summary = state.run_queue(Events::default()).unwrap();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(summary.results[0].result, QueueResult::Failed);
+        assert_eq!(
+            summary.results[0].reason.as_deref(),
+            Some("1 item couldn't be read.")
+        );
+        assert_eq!(state.queue_view().jobs.len(), 1, "it stays queued");
     }
 
     /// #57: a job that can't start never shows a Copying screen.

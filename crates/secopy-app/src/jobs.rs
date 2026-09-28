@@ -262,6 +262,7 @@ impl Jobs {
             files: plan.files.iter().map(|f| f.entry.clone()).collect(),
             dirs: plan.dirs.clone(),
             total_bytes: plan.total_bytes(),
+            unread: Vec::new(),
         };
         Some((job.ready.source.clone(), all.subset(&ids)))
     }
@@ -323,7 +324,11 @@ impl Job {
                 JobOutcome::Stopped
             } else if done.report.cancelled {
                 JobOutcome::Cancelled
-            } else if c.failed > 0 || removal_failed {
+            } else if c.failed > 0
+                || removal_failed
+                || !done.report.unread.is_empty()
+                || done.report.checksum_error.is_some()
+            {
                 JobOutcome::Failures
             } else {
                 JobOutcome::Complete
@@ -336,14 +341,33 @@ impl Job {
             skipped_identical: count(c.skipped_identical),
             skipped_different: count(c.skipped_different),
             failed: count(c.failed),
+            unread: count(done.report.unread.len()),
             not_started: count(c.not_started),
             bytes_written: c.bytes_written,
             millis: done.report.elapsed.as_millis() as u64,
-            failures: outcomes
+            // What couldn't be read first: it's the source, before any file.
+            failures: done
+                .report
+                .unread
                 .iter()
-                .filter(|o| matches!(o.status, FileStatus::Failed(_)))
+                .enumerate()
+                .map(|(i, p)| FinishedRow {
+                    id: count(i),
+                    path: show(&p.path),
+                    final_path: show(&p.path),
+                    size: 0,
+                    millis: 0,
+                    hash: None,
+                    status: RowStatus::Failed,
+                    reason: Some(format!("Couldn't be read: {}", p.message)),
+                })
+                .chain(
+                    outcomes
+                        .iter()
+                        .filter(|o| matches!(o.status, FileStatus::Failed(_)))
+                        .map(row),
+                )
                 .take(FAILURES_SHOWN)
-                .map(row)
                 .collect(),
             finished: count(outcomes.len()),
             copy_root: show(&job.ready.copy_root),
@@ -863,6 +887,66 @@ mod tests {
             last.verified_bytes,
             last.total_bytes
         );
+    }
+
+    /// #58: what the scan couldn't read wasn't copied: the summary says so and isn't green.
+    #[cfg(unix)]
+    #[test]
+    fn items_the_scan_couldnt_read_are_failures_in_the_summary() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let card = dir.path().join("CARD");
+        fs::create_dir_all(card.join("locked")).unwrap();
+        fs::write(card.join("a.mov"), b"a").unwrap();
+        fs::write(card.join("locked/b.mov"), b"b").unwrap();
+        let dest = dir.path().join("dest");
+        fs::create_dir_all(&dest).unwrap();
+        fs::set_permissions(card.join("locked"), fs::Permissions::from_mode(0o000)).unwrap();
+        let mut session = Session::new();
+        let pending = session
+            .begin(Change::Pick(vec![card.clone()]))
+            .ok()
+            .unwrap();
+        let scanned = scan_source(&pending.source);
+        session.finish_scan(pending, scanned);
+        fs::set_permissions(card.join("locked"), fs::Permissions::from_mode(0o755)).unwrap();
+        session.set_destination(Some(dest.clone()));
+        let jobs = Jobs::new(dir.path().join("reports"));
+        jobs.start(
+            session.ready().unwrap(),
+            true,
+            JobSettings::default(),
+            Collect::default(),
+        )
+        .unwrap();
+        jobs.wait();
+        let s = jobs.summary().unwrap();
+        assert_eq!(s.outcome, JobOutcome::Failures);
+        assert_eq!((s.unread, s.failed), (1, 0));
+        let row = &s.failures[0];
+        assert!(row.path.ends_with("locked"), "{row:?}");
+        assert!(
+            row.reason
+                .as_deref()
+                .unwrap()
+                .starts_with("Couldn't be read"),
+            "{row:?}"
+        );
+    }
+
+    /// #58: a checksum file that couldn't be written isn't a complete job.
+    #[cfg(unix)]
+    #[test]
+    fn a_checksum_file_that_couldnt_be_written_is_not_complete() {
+        use std::os::unix::fs::PermissionsExt;
+        let f = fixture(2, 10);
+        fs::create_dir_all(f.dest.join("CARD")).unwrap();
+        fs::set_permissions(&f.dest, fs::Permissions::from_mode(0o555)).unwrap();
+        run(&f, true);
+        fs::set_permissions(&f.dest, fs::Permissions::from_mode(0o755)).unwrap();
+        let s = f.jobs.summary().unwrap();
+        assert!(s.checksum_error.is_some());
+        assert_eq!(s.outcome, JobOutcome::Failures);
     }
 
     /// #57: the report counts only what was removed, lists what wasn't, and the renames.

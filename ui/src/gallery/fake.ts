@@ -98,6 +98,7 @@ export const summary: SummaryView = {
   skippedIdentical: 0,
   skippedDifferent: 0,
   failed: 1,
+  unread: 0,
   notStarted: 0,
   bytesWritten: 180_000_000_000,
   millis: 252_000,

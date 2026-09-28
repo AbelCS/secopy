@@ -77,6 +77,8 @@ pub struct Selection {
     /// Directories to create, relative to the destination, parents first.
     pub dirs: Vec<DirEntry>,
     pub total_bytes: u64,
+    /// What the scan couldn't read: it isn't copied, and the job says so (#58).
+    pub unread: Vec<ScanProblem>,
 }
 
 impl Selection {
@@ -90,10 +92,12 @@ impl Selection {
             .filter(|d| files.iter().any(|f| f.rel.starts_with(&d.rel)))
             .cloned()
             .collect();
+        // A retry copies files that were read; what couldn't be read was reported before.
         Selection {
             total_bytes: files.iter().map(|f| f.size).sum(),
             files,
             dirs,
+            unread: Vec::new(),
         }
     }
 }
@@ -135,6 +139,7 @@ impl Scan {
             files,
             dirs,
             total_bytes,
+            unread: self.problems.clone(),
         }
     }
 
