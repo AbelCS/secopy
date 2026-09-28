@@ -32,6 +32,12 @@ export function headline(s: SummaryView): string {
       return `${plural(s.failed, "file")} failed`;
     case "complete": {
       const done = s.copied + s.verified;
+      // Skip left files out: a different file has their name. Never "All" then.
+      if (s.skippedDifferent > 0) {
+        const kept = `${plural(s.skippedDifferent, "different file")} left as ${s.skippedDifferent === 1 ? "it was" : "they were"}`;
+        if (done === 0) return `Nothing copied: ${kept}`;
+        return `${plural(done, "file")} ${s.verify ? "copied and verified" : "copied"}; ${kept}`;
+      }
       if (done === 0) return "Nothing to copy: everything was already there";
       return s.verify
         ? `All ${plural(done, "file")} copied and verified`
