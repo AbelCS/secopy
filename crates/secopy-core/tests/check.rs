@@ -146,3 +146,99 @@ fn bad_lines_and_mirror_checksums() {
     assert_eq!(p.problems[0].line, Some(2));
     assert!(p.not_checked.is_empty());
 }
+
+fn quick() -> check::CheckOptions {
+    check::CheckOptions {
+        keep_awake: false,
+        ..check::CheckOptions::default()
+    }
+}
+
+fn check_all(root: &Path) -> check::CheckReport {
+    let p = check::plan(root).unwrap();
+    check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {})
+}
+
+#[test]
+fn an_untouched_copy_is_intact() {
+    let (_dir, root) = copy_of(&[("a.mov", b"a"), ("b/c.mov", b"cc")]);
+    let r = check_all(&root);
+    assert!(r.is_intact(), "{:?}", r.job.outcomes);
+    assert_eq!(r.counts().intact, 2);
+}
+
+#[test]
+fn changed_missing_and_unreadable_files_are_named() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, root) = copy_of(&[("a.mov", b"aaaa"), ("gone.mov", b"g"), ("locked.mov", b"l")]);
+    fs::write(root.join("a.mov"), b"aaab").unwrap(); // same size, flipped byte
+    fs::remove_file(root.join("gone.mov")).unwrap();
+    fs::set_permissions(root.join("locked.mov"), fs::Permissions::from_mode(0o000)).unwrap();
+    let r = check_all(&root);
+    fs::set_permissions(root.join("locked.mov"), fs::Permissions::from_mode(0o644)).unwrap();
+    let c = r.counts();
+    assert_eq!((c.intact, c.changed, c.missing, c.failed), (0, 1, 1, 1));
+    assert!(!r.is_intact());
+}
+
+/// Review focus 2.
+#[test]
+fn a_file_that_changed_size_is_changed() {
+    let (_dir, root) = copy_of(&[("a.mov", b"short")]);
+    let p = check::plan(&root).unwrap();
+    fs::write(root.join("a.mov"), b"longer than before").unwrap();
+    let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
+    assert_eq!(r.counts().changed, 1);
+}
+
+/// Review focus 3.
+#[test]
+fn a_check_writes_nothing() {
+    let (_dir, root) = copy_of(&[("a.mov", b"a"), ("sub/b.mov", b"b")]);
+    let snapshot = |root: &Path| -> Vec<(PathBuf, std::time::SystemTime)> {
+        let mut all: Vec<_> = walkdir::WalkDir::new(root)
+            .into_iter()
+            .map(|e| e.unwrap())
+            .map(|e| {
+                (
+                    e.path().to_path_buf(),
+                    e.metadata().unwrap().modified().unwrap(),
+                )
+            })
+            .collect();
+        all.sort();
+        all
+    };
+    let before = snapshot(&root);
+    check_all(&root);
+    assert_eq!(snapshot(&root), before);
+}
+
+#[test]
+fn problems_and_cancel_are_not_intact() {
+    let (_dir, root) = copy_of(&[("a.mov", b"a")]);
+    fs::write(root.join("bad.xxh64"), "garbage\n").unwrap();
+    assert!(!check_all(&root).is_intact(), "a checksum file problem");
+    let p = check::plan(&root).unwrap();
+    let control = secopy_core::job::JobControl::new();
+    control.cancel();
+    let r = check::run(&p, &quick(), &control, &|_| {});
+    assert!(r.job.cancelled && !r.is_intact());
+}
+
+#[test]
+fn progress_counts_bytes_checked() {
+    let (_dir, root) = copy_of(&[("a.mov", &[1u8; 10_000]), ("b.mov", &[2u8; 5_000])]);
+    let p = check::plan(&root).unwrap();
+    let last = std::sync::Mutex::new(None);
+    check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|e| {
+        if let secopy_core::job::Event::Progress(p) = e {
+            *last.lock().unwrap() = Some(p);
+        }
+    });
+    let p = last.into_inner().unwrap().expect("a final progress event");
+    assert_eq!(
+        (p.files_done, p.verified_bytes, p.total_bytes),
+        (2, 15_000, 15_000)
+    );
+}

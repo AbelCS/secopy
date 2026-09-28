@@ -5,13 +5,20 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use std::time::SystemTime;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed};
+use std::sync::{Mutex, mpsc};
+use std::time::{Duration, Instant, SystemTime};
 
 use unicode_normalization::UnicodeNormalization;
 use walkdir::WalkDir;
 
+use crate::control::JobControl;
+use crate::error::FileError;
+use crate::hash::to_hex;
+use crate::job::{ActiveFile, Event, FileOutcome, FileStatus, JobReport, Phase, Progress};
 use crate::mirror::ARCHIVE_DIR;
 use crate::system::is_system_file;
+use crate::verify::{CacheBypass, hash_from_device};
 
 /// Lines of a checksum file that couldn't be used: 1-based line number, and why.
 pub type BadLines = Vec<(usize, String)>;
@@ -238,4 +245,229 @@ fn inside(path: &Path) -> bool {
 /// can differ in form on some file systems.
 fn key(p: &Path) -> String {
     p.to_string_lossy().nfc().collect()
+}
+
+#[derive(Debug, Clone)]
+pub struct CheckOptions {
+    pub lanes: usize,
+    pub buffer_size: usize,
+    pub progress_interval: Duration,
+    pub keep_awake: bool,
+}
+
+impl Default for CheckOptions {
+    fn default() -> Self {
+        Self {
+            lanes: 4,
+            buffer_size: 4 << 20,
+            progress_interval: Duration::from_millis(50),
+            keep_awake: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CheckReport {
+    /// One outcome per listed file that was reached, in the order they finished.
+    pub job: JobReport,
+    pub not_checked: Vec<PathBuf>,
+    pub problems: Vec<Problem>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CheckCounts {
+    pub intact: u64,
+    pub changed: u64,
+    pub missing: u64,
+    pub failed: u64,
+}
+
+impl CheckReport {
+    /// Every listed file read in full and matched; nothing unreadable; not cancelled.
+    pub fn is_intact(&self) -> bool {
+        self.job.is_success() && self.problems.is_empty()
+    }
+
+    pub fn counts(&self) -> CheckCounts {
+        let mut c = CheckCounts::default();
+        for o in &self.job.outcomes {
+            match &o.status {
+                FileStatus::Verified => c.intact += 1,
+                FileStatus::Failed(FileError::Changed { .. }) => c.changed += 1,
+                FileStatus::Failed(FileError::Missing) => c.missing += 1,
+                FileStatus::Failed(_) => c.failed += 1,
+                _ => {}
+            }
+        }
+        c
+    }
+}
+
+pub fn run(
+    plan: &CheckPlan,
+    opts: &CheckOptions,
+    control: &JobControl,
+    on_event: &(dyn Fn(Event) + Sync),
+) -> CheckReport {
+    let started = Instant::now();
+    let _awake = opts.keep_awake.then(crate::awake::KeepAwake::new);
+    let next = AtomicUsize::new(0);
+    let finished_bytes = AtomicU64::new(0);
+    let files_done = AtomicU64::new(0);
+    let active: Mutex<Vec<(usize, u64)>> = Mutex::new(Vec::new());
+    let outcomes: Mutex<Vec<FileOutcome>> = Mutex::new(Vec::new());
+    let no_bypass = AtomicBool::new(false);
+    let snapshot = || {
+        let active = active.lock().expect("active lock poisoned");
+        Progress {
+            total_files: plan.files.len() as u64,
+            total_bytes: plan.total_bytes,
+            files_done: files_done.load(Relaxed),
+            files_skipped: 0,
+            copied_bytes: 0,
+            verified_bytes: finished_bytes.load(Relaxed)
+                + active.iter().map(|(_, b)| b).sum::<u64>(),
+            active: active
+                .iter()
+                .map(|&(id, bytes_done)| ActiveFile {
+                    id,
+                    rel: plan.files[id].rel.clone(),
+                    size: plan.files[id].size,
+                    phase: Phase::Verifying,
+                    bytes_done,
+                })
+                .collect(),
+            paused: control.is_paused(),
+        }
+    };
+    std::thread::scope(|s| {
+        let (stop_ticker, stop) = mpsc::channel::<()>();
+        let tick = &snapshot;
+        let ticker = s.spawn(move || {
+            while let Err(mpsc::RecvTimeoutError::Timeout) =
+                stop.recv_timeout(opts.progress_interval)
+            {
+                on_event(Event::Progress(tick()));
+            }
+        });
+        let lanes: Vec<_> = (0..opts.lanes.max(1))
+            .map(|_| {
+                s.spawn(|| {
+                    loop {
+                        if control.is_stopped() {
+                            break;
+                        }
+                        let id = next.fetch_add(1, Relaxed);
+                        let Some(file) = plan.files.get(id) else {
+                            break;
+                        };
+                        let began = Instant::now();
+                        active.lock().expect("active lock poisoned").push((id, 0));
+                        let set = |bytes: u64| {
+                            if let Some(slot) = active
+                                .lock()
+                                .expect("active lock poisoned")
+                                .iter_mut()
+                                .find(|(i, _)| *i == id)
+                            {
+                                slot.1 = bytes;
+                            }
+                        };
+                        let (status, hash, read) =
+                            check_one(&plan.dir, file, opts, control, &set, &no_bypass);
+                        active
+                            .lock()
+                            .expect("active lock poisoned")
+                            .retain(|(i, _)| *i != id);
+                        finished_bytes.fetch_add(read, Relaxed);
+                        files_done.fetch_add(1, Relaxed);
+                        let outcome = FileOutcome {
+                            id,
+                            rel: file.rel.clone(),
+                            final_rel: file.rel.clone(),
+                            size: file.size,
+                            hash,
+                            status,
+                            in_checksum_file: true,
+                            elapsed: began.elapsed(),
+                        };
+                        outcomes
+                            .lock()
+                            .expect("outcomes lock poisoned")
+                            .push(outcome.clone());
+                        on_event(Event::FileFinished(outcome));
+                    }
+                })
+            })
+            .collect();
+        for lane in lanes {
+            lane.join().expect("check lane panicked");
+        }
+        drop(stop_ticker);
+        ticker.join().expect("progress thread panicked");
+        on_event(Event::Progress(snapshot()));
+    });
+    let outcomes = outcomes.into_inner().expect("outcomes lock poisoned");
+    CheckReport {
+        job: JobReport {
+            not_started: (plan.files.len() - outcomes.len()) as u64,
+            outcomes,
+            checksum_file: None,
+            checksum_error: None,
+            checksum_off: true,
+            cache_bypass: Some(if no_bypass.load(Relaxed) {
+                CacheBypass::Unavailable
+            } else {
+                CacheBypass::Active
+            }),
+            removed_partials: 0,
+            fatal: None,
+            cancelled: control.is_stopped(),
+            elapsed: started.elapsed(),
+            created_dirs: Vec::new(),
+            unread: Vec::new(),
+            durability_error: None,
+            dir_errors: Vec::new(),
+        },
+        not_checked: plan.not_checked.clone(),
+        problems: plan.problems.clone(),
+    }
+}
+
+/// Reads one listed file in full from the device: (status, hash read, bytes counted).
+fn check_one(
+    dir: &Path,
+    file: &Listed,
+    opts: &CheckOptions,
+    control: &JobControl,
+    progress: &dyn Fn(u64),
+    no_bypass: &AtomicBool,
+) -> (FileStatus, Option<u64>, u64) {
+    let path = dir.join(&file.rel);
+    match fs::symlink_metadata(&path) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return (FileStatus::Failed(FileError::Missing), None, file.size);
+        }
+        Ok(m) if !m.is_file() => return (FileStatus::Failed(FileError::Missing), None, file.size),
+        Err(e) => return (FileStatus::Failed(FileError::read_back(e)), None, file.size),
+        Ok(_) => {}
+    }
+    match hash_from_device(&path, opts.buffer_size, progress, control) {
+        Ok((actual, bypass)) => {
+            if bypass == CacheBypass::Unavailable {
+                no_bypass.store(true, Relaxed);
+            }
+            let status = if actual == file.expected {
+                FileStatus::Verified
+            } else {
+                FileStatus::Failed(FileError::Changed {
+                    expected: to_hex(file.expected),
+                    actual: to_hex(actual),
+                })
+            };
+            (status, Some(actual), file.size)
+        }
+        Err(FileError::Cancelled) => (FileStatus::Cancelled, None, 0),
+        Err(e) => (FileStatus::Failed(e), None, file.size),
+    }
 }
