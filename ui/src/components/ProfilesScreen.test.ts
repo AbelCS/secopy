@@ -216,4 +216,18 @@ describe("ProfilesScreen", () => {
     await waitFor(() => expect(api.confirm).toHaveBeenCalled());
     expect(calls.done).toBe(1);
   });
+
+  test("holding Esc, or pressing it again, asks only once", async () => {
+    const { api, calls } = show();
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
+    let answer: ((discard: boolean) => void) | undefined;
+    api.confirm.mockImplementationOnce(() => new Promise((r) => (answer = r)));
+    await fireEvent.keyDown(window, { key: "Escape" });
+    await fireEvent.keyDown(window, { key: "Escape", repeat: true });
+    await fireEvent.keyDown(window, { key: "Escape" });
+    await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
+    expect(api.confirm).toHaveBeenCalledTimes(1);
+    answer!(true);
+    await waitFor(() => expect(calls.done).toBe(1));
+  });
 });

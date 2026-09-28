@@ -40,11 +40,20 @@
   /** Recreates the editor for another profile, or after this one was saved. */
   const editorKey = $derived(selectedId === NEW ? NEW : JSON.stringify(selected));
 
+  /** "Discard changes?" is open: another Esc or click doesn't ask a second time. */
+  let asking = false;
+
   /** Whether it's fine to leave the profile being edited; asks when it has changes. */
   async function mayLeave(): Promise<boolean> {
     if (!changed) return true;
+    if (asking) return false;
     const which = selectedId === NEW ? "the new profile" : `“${selected?.name ?? ""}”`;
-    return api.confirm(`Your changes to ${which} aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+    asking = true;
+    try {
+      return await api.confirm(`Your changes to ${which} aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+    } finally {
+      asking = false;
+    }
   }
 
   async function select(id: string) {
@@ -90,7 +99,8 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && void back()} />
+<!-- A held Esc repeats: only the first press counts. -->
+<svelte:window onkeydown={(e) => e.key === "Escape" && !e.repeat && void back()} />
 
 <AppShell>
   {#snippet header()}<ScreenHeader title="Profiles" />{/snippet}

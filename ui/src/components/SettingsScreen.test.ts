@@ -23,6 +23,14 @@ const actions = () => within(screen.getByRole("group", { name: "Actions" }));
 const save = () => actions().getByRole("button", { name: "Save" });
 
 describe("SettingsScreen", () => {
+  test("Esc goes back once; a held key's repeats don't count", async () => {
+    const { calls } = show();
+    await fireEvent.keyDown(window, { key: "Escape", repeat: true });
+    expect(calls.done).toBe(0);
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(calls.done).toBe(1);
+  });
+
   test("a change applies when saved, and Save goes back", async () => {
     const { api, calls } = show();
     await fireEvent.click(screen.getByLabelText("Write the checksum file to the destination"));

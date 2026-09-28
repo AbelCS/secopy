@@ -76,6 +76,18 @@ describe("MirrorScreen", () => {
     expect(calls.queue).toHaveLength(1);
   });
 
+  test("leaving unsaved changes asks once, however often the list is clicked", async () => {
+    const { api } = show([mirrorPreset(), mirrorPreset({ id: "m2", name: "Audio → NAS" })]);
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Other" } });
+    let answer: ((discard: boolean) => void) | undefined;
+    api.confirm.mockImplementationOnce(() => new Promise((r) => (answer = r)));
+    await fireEvent.click(screen.getByRole("button", { name: "Audio → NAS" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Audio → NAS" }));
+    expect(api.confirm).toHaveBeenCalledTimes(1);
+    answer!(true);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "Audio → NAS"));
+  });
+
   test("with no presets it explains mirrors", async () => {
     show([]);
     screen.getByText(/keeps a copy of a directory identical/);
