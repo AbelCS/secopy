@@ -9,7 +9,9 @@ To see every component and screen: `cd ui && npm run dev`, then open
 
 ## Layout
 
-Every screen is an `AppShell` with three parts, always in the same place:
+The app's sections (Copy, Queue) are in a `Sidebar` on the left of the section screens; it
+is hidden while jobs run and on Settings and Profiles. Every screen is an `AppShell` with
+three parts, always in the same place:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -56,6 +58,7 @@ Components use tokens only, never raw colours or sizes.
 |---|---|
 | `AppShell` | Every screen's frame: `header`, content, `actions` |
 | `ScreenHeader` | Title and optional trailing controls |
+| `Sidebar` | The app's sections (Copy, Queue; Mirror later), with a count; hidden while jobs run and on Settings/Profiles |
 | `ActionBar` | The bottom bar: `start`, `status`, `end` |
 | `Section` | A titled part of a screen; the only card style |
 | `FormRow` | One labelled line inside a section: the label column on the left, the content, the row's own actions on the right (Choose…, All · None) |

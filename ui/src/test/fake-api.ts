@@ -8,7 +8,12 @@ import type {
   Profile,
   ProfileInput,
   ProfilesView,
+  FinishedRow,
+  OnFailure,
   ProgressView,
+  QueuedJobView,
+  QueueEvent,
+  QueueView,
   SessionView,
   Settings,
   SourceView,
@@ -159,6 +164,22 @@ export function startView(over: Partial<StartView> = {}): StartView {
   };
 }
 
+export function queuedJob(over: Partial<QueuedJobView> = {}): QueuedJobView {
+  return {
+    kind: "copy",
+    verify: true,
+    source: "/Volumes/CARD/DCIM",
+    destination: "/Volumes/RAID/Day01",
+    lastError: null,
+    supported: true,
+    ...over,
+  };
+}
+
+export function queueView(over: Partial<QueueView> = {}): QueueView {
+  return { jobs: [], onFailure: "continue", running: false, ...over };
+}
+
 /** Every method is a spy; `session` is what the session commands answer. */
 export function fakeApi(session: SessionView = sessionView()) {
   const state = {
@@ -169,7 +190,11 @@ export function fakeApi(session: SessionView = sessionView()) {
     start: startView({ session }),
     openSettings: null as (() => void) | null,
     menu: null as ((item: string) => void) | null,
+    queue: queueView(),
+    /** The handler `runQueue` was given: the test sends queue events through it. */
+    queueEvent: null as ((e: QueueEvent) => void) | null,
   };
+  const queueAnswer = () => Promise.resolve(state.queue);
   const answer = () => Promise.resolve(state.session);
   const profilesAnswer = () =>
     Promise.resolve({ profiles: state.start.profiles, session: state.session } as ProfilesView);
@@ -193,6 +218,18 @@ export function fakeApi(session: SessionView = sessionView()) {
     jobSummary: vi.fn(() => Promise.resolve(summaryView() as SummaryView | null)),
     saveReport: vi.fn((_p: string) => Promise.resolve(null)),
     retryFailed: vi.fn(answer),
+    queue: vi.fn(queueAnswer),
+    addToQueue: vi.fn((_verify: boolean) => queueAnswer()),
+    removeFromQueue: vi.fn((_index: number) => queueAnswer()),
+    moveInQueue: vi.fn((_from: number, _to: number) => queueAnswer()),
+    clearQueue: vi.fn(queueAnswer),
+    setQueueOnFailure: vi.fn((_onFailure: OnFailure) => queueAnswer()),
+    runQueue: vi.fn((onEvent: (e: QueueEvent) => void) => {
+      state.queueEvent = onEvent;
+      return Promise.resolve(null);
+    }),
+    queueFinishedPage: vi.fn((_i: number, _o: number, _l: number, _f: boolean) => Promise.resolve([] as FinishedRow[])),
+    queueSaveReport: vi.fn((_i: number, _p: string) => Promise.resolve(null)),
     appStart: vi.fn(() => Promise.resolve(state.start)),
     recentDestinations: vi.fn(() => Promise.resolve(state.start.recentDestinations)),
     selectProfile: vi.fn((_id: string | null) => answer()),

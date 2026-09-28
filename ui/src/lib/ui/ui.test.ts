@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { createRawSnippet } from "svelte";
 import { describe, expect, test, vi } from "vitest";
 import ActionBar from "./ActionBar.svelte";
@@ -13,6 +13,7 @@ import ScreenHeader from "./ScreenHeader.svelte";
 import Section from "./Section.svelte";
 import SegmentedControl from "./SegmentedControl.svelte";
 import Select from "./Select.svelte";
+import Sidebar from "./Sidebar.svelte";
 import Stats from "./Stats.svelte";
 import TextField from "./TextField.svelte";
 
@@ -151,5 +152,16 @@ describe("design system", () => {
   test("ScreenHeader takes focus, so a new screen is announced by its title", () => {
     render(ScreenHeader, { props: { title: "Summary" } });
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Summary" }));
+  });
+
+  test("Sidebar: sections, the selected one, and a count", async () => {
+    const onSelect = vi.fn();
+    render(Sidebar, {
+      props: { items: [{ id: "copy", label: "Copy" }, { id: "queue", label: "Queue", count: 3 }], selected: "copy", onSelect },
+    });
+    const nav = screen.getByRole("navigation", { name: "Sections" });
+    expect(within(nav).getByRole("button", { name: "Copy" }).getAttribute("aria-current")).toBe("page");
+    await fireEvent.click(within(nav).getByRole("button", { name: "Queue, 3 jobs" }));
+    expect(onSelect).toHaveBeenCalledWith("queue");
   });
 });
