@@ -1,0 +1,76 @@
+//! Undoing a cancelled job (#54): the destination goes back to how it was before it.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use walkdir::WalkDir;
+
+use super::{FileStatus, JobReport};
+use crate::plan::{Action, Plan};
+
+/// What `undo` did.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Undone {
+    /// Files the job created, removed.
+    pub removed: u64,
+    /// Files the job replaced, put back from the archive.
+    pub restored: u64,
+    /// Files the job replaced with no old version to put back: the new one stays.
+    pub not_restored: u64,
+    /// Files that couldn't be removed or put back, with why.
+    pub failed: Vec<(PathBuf, String)>,
+}
+
+/// Removes what the job wrote: the files it created, its checksum file and the directories it
+/// made; files it replaced come back from `archive` (a mirror's `archive_replaced`). Files that
+/// were there before are never removed.
+pub fn undo(plan: &Plan, report: &JobReport, archive: Option<&Path>) -> Undone {
+    let mut done = Undone::default();
+    for o in &report.outcomes {
+        if !matches!(o.status, FileStatus::Copied | FileStatus::Verified) {
+            continue;
+        }
+        let landed = plan.dest.join(&o.final_rel);
+        let old = match plan.files[o.id].action {
+            Action::Overwrite => archive.map(|a| a.join(&o.rel)).filter(|p| p.is_file()),
+            _ => None,
+        };
+        let result = match (&plan.files[o.id].action, old) {
+            (Action::Overwrite, Some(old)) => {
+                fs::rename(&old, &landed).map(|()| done.restored += 1)
+            }
+            (Action::Overwrite, None) => {
+                done.not_restored += 1;
+                Ok(())
+            }
+            _ => fs::remove_file(&landed).map(|()| done.removed += 1),
+        };
+        if let Err(e) = result {
+            done.failed.push((o.final_rel.clone(), e.to_string()));
+        }
+    }
+    if let Some(checksum) = &report.checksum_file {
+        let _ = fs::remove_file(checksum);
+    }
+    // Deepest first; only if empty now.
+    let mut dirs: Vec<&PathBuf> = report.created_dirs.iter().collect();
+    dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
+    for d in dirs {
+        let _ = fs::remove_dir(d);
+    }
+    if let Some(archive) = archive {
+        // The archive run's directories, emptied by putting the old versions back.
+        for e in WalkDir::new(archive)
+            .contents_first(true)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_dir())
+        {
+            let _ = fs::remove_dir(e.path());
+        }
+        if let Some(parent) = archive.parent() {
+            let _ = fs::remove_dir(parent);
+        }
+    }
+    done
+}

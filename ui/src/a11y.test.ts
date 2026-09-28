@@ -1,4 +1,4 @@
-import { render } from "@testing-library/svelte";
+import { fireEvent, render, screen } from "@testing-library/svelte";
 import axe from "axe-core";
 import { describe, expect, test } from "vitest";
 import App from "./App.svelte";
@@ -73,6 +73,14 @@ describe("accessibility (axe-core)", () => {
       context: apiContext(api),
     });
     expect(await violations(container)).toEqual([]);
+  });
+
+  test("Cancel's question", async () => {
+    const { api } = fakeApi();
+    const { container } = render(JobProgress, { props: { progress: progressView() }, context: apiContext(api) });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    screen.getByRole("dialog");
+    expect(await violations(container.ownerDocument.body)).toEqual([]);
   });
 
   test("Mirror preview", async () => {

@@ -30,3 +30,8 @@ test("a mirror says what it did", () => {
     headline(summaryView({ outcome: "failures", failed: 0, mirror: mirror({ removalFailures: [row, { ...row, id: 1 }] }) })),
   ).toBe("2 files couldn't be removed");
 });
+
+test("a cancel that removed the copied files says so", () => {
+  const undone = { removed: 3, restored: 0, notRestored: 0, failed: 0 };
+  expect(headline(summaryView({ outcome: "cancelled", undone }))).toBe("Cancelled: the copied files were removed");
+});

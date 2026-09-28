@@ -38,6 +38,15 @@ describe("Summary", () => {
     expect(calls.done).toBe(1);
   });
 
+  test("a cancel that removed files says what it couldn't put back", () => {
+    show(summaryView({ outcome: "cancelled", failed: 1, undone: { removed: 5, restored: 1, notRestored: 2, failed: 1 } }));
+    // Retrying only the failed files would leave a partial copy: the others were removed.
+    expect(screen.queryByRole("button", { name: "Retry failed" })).toBeNull();
+    screen.getByRole("heading", { name: /Cancelled: the copied files were removed/ });
+    screen.getByText("2 files this job replaced couldn't be brought back: their new versions stay.");
+    screen.getByText("1 file couldn't be removed (see the report).");
+  });
+
   test("a mirror that removed nothing says why", () => {
     show(
       summaryView({

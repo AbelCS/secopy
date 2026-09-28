@@ -188,7 +188,7 @@ describe("App", () => {
     await waitFor(() => expect(api.startJob).toHaveBeenCalled());
     await screen.findByRole("heading", { name: "Copying & verifying" });
     state.menu!("cancel-copy");
-    await waitFor(() => expect(api.confirm).toHaveBeenCalled());
+    await screen.findByRole("dialog", { name: "Stop copying?" });
   });
 
   test("the File menu only starts a copy Start would start", async () => {

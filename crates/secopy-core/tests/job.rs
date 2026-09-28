@@ -12,6 +12,7 @@ use secopy_core::filter::ExtensionFilter;
 use secopy_core::hash::{hash_bytes, to_hex};
 use secopy_core::job::{
     Event, FileStatus, Hooks, JobControl, JobOptions, JobReport, Progress, SkipReason, run_job,
+    undo,
 };
 use secopy_core::plan::{Action, DiffersPolicy, Plan};
 use secopy_core::preflight::preflight;
@@ -1135,4 +1136,60 @@ fn a_failed_verify_leaves_the_old_version_in_place() {
     assert!(!report.is_success());
     assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"old");
     assert!(!archive.join("clip.mov").exists());
+}
+
+/// #54: "Also remove the files already copied" leaves the destination as it was.
+#[test]
+fn undo_removes_only_what_the_job_created() {
+    let f = fixture();
+    write_files(
+        &f.dest,
+        &[("keep.txt", b"mine"), ("CARD/notes.txt", b"an older note")],
+    );
+    fs::create_dir_all(f.dest.join("empty-before")).unwrap();
+    let before = read_tree(&f.dest);
+    let plan = plan(&f.src, &f.dest); // Keep both: notes.txt lands as a new name
+    let (report, _) = run(&plan, &opts(true));
+    assert!(report.checksum_file.is_some());
+    assert!(!report.created_dirs.is_empty());
+    let undone = undo(&plan, &report, None);
+    assert_eq!(undone.removed, 4, "{undone:?}");
+    assert_eq!(undone.not_restored, 0);
+    assert!(undone.failed.is_empty(), "{undone:?}");
+    assert_eq!(read_tree(&f.dest), before);
+    assert!(
+        !report.checksum_file.unwrap().exists(),
+        "its checksum file goes"
+    );
+    assert!(
+        f.dest.join("empty-before").is_dir(),
+        "a directory that was there stays"
+    );
+    assert!(
+        !f.dest.join("CARD/clips").exists(),
+        "a directory the job made goes"
+    );
+}
+
+#[test]
+fn undo_puts_back_what_the_job_replaced_from_the_archive() {
+    let (_dir, plan, dest, archive) = replace_fixture();
+    let o = JobOptions {
+        archive_replaced: Some(archive.clone()),
+        ..opts(true)
+    };
+    let (report, _) = run(&plan, &o);
+    let undone = undo(&plan, &report, Some(&archive));
+    assert_eq!((undone.restored, undone.not_restored), (1, 0), "{undone:?}");
+    assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"old");
+    assert!(!archive.exists(), "the emptied archive run goes too");
+}
+
+#[test]
+fn undo_says_what_it_could_not_put_back() {
+    let (_dir, plan, dest, _) = replace_fixture();
+    let (report, _) = run(&plan, &opts(true));
+    let undone = undo(&plan, &report, None);
+    assert_eq!((undone.removed, undone.not_restored), (0, 1), "{undone:?}");
+    assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"new version");
 }

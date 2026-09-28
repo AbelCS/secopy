@@ -409,12 +409,13 @@ impl AppState {
         self.jobs.is_running() || lock(&self.queue_run).running
     }
 
-    /// Cancel: the current job, and the queue if it runs (spec Q5).
-    pub fn cancel(&self) {
+    /// Cancel: the current job, and the queue if it runs (spec Q5). `remove_copied` removes
+    /// the files the current job already copied (#54).
+    pub fn cancel(&self, remove_copied: bool) {
         // Under the queue's lock, so it can't slip between a queued job's check and its start.
         let mut run = lock(&self.queue_run);
         run.cancelled = true;
-        self.jobs.cancel();
+        self.jobs.cancel(remove_copied);
     }
 
     pub fn queue_job(&self, index: usize) -> Option<JobHandle> {
@@ -720,8 +721,8 @@ pub fn resume_job(app: AppHandle) {
 
 #[tauri::command]
 #[specta::specta]
-pub fn cancel_job(app: AppHandle) {
-    app.state::<AppState>().cancel();
+pub fn cancel_job(app: AppHandle, remove_copied: bool) {
+    app.state::<AppState>().cancel(remove_copied);
 }
 
 #[tauri::command]
@@ -1518,14 +1519,14 @@ mod tests {
     fn cancel_stops_the_queue_and_keeps_the_rest() {
         let dir = tempfile::tempdir().unwrap();
         let state = queued(dir.path(), &[("A", 400), ("B", 1)]);
-        state.cancel(); // before the run: flag is reset by the run, so cancel during it
+        state.cancel(false); // before the run: flag is reset by the run, so cancel during it
         std::thread::scope(|s| {
             let run = s.spawn(|| state.run_queue(Events::default()).unwrap());
             // Cancel as soon as the first job is running.
             while !state.jobs.is_running() && !run.is_finished() {
                 std::thread::yield_now();
             }
-            state.cancel();
+            state.cancel(false);
             let summary = run.join().unwrap();
             assert_ne!(summary.results[1].result, QueueResult::Complete);
         });

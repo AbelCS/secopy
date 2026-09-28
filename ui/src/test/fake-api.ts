@@ -139,6 +139,7 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
     reportFile: "/Users/me/Library/Application Support/com.latecommits.secopy/reports/r.txt",
     reportError: null,
     mirror: null,
+    undone: null,
     finished: 1284,
     ...over,
   };
@@ -251,7 +252,7 @@ export function fakeApi(session: SessionView = sessionView()) {
     }),
     pauseJob: vi.fn(() => Promise.resolve()),
     resumeJob: vi.fn(() => Promise.resolve()),
-    cancelJob: vi.fn(() => Promise.resolve()),
+    cancelJob: vi.fn((_removeCopied: boolean) => Promise.resolve()),
     jobRunning: vi.fn(() => Promise.resolve(false)),
     finishedPage: vi.fn((_o: number, _l: number, _f: boolean) => Promise.resolve([] as Awaited<ReturnType<Api["finishedPage"]>>)),
     jobSummary: vi.fn(() => Promise.resolve(summaryView() as SummaryView | null)),

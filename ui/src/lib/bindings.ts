@@ -38,7 +38,7 @@ export const commands = {
 	startJob: (verify: boolean, onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("start_job", { verify, onProgress })),
 	pauseJob: () => __TAURI_INVOKE<void>("pause_job"),
 	resumeJob: () => __TAURI_INVOKE<void>("resume_job"),
-	cancelJob: () => __TAURI_INVOKE<void>("cancel_job"),
+	cancelJob: (removeCopied: boolean) => __TAURI_INVOKE<void>("cancel_job", { removeCopied }),
 	jobRunning: () => __TAURI_INVOKE<boolean>("job_running"),
 	finishedPage: (offset: number, limit: number, failedOnly: boolean) => typedError<FinishedRow[], string>(__TAURI_INVOKE("finished_page", { offset, limit, failedOnly })),
 	jobSummary: () => typedError<{
@@ -70,6 +70,8 @@ export const commands = {
 	reportError: string | null,
 	/**  A mirror's own figures (plan 7); `None` for a copy. */
 	mirror: MirrorSummaryView | null,
+	/**  What Cancel's "Also remove the files already copied" did (#54). */
+	undone: UndoneView | null,
 } | null, string>(__TAURI_INVOKE("job_summary")),
 	saveReport: (path: string) => typedError<null, string>(__TAURI_INVOKE("save_report", { path })),
 	/**  "Retry failed": only the failed files, checked again (RFD §5.4). */
@@ -459,6 +461,20 @@ export type SummaryView = {
 	reportError: string | null,
 	/**  A mirror's own figures (plan 7); `None` for a copy. */
 	mirror: MirrorSummaryView | null,
+	/**  What Cancel's "Also remove the files already copied" did (#54). */
+	undone: UndoneView | null,
+};
+
+/**  The files a cancelled job removed again (#54). */
+export type UndoneView = {
+	/**  Files it had created, removed. */
+	removed: number,
+	/**  Files it had replaced, put back from the archive. */
+	restored: number,
+	/**  Files it had replaced that couldn't be put back: the new version stays. */
+	notRestored: number,
+	/**  Files that couldn't be removed or put back (the report lists them). */
+	failed: number,
 };
 
 /* Tauri Specta runtime */

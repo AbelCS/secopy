@@ -110,6 +110,7 @@ export const summary: SummaryView = {
   reportFile: "/x/r.txt",
   reportError: null,
   mirror: null,
+  undone: null,
 };
 
 export const mirrors: MirrorPreset[] = [

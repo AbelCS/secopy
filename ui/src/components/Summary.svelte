@@ -2,7 +2,7 @@
   // The summary (RFD §5.4): what happened, the figures, what failed and why, and what to do next.
   import { useApi } from "../lib/api";
   import type { SummaryView } from "../lib/bindings";
-  import { formatCount } from "../lib/format";
+  import { formatCount, plural } from "../lib/format";
   import { headline } from "../lib/headline";
   import { summaryStats } from "../lib/summaryText";
   import type { Snippet } from "svelte";
@@ -75,6 +75,14 @@
       <h2 class:ok class:bad={!ok}><Icon name={ok ? "check" : "x"} size={20} /> {headline(summary)}</h2>
     </div>
     <Stats items={stats} />
+    {#if summary.undone && summary.undone.notRestored > 0}
+      <Notice tone="warning">
+        {plural(summary.undone.notRestored, "file")} this job replaced couldn't be brought back: their new versions stay.
+      </Notice>
+    {/if}
+    {#if summary.undone && summary.undone.failed > 0}
+      <Notice tone="danger">{plural(summary.undone.failed, "file")} couldn't be removed (see the report).</Notice>
+    {/if}
     {#if summary.mirror?.nothingRemoved}<Notice tone="danger">{summary.mirror.nothingRemoved}</Notice>{/if}
     {#if summary.checksumOff && !summary.mirror}<p class="muted">No checksum file (off in Settings)</p>{/if}
     {#if summary.checksumError}
@@ -122,7 +130,8 @@
     <ActionBar>
       {#snippet start()}
         <!-- What you'd do next comes first. -->
-        {#if summary.failed > 0 && onRetry}<Button onclick={onRetry}>Retry failed</Button>{/if}
+        <!-- Not after a cancel that removed the copied files: a retry would copy only a few. -->
+        {#if summary.failed > 0 && onRetry && !summary.undone}<Button onclick={onRetry}>Retry failed</Button>{/if}
         <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>Show in Finder</Button>
         {#if summary.checksumFile}
           <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>Open checksum file</Button>

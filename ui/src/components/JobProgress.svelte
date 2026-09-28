@@ -10,6 +10,8 @@
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
+  import Checkbox from "../lib/ui/Checkbox.svelte";
+  import Dialog from "../lib/ui/Dialog.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import ProgressBar from "../lib/ui/ProgressBar.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
@@ -77,12 +79,28 @@
     return parts.join(" · ");
   });
 
-  export async function cancel() {
-    const stop = await api.confirm(
-      stopMessage(checksumFile),
-      queue ? "Stop copying and stop the queue?" : "Stop copying?",
-    );
-    if (stop) await api.cancelJob();
+  /** Cancel's question is open. */
+  let asking = $state(false);
+  /** Also remove the files already copied (#54); off each time it opens. */
+  let removeCopied = $state(false);
+  const question = $derived(
+    queue ? "Stop copying and stop the queue?" : title === "Mirroring" ? "Stop mirroring?" : "Stop copying?",
+  );
+  // A job that ends while the question is open has nothing left to stop.
+  $effect(() => {
+    if (progress.phase === "done") asking = false;
+  });
+
+  /** Asks, then stops the job (and the queue) as chosen. */
+  export function cancel() {
+    if (progress.phase === "done") return;
+    removeCopied = false;
+    asking = true;
+  }
+
+  function stop() {
+    asking = false;
+    void api.cancelJob(removeCopied);
   }
 
   /**
@@ -90,7 +108,7 @@
    * theirs), and not with a modifier.
    */
   function onKey(e: KeyboardEvent) {
-    if (e.key !== " " || e.repeat || progress.phase === "done") return;
+    if (e.key !== " " || e.repeat || progress.phase === "done" || asking) return;
     if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
     if (t?.closest?.('input, textarea, select, button, [contenteditable], [tabindex="0"]')) return;
@@ -191,6 +209,23 @@
     </ActionBar>
   {/snippet}
 </AppShell>
+
+{#if asking}
+  <Dialog title={question} onClose={() => (asking = false)}>
+    <p>
+      {removeCopied ? "The file in progress and the files already copied are removed." : stopMessage(checksumFile)}
+    </p>
+    <Checkbox label="Also remove the files already copied" checked={removeCopied} onChange={(on) => (removeCopied = on)}>
+      {#snippet help()}
+        The destination goes back to how it was. Files this job replaced come back only from a mirror's archive.
+      {/snippet}
+    </Checkbox>
+    {#snippet actions()}
+      <Button data-autofocus onclick={() => (asking = false)}>Continue</Button>
+      <Button variant="danger" onclick={stop}>Stop</Button>
+    {/snippet}
+  </Dialog>
+{/if}
 
 <style>
   .muted {
