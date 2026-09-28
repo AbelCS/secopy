@@ -2,7 +2,7 @@
   // The main window (RFD §5.2): FROM, TO, what pre-flight found, mode, Start.
   import { onMount } from "svelte";
   import { useApi } from "../lib/api";
-  import type { ConflictPolicy, Profile, ProfilesView, SessionView, Settings } from "../lib/bindings";
+  import type { ConflictPolicy, Profile, ProfilesView, QueueView, SessionView, Settings } from "../lib/bindings";
   import { formatBytes, plural } from "../lib/format";
   import type { Snippet } from "svelte";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -31,6 +31,7 @@
     onSettings,
     banner,
     ready = $bindable(false),
+    onQueued,
   }: {
     view: SessionView;
     verify: boolean;
@@ -48,6 +49,8 @@
     banner?: Snippet;
     /** Start is enabled (for the File menu's Start Copy). */
     ready?: boolean;
+    /** Add to queue saved this setup; the queue as it is now. */
+    onQueued?: (queue: QueueView) => void;
   } = $props();
 
   const api = useApi();
@@ -79,7 +82,23 @@
   );
 
   /** Why Start can't be used yet, or where the files will go. */
+  /** "Added to the queue (3 jobs).", for a few seconds after Add to queue. */
+  let queuedNote: string | null = $state(null);
+
+  async function addToQueue() {
+    try {
+      const queue = await api.addToQueue(verify);
+      onQueued?.(queue);
+      queuedNote = `Added to the queue (${plural(queue.jobs.length, "job")}).`;
+      setTimeout(() => (queuedNote = null), 3000);
+      await update(() => api.clearSource(), (e) => (sourceError = e));
+    } catch (e) {
+      sourceError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   const startStatus = $derived.by(() => {
+    if (queuedNote) return queuedNote;
     if (scanning > 0) return "Waiting for the scan…";
     if (checking > 0) return "Waiting for the destination check…";
     if (!source) return "Pick what to copy.";
@@ -299,6 +318,7 @@
       {/snippet}
       {#snippet end()}
         <!-- The mode is chosen next to it; the figures are in the status. -->
+        <Button disabled={!canStart || !!source?.isRetry} onclick={addToQueue}>Add to queue</Button>
         <Button variant="primary" disabled={!canStart} onclick={onStart}>Start copy</Button>
       {/snippet}
     </ActionBar>
