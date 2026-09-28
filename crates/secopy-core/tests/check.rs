@@ -181,6 +181,44 @@ fn changed_missing_and_unreadable_files_are_named() {
     assert!(!r.is_intact());
 }
 
+/// #69 V5: a listed name that is now a link or a directory is a failure that says so, not
+/// "missing", and never intact. Links aren't followed.
+#[test]
+fn a_listed_link_or_directory_is_a_failure_not_missing() {
+    use secopy_core::error::FileError;
+    use secopy_core::job::FileStatus;
+    let (_dir, root) = copy_of(&[("link.mov", b"target"), ("dir.mov", b"d")]);
+    fs::write(root.join("target.mov"), b"target").unwrap();
+    fs::remove_file(root.join("link.mov")).unwrap();
+    std::os::unix::fs::symlink(root.join("target.mov"), root.join("link.mov")).unwrap();
+    fs::remove_file(root.join("dir.mov")).unwrap();
+    fs::create_dir(root.join("dir.mov")).unwrap();
+    let p = check::plan(&root).unwrap();
+    let link = p.files.iter().find(|f| f.rel == Path::new("link.mov"));
+    assert_eq!(link.unwrap().size, 0, "a link's target isn't counted");
+    let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
+    let status = |name: &str| {
+        let o = r.job.outcomes.iter().find(|o| o.rel == Path::new(name));
+        o.unwrap().status.clone()
+    };
+    assert_eq!(status("link.mov"), FileStatus::Failed(FileError::IsLink));
+    assert_eq!(
+        status("dir.mov"),
+        FileStatus::Failed(FileError::IsDirectory)
+    );
+    assert_eq!(
+        FileError::IsLink.to_string(),
+        "is a link, not checked (links aren't followed)"
+    );
+    assert_eq!(
+        FileError::IsDirectory.to_string(),
+        "is a directory, not a file"
+    );
+    let c = r.counts();
+    assert_eq!((c.intact, c.changed, c.missing, c.failed), (0, 0, 0, 2));
+    assert!(!r.is_intact());
+}
+
 /// Review focus 2.
 #[test]
 fn a_file_that_changed_size_is_changed() {
