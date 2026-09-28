@@ -54,7 +54,7 @@ pub fn write(dest: &Path, entries: &[(PathBuf, u64)], now: DateTime<Local>) -> i
     }
     let (path, mut file) = create_unique(dest, now)?;
     file.write_all(body.as_bytes())?;
-    file.sync_all()?;
+    crate::os::sync_durable(&file)?;
     Ok(path)
 }
 

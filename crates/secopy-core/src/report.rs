@@ -295,5 +295,5 @@ fn result_line(job: &JobReport, counts: &Counts) -> String {
 fn write_new(path: &Path, body: &str) -> io::Result<()> {
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
     file.write_all(body.as_bytes())?;
-    file.sync_all()
+    crate::os::sync_durable(&file)
 }

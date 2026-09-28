@@ -23,11 +23,45 @@ pub fn sync_file(file: &File) -> io::Result<()> {
     file.sync_all()
 }
 
+/// Makes a file durable, including the drive's own cache where the file system can
+/// (`F_FULLFSYNC`). SMB shares and some other file systems can't; there a plain `fsync`
+/// is as far as it goes (#32).
+#[cfg(target_os = "macos")]
+pub fn sync_durable(file: &File) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    let full = || {
+        // SAFETY: `fcntl` on a valid descriptor owned by `file`.
+        if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_FULLFSYNC) } == -1 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    };
+    full_or_plain(full, || sync_file(file))
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn sync_durable(file: &File) -> io::Result<()> {
+    file.sync_all()
+}
+
+/// `full`, or `plain` when the file system doesn't support `full`.
+#[cfg(target_os = "macos")]
+fn full_or_plain(
+    full: impl FnOnce() -> io::Result<()>,
+    plain: impl FnOnce() -> io::Result<()>,
+) -> io::Result<()> {
+    match full() {
+        Err(e) if matches!(e.raw_os_error(), Some(libc::ENOTSUP | libc::EOPNOTSUPP)) => plain(),
+        result => result,
+    }
+}
+
 /// Makes everything written to the volume holding `dir` durable, including the
 /// drive's own cache. Called once at the end of a job.
 #[cfg(target_os = "macos")]
 pub fn full_barrier(dir: &Path) -> io::Result<()> {
-    File::open(dir)?.sync_all()
+    sync_durable(&File::open(dir)?)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -297,6 +331,29 @@ fn lock(file: &File, wait: bool) -> io::Result<bool> {
 mod tests {
     use super::*;
     use std::os::fd::AsRawFd;
+
+    /// SMB shares don't support F_FULLFSYNC (ENOTSUP); the file is still written, so a
+    /// plain fsync must do instead of failing the checksum file (#32).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_full_flush_the_file_system_cant_do_falls_back_to_fsync() {
+        let unsupported = || Err(io::Error::from_raw_os_error(libc::ENOTSUP));
+        let mut plain_ran = false;
+        assert!(
+            full_or_plain(unsupported, || {
+                plain_ran = true;
+                Ok(())
+            })
+            .is_ok()
+        );
+        assert!(plain_ran);
+        // Other errors are real: a full disk or a pulled drive must still fail.
+        let full_disk = || Err(io::Error::from_raw_os_error(libc::ENOSPC));
+        let err = full_or_plain(full_disk, || Ok(())).unwrap_err();
+        assert_eq!(err.raw_os_error(), Some(libc::ENOSPC));
+        // And when the full flush works, fsync isn't run again.
+        assert!(full_or_plain(|| Ok(()), || panic!("not needed")).is_ok());
+    }
 
     /// Pages of `path` that are in the OS page cache, via `mincore` on a mapping.
     fn resident_pages(path: &Path) -> usize {
