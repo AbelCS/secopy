@@ -80,5 +80,10 @@ section says, which also checks those first-launch steps), then:
     mid-run: files fail and "Nothing was removed".
 27. **Mirror in the queue.** Queue a copy and a mirror; Run queue; both complete; the queue
     summary opens the mirror's summary.
+28. **Cancel and remove.** Start a copy into a directory with a file already in it; Cancel:
+    Continue (and Esc) keep copying. Cancel again, tick "Also remove the files already
+    copied", Stop: the destination is as before (the old file stays, no checksum file, no new
+    directories) and the summary says "Cancelled: the copied files were removed". Cancel
+    without ticking: the copied files stay.
 
 Record the macOS version, the card reader and anything odd in the release PR.
