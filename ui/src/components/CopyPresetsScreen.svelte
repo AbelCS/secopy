@@ -46,7 +46,7 @@
   let asking = false;
 
   /** Whether it's fine to leave the preset being edited; asks when it has changes. */
-  async function mayLeave(): Promise<boolean> {
+  export async function mayLeave(): Promise<boolean> {
     if (!changed) return true;
     if (asking) return false;
     const which = selectedId === NEW ? "the new preset" : `“${selected?.name ?? ""}”`;

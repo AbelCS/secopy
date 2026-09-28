@@ -163,6 +163,9 @@
   /** The Import screen's file, and the screen it goes back to. */
   let importing: ImportView | null = $state(null);
   let importBack: Screen = "setup";
+  let settingsScreen: SettingsScreen | undefined = $state();
+  let copyPresetsScreen: CopyPresetsScreen | undefined = $state();
+  let mirrorsScreen: MirrorScreen | undefined = $state();
   let setupScreen: Setup | undefined = $state();
   let progressScreen: JobProgress | undefined = $state();
   /** Start is enabled on New copy. */
@@ -234,6 +237,9 @@
 
   /** Import (#77): reads the file and shows what's in it; nothing changes yet. */
   async function showImport(path: string) {
+    // Import opens over the screen: its unsaved changes are asked about first.
+    const leaving = screen === "settings" ? settingsScreen : screen === "copy-presets" ? copyPresetsScreen : screen === "mirror" ? mirrorsScreen : undefined;
+    if (leaving && !(await leaving.mayLeave())) return;
     const v = await run(() => api.openImport(path));
     if (!v) return;
     if (screen !== "import") importBack = screen;
@@ -455,8 +461,9 @@
     });
     const unlistenSettings = api.onOpenSettings(openSettings);
     const unlistenMenu = api.onMenu(onMenu);
+    // Listening first, then the file Finder opened Secopy with: none is missed in between.
     const unlistenOpen = api.onOpenFile(() => void openedFromFinder());
-    void openedFromFinder();
+    void unlistenOpen.then(() => openedFromFinder());
     // Closing during a copy asks first; if closed anyway, the app stops the copy cleanly.
     const unlisten = api.onCloseRequested(async (prevent) => {
       if (!(await api.jobRunning())) return;
@@ -552,6 +559,7 @@
       <Summary {summary} {banner} onRetry={retry} onNewCopy={newCopy} />
     {:else if screen === "settings"}
       <SettingsScreen
+        bind:this={settingsScreen}
         {settings}
         {banner}
         onSettings={(s) => (settings = s)}
@@ -560,17 +568,21 @@
         onDone={() => (screen = back)}
       />
     {:else if screen === "import" && importing}
-      <ImportScreen
-        view={importing}
-        {banner}
-        onImport={doImport}
-        onBack={() => {
-          importing = null;
-          screen = importBack;
-        }}
-      />
+      <!-- Another file: a fresh screen, with its own ticks. -->
+      {#key importing}
+        <ImportScreen
+          view={importing}
+          {banner}
+          onImport={doImport}
+          onBack={() => {
+            importing = null;
+            screen = importBack;
+          }}
+        />
+      {/key}
     {:else if screen === "copy-presets"}
       <CopyPresetsScreen
+        bind:this={copyPresetsScreen}
         presets={copyPresets}
         onPresets={(p) => (copyPresets = p)}
         onView={(v) => (view = v)}
@@ -578,6 +590,7 @@
       />
     {:else if screen === "mirror"}
       <MirrorScreen
+        bind:this={mirrorsScreen}
         presets={mirrorPresets}
         {banner}
         onPresets={(p) => (mirrorPresets = p)}
