@@ -21,8 +21,11 @@
     checksumFile = true,
     banner,
     queue,
+    title,
   }: {
     progress: ProgressView;
+    /** What the job is called while it runs ("Mirroring"); by default Copying. */
+    title?: string;
     /** The running job writes a checksum file (Settings). */
     checksumFile?: boolean;
     /** In a queue run: this job's place (0-based) and the number of jobs. */
@@ -59,11 +62,13 @@
       ? "Done"
       : progress.paused
         ? "Paused"
-        : progress.phase === "verifying"
-          ? "Verifying"
-          : progress.verify
-            ? "Copying & verifying"
-            : "Copying",
+        : title
+          ? title
+          : progress.phase === "verifying"
+            ? "Verifying"
+            : progress.verify
+              ? "Copying & verifying"
+              : "Copying",
   );
   const files = $derived.by(() => {
     const parts = [`${formatCount(progress.filesDone)} / ${plural(progress.totalFiles, "file")}`];
@@ -147,6 +152,9 @@
     <ProgressBar label="Copied" done={progress.copiedBytes} total={progress.totalBytes} speed={copySpeed} />
     {#if progress.verify}
       <ProgressBar label="Verified" done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} />
+    {/if}
+    {#if progress.phase === "removing"}
+      <p class="muted">{progress.archiving ? "Archiving" : "Deleting"} {plural(progress.removing, "file")}</p>
     {/if}
   </Section>
 

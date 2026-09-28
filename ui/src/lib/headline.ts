@@ -1,9 +1,21 @@
 // The summary's status line (RFD §5.4): unambiguous about what happened.
 
 import type { SummaryView } from "./bindings";
-import { plural } from "./format";
+import { formatCount, plural } from "./format";
 
 export function headline(s: SummaryView): string {
+  const m = s.mirror;
+  if (m && s.outcome === "failures" && s.failed === 0) {
+    return `${plural(m.removalFailures.length, "file")} couldn't be removed`;
+  }
+  if (m && s.outcome === "complete") {
+    const parts = [
+      m.new > 0 ? `${formatCount(m.new)} new` : "",
+      m.updated > 0 ? `${formatCount(m.updated)} updated` : "",
+      m.removed > 0 ? `${formatCount(m.removed)} ${m.archived ? "archived" : "deleted"}` : "",
+    ].filter(Boolean);
+    return parts.length === 0 ? "Already in sync" : `Mirrored: ${parts.join(", ")}`;
+  }
   switch (s.outcome) {
     case "stopped":
       return `Stopped: ${s.stoppedBecause ?? "the copy could not continue"}`;

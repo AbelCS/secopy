@@ -1,6 +1,6 @@
 // Fake data and a fake Api for the gallery: every screen without Tauri. Dev only.
 import type { Api } from "../lib/api";
-import type { FinishedRow, MirrorPreset, Profile, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
+import type { FinishedRow, MirrorPreset, MirrorPreviewView, PreviewRow, Profile, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
 
 export const profiles: Profile[] = [
   { id: "fx3", name: "Sony FX3", source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
@@ -117,6 +117,41 @@ export const mirrors: MirrorPreset[] = [
   { id: "m2", name: "Photos → Backup", origin: "/Users/me/Pictures/Photos", destination: "/Volumes/Backup/Photos", deleted: { mode: "delete", days: 30 }, deepCheck: true },
 ];
 
+export const mirrorPreview: MirrorPreviewView = {
+  presetId: "m1",
+  name: "Footage → NAS",
+  origin: "/Volumes/SSD/Footage",
+  destination: "/Volumes/Media/Footage",
+  newFiles: 12,
+  newBytes: 38_200_000_000,
+  changedFiles: 3,
+  changedBytes: 9_400_000_000,
+  removedFiles: 5,
+  archiveDays: 30,
+  unchanged: 2410,
+  guard: null,
+};
+
+const previewRows: PreviewRow[] = [
+  { path: "2026/09/A001_C001.mov", size: 4_100_000_000, kind: "new", reason: "New" },
+  { path: "2026/09/A001_C002.mov", size: 3_900_000_000, kind: "new", reason: "New" },
+  { path: "2026/08/Edit_v3.prproj", size: 48_000_000, kind: "changed", reason: "Newer in the origin" },
+  { path: "2026/07/B002_C010.mov", size: 2_200_000_000, kind: "removed", reason: "Deleted in the origin" },
+];
+
+export const mirrorSummary: SummaryView = {
+  ...summary,
+  outcome: "complete",
+  failed: 0,
+  failures: [],
+  files: 15,
+  verified: 15,
+  checksumFile: null,
+  checksumOff: true,
+  copyRoot: "/Volumes/Media/Footage",
+  mirror: { new: 12, updated: 3, removed: 5, archived: true, removalFailures: [], nothingRemoved: null },
+};
+
 export const queue: QueueView = {
   onFailure: "continue",
   running: false,
@@ -165,6 +200,7 @@ export function fakeApi(start: Partial<{ profiles: Profile[] }> = {}): Api {
     confirm: ok(true),
     queue: ok(queue),
     mirrorPresets: ok(mirrors),
+    mirrorPreviewPage: (kind: string | null) => Promise.resolve(previewRows.filter((r) => kind === null || r.kind === kind)),
   };
   return new Proxy({} as Api, { get: (_target, key: string) => table[key] ?? ok(session) });
 }

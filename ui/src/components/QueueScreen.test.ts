@@ -25,6 +25,20 @@ describe("QueueScreen", () => {
     within(rows[1]).getByText("/Volumes/CARD_B/DCIM");
   });
 
+  test("a mirror job shows its name, origin and destination", () => {
+    show(
+      queueView({
+        jobs: [
+          queuedJob({ kind: "mirror", name: "Footage", source: "/Volumes/SSD/Footage", destination: "/Volumes/Media/Footage" }),
+        ],
+      }),
+    );
+    const row = screen.getByRole("listitem");
+    within(row).getByText("Mirror · Footage");
+    within(row).getByText("/Volumes/SSD/Footage");
+    expect(within(row).queryByText("Copy & Verify")).toBeNull();
+  });
+
   test("jobs move and are removed", async () => {
     const { api } = show();
     await fireEvent.click(screen.getAllByRole("button", { name: "Move down" })[0]);
