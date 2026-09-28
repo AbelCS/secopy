@@ -223,6 +223,9 @@ impl<'a> Runner<'a> {
     fn commit(&self, file: &PlannedFile, partial: PartialCopy) -> Result<PathBuf, FileError> {
         let dest = &self.plan.dest;
         let original = dest.join(&file.entry.rel);
+        if let (Action::Overwrite, Some(archive)) = (&file.action, &self.opts.archive_replaced) {
+            archive_old(&original, &archive.join(&file.entry.rel))?;
+        }
         let how = match &file.action {
             Action::Overwrite => Commit::Replace,
             Action::KeepBoth { n, .. } => Commit::KeepBoth {
@@ -412,4 +415,15 @@ impl<'a> Runner<'a> {
 fn root_is_there(path: &Path, device: u64) -> bool {
     fs::metadata(path).is_ok_and(|m| m.is_dir())
         && fsinfo::device_id(path).is_ok_and(|d| d == device)
+}
+
+/// Moves the file a verified copy is about to replace into the archive (mirror, FR-48).
+fn archive_old(old: &Path, to: &Path) -> Result<(), FileError> {
+    if fs::symlink_metadata(old).is_err() {
+        return Ok(()); // already gone: nothing to keep
+    }
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(FileError::write_dest)?;
+    }
+    fs::rename(old, to).map_err(FileError::write_dest)
 }

@@ -41,6 +41,9 @@ pub struct JobOptions {
     pub keep_awake: bool,
     /// How often `Event::Progress` is emitted.
     pub progress_interval: Duration,
+    /// Mirror (plan 7): an `Overwrite` file's old version is moved here, keeping its
+    /// relative path, right before its verified copy replaces it.
+    pub archive_replaced: Option<PathBuf>,
     #[doc(hidden)]
     pub hooks: Hooks,
 }
@@ -59,6 +62,7 @@ impl Default for JobOptions {
             verify_lanes: 2,
             keep_awake: true,
             progress_interval: Duration::from_millis(50),
+            archive_replaced: None,
             hooks: Hooks::default(),
         }
     }

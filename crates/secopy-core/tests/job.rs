@@ -1090,3 +1090,49 @@ fn a_job_ends_without_waiting_for_the_progress_interval() {
         started.elapsed()
     );
 }
+
+/// `src` → `dest` (contents only) where `clip.mov` exists at both with different contents.
+fn replace_fixture() -> (tempfile::TempDir, Plan, PathBuf, PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src");
+    let dest = dir.path().join("dest");
+    write_files(&src, &[("clip.mov", b"new version")]);
+    write_files(&dest, &[("clip.mov", b"old")]);
+    let source = Source::Directory {
+        path: src,
+        mode: DirMode::ContentsOnly,
+    };
+    let plan = plan_with(&source, &dest, DiffersPolicy::Overwrite);
+    let archive = dir.path().join("archive");
+    (dir, plan, dest, archive)
+}
+
+#[test]
+fn the_old_version_is_archived_only_after_the_new_one_is_verified() {
+    let (_dir, plan, dest, archive) = replace_fixture();
+    let o = JobOptions {
+        archive_replaced: Some(archive.clone()),
+        ..opts(true)
+    };
+    let (report, _) = run(&plan, &o);
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"new version");
+    assert_eq!(fs::read(archive.join("clip.mov")).unwrap(), b"old");
+}
+
+#[test]
+fn a_failed_verify_leaves_the_old_version_in_place() {
+    let (_dir, plan, dest, archive) = replace_fixture();
+    let mut o = JobOptions {
+        archive_replaced: Some(archive.clone()),
+        ..opts(true)
+    };
+    o.hooks = Hooks {
+        before_copy: None,
+        after_copy: Some(|p, _| flip_first_byte(p)),
+    };
+    let (report, _) = run(&plan, &o);
+    assert!(!report.is_success());
+    assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"old");
+    assert!(!archive.join("clip.mov").exists());
+}
