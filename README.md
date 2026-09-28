@@ -9,21 +9,20 @@ checksum file in the destination.
 
 ## Install
 
-Download `Secopy_<version>_aarch64.dmg` from the
-[latest release](https://github.com/AbelCS/secopy/releases/latest) and drag Secopy to
-Applications. The app isn't signed or notarized yet, so the first time macOS refuses to
-open it ("Apple could not verify…"):
+In Terminal:
 
-1. Click **Done** in that message.
-2. Open **System Settings → Privacy & Security**, scroll to **Security**, and click
-   **Open Anyway** next to the line about Secopy.
-3. Click **Open Anyway** again and confirm with your password or Touch ID.
+```sh
+curl -fsSL https://raw.githubusercontent.com/AbelCS/secopy/main/scripts/install.sh | bash
+```
 
-After that it starts normally. (Right-click → Open no longer works for this since macOS 15.)
-In Terminal, `xattr -dr com.apple.quarantine /Applications/Secopy.app` does the same.
+It downloads the latest release, checks it against its SHA-256 and installs Secopy into
+Applications. Run the same command to update (quit Secopy first).
 
-Updating from 0.2.0: macOS sees 0.3.0 as a new app (its identifier changed), so the first
-launch needs **Open Anyway** once more.
+Why not just the `.dmg`: the app isn't notarized by Apple yet, and macOS 27 says a
+downloaded app that isn't notarized "is damaged", with no way to open it. Files
+downloaded with `curl` aren't flagged. If you did download the `.dmg` from the
+[releases](https://github.com/AbelCS/secopy/releases), drag Secopy to Applications and run
+`xattr -dr com.apple.quarantine /Applications/Secopy.app` once.
 
 ## Keyboard
 
