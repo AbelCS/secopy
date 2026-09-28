@@ -127,7 +127,11 @@
         <strong>{formatPercent(workDone, work)}</strong>
         {#if progress.phase !== "done"}
           ·
-          <span>{timeLeft === null ? "Estimating…" : `about ${formatDuration(timeLeft)} left`}</span>
+          {#if timeLeft === null}
+            <span>Estimating…</span>
+          {:else}
+            <span class="visually-hidden">Time left:</span><span title="Time left">{formatDuration(timeLeft)}</span>
+          {/if}
         {/if}
       </span>
     {/snippet}

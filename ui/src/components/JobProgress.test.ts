@@ -41,7 +41,8 @@ describe("JobProgress", () => {
     screen.getByText("Estimating…");
     expect(screen.queryByText(/—|ETA/)).toBeNull();
     await rerender({ progress: progressView({ elapsedMs: 1000, copiedBytes: 1_000_000_000 }) });
-    screen.getByText("about 7:04 left");
+    screen.getByText("7:04");
+    screen.getByTitle("Time left");
     screen.getByText("1.0 GB of 212.4 GB · 1.0 GB/s");
     expect(screen.queryByText("Estimating…")).toBeNull();
   });
