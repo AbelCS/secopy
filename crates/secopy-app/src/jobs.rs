@@ -3,9 +3,10 @@
 //! FR-35).
 
 use std::fs;
+use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering::Relaxed};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -38,6 +39,10 @@ pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
 const OWN_ROW: u64 = 8 << 20;
 /// Failures listed in the summary; the finished list has all of them.
 const FAILURES_SHOWN: usize = 1000;
+/// Why a job whose thread panicked stopped (#69).
+pub const INTERNAL_ERROR: &str = "Secopy hit an internal error";
+/// Such a job has no report: one would read as if it had run to the end.
+const NO_REPORT: &str = "Secopy hit an internal error before the job ended, so there is no report.";
 
 /// The settings a job starts with (RFD §5.5); changing them later doesn't affect it.
 #[derive(Debug, Clone)]
@@ -143,6 +148,8 @@ struct Done {
     undone: Option<Undone>,
     /// A check's report beyond the files: what nothing lists, checksum file problems.
     check: Option<CheckReport>,
+    /// The job's thread panicked: it stopped part way, with no report (#69).
+    panicked: bool,
 }
 
 impl Jobs {
@@ -204,7 +211,13 @@ impl Jobs {
         });
         *current = Some(job.clone());
         let reports_dir = self.reports_dir.clone();
-        let handle = std::thread::spawn(move || job.run(&sink, &reports_dir));
+        let handle = std::thread::spawn(move || {
+            // A bug mustn't leave the window on the Copying screen: the job ends, stopped.
+            let ran = std::panic::catch_unwind(AssertUnwindSafe(|| job.run(&sink, &reports_dir)));
+            if ran.is_err() {
+                job.end_after_panic(&sink);
+            }
+        });
         *self.thread.lock().expect("jobs lock poisoned") = Some(handle);
         Ok(())
     }
@@ -418,7 +431,7 @@ impl Job {
             .as_ref()
             .is_some_and(|m| !m.removal_failures.is_empty());
         Some(SummaryView {
-            outcome: if done.report.fatal.is_some() {
+            outcome: if done.report.fatal.is_some() || done.panicked {
                 JobOutcome::Stopped
             } else if done.report.cancelled {
                 JobOutcome::Cancelled
@@ -434,7 +447,10 @@ impl Job {
             } else {
                 JobOutcome::Complete
             },
-            stopped_because: done.report.fatal.as_ref().map(|f| sentence(&f.to_string())),
+            stopped_because: match &done.report.fatal {
+                _ if done.panicked => Some(INTERNAL_ERROR.into()),
+                fatal => fatal.as_ref().map(|f| sentence(&f.to_string())),
+            },
             verify: job.verify(),
             files: count(c.files),
             copied: count(c.copied),
@@ -514,6 +530,9 @@ impl Job {
         let job = self;
         let done = job.done.lock().expect("job lock poisoned");
         let done = done.as_ref().ok_or("The copy is still running.")?;
+        if done.panicked {
+            return Err(NO_REPORT.into());
+        }
         let report = job.report(done);
         let write = |p: &Path, body: String| fs::write(p, body).map_err(|e| e.to_string());
         write(path, report.to_text())?;
@@ -529,6 +548,55 @@ impl Job {
             Work::Check(plan) => self.run_check(plan, sink, reports_dir),
             Work::Copy { ready, .. } => self.run_copy(ready, sink, reports_dir),
         }
+    }
+
+    /// Ends a job whose thread panicked: stopped, with the files that finished and no report,
+    /// then the Done view the window waits for (#69).
+    fn end_after_panic(&self, sink: &impl ProgressSink) {
+        let finished = self
+            .outcomes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .len();
+        let report = JobReport {
+            outcomes: Vec::new(),
+            not_started: (self.totals().0.saturating_sub(finished)) as u64,
+            checksum_file: None,
+            checksum_error: None,
+            checksum_off: !self.settings().is_some_and(|s| s.write_checksum_file),
+            cache_bypass: None,
+            removed_partials: 0,
+            fatal: None,
+            cancelled: false,
+            elapsed: self.clock.elapsed(),
+            created_dirs: Vec::new(),
+            unread: Vec::new(),
+            durability_error: None,
+            dir_errors: Vec::new(),
+        };
+        let done = Done {
+            report,
+            finished: Local::now(),
+            report_file: Err(NO_REPORT.into()),
+            next_to_error: None,
+            removals: None,
+            undone: None,
+            check: None,
+            panicked: true,
+        };
+        let last = self
+            .last
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let mut ended = self.done.lock().unwrap_or_else(PoisonError::into_inner);
+        // Past its end (sending the last view), the job stands as it ended.
+        let fatal = ended.is_none().then(|| INTERNAL_ERROR.to_string());
+        ended.get_or_insert(done);
+        drop(ended);
+        let mut view = self.progress(&last, true, fatal);
+        view.files_done = count(finished);
+        sink.send(view);
     }
 
     fn run_check(&self, plan: &CheckPlan, sink: &impl ProgressSink, reports_dir: &Path) {
@@ -559,6 +627,7 @@ impl Job {
             removals: None,
             undone: None,
             check: Some(checked),
+            panicked: false,
         };
         done.report_file = self.save(&done, reports_dir);
         let last = self.last.lock().expect("job lock poisoned").clone();
@@ -634,6 +703,7 @@ impl Job {
             removals,
             undone,
             check: None,
+            panicked: false,
         };
         done.report_file = self.save(&done, reports_dir);
         if settings.report_next_to_checksum
@@ -1522,6 +1592,49 @@ mod tests {
             .unwrap();
         jobs.wait();
         assert_eq!(jobs.summary().unwrap().outcome, JobOutcome::Complete);
+    }
+
+    /// #69: a panic in the job's thread still ends the job, as stopped and saying why, so the
+    /// window doesn't stay on the Copying screen.
+    #[test]
+    fn a_panic_in_the_job_ends_it_as_stopped() {
+        /// Panics on its first view, like a bug in the job's thread would.
+        #[derive(Clone, Default)]
+        struct PanicsFirst(Collect, Arc<AtomicBool>);
+        impl ProgressSink for PanicsFirst {
+            fn send(&self, view: ProgressView) {
+                if !self.1.swap(true, Relaxed) {
+                    panic!("a bug");
+                }
+                self.0.send(view);
+            }
+        }
+        let f = fixture(3, 10);
+        let sink = PanicsFirst::default();
+        f.jobs
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                sink.clone(),
+            )
+            .unwrap();
+        f.jobs.wait();
+        assert!(!f.jobs.is_running());
+        let last = sink.0.last();
+        assert_eq!(last.phase, JobPhase::Done);
+        assert_eq!(last.fatal.as_deref(), Some(INTERNAL_ERROR));
+        let s = f.jobs.summary().unwrap();
+        assert_eq!(s.outcome, JobOutcome::Stopped);
+        assert_eq!(s.stopped_because.as_deref(), Some(INTERNAL_ERROR));
+        assert!(
+            s.report_error.is_some(),
+            "no report for a run that never ended"
+        );
+        assert!(
+            f.jobs.save_report(&f.dir.path().join("mine.txt")).is_err(),
+            "a report would call it complete"
+        );
     }
 
     /// Plan 8: a clean mirror job writes the mirror's checksum file.
