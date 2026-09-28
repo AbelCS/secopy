@@ -1414,3 +1414,21 @@ fn an_empty_directory_that_couldnt_be_created_is_reported() {
     assert_eq!(r.result, "1 directory couldn't be created");
     assert!(r.to_text().contains("EMPTY"), "{}", r.to_text());
 }
+
+/// #58 check: an archive that already holds this file is never overwritten.
+#[test]
+fn an_archived_file_is_never_overwritten() {
+    let (_dir, plan, dest, archive) = replace_fixture();
+    write_files(&archive, &[("clip.mov", b"archived before")]);
+    let o = JobOptions {
+        archive_replaced: Some(archive.clone()),
+        ..opts(true)
+    };
+    let (report, _) = run(&plan, &o);
+    assert_eq!(report.failed().count(), 1);
+    assert_eq!(
+        fs::read(archive.join("clip.mov")).unwrap(),
+        b"archived before"
+    );
+    assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"old");
+}
