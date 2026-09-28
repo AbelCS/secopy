@@ -218,13 +218,18 @@ fn quit_action(copying: bool) -> Quit {
 
 /// Quit Secopy (⌘Q): during a copy it asks first, like closing the window.
 fn quit<R: Runtime>(app: &AppHandle<R>) {
-    let copying = app.state::<AppState>().jobs.is_running();
+    let copying = asks_before_quitting(&app.state::<AppState>());
     match (quit_action(copying), app.get_webview_window("main")) {
         (Quit::AskFirst, Some(window)) => {
             let _ = window.close();
         }
         _ => app.exit(0),
     }
+}
+
+/// A copy runs, or the queue does (even between two of its jobs).
+fn asks_before_quitting(state: &AppState) -> bool {
+    state.busy()
 }
 
 /// The standard macOS menu, except Quit: the standard one ends the app at once, without
@@ -333,6 +338,16 @@ mod tests {
     use std::path::Path;
 
     use super::{Quit, quit_action};
+
+    /// ⌘Q asks between queue jobs too (a scan, or a job that couldn't start), like closing.
+    #[test]
+    fn quitting_asks_while_the_queue_runs_between_jobs() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = crate::commands::AppState::new(dir.path().to_path_buf());
+        assert!(!super::asks_before_quitting(&state));
+        state.queue_run.lock().unwrap().running = true;
+        assert!(super::asks_before_quitting(&state));
+    }
 
     #[test]
     fn the_view_menu_items_reach_the_window() {

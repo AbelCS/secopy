@@ -69,5 +69,7 @@ section says, which also checks those first-launch steps), then:
     nothing after it runs.
 24. **Queue interrupted.** Cancel during job 2: the queue stops, jobs 2 and 3 stay queued.
     Run again and quit during a job: on reopening, the queue still has the jobs not finished.
+    Cancel while a job is being checked (just after "Job 2 of 3" appears, before files
+    move): job 2 doesn't start. ⌘Q between two jobs asks first.
 
 Record the macOS version, the card reader and anything odd in the release PR.
