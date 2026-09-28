@@ -1,8 +1,8 @@
 # Secopy
 
-Fast, verified file copies for macOS. Copy a folder or a set of
+Fast, verified file copies for macOS. Copy a directory or a set of
 files, optionally verify every copy with xxHash64, and get an `xxhsum`-compatible
-checksum file in the destination.
+checksum file in the destination. Queue several copies and let them run one after another.
 
 > **Status:** early development, Apple Silicon Macs only. Design:
 > [RFD 0001](docs/rfd/0001-secopy.md).
@@ -28,7 +28,7 @@ downloaded with `curl` aren't flagged. If you did download the `.dmg` from the
 
 File menu: **⌘O** choose the source, **⌘D** choose the destination, **⌘↩** start,
 **⌘.** cancel. While copying, **Space** pauses and resumes. **Esc** goes back from Settings
-and Profiles; **⌘,** opens Settings.
+and Profiles; **⌘,** opens Settings. **⌘1** Copy, **⌘3** Queue.
 
 ## Development
 

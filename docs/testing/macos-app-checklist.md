@@ -61,5 +61,13 @@ section says, which also checks those first-launch steps), then:
     pauses and resumes; ⌘. asks to cancel; Esc cancels Settings and leaves Profiles.
 21. **VoiceOver.** With VoiceOver on (⌘F5), do a whole copy with the keyboard: every control
     is read with its name, each new screen reads its title, and the end is announced.
+22. **Queue.** Set up three copies (two cards, one directory) with Add to queue; reorder them;
+    Run queue with the window in the background: one notification at the end; the queue
+    summary opens each job's summary; the queue is empty.
+23. **Queue failures.** Queue a card, take it out, Run queue with "Continue": that job fails
+    ("<card> isn't connected."), the others run, it stays in the queue. With "Stop the queue":
+    nothing after it runs.
+24. **Queue interrupted.** Cancel during job 2: the queue stops, jobs 2 and 3 stay queued.
+    Run again and quit during a job: on reopening, the queue still has the jobs not finished.
 
 Record the macOS version, the card reader and anything odd in the release PR.
