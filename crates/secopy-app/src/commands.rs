@@ -746,8 +746,8 @@ fn failure_reason(s: &SummaryView) -> String {
         .filter(|(n, _)| *n > 0)
         .map(|(n, what)| format!("{n} {what}"))
         .collect();
-        if !c.problems.is_empty() {
-            parts.push(format!("{} checksum file problems", c.problems.len()));
+        if c.problem_count() > 0 {
+            parts.push(format!("{} checksum file problems", c.problem_count()));
         }
         return format!("{}.", parts.join(", "));
     }
@@ -2409,6 +2409,32 @@ mod tests {
         let summary = state.run_queue(Events::default()).unwrap();
         assert_eq!(summary.results[0].result, QueueResult::Failed);
         assert_eq!(summary.results[0].reason.as_deref(), Some("1 changed."));
+    }
+
+    /// #69: past the 1,000 checksum file problems a summary lists, the queue's reason still
+    /// counts them all.
+    #[test]
+    fn a_queued_check_counts_every_checksum_file_problem() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        let root = dir.path().join("Day01");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("a.mov"), b"a").unwrap();
+        secopy_core::checksum_file::write(
+            &root,
+            &[(PathBuf::from("a.mov"), secopy_core::hash::hash_bytes(b"a"))],
+            chrono::Local::now(),
+        )
+        .unwrap();
+        fs::write(root.join("bad.xxh64"), "not a checksum line\n".repeat(1005)).unwrap();
+        state.add_check_to_queue(&show(&root)).unwrap();
+        let summary = state.run_queue(Events::default()).unwrap();
+        assert_eq!(
+            summary.results[0].reason.as_deref(),
+            Some("1005 checksum file problems.")
+        );
+        let check = summary.results[0].summary.clone().unwrap().check.unwrap();
+        assert_eq!((check.problems.len(), check.more_problems), (1000, Some(5)));
     }
 
     #[test]

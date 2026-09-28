@@ -97,6 +97,18 @@ describe("Summary", () => {
     expect(screen.queryByText(/No checksum file/)).toBeNull();
   });
 
+  test("a check with more problems than listed says how many more", () => {
+    show(
+      summaryView({
+        outcome: "failures",
+        failed: 0,
+        check: { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: ["a.xxh64:3: bad line"], moreProblems: 1_233 },
+      }),
+    );
+    screen.getByRole("heading", { name: /1,234 checksum file problems/ });
+    within(screen.getByRole("region", { name: "Problems" })).getByText("and 1,233 more (see the report)");
+  });
+
   test("not started explains itself", () => {
     show(summaryView({ outcome: "cancelled", notStarted: 150 }));
     expect(hintOf(screen.getByText("150 not started"))).toMatch(/cancelled or stopped/);

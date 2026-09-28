@@ -114,6 +114,9 @@
     <Section title="Problems">
       <ul class="failures">
         {#each summary.check.problems as p, i (i)}<li class="mono">{p}</li>{/each}
+        {#if summary.check.moreProblems}
+          <li class="muted">and {formatCount(summary.check.moreProblems)} more (see the report)</li>
+        {/if}
       </ul>
     </Section>
   {/if}

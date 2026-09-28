@@ -75,3 +75,13 @@ test("a check says intact, or what it found", () => {
     "3 files changed · 1 missing",
   );
 });
+
+test("a check counts every checksum file problem, also past the ones listed", () => {
+  const check = { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: Array<string>(1000).fill("a.xxh64:1: bad line") };
+  expect(headline(summaryView({ outcome: "failures", check: { ...check, moreProblems: 234 } }))).toBe(
+    "1,234 checksum file problems",
+  );
+  expect(headline(summaryView({ outcome: "failures", check: { ...check, moreProblems: null } }))).toBe(
+    "1,000 checksum file problems",
+  );
+});
