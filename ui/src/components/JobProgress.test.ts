@@ -128,6 +128,17 @@ describe("JobProgress", () => {
     await waitFor(() => expect(api.finishedPage).toHaveBeenCalledWith(4900, 100, false));
   });
 
+  test("a failed file's reason takes the checksum's place, so it can be read", async () => {
+    const { api } = fakeApi();
+    api.finishedPage.mockResolvedValue([row(0, { status: "failed", hash: null, reason: "Cancelled" })]);
+    render(JobProgress, { props: { progress: progressView({ filesDone: 1, filesFailed: 1 }) }, context: apiContext(api) });
+    const item = await screen.findByRole("listitem");
+    await waitFor(() => within(item).getByText("✗ Failed — Cancelled"));
+    const status = within(item).getByText("✗ Failed — Cancelled");
+    expect(status.classList.contains("wide")).toBe(true);
+    expect(within(item).queryByText("—")).toBeNull();
+  });
+
   test("Failed only goes back to the top", async () => {
     const { container } = show(progressView({ filesDone: 10_000, filesFailed: 2 }));
     const viewport = container.querySelector(".viewport") as HTMLElement;
