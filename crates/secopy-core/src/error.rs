@@ -56,6 +56,14 @@ pub enum FileError {
     Changed { expected: String, actual: String },
     #[error("missing")]
     Missing,
+    /// Verify found a link where a file was listed; links are never followed (FR-24).
+    #[error("is a link, not checked (links aren't followed)")]
+    IsLink,
+    #[error("is a directory, not a file")]
+    IsDirectory,
+    /// Something else that isn't a regular file (a pipe, a device…).
+    #[error("isn't a regular file, not checked")]
+    NotAFile,
     #[error("cancelled")]
     Cancelled,
 }

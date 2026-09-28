@@ -210,7 +210,11 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
                 });
                 continue;
             }
-            let size = fs::metadata(dir.join(&rel)).map_or(0, |m| m.len());
+            // Not through a link: a link's target is never read.
+            let size = fs::symlink_metadata(dir.join(&rel))
+                .ok()
+                .filter(|m| m.is_file())
+                .map_or(0, |m| m.len());
             listed.insert(
                 rel.clone(),
                 Listed {
@@ -468,7 +472,17 @@ fn check_one(
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return (FileStatus::Failed(FileError::Missing), None, file.size);
         }
-        Ok(m) if !m.is_file() => return (FileStatus::Failed(FileError::Missing), None, file.size),
+        Ok(m) if !m.is_file() => {
+            // Something is there, just not a file to read: never followed, never "missing".
+            let e = if m.is_symlink() {
+                FileError::IsLink
+            } else if m.is_dir() {
+                FileError::IsDirectory
+            } else {
+                FileError::NotAFile
+            };
+            return (FileStatus::Failed(e), None, file.size);
+        }
         Err(e) => return (FileStatus::Failed(FileError::read_back(e)), None, file.size),
         Ok(m) => m.len(),
     };
