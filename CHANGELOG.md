@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.8.0](https://github.com/AbelCS/secopy/compare/v0.7.0...v0.8.0) (2026-09-28)
+
+
+### Features
+
+* **app:** mirror presets in mirrors.json ([cf4a0a8](https://github.com/AbelCS/secopy/commit/cf4a0a8ff42ff3160d35473120ed7de33d6fbde7)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **app:** mirror presets, preview and queued mirrors ([284d5ed](https://github.com/AbelCS/secopy/commit/284d5ed2969e096d3e94a7e8d06cf7cbe1932a13)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **app:** run a mirror through the job runner ([76fc701](https://github.com/AbelCS/secopy/commit/76fc701f45eedba9e0f5b62011d3e90ba2116043)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* cancel can remove the files already copied ([25d10c9](https://github.com/AbelCS/secopy/commit/25d10c937cd1e4a337ebd4ed339ccb235909ee06)), closes [#54](https://github.com/AbelCS/secopy/issues/54)
+* **cli:** --mirror ([a7242ab](https://github.com/AbelCS/secopy/commit/a7242aba2fade71dc9f0389a237cdcaba47e5aa5)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **core:** archive a replaced file's old version ([7792e97](https://github.com/AbelCS/secopy/commit/7792e97f45f364d285e0c56365e01f9fb429fe10)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **core:** finish a mirror: removals and the archive ([9ad490c](https://github.com/AbelCS/secopy/commit/9ad490c19d9486bcc1f2a3fed3e815190643d425)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **core:** plan a one-way mirror ([7fb5311](https://github.com/AbelCS/secopy/commit/7fb5311bdf14dce8ed5adcd17074578c88168d64)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **ui:** preview and run a mirror ([af3eda6](https://github.com/AbelCS/secopy/commit/af3eda6c484d79b8701dddbaf7bd4b58cf3b80e9)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **ui:** the Mirror section ([adfd88b](https://github.com/AbelCS/secopy/commit/adfd88b4aa465367b2307e94263351137432bd80)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+
+
+### Bug Fixes
+
+* **core:** a mirror never removes what it couldn't read ([5d89630](https://github.com/AbelCS/secopy/commit/5d89630abf4499c969de664c9123bec9795ec654)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **ui:** a failed file's reason can be read in the file list ([836f664](https://github.com/AbelCS/secopy/commit/836f664aede025576def253186515930416c29e6)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **ui:** a new job forgets the last mirror summary ([638c4c7](https://github.com/AbelCS/secopy/commit/638c4c749dfb1aab437890bf493da930109f3c0f)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+* **ui:** say how a mirror checks its files ([3958370](https://github.com/AbelCS/secopy/commit/39583706e82e31b156bb1626544d9d8c77168365)), closes [#51](https://github.com/AbelCS/secopy/issues/51)
+
 ## [0.7.0](https://github.com/AbelCS/secopy/compare/v0.6.0...v0.7.0) (2026-09-28)
 
 
