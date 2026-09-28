@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import App from "./App.svelte";
 import {
   fakeApi,
-  profile,
+  copyPreset,
   progressView,
   readyView,
   sessionView,
@@ -87,7 +87,7 @@ describe("App", () => {
   });
   test("the start-up load fills the window", async () => {
     const { api, state } = fakeApi(readyView());
-    state.start = startView({ session: readyView(), verify: false, profiles: [profile()] });
+    state.start = startView({ session: readyView(), verify: false, copyPresets: [copyPreset()] });
     render(App, { props: { api } });
     await screen.findByRole("button", { name: "Start copy" });
     expect(screen.getByRole("radio", { name: "Copy" })).toHaveProperty("checked", true);
@@ -252,13 +252,13 @@ describe("App", () => {
     );
   });
 
-  test("Manage profiles… opens the Profiles screen, not Settings", async () => {
+  test("Manage presets… opens the Copy presets screen, not Settings", async () => {
     const { api, state } = fakeApi(readyView());
-    state.start = startView({ session: readyView(), profiles: [profile()] });
+    state.start = startView({ session: readyView(), copyPresets: [copyPreset()] });
     render(App, { props: { api } });
     await screen.findByRole("option", { name: "Sony FX3" });
-    await fireEvent.change(screen.getByRole("combobox", { name: "Profile" }), { target: { value: "manage" } });
-    await screen.findByRole("heading", { name: "Profiles" });
+    await fireEvent.change(screen.getByRole("combobox", { name: "Preset" }), { target: { value: "manage" } });
+    await screen.findByRole("heading", { name: "Copy presets" });
     expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
     await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     await screen.findByRole("button", { name: "Start copy" });
@@ -343,11 +343,11 @@ describe("App", () => {
     expect(api.setMenuState).toHaveBeenCalledTimes(sent);
   });
 
-  test("the last profile is loaded again at start", async () => {
+  test("the last preset is loaded again at start", async () => {
     const { api, state } = fakeApi(sessionView());
-    state.start = startView({ session: sessionView(), profiles: [profile()], lastProfile: "fx3" });
+    state.start = startView({ session: sessionView(), copyPresets: [copyPreset()], lastPreset: "fx3" });
     render(App, { props: { api } });
-    await waitFor(() => expect(api.selectProfile).toHaveBeenCalledWith("fx3"));
+    await waitFor(() => expect(api.selectCopyPreset).toHaveBeenCalledWith("fx3"));
   });
 
   test("the tabs switch between Copy and Queue, and hide while copying", async () => {

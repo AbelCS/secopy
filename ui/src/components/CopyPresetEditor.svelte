@@ -1,9 +1,9 @@
 <script lang="ts">
-  // One profile's fields (FR-38): its name, the source it loads, whether that directory itself
+  // One copy preset's fields (FR-38): its name, the source it loads, whether that directory itself
   // is copied, and which file types. Problems show next to their field.
   import { baseName, messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
-  import type { Profile, ProfileInput } from "../lib/bindings";
+  import type { CopyPreset, CopyPresetInput } from "../lib/bindings";
   import Button from "../lib/ui/Button.svelte";
   import Checkbox from "../lib/ui/Checkbox.svelte";
   import Chip from "../lib/ui/Chip.svelte";
@@ -13,18 +13,18 @@
   import TextField from "../lib/ui/TextField.svelte";
 
   let {
-    profile,
+    preset,
     formId,
     onSave,
     changed = $bindable(false),
     canSave = $bindable(false),
   }: {
-    /** `null` for a new profile. */
-    profile: Profile | null;
+    /** `null` for a new preset. */
+    preset: CopyPreset | null;
     /** The action bar's Save submits this form. */
     formId: string;
-    /** Throws the app's message when the profile can't be saved. */
-    onSave: (input: ProfileInput) => Promise<void>;
+    /** Throws the app's message when the preset can't be saved. */
+    onSave: (input: CopyPresetInput) => Promise<void>;
     /** There are unsaved changes (so leaving asks, and Revert is on). */
     changed?: boolean;
     canSave?: boolean;
@@ -33,14 +33,14 @@
   const api = useApi();
   const NO_EXTENSION = "(no extension)";
 
-  // The editor is recreated for each profile, so these start from it once.
+  // The editor is recreated for each preset, so these start from it once.
   // svelte-ignore state_referenced_locally
   const start = {
-    name: profile?.name ?? "",
-    source: profile?.source ?? "",
-    includeFolder: profile?.includeFolder ?? true,
-    all: profile ? profile.extensions === null : true,
-    types: profile?.extensions ?? [],
+    name: preset?.name ?? "",
+    source: preset?.source ?? "",
+    includeFolder: preset?.includeFolder ?? true,
+    all: preset ? preset.extensions === null : true,
+    types: preset?.extensions ?? [],
   };
   let name = $state(start.name);
   let source = $state(start.source);
@@ -55,7 +55,7 @@
 
   const folderName = $derived(baseName(source));
   const isChanged = $derived(
-    profile === null
+    preset === null
       ? name.trim() !== ""
       : name !== start.name ||
           source !== start.source ||
@@ -69,7 +69,7 @@
     canSave = isChanged && !noTypes && !saving;
   });
 
-  /** Back to the saved profile. */
+  /** Back to the saved preset. */
   export function revert() {
     name = start.name;
     source = start.source;
@@ -113,7 +113,7 @@
     } catch (e) {
       const message = messageOf(e);
       if (message.startsWith("The source")) sourceProblem = message;
-      else if (/name|profile called/.test(message)) nameProblem = message;
+      else if (/name|preset called/.test(message)) nameProblem = message;
       else otherProblem = message;
     } finally {
       saving = false;

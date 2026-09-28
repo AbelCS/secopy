@@ -18,12 +18,12 @@ export const commands = {
 	/**  Everything the window needs at start; load problems are handed out once. */
 	appStart: () => typedError<StartView, string>(__TAURI_INVOKE("app_start")),
 	recentDestinations: () => typedError<string[], string>(__TAURI_INVOKE("recent_destinations")),
-	selectProfile: (id: string | null) => typedError<SessionView, string>(__TAURI_INVOKE("select_profile", { id })),
-	updateProfile: () => typedError<ProfilesView, string>(__TAURI_INVOKE("update_profile")),
-	saveProfileAs: (name: string) => typedError<ProfilesView, string>(__TAURI_INVOKE("save_profile_as", { name })),
-	createProfile: (input: ProfileInput) => typedError<Profile[], string>(__TAURI_INVOKE("create_profile", { input })),
-	editProfile: (id: string, input: ProfileInput) => typedError<ProfilesView, string>(__TAURI_INVOKE("edit_profile", { id, input })),
-	deleteProfile: (id: string) => typedError<ProfilesView, string>(__TAURI_INVOKE("delete_profile", { id })),
+	selectCopyPreset: (id: string | null) => typedError<SessionView, string>(__TAURI_INVOKE("select_copy_preset", { id })),
+	updateCopyPreset: () => typedError<CopyPresetsView, string>(__TAURI_INVOKE("update_copy_preset")),
+	saveCopyPresetAs: (name: string) => typedError<CopyPresetsView, string>(__TAURI_INVOKE("save_copy_preset_as", { name })),
+	createCopyPreset: (input: CopyPresetInput) => typedError<CopyPreset[], string>(__TAURI_INVOKE("create_copy_preset", { input })),
+	editCopyPreset: (id: string, input: CopyPresetInput) => typedError<CopyPresetsView, string>(__TAURI_INVOKE("edit_copy_preset", { id, input })),
+	deleteCopyPreset: (id: string) => typedError<CopyPresetsView, string>(__TAURI_INVOKE("delete_copy_preset", { id })),
 	setSettings: (settings: Settings) => typedError<Settings, string>(__TAURI_INVOKE("set_settings", { settings })),
 	/**  Copy or Copy & Verify, remembered for the next launch (FR-36). */
 	setMode: (verify: boolean) => typedError<null, string>(__TAURI_INVOKE("set_mode", { verify })),
@@ -160,6 +160,34 @@ export type ComparedView = {
 
 /**  What to do with files that exist but differ (FR-17). */
 export type ConflictPolicy = "keepBoth" | "overwrite" | "skip";
+
+/**  A saved copy setup for FROM (FR-38): choosing it loads its source and settings. */
+export type CopyPreset = {
+	/**  Stays the same when the preset is renamed. */
+	id: string,
+	name: string,
+	/**  The directory it loads, as a full path; empty until one is saved into it. */
+	source: string,
+	/**  "Include the folder" (FR-4). */
+	includeFolder: boolean,
+	/**  `None` = every file type, including ones never seen. */
+	extensions: (string | null)[] | null,
+};
+
+/**  A copy preset as typed in a form (Save as new…, the Copy presets screen). */
+export type CopyPresetInput = {
+	name: string,
+	/**  A full path, or empty. */
+	source: string,
+	includeFolder: boolean,
+	extensions: (string | null)[] | null,
+};
+
+/**  After a copy preset change: the presets and what FROM shows now. */
+export type CopyPresetsView = {
+	presets: CopyPreset[],
+	session: SessionView,
+};
 
 export type DeletedFiles = {
 	mode: DeletedMode,
@@ -302,34 +330,6 @@ export type PreviewRow = {
 	reason: string,
 };
 
-/**  A saved copy setup for FROM (FR-38): choosing it loads its source and settings. */
-export type Profile = {
-	/**  Stays the same when the profile is renamed. */
-	id: string,
-	name: string,
-	/**  The directory it loads, as a full path; empty until one is saved into it. */
-	source: string,
-	/**  "Include the folder" (FR-4). */
-	includeFolder: boolean,
-	/**  `None` = every file type, including ones never seen. */
-	extensions: (string | null)[] | null,
-};
-
-/**  A profile as typed in a form (Save as new…, the Profiles screen). */
-export type ProfileInput = {
-	name: string,
-	/**  A full path, or empty. */
-	source: string,
-	includeFolder: boolean,
-	extensions: (string | null)[] | null,
-};
-
-/**  After a profile change: the profiles and what FROM shows now. */
-export type ProfilesView = {
-	profiles: Profile[],
-	session: SessionView,
-};
-
 /**  Sent twice a second while a job runs (RFD §5.3, NFR-5). */
 export type ProgressView = {
 	phase: JobPhase,
@@ -432,10 +432,10 @@ export type SessionView = {
 	destination: DestinationView | null,
 	conflicts: ConflictPolicy,
 	plan: PlanView | null,
-	/**  The selected source profile's id (FR-38). */
-	profileId: string | null,
-	/**  This run's choices differ from the profile's: offer Update profile / Save as new…. */
-	profileChanged: boolean,
+	/**  The selected copy preset's id (FR-38). */
+	presetId: string | null,
+	/**  This run's choices differ from the preset's: offer Update preset / Save as new…. */
+	presetChanged: boolean,
 	/**  Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP". */
 	pickProblem: string | null,
 	/**  A newer scan replaced this one while it ran (FR-3); the UI keeps its current view. */
@@ -490,15 +490,15 @@ export type SourceView = {
 export type StartView = {
 	session: SessionView,
 	settings: Settings,
-	profiles: Profile[],
+	copyPresets: CopyPreset[],
 	/**  Copy & Verify (true) or Copy, as last used (FR-36). */
 	verify: boolean,
 	/**  Recent destinations that still exist, most recent first. */
 	recentDestinations: string[],
 	/**  Saved files that couldn't be read; shown once. */
 	warnings: string[],
-	/**  The profile last used, when its source is there: the window loads it again (FR-36). */
-	lastProfile: string | null,
+	/**  The copy preset last used, when its source is there: the window loads it again (FR-36). */
+	lastPreset: string | null,
 };
 
 /**  The summary after a job (RFD §5.4). */

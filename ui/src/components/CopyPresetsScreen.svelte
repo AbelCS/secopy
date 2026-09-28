@@ -1,8 +1,8 @@
 <script lang="ts">
-  // Source profiles (FR-38): the list on the left, the selected one's editor on the right.
+  // Copy presets (FR-38): the list on the left, the selected one's editor on the right.
   import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
-  import type { Profile, ProfileInput, SessionView } from "../lib/bindings";
+  import type { CopyPreset, CopyPresetInput, SessionView } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
@@ -10,17 +10,17 @@
   import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
   import Section from "../lib/ui/Section.svelte";
-  import ProfileEditor from "./ProfileEditor.svelte";
+  import CopyPresetEditor from "./CopyPresetEditor.svelte";
 
   let {
-    profiles,
-    onProfiles,
+    presets,
+    onPresets,
     onView,
     onDone,
   }: {
-    profiles: Profile[];
-    onProfiles: (profiles: Profile[]) => void;
-    /** Editing or deleting the selected profile changes what FROM shows. */
+    presets: CopyPreset[];
+    onPresets: (presets: CopyPreset[]) => void;
+    /** Editing or deleting the selected preset changes what FROM shows. */
     onView: (view: SessionView) => void;
     onDone: () => void;
   } = $props();
@@ -28,26 +28,26 @@
   const api = useApi();
   const NEW = "new";
   // svelte-ignore state_referenced_locally
-  let selectedId: string | null = $state(profiles[0]?.id ?? null);
+  let selectedId: string | null = $state(presets[0]?.id ?? null);
   let error: string | null = $state(null);
   /** The editor has unsaved changes. */
   let changed = $state(false);
   let canSave = $state(false);
-  let editor: ReturnType<typeof ProfileEditor> | undefined = $state();
-  const FORM = "profile-editor";
+  let editor: ReturnType<typeof CopyPresetEditor> | undefined = $state();
+  const FORM = "copy-preset-editor";
 
-  const selected = $derived(profiles.find((p) => p.id === selectedId) ?? null);
-  /** Recreates the editor for another profile, or after this one was saved. */
+  const selected = $derived(presets.find((p) => p.id === selectedId) ?? null);
+  /** Recreates the editor for another preset, or after this one was saved. */
   const editorKey = $derived(selectedId === NEW ? NEW : JSON.stringify(selected));
 
   /** "Discard changes?" is open: another Esc or click doesn't ask a second time. */
   let asking = false;
 
-  /** Whether it's fine to leave the profile being edited; asks when it has changes. */
+  /** Whether it's fine to leave the preset being edited; asks when it has changes. */
   async function mayLeave(): Promise<boolean> {
     if (!changed) return true;
     if (asking) return false;
-    const which = selectedId === NEW ? "the new profile" : `“${selected?.name ?? ""}”`;
+    const which = selectedId === NEW ? "the new preset" : `“${selected?.name ?? ""}”`;
     asking = true;
     try {
       return await api.confirm(`Your changes to ${which} aren't saved.`, "Discard changes?", "Discard", "Keep editing");
@@ -66,32 +66,32 @@
     if (await mayLeave()) onDone();
   }
 
-  async function save(input: ProfileInput) {
+  async function save(input: CopyPresetInput) {
     if (selectedId === NEW) {
-      const list = await api.createProfile(input);
-      onProfiles(list);
+      const list = await api.createCopyPreset(input);
+      onPresets(list);
       const name = input.name.trim().toLowerCase();
       selectedId = list.find((p) => p.name.toLowerCase() === name)?.id ?? null;
     } else if (selected) {
-      const result = await api.editProfile(selected.id, input);
-      onProfiles(result.profiles);
+      const result = await api.editCopyPreset(selected.id, input);
+      onPresets(result.presets);
       onView(result.session);
     }
   }
 
-  async function remove(p: Profile) {
+  async function remove(p: CopyPreset) {
     const sure = await api.confirm(
-      `The profile “${p.name}” is deleted. Its source and the copies are not touched.`,
-      "Delete profile?",
+      `The preset “${p.name}” is deleted. Its source and the copies are not touched.`,
+      "Delete preset?",
       "Delete",
       "Keep",
     );
     if (!sure) return;
     try {
-      const result = await api.deleteProfile(p.id);
-      onProfiles(result.profiles);
+      const result = await api.deleteCopyPreset(p.id);
+      onPresets(result.presets);
       onView(result.session);
-      selectedId = result.profiles[0]?.id ?? null;
+      selectedId = result.presets[0]?.id ?? null;
       error = null;
     } catch (e) {
       error = messageOf(e);
@@ -103,12 +103,12 @@
 <svelte:window onkeydown={(e) => e.key === "Escape" && !e.repeat && void back()} />
 
 <AppShell>
-  {#snippet header()}<ScreenHeader title="Profiles" />{/snippet}
+  {#snippet header()}<ScreenHeader title="Copy presets" />{/snippet}
 
   <div class="panes">
-    <Section title="All profiles">
-      <nav class="list" aria-label="Profiles">
-        {#each profiles as p (p.id)}
+    <Section title="All presets">
+      <nav class="list" aria-label="Copy presets">
+        {#each presets as p (p.id)}
           <button
             type="button"
             class="item"
@@ -122,29 +122,29 @@
             <span class="muted mono path" title={p.source}>{p.source ? `\u200E${p.source}` : "(no source yet)"}</span>
           </button>
         {/each}
-        <Button variant="link" onclick={() => select(NEW)}>+ New profile</Button>
+        <Button variant="link" onclick={() => select(NEW)}>+ New preset</Button>
       </nav>
     </Section>
 
-    <Section title={selectedId === NEW ? "New profile" : (selected?.name ?? "About profiles")}>
+    <Section title={selectedId === NEW ? "New preset" : (selected?.name ?? "About copy presets")}>
       {#if selectedId === NEW || selected}
         {#key editorKey}
-          <ProfileEditor
+          <CopyPresetEditor
             bind:this={editor}
             bind:changed
             bind:canSave
             formId={FORM}
-            profile={selectedId === NEW ? null : selected}
+            preset={selectedId === NEW ? null : selected}
             onSave={save}
           />
         {/key}
       {:else}
         <EmptyState>
           <p>
-            A profile saves a source and its settings (whether that directory itself is copied, and which file
-            types), so a copy you do often is set up in one step: choose the profile in the main window.
+            A copy preset saves a source and its settings (whether that directory itself is copied, and which
+            file types), so a copy you do often is set up in one step: choose the preset in the main window.
           </p>
-          <p>Create one with “+ New profile”, or with “Save as new…” in the main window.</p>
+          <p>Create one with “+ New preset”, or with “Save as new…” in the main window.</p>
         </EmptyState>
       {/if}
       {#if error}<Notice tone="danger">{error}</Notice>{/if}

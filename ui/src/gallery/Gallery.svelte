@@ -1,11 +1,11 @@
 <script lang="ts">
   // Pick a page with the hash: #components (default), #setup, #progress, #summary,
-  // #settings, #profiles, #profiles-empty, #queue, #queue-summary, #mirror, #mirror-preview,
+  // #settings, #presets, #presets-empty, #queue, #queue-summary, #mirror, #mirror-preview,
   // #mirror-summary, #mirroring, #cancel.
   import { createRawSnippet } from "svelte";
   import App from "../App.svelte";
   import JobProgress from "../components/JobProgress.svelte";
-  import ProfilesScreen from "../components/ProfilesScreen.svelte";
+  import CopyPresetsScreen from "../components/CopyPresetsScreen.svelte";
   import QueueScreen from "../components/QueueScreen.svelte";
   import MirrorPreview from "../components/MirrorPreview.svelte";
   import MirrorScreen from "../components/MirrorScreen.svelte";
@@ -28,13 +28,13 @@
   import Select from "../lib/ui/Select.svelte";
   import Stats from "../lib/ui/Stats.svelte";
   import TextField from "../lib/ui/TextField.svelte";
-  import { fakeApi, mirrorPreview, mirrorSummary, verifySummary, mirrors, profiles, progress, queue, queueSummary, settings, summary } from "./fake";
+  import { fakeApi, mirrorPreview, mirrorSummary, verifySummary, mirrors, copyPresets, progress, queue, queueSummary, settings, summary } from "./fake";
 
   const page = location.hash.slice(1) || "components";
   // ?tips shows every Hint's explanation at once, for screenshots.
   if (location.search.includes("tips"))
     document.head.insertAdjacentHTML("beforeend", "<style>.tip{opacity:1!important;visibility:visible!important}</style>");
-  const api = fakeApi(page === "profiles-empty" ? { profiles: [] } : {});
+  const api = fakeApi(page === "presets-empty" ? { copyPresets: [] } : {});
   provideApi(api);
 
   const colours = ["bg", "surface", "surface-raised", "border", "text", "text-muted", "text-faint", "accent", "accent-soft", "success", "warning", "danger"];
@@ -87,8 +87,8 @@
   <QueueSummary summary={queueSummary} onOpen={() => {}} onDone={() => {}} />
 {:else if page === "queue"}
   <QueueScreen {queue} onQueue={() => {}} onRun={() => {}} />
-{:else if page === "profiles" || page === "profiles-empty"}
-  <ProfilesScreen profiles={page === "profiles" ? profiles : []} onProfiles={() => {}} onView={() => {}} onDone={() => {}} />
+{:else if page === "presets" || page === "presets-empty"}
+  <CopyPresetsScreen presets={page === "presets" ? copyPresets : []} onPresets={() => {}} onView={() => {}} onDone={() => {}} />
 {:else}
   <div class="gallery">
     <h1>Secopy design system</h1>
@@ -107,7 +107,7 @@
         <Button>Secondary</Button>
         <Button variant="danger">Delete…</Button>
         <Button icon="chevron-left">Back</Button>
-        <Button variant="link">+ New profile</Button>
+        <Button variant="link">+ New preset</Button>
         <Button icon="settings">Settings</Button>
         <Button variant="primary" disabled>Disabled</Button>
       </div>
@@ -139,13 +139,13 @@
           <Chip label=".xml" meta="106 · 400 KB" onToggle={() => {}} />
           <Chip label=".mov" onRemove={() => {}} />
         </div>
-        <Select label="Profile" value="fx3" options={[{ value: "fx3", label: "Sony FX3" }]} onChange={() => {}} />
+        <Select label="Preset" value="fx3" options={[{ value: "fx3", label: "Sony FX3" }]} onChange={() => {}} />
       </div>
     </Section>
 
     <Section title="Fields">
       <div class="column">
-        <TextField label="Name" value="Sony FX3" help="Shown in the Profile menu." />
+        <TextField label="Name" value="Sony FX3" help="Shown in the Preset menu." />
         <TextField label="Source" value="DCIM" mono error="The source must be a full path, like /Volumes/CARD_A/DCIM." />
       </div>
     </Section>

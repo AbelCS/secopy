@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test, vi } from "vitest";
 import { apiContext } from "../lib/api";
-import type { Profile, QueueView, SessionView, Settings } from "../lib/bindings";
+import type { CopyPreset, QueueView, SessionView, Settings } from "../lib/bindings";
 import {
   destinationView,
   fakeApi,
-  profile,
+  copyPreset,
   readyView,
   sessionView,
   settingsView,
@@ -17,21 +17,21 @@ import { hintOf, showing } from "../test/hint";
 function setup(
   view: SessionView = sessionView(),
   answer: SessionView = view,
-  props: Partial<{ profiles: Profile[]; settings: Settings; recent: string[] }> = {},
+  props: Partial<{ presets: CopyPreset[]; settings: Settings; recent: string[] }> = {},
 ) {
   const { api, state } = fakeApi(answer);
   const started: number[] = [];
-  const calls = { profiles: [] as Profile[][], manage: 0, modes: [] as boolean[], queued: [] as QueueView[] };
+  const calls = { presets: [] as CopyPreset[][], manage: 0, modes: [] as boolean[], queued: [] as QueueView[] };
   const result = render(Setup, {
     props: {
       view,
       verify: true,
-      profiles: props.profiles ?? [],
+      presets: props.presets ?? [],
       settings: props.settings ?? settingsView(),
       recent: props.recent ?? [],
       onStart: () => started.push(1),
-      onProfiles: (p: Profile[]) => calls.profiles.push(p),
-      onManageProfiles: () => calls.manage++,
+      onPresets: (p: CopyPreset[]) => calls.presets.push(p),
+      onManagePresets: () => calls.manage++,
       onMode: (v: boolean) => calls.modes.push(v),
       onQueued: (q: QueueView) => calls.queued.push(q),
     },
@@ -216,23 +216,23 @@ describe("Setup", () => {
     await screen.findByText("Can't write to the destination");
   });
 
-  test("choosing a profile selects it; Manage profiles… opens Settings", async () => {
-    const { api, calls } = setup(readyView(), readyView(), { profiles: [profile()] });
-    const menu = screen.getByRole("combobox", { name: "Profile" });
+  test("choosing a preset selects it; Manage presets… opens Copy presets", async () => {
+    const { api, calls } = setup(readyView(), readyView(), { presets: [copyPreset()] });
+    const menu = screen.getByRole("combobox", { name: "Preset" });
     await fireEvent.change(menu, { target: { value: "fx3" } });
-    await waitFor(() => expect(api.selectProfile).toHaveBeenCalledWith("fx3"));
+    await waitFor(() => expect(api.selectCopyPreset).toHaveBeenCalledWith("fx3"));
     await fireEvent.change(menu, { target: { value: "manage" } });
     expect(calls.manage).toBe(1);
   });
 
-  test("a profile changed for this run offers Update profile", async () => {
-    const { api, calls } = setup(readyView({ profileId: "fx3", profileChanged: true }), readyView(), {
-      profiles: [profile()],
+  test("a preset changed for this run offers Update preset", async () => {
+    const { api, calls } = setup(readyView({ presetId: "fx3", presetChanged: true }), readyView(), {
+      presets: [copyPreset()],
     });
     screen.getByText("Changed for this run");
-    await fireEvent.click(screen.getByRole("button", { name: "Update profile" }));
-    await waitFor(() => expect(api.updateProfile).toHaveBeenCalled());
-    expect(calls.profiles).toHaveLength(1);
+    await fireEvent.click(screen.getByRole("button", { name: "Update preset" }));
+    await waitFor(() => expect(api.updateCopyPreset).toHaveBeenCalled());
+    expect(calls.presets).toHaveLength(1);
   });
 
   test("Save as new… asks only for a name; the source and settings are what's on screen", async () => {
@@ -241,37 +241,37 @@ describe("Setup", () => {
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
     await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "FX3" } });
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(api.saveProfileAs).toHaveBeenCalledWith("FX3"));
+    await waitFor(() => expect(api.saveCopyPresetAs).toHaveBeenCalledWith("FX3"));
   });
 
-  test("a profile that can't be saved says why", async () => {
+  test("a preset that can't be saved says why", async () => {
     const { api } = setup(readyView());
-    api.saveProfileAs.mockRejectedValueOnce(new Error("There is already a profile called “FX3”."));
+    api.saveCopyPresetAs.mockRejectedValueOnce(new Error("There is already a preset called “FX3”."));
     await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await screen.findByText("There is already a profile called “FX3”.");
+    await screen.findByText("There is already a preset called “FX3”.");
   });
 
-  test("choosing another profile drops Save as new… and its error", async () => {
-    const { api } = setup(readyView(), readyView({ profileId: "fx3" }), { profiles: [profile()] });
-    api.saveProfileAs.mockRejectedValueOnce(new Error("There is already a profile called “FX3”."));
+  test("choosing another preset drops Save as new… and its error", async () => {
+    const { api } = setup(readyView(), readyView({ presetId: "fx3" }), { presets: [copyPreset()] });
+    api.saveCopyPresetAs.mockRejectedValueOnce(new Error("There is already a preset called “FX3”."));
     await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await screen.findByText("There is already a profile called “FX3”.");
-    await fireEvent.change(screen.getByRole("combobox", { name: "Profile" }), { target: { value: "fx3" } });
-    await waitFor(() => expect(screen.queryByText("There is already a profile called “FX3”.")).toBeNull());
+    await screen.findByText("There is already a preset called “FX3”.");
+    await fireEvent.change(screen.getByRole("combobox", { name: "Preset" }), { target: { value: "fx3" } });
+    await waitFor(() => expect(screen.queryByText("There is already a preset called “FX3”.")).toBeNull());
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
   });
 
   test("another source drops Save as new… and its error", async () => {
     const { api, rerender } = setup(readyView());
-    api.saveProfileAs.mockRejectedValueOnce(new Error("There is already a profile called “FX3”."));
+    api.saveCopyPresetAs.mockRejectedValueOnce(new Error("There is already a preset called “FX3”."));
     await fireEvent.click(screen.getByRole("button", { name: "Save as new…" }));
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await screen.findByText("There is already a profile called “FX3”.");
+    await screen.findByText("There is already a preset called “FX3”.");
     const other = "/Volumes/CARD_B/DCIM";
     await rerender({ view: readyView({ source: sourceView({ label: other, folder: other }) }) });
-    expect(screen.queryByText("There is already a profile called “FX3”.")).toBeNull();
+    expect(screen.queryByText("There is already a preset called “FX3”.")).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
   });
 
@@ -283,11 +283,11 @@ describe("Setup", () => {
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "FX3");
   });
 
-  test("profiles don't apply to files", () => {
+  test("presets don't apply to files", () => {
     setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: "2 files" }) }), undefined, {
-      profiles: [profile()],
+      presets: [copyPreset()],
     });
-    expect(screen.getByRole("combobox", { name: "Profile" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("combobox", { name: "Preset" })).toHaveProperty("disabled", true);
     expect(screen.queryByRole("button", { name: "Save as new…" })).toBeNull();
   });
 
@@ -321,15 +321,15 @@ describe("Setup", () => {
     expect(calls.modes).toEqual([false]);
   });
 
-  test("profile actions and the Include checkbox wait for a scan", async () => {
-    const { api } = setup(readyView({ profileId: "fx3", profileChanged: true }), readyView(), {
-      profiles: [profile()],
+  test("preset actions and the Include checkbox wait for a scan", async () => {
+    const { api } = setup(readyView({ presetId: "fx3", presetChanged: true }), readyView(), {
+      presets: [copyPreset()],
     });
     let finishScan = (_v: SessionView) => {};
-    api.selectProfile.mockImplementationOnce(() => new Promise((resolve) => (finishScan = resolve)));
-    await fireEvent.change(screen.getByRole("combobox", { name: "Profile" }), { target: { value: "" } });
+    api.selectCopyPreset.mockImplementationOnce(() => new Promise((resolve) => (finishScan = resolve)));
+    await fireEvent.change(screen.getByRole("combobox", { name: "Preset" }), { target: { value: "" } });
     await screen.findByText("Scanning…");
-    expect(screen.getByRole("button", { name: "Update profile" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Update preset" })).toHaveProperty("disabled", true);
     expect(includeFolder()).toHaveProperty("disabled", true);
     finishScan(readyView());
     await waitFor(() => expect(screen.queryByText("Scanning…")).toBeNull());
@@ -369,10 +369,10 @@ describe("Setup", () => {
     screen.getByText("/Volumes/RAID/Day01/DCIM");
   });
 
-  test("with no profiles, Profile offers to create one instead of an empty menu", async () => {
+  test("with no presets, Preset offers to create one instead of an empty menu", async () => {
     const { calls } = setup();
-    expect(screen.queryByRole("combobox", { name: "Profile" })).toBeNull();
-    await fireEvent.click(screen.getByRole("button", { name: "Create a profile…" }));
+    expect(screen.queryByRole("combobox", { name: "Preset" })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Create a preset…" }));
     expect(calls.manage).toBe(1);
   });
 

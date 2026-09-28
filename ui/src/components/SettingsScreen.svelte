@@ -1,6 +1,6 @@
 <script lang="ts">
   // Settings (RFD §5.5): what every job does. Changes apply when saved; Cancel (or Esc) drops
-  // them. Source profiles have their own screen.
+  // them. Copy presets have their own screen.
   import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { Settings } from "../lib/bindings";

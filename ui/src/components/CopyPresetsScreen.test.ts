@@ -1,17 +1,17 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import { apiContext } from "../lib/api";
-import type { Profile } from "../lib/bindings";
-import { fakeApi, profile } from "../test/fake-api";
-import ProfilesScreen from "./ProfilesScreen.svelte";
+import type { CopyPreset } from "../lib/bindings";
+import { fakeApi, copyPreset } from "../test/fake-api";
+import CopyPresetsScreen from "./CopyPresetsScreen.svelte";
 
-function show(profiles: Profile[] = [profile(), profile({ id: "dji", name: "DJI Mini 4", source: "/Volumes/DJI/DCIM", extensions: null })]) {
+function show(presets: CopyPreset[] = [copyPreset(), copyPreset({ id: "dji", name: "DJI Mini 4", source: "/Volumes/DJI/DCIM", extensions: null })]) {
   const { api } = fakeApi();
-  const calls = { profiles: [] as Profile[][], done: 0 };
-  render(ProfilesScreen, {
+  const calls = { presets: [] as CopyPreset[][], done: 0 };
+  render(CopyPresetsScreen, {
     props: {
-      profiles,
-      onProfiles: (p: Profile[]) => calls.profiles.push(p),
+      presets,
+      onPresets: (p: CopyPreset[]) => calls.presets.push(p),
       onView: () => {},
       onDone: () => calls.done++,
     },
@@ -23,15 +23,15 @@ function show(profiles: Profile[] = [profile(), profile({ id: "dji", name: "DJI 
 const save = () => screen.getByRole("button", { name: "Save" });
 const typeInput = () => screen.getByLabelText("Add a file type");
 
-describe("ProfilesScreen", () => {
-  test("with no profiles it explains what they are", async () => {
+describe("CopyPresetsScreen", () => {
+  test("with no presets it explains what they are", async () => {
     show([]);
-    screen.getByText(/A profile saves a source and its settings/);
-    await fireEvent.click(screen.getByRole("button", { name: "+ New profile" }));
+    screen.getByText(/A copy preset saves a source and its settings/);
+    await fireEvent.click(screen.getByRole("button", { name: "+ New preset" }));
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "");
   });
 
-  test("the first profile is shown in the editor, and the list switches it", async () => {
+  test("the first preset is shown in the editor, and the list switches it", async () => {
     show();
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "Sony FX3");
     expect(screen.getByRole("textbox", { name: "Source" })).toHaveProperty("value", "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP");
@@ -50,7 +50,7 @@ describe("ProfilesScreen", () => {
     expect(save()).toHaveProperty("disabled", false);
     await fireEvent.click(save());
     await waitFor(() =>
-      expect(api.editProfile).toHaveBeenCalledWith("fx3", {
+      expect(api.editCopyPreset).toHaveBeenCalledWith("fx3", {
         name: "FX3 A-cam",
         source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
         includeFolder: true,
@@ -67,10 +67,10 @@ describe("ProfilesScreen", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Remove .mp4" }));
     expect(screen.queryByText(".mp4")).toBeNull();
     await fireEvent.click(save());
-    await waitFor(() => expect(api.editProfile).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: ["mov"] })));
+    await waitFor(() => expect(api.editCopyPreset).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: ["mov"] })));
     await fireEvent.click(screen.getByLabelText("All types"));
     await fireEvent.click(save());
-    await waitFor(() => expect(api.editProfile).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: null })));
+    await waitFor(() => expect(api.editCopyPreset).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: null })));
   });
 
   test("types typed together, split by commas or spaces, become one chip each", async () => {
@@ -80,7 +80,7 @@ describe("ProfilesScreen", () => {
     for (const t of [".mp4", ".mov", ".wav", ".braw", ".mxf"]) screen.getByText(t);
     await fireEvent.click(save());
     await waitFor(() =>
-      expect(api.editProfile).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: ["mp4", "mov", "wav", "braw", "mxf"] })),
+      expect(api.editCopyPreset).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: ["mp4", "mov", "wav", "braw", "mxf"] })),
     );
   });
 
@@ -94,7 +94,7 @@ describe("ProfilesScreen", () => {
       expect(screen.queryByText(".*")).toBeNull();
     }
     await fireEvent.click(save());
-    await waitFor(() => expect(api.editProfile).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: null })));
+    await waitFor(() => expect(api.editCopyPreset).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: null })));
     await fireEvent.click(screen.getByLabelText("Only these"));
     expect(screen.getAllByRole("button", { name: /^Remove / }).map((b) => b.getAttribute("aria-label"))).toEqual(["Remove .mp4"]);
   });
@@ -116,12 +116,12 @@ describe("ProfilesScreen", () => {
 
   test("a problem is shown next to its field", async () => {
     const { api } = show();
-    api.editProfile.mockRejectedValueOnce(new Error("There is already a profile called “DJI Mini 4”."));
+    api.editCopyPreset.mockRejectedValueOnce(new Error("There is already a preset called “DJI Mini 4”."));
     await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "DJI Mini 4" } });
     await fireEvent.click(save());
-    const nameError = await screen.findByText("There is already a profile called “DJI Mini 4”.");
+    const nameError = await screen.findByText("There is already a preset called “DJI Mini 4”.");
     expect(screen.getByRole("textbox", { name: "Name" }).getAttribute("aria-describedby")).toBe(nameError.id);
-    api.editProfile.mockRejectedValueOnce(new Error("The source must be a full path, like /Volumes/CARD_A/DCIM."));
+    api.editCopyPreset.mockRejectedValueOnce(new Error("The source must be a full path, like /Volumes/CARD_A/DCIM."));
     await fireEvent.click(save());
     const sourceError = await screen.findByText("The source must be a full path, like /Volumes/CARD_A/DCIM.");
     expect(screen.getByRole("textbox", { name: "Source" }).getAttribute("aria-describedby")).toBe(sourceError.id);
@@ -137,21 +137,21 @@ describe("ProfilesScreen", () => {
     expect(save()).toHaveProperty("disabled", true);
   });
 
-  test("a new profile is created and selected", async () => {
+  test("a new preset is created and selected", async () => {
     const { api, calls } = show();
-    await fireEvent.click(screen.getByRole("button", { name: "+ New profile" }));
+    await fireEvent.click(screen.getByRole("button", { name: "+ New preset" }));
     await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "GoPro" } });
     await fireEvent.input(screen.getByRole("textbox", { name: "Source" }), { target: { value: "/Volumes/GOPRO/DCIM" } });
     await fireEvent.click(save());
     await waitFor(() =>
-      expect(api.createProfile).toHaveBeenCalledWith({
+      expect(api.createCopyPreset).toHaveBeenCalledWith({
         name: "GoPro",
         source: "/Volumes/GOPRO/DCIM",
         includeFolder: true,
         extensions: null,
       }),
     );
-    expect(calls.profiles).toHaveLength(1);
+    expect(calls.presets).toHaveLength(1);
   });
 
   test("Delete asks first", async () => {
@@ -159,9 +159,9 @@ describe("ProfilesScreen", () => {
     api.confirm.mockResolvedValueOnce(false);
     await fireEvent.click(screen.getByRole("button", { name: "Delete…" }));
     await waitFor(() => expect(api.confirm).toHaveBeenCalled());
-    expect(api.deleteProfile).not.toHaveBeenCalled();
+    expect(api.deleteCopyPreset).not.toHaveBeenCalled();
     await fireEvent.click(screen.getByRole("button", { name: "Delete…" }));
-    await waitFor(() => expect(api.deleteProfile).toHaveBeenCalledWith("fx3"));
+    await waitFor(() => expect(api.deleteCopyPreset).toHaveBeenCalledWith("fx3"));
   });
 
   test("Back goes back, from the action bar", async () => {
@@ -170,7 +170,7 @@ describe("ProfilesScreen", () => {
     expect(calls.done).toBe(1);
   });
 
-  test("leaving a profile with unsaved changes asks first", async () => {
+  test("leaving a preset with unsaved changes asks first", async () => {
     const { api } = show();
     await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
     api.confirm.mockResolvedValueOnce(false);

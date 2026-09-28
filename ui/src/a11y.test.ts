@@ -3,7 +3,7 @@ import axe from "axe-core";
 import { describe, expect, test } from "vitest";
 import App from "./App.svelte";
 import JobProgress from "./components/JobProgress.svelte";
-import ProfilesScreen from "./components/ProfilesScreen.svelte";
+import CopyPresetsScreen from "./components/CopyPresetsScreen.svelte";
 import QueueScreen from "./components/QueueScreen.svelte";
 import MirrorPreview from "./components/MirrorPreview.svelte";
 import MirrorScreen from "./components/MirrorScreen.svelte";
@@ -11,7 +11,7 @@ import VerifyScreen from "./components/VerifyScreen.svelte";
 import SettingsScreen from "./components/SettingsScreen.svelte";
 import Summary from "./components/Summary.svelte";
 import { apiContext } from "./lib/api";
-import { fakeApi, profile, progressView, readyView, settingsView, summaryView, queuedJob, queueView, mirrorPreset, mirrorPreview } from "./test/fake-api";
+import { fakeApi, copyPreset, progressView, readyView, settingsView, summaryView, queuedJob, queueView, mirrorPreset, mirrorPreview } from "./test/fake-api";
 
 async function violations(container: HTMLElement): Promise<string[]> {
   // Colours are checked by tokens.test.ts; the test DOM can't compute them.
@@ -46,11 +46,11 @@ describe("accessibility (axe-core)", () => {
     expect(await violations(container)).toEqual([]);
   });
 
-  test("Profiles, with and without profiles", async () => {
-    for (const profiles of [[profile()], []]) {
+  test("Copy presets, with and without presets", async () => {
+    for (const presets of [[copyPreset()], []]) {
       const { api } = fakeApi();
-      const { container, unmount } = render(ProfilesScreen, {
-        props: { profiles, onProfiles: () => {}, onView: () => {}, onDone: () => {} },
+      const { container, unmount } = render(CopyPresetsScreen, {
+        props: { presets, onPresets: () => {}, onView: () => {}, onDone: () => {} },
         context: apiContext(api),
       });
       expect(await violations(container)).toEqual([]);

@@ -6,10 +6,10 @@ import type { Api } from "../lib/api";
 import type {
   CheckView,
   ComparedView,
+  CopyPreset,
+  CopyPresetInput,
+  CopyPresetsView,
   DestinationView,
-  Profile,
-  ProfileInput,
-  ProfilesView,
   FinishedRow,
   MirrorPreset,
   MirrorPresetInput,
@@ -77,8 +77,8 @@ export function sessionView(over: Partial<SessionView> = {}): SessionView {
     destination: null,
     conflicts: "keepBoth",
     plan: null,
-    profileId: null,
-    profileChanged: false,
+    presetId: null,
+    presetChanged: false,
     pickProblem: null,
     stale: false,
     ...over,
@@ -152,7 +152,7 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
   };
 }
 
-export function profile(over: Partial<Profile> = {}): Profile {
+export function copyPreset(over: Partial<CopyPreset> = {}): CopyPreset {
   return {
     id: "fx3",
     name: "Sony FX3",
@@ -171,11 +171,11 @@ export function startView(over: Partial<StartView> = {}): StartView {
   return {
     session: sessionView(),
     settings: settingsView(),
-    profiles: [],
+    copyPresets: [],
     verify: true,
     recentDestinations: [],
     warnings: [],
-    lastProfile: null,
+    lastPreset: null,
     ...over,
   };
 }
@@ -256,8 +256,8 @@ export function fakeApi(session: SessionView = sessionView()) {
   };
   const queueAnswer = () => Promise.resolve(state.queue);
   const answer = () => Promise.resolve(state.session);
-  const profilesAnswer = () =>
-    Promise.resolve({ profiles: state.start.profiles, session: state.session } as ProfilesView);
+  const presetsAnswer = () =>
+    Promise.resolve({ presets: state.start.copyPresets, session: state.session } as CopyPresetsView);
   const api = {
     scanSource: vi.fn(answer),
     setIncludeFolder: vi.fn((_include: boolean) => answer()),
@@ -309,12 +309,12 @@ export function fakeApi(session: SessionView = sessionView()) {
     addCheckToQueue: vi.fn((_path: string) => queueAnswer()),
     appStart: vi.fn(() => Promise.resolve(state.start)),
     recentDestinations: vi.fn(() => Promise.resolve(state.start.recentDestinations)),
-    selectProfile: vi.fn((_id: string | null) => answer()),
-    updateProfile: vi.fn(profilesAnswer),
-    saveProfileAs: vi.fn((_name: string) => profilesAnswer()),
-    createProfile: vi.fn((_input: ProfileInput) => Promise.resolve(state.start.profiles)),
-    editProfile: vi.fn((_id: string, _input: ProfileInput) => profilesAnswer()),
-    deleteProfile: vi.fn((_id: string) => profilesAnswer()),
+    selectCopyPreset: vi.fn((_id: string | null) => answer()),
+    updateCopyPreset: vi.fn(presetsAnswer),
+    saveCopyPresetAs: vi.fn((_name: string) => presetsAnswer()),
+    createCopyPreset: vi.fn((_input: CopyPresetInput) => Promise.resolve(state.start.copyPresets)),
+    editCopyPreset: vi.fn((_id: string, _input: CopyPresetInput) => presetsAnswer()),
+    deleteCopyPreset: vi.fn((_id: string) => presetsAnswer()),
     setSettings: vi.fn((s: Settings) => Promise.resolve(s)),
     setMode: vi.fn((_verify: boolean) => Promise.resolve(null)),
     onOpenSettings: vi.fn((handler: () => void) => {

@@ -16,15 +16,15 @@ import {
   type FinishedRow,
   type CheckView,
   type ComparedView,
+  type CopyPreset,
+  type CopyPresetInput,
+  type CopyPresetsView,
   type MirrorPreset,
   type MirrorPresetInput,
   type MirrorPreviewView,
   type OnFailure,
   type PreviewKind,
   type PreviewRow,
-  type Profile,
-  type ProfileInput,
-  type ProfilesView,
   type ProgressView,
   type QueueEvent,
   type QueueView,
@@ -123,13 +123,13 @@ export const tauriApi = {
   addCheckToQueue: (path: string): Promise<QueueView> => unwrap(commands.addCheckToQueue(path)),
   appStart: (): Promise<StartView> => unwrap(commands.appStart()),
   recentDestinations: (): Promise<string[]> => unwrap(commands.recentDestinations()),
-  selectProfile: (id: string | null): Promise<SessionView> => unwrap(commands.selectProfile(id)),
-  updateProfile: (): Promise<ProfilesView> => unwrap(commands.updateProfile()),
-  saveProfileAs: (name: string): Promise<ProfilesView> => unwrap(commands.saveProfileAs(name)),
-  createProfile: (input: ProfileInput): Promise<Profile[]> => unwrap(commands.createProfile(input)),
-  editProfile: (id: string, input: ProfileInput): Promise<ProfilesView> =>
-    unwrap(commands.editProfile(id, input)),
-  deleteProfile: (id: string): Promise<ProfilesView> => unwrap(commands.deleteProfile(id)),
+  selectCopyPreset: (id: string | null): Promise<SessionView> => unwrap(commands.selectCopyPreset(id)),
+  updateCopyPreset: (): Promise<CopyPresetsView> => unwrap(commands.updateCopyPreset()),
+  saveCopyPresetAs: (name: string): Promise<CopyPresetsView> => unwrap(commands.saveCopyPresetAs(name)),
+  createCopyPreset: (input: CopyPresetInput): Promise<CopyPreset[]> => unwrap(commands.createCopyPreset(input)),
+  editCopyPreset: (id: string, input: CopyPresetInput): Promise<CopyPresetsView> =>
+    unwrap(commands.editCopyPreset(id, input)),
+  deleteCopyPreset: (id: string): Promise<CopyPresetsView> => unwrap(commands.deleteCopyPreset(id)),
   setSettings: (settings: Settings): Promise<Settings> => unwrap(commands.setSettings(settings)),
   setMode: (verify: boolean): Promise<null> => unwrap(commands.setMode(verify)),
   /** Secopy → Settings… (⌘,). */
@@ -143,7 +143,7 @@ export const tauriApi = {
 
   /** FROM's Choose…: a folder or files, in one panel. */
   pickSource: (): Promise<string[] | null> => unwrap(commands.pickSource()),
-  /** One directory: a profile's source, a mirror's origin or destination. */
+  /** One directory: a copy preset's source, a mirror's origin or destination. */
   pickDirectory: async (title = "Choose a directory"): Promise<string | null> =>
     asList(await open({ directory: true, multiple: false, title }))?.[0] ?? null,
   pickDestination: async (): Promise<string | null> =>

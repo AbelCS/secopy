@@ -88,9 +88,9 @@ describe("SettingsScreen", () => {
     expect(calls.settings).toEqual([]);
   });
 
-  test("Settings has only the settings; profiles have their own screen", () => {
+  test("Settings has only the settings; copy presets have their own screen", () => {
     show();
-    expect(screen.queryByText(/profile/i)).toBeNull();
+    expect(screen.queryByText(/preset/i)).toBeNull();
   });
 
   test("each setting explains itself", () => {

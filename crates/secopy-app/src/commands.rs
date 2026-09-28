@@ -13,17 +13,18 @@ use tauri::{AppHandle, Manager};
 
 use crate::dto::{CheckView, ComparedView, MirrorPreviewView, PreviewKind, PreviewRow, count};
 use crate::dto::{
-    ConflictPolicy, ExtensionKey, FinishedRow, JobOutcome, ProfilesView, ProgressView, QueueEvent,
-    QueueResult, QueueResultView, QueueSummaryView, QueueView, QueuedJobView, SessionView,
-    StartView, SummaryView, show,
+    ConflictPolicy, CopyPresetsView, ExtensionKey, FinishedRow, JobOutcome, ProgressView,
+    QueueEvent, QueueResult, QueueResultView, QueueSummaryView, QueueView, QueuedJobView,
+    SessionView, StartView, SummaryView, show,
 };
 use crate::jobs::{JobHandle, JobSettings, Jobs, ProgressSink, Work};
 use crate::mirrors::MirrorJob;
 use crate::queue::{Entry, OnFailure, QUEUE, Queue, QueuedJob};
 use crate::session::{Change, Session, scan_source as scan};
 use crate::store::{
-    MIRRORS, MirrorPreset, MirrorPresetInput, MirrorPresets, PROFILES, Profile, ProfileInput,
-    Profiles, REMEMBERED, Remembered, SETTINGS, Settings, Store, WindowSize,
+    COPY_PRESETS, CopyPreset, CopyPresetInput, CopyPresets, MIRRORS, MirrorPreset,
+    MirrorPresetInput, MirrorPresets, REMEMBERED, Remembered, SETTINGS, Settings, Store,
+    WindowSize,
 };
 use secopy_core::check::CheckPlan;
 use secopy_core::control::JobControl;
@@ -34,7 +35,7 @@ pub struct AppState {
     pub jobs: Jobs,
     pub store: Store,
     pub settings: Mutex<Settings>,
-    pub profiles: Mutex<Profiles>,
+    pub copy_presets: Mutex<CopyPresets>,
     pub remembered: Mutex<Remembered>,
     /// Saved files that couldn't be read, handed to the UI once.
     warnings: Mutex<Vec<String>>,
@@ -71,13 +72,13 @@ impl AppState {
     pub fn new(data_dir: PathBuf) -> Self {
         let store = Store::new(data_dir.clone());
         let (settings, w1) = store.load::<Settings>(SETTINGS);
-        let (loaded, w2) = store.load::<Profiles>(PROFILES);
-        let (profiles, repairs) = loaded.clone().repaired();
+        let (loaded, w2) = store.load::<CopyPresets>(COPY_PRESETS);
+        let (copy_presets, repairs) = loaded.clone().repaired();
         // Saved as put right, so its messages show once.
-        if profiles != loaded
-            && let Err(e) = store.save(PROFILES, &profiles)
+        if copy_presets != loaded
+            && let Err(e) = store.save(COPY_PRESETS, &copy_presets)
         {
-            eprintln!("Secopy: couldn't save {PROFILES}: {e}");
+            eprintln!("Secopy: couldn't save {COPY_PRESETS}: {e}");
         }
         let (remembered, w3) = store.load::<Remembered>(REMEMBERED);
         let (queue, w4) = store.load::<Queue>(QUEUE);
@@ -87,7 +88,7 @@ impl AppState {
             jobs: Jobs::new(data_dir.join("reports")),
             store,
             settings: Mutex::new(settings),
-            profiles: Mutex::new(profiles),
+            copy_presets: Mutex::new(copy_presets),
             remembered: Mutex::new(remembered),
             warnings: Mutex::new(
                 [w1, w2, w3, w4, w5]
@@ -109,25 +110,25 @@ impl AppState {
         // One lock at a time: a guard in a struct literal lives to the end of it.
         let session = session(self).view();
         let settings = lock(&self.settings).clone();
-        let profiles = lock(&self.profiles).profiles.clone();
+        let copy_presets = lock(&self.copy_presets).presets.clone();
         let verify = lock(&self.remembered).verify;
         let warnings = std::mem::take(&mut *lock(&self.warnings));
         // Loaded again only when its source is there: no error at launch for a card that
         // isn't inserted.
-        let last = lock(&self.remembered).last_profile.clone();
-        let last_profile = last.filter(|id| {
-            profiles
+        let last = lock(&self.remembered).last_preset.clone();
+        let last_preset = last.filter(|id| {
+            copy_presets
                 .iter()
                 .any(|p| &p.id == id && (p.source.is_empty() || Path::new(&p.source).exists()))
         });
         StartView {
             session,
             settings,
-            profiles,
+            copy_presets,
             verify,
             recent_destinations: self.recent(),
             warnings,
-            last_profile,
+            last_preset,
         }
     }
 
@@ -169,115 +170,119 @@ impl AppState {
         lock(&self.remembered).window
     }
 
-    pub fn select_profile(&self, id: Option<String>) -> Result<SessionView, String> {
-        let profile = match &id {
+    pub fn select_copy_preset(&self, id: Option<String>) -> Result<SessionView, String> {
+        let preset = match &id {
             Some(id) => Some(
-                lock(&self.profiles)
+                lock(&self.copy_presets)
                     .get(id)
                     .cloned()
-                    .ok_or("That profile no longer exists.")?,
+                    .ok_or("That preset no longer exists.")?,
             ),
             None => None,
         };
-        self.remember(|r| r.last_profile = id);
-        Ok(self.rescan(Change::Profile(profile)))
+        self.remember(|r| r.last_preset = id);
+        Ok(self.rescan(Change::CopyPreset(preset)))
     }
 
-    /// Changes the profiles and saves them, holding their lock throughout so saves at the
+    /// Changes the copy presets and saves them, holding their lock throughout so saves at the
     /// same time can't undo each other; memory changes only when the file is written.
-    fn change_profiles<T>(
+    fn change_copy_presets<T>(
         &self,
-        change: impl FnOnce(&mut Profiles) -> Result<T, String>,
+        change: impl FnOnce(&mut CopyPresets) -> Result<T, String>,
     ) -> Result<T, String> {
-        let mut profiles = lock(&self.profiles);
-        let mut next = profiles.clone();
+        let mut presets = lock(&self.copy_presets);
+        let mut next = presets.clone();
         let result = change(&mut next)?;
         self.store
-            .save(PROFILES, &next)
-            .map_err(|e| format!("Couldn't save the profile: {e}"))?;
-        *profiles = next;
+            .save(COPY_PRESETS, &next)
+            .map_err(|e| format!("Couldn't save the preset: {e}"))?;
+        *presets = next;
         Ok(result)
     }
 
-    fn profiles_view(&self, session: SessionView) -> ProfilesView {
-        ProfilesView {
-            profiles: lock(&self.profiles).profiles.clone(),
+    fn copy_presets_view(&self, session: SessionView) -> CopyPresetsView {
+        CopyPresetsView {
+            presets: lock(&self.copy_presets).presets.clone(),
             session,
         }
     }
 
-    /// Update profile: this run's choices go into the selected profile.
-    pub fn update_profile(&self) -> Result<ProfilesView, String> {
+    /// Update preset: this run's choices go into the selected copy preset.
+    pub fn update_copy_preset(&self) -> Result<CopyPresetsView, String> {
         let updated = {
             let s = session(self);
             if s.scan_pending() {
                 return Err("Wait until the scan finishes.".into());
             }
-            s.updated_profile().ok_or("No profile is selected.")?
+            s.updated_preset().ok_or("No preset is selected.")?
         };
-        self.change_profiles(|p| {
+        self.change_copy_presets(|p| {
             p.replace(updated.clone());
             Ok(())
         })?;
-        let view = session(self).profile_saved(updated);
-        Ok(self.profiles_view(view))
+        let view = session(self).preset_saved(updated);
+        Ok(self.copy_presets_view(view))
     }
 
     /// Save as new…: this run's source and choices under a new name, then selected.
-    pub fn save_profile_as(&self, name: String) -> Result<ProfilesView, String> {
+    pub fn save_copy_preset_as(&self, name: String) -> Result<CopyPresetsView, String> {
         let (source, (include_folder, extensions)) = {
             let s = session(self);
             let choices = s.choices().ok_or("Wait until the scan finishes.")?;
             let source = s
                 .picked_source()
-                .ok_or("A profile saves a directory as its source; pick a directory first.")?;
+                .ok_or("A preset saves a directory as its source; pick a directory first.")?;
             (source, choices)
         };
-        let profile = self.change_profiles(|p| {
-            p.add(ProfileInput {
+        let preset = self.change_copy_presets(|p| {
+            p.add(CopyPresetInput {
                 name,
                 source,
                 include_folder,
                 extensions,
             })
         })?;
-        self.remember(|r| r.last_profile = Some(profile.id.clone()));
-        let view = self.rescan(Change::Profile(Some(profile)));
-        Ok(self.profiles_view(view))
+        self.remember(|r| r.last_preset = Some(preset.id.clone()));
+        let view = self.rescan(Change::CopyPreset(Some(preset)));
+        Ok(self.copy_presets_view(view))
     }
 
-    /// Settings → New.
-    pub fn create_profile(&self, input: ProfileInput) -> Result<Vec<Profile>, String> {
-        self.change_profiles(|p| p.add(input))?;
-        Ok(lock(&self.profiles).profiles.clone())
+    /// Copy presets → New.
+    pub fn create_copy_preset(&self, input: CopyPresetInput) -> Result<Vec<CopyPreset>, String> {
+        self.change_copy_presets(|p| p.add(input))?;
+        Ok(lock(&self.copy_presets).presets.clone())
     }
 
-    /// Settings → Edit; the selected profile is applied again.
-    pub fn edit_profile(&self, id: &str, input: ProfileInput) -> Result<ProfilesView, String> {
-        let edited = self.change_profiles(|p| p.edit(id, input))?;
-        let selected = session(self).profile().is_some_and(|p| p.id == id);
+    /// Copy presets → Edit; the selected preset is applied again.
+    pub fn edit_copy_preset(
+        &self,
+        id: &str,
+        input: CopyPresetInput,
+    ) -> Result<CopyPresetsView, String> {
+        let edited = self.change_copy_presets(|p| p.edit(id, input))?;
+        let selected = session(self).preset().is_some_and(|p| p.id == id);
         let view = if selected {
-            self.rescan(Change::Profile(Some(edited)))
+            self.rescan(Change::CopyPreset(Some(edited)))
         } else {
             session(self).view()
         };
-        Ok(self.profiles_view(view))
+        Ok(self.copy_presets_view(view))
     }
 
-    /// Settings → Delete; a selected profile becomes None.
-    pub fn delete_profile(&self, id: &str) -> Result<ProfilesView, String> {
-        self.change_profiles(|p| {
+    /// Copy presets → Delete; a selected preset becomes None.
+    pub fn delete_copy_preset(&self, id: &str) -> Result<CopyPresetsView, String> {
+        self.change_copy_presets(|p| {
             p.delete(id);
             Ok(())
         })?;
-        let selected = session(self).profile().is_some_and(|p| p.id == id);
+        let selected = session(self).preset().is_some_and(|p| p.id == id);
         let view = if selected {
-            self.remember(|r| r.last_profile = None);
-            self.rescan(Change::Profile(None))
+            self.remember(|r| r.last_preset = None);
+            self.rescan(Change::CopyPreset(None))
         } else {
             session(self).view()
         };
-        Ok(self.profiles_view(view))
+        Ok(self.copy_presets_view(view))
     }
 
     /// Applies at once (the next job uses it) and saves.
@@ -1507,42 +1512,45 @@ pub async fn recent_destinations(app: AppHandle) -> Result<Vec<String>, String> 
 
 #[tauri::command]
 #[specta::specta]
-pub async fn select_profile(app: AppHandle, id: Option<String>) -> Result<SessionView, String> {
-    blocking(app, move |state| state.select_profile(id)).await?
+pub async fn select_copy_preset(app: AppHandle, id: Option<String>) -> Result<SessionView, String> {
+    blocking(app, move |state| state.select_copy_preset(id)).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn update_profile(app: AppHandle) -> Result<ProfilesView, String> {
-    blocking(app, |state| state.update_profile()).await?
+pub async fn update_copy_preset(app: AppHandle) -> Result<CopyPresetsView, String> {
+    blocking(app, |state| state.update_copy_preset()).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_profile_as(app: AppHandle, name: String) -> Result<ProfilesView, String> {
-    blocking(app, move |state| state.save_profile_as(name)).await?
+pub async fn save_copy_preset_as(app: AppHandle, name: String) -> Result<CopyPresetsView, String> {
+    blocking(app, move |state| state.save_copy_preset_as(name)).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn create_profile(app: AppHandle, input: ProfileInput) -> Result<Vec<Profile>, String> {
-    blocking(app, move |state| state.create_profile(input)).await?
+pub async fn create_copy_preset(
+    app: AppHandle,
+    input: CopyPresetInput,
+) -> Result<Vec<CopyPreset>, String> {
+    blocking(app, move |state| state.create_copy_preset(input)).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn edit_profile(
+pub async fn edit_copy_preset(
     app: AppHandle,
     id: String,
-    input: ProfileInput,
-) -> Result<ProfilesView, String> {
-    blocking(app, move |state| state.edit_profile(&id, input)).await?
+    input: CopyPresetInput,
+) -> Result<CopyPresetsView, String> {
+    blocking(app, move |state| state.edit_copy_preset(&id, input)).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_profile(app: AppHandle, id: String) -> Result<ProfilesView, String> {
-    blocking(app, move |state| state.delete_profile(&id)).await?
+pub async fn delete_copy_preset(app: AppHandle, id: String) -> Result<CopyPresetsView, String> {
+    blocking(app, move |state| state.delete_copy_preset(&id)).await?
 }
 
 #[tauri::command]
@@ -1564,7 +1572,7 @@ mod tests {
     use std::sync::{Arc, Mutex as StdMutex};
 
     use super::*;
-    use crate::store::{PROFILES, REMEMBERED, SETTINGS};
+    use crate::store::{COPY_PRESETS, REMEMBERED, SETTINGS};
 
     #[derive(Clone, Default)]
     struct Sink(Arc<StdMutex<Vec<ProgressView>>>);
@@ -1575,8 +1583,8 @@ mod tests {
         }
     }
 
-    fn input(name: &str, source: &Path) -> ProfileInput {
-        ProfileInput {
+    fn input(name: &str, source: &Path) -> CopyPresetInput {
+        CopyPresetInput {
             name: name.into(),
             source: show(source),
             include_folder: true,
@@ -1585,7 +1593,7 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_last_profile_starts_with_none() {
+    fn a_missing_last_preset_starts_with_none() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(
             dir.path().join(REMEMBERED),
@@ -1594,40 +1602,40 @@ mod tests {
         .unwrap();
         let state = AppState::new(dir.path().to_path_buf());
         let start = state.start_view();
-        assert_eq!(start.last_profile, None);
+        assert_eq!(start.last_preset, None);
         assert!(start.warnings.is_empty());
     }
 
     #[test]
-    fn the_last_profile_and_mode_come_back() {
+    fn the_last_preset_and_mode_come_back() {
         let dir = tempfile::tempdir().unwrap();
         let card = dir.path().join("CARD");
         fs::create_dir_all(&card).unwrap();
         let state = AppState::new(dir.path().join("data"));
-        let id = state.create_profile(input("FX3", &card)).unwrap()[0]
+        let id = state.create_copy_preset(input("FX3", &card)).unwrap()[0]
             .id
             .clone();
-        state.select_profile(Some(id.clone())).unwrap();
+        state.select_copy_preset(Some(id.clone())).unwrap();
         state.remember(|r| r.verify = false);
         let again = AppState::new(dir.path().join("data")).start_view();
-        assert_eq!(again.last_profile, Some(id), "the UI loads it again");
+        assert_eq!(again.last_preset, Some(id), "the UI loads it again");
         assert!(!again.verify);
         assert!(
             again.session.destination.is_none(),
             "the destination is never restored"
         );
-        assert_eq!(again.profiles.len(), 1);
+        assert_eq!(again.copy_presets.len(), 1);
         fs::remove_dir(&card).unwrap();
         let later = AppState::new(dir.path().join("data")).start_view();
         assert_eq!(
-            later.last_profile, None,
+            later.last_preset, None,
             "its card isn't there: nothing to load, and no error at launch"
         );
     }
 
     /// #72: `profiles.json` and `state.json` as Secopy 0.10 wrote them. Renaming profiles
     /// to copy presets must not change a byte of what is saved.
-    const PROFILES_0_10: &str = r#"{
+    const COPY_PRESETS_0_10: &str = r#"{
   "version": 1,
   "profiles": [
     {
@@ -1666,11 +1674,11 @@ mod tests {
     #[test]
     fn presets_and_the_last_one_saved_by_0_10_load() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join(PROFILES), PROFILES_0_10).unwrap();
+        fs::write(dir.path().join(COPY_PRESETS), COPY_PRESETS_0_10).unwrap();
         fs::write(dir.path().join(REMEMBERED), REMEMBERED_0_10).unwrap();
         let start = AppState::new(dir.path().to_path_buf()).start_view();
         assert!(start.warnings.is_empty(), "{:?}", start.warnings);
-        let p = &start.profiles;
+        let p = &start.copy_presets;
         assert_eq!(p.len(), 2);
         assert_eq!(
             (p[0].id.as_str(), p[0].name.as_str(), p[0].source.as_str()),
@@ -1687,11 +1695,11 @@ mod tests {
         );
         assert_eq!((p[1].name.as_str(), p[1].source.as_str()), ("Photos", ""));
         assert!(!p[1].include_folder && p[1].extensions.is_none());
-        assert_eq!(start.last_profile.as_deref(), Some("19a2f0c4e8b1d4"));
+        assert_eq!(start.last_preset.as_deref(), Some("19a2f0c4e8b1d4"));
         assert!(!start.verify);
         assert_eq!(
-            fs::read_to_string(dir.path().join(PROFILES)).unwrap(),
-            PROFILES_0_10,
+            fs::read_to_string(dir.path().join(COPY_PRESETS)).unwrap(),
+            COPY_PRESETS_0_10,
             "nothing to put right, so the file isn't rewritten"
         );
     }
@@ -1700,10 +1708,12 @@ mod tests {
     fn saving_writes_the_keys_0_10_wrote() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::new(dir.path().to_path_buf());
-        let id = state.create_profile(input("FX3", Path::new(""))).unwrap()[0]
+        let id = state
+            .create_copy_preset(input("FX3", Path::new("")))
+            .unwrap()[0]
             .id
             .clone();
-        state.select_profile(Some(id.clone())).unwrap();
+        state.select_copy_preset(Some(id.clone())).unwrap();
         let read = |name: &str| -> serde_json::Value {
             serde_json::from_str(&fs::read_to_string(dir.path().join(name)).unwrap()).unwrap()
         };
@@ -1743,13 +1753,13 @@ mod tests {
         assert!(state.start_view().warnings.is_empty());
     }
 
-    /// #69: profiles read from disk are put right like new ones; one that clashes with
+    /// #69: copy presets read from disk are put right like new ones; one that clashes with
     /// another or has no name is kept under a free name, never dropped.
     #[test]
-    fn loaded_profiles_are_normalized_and_none_is_lost() {
+    fn loaded_presets_are_normalized_and_none_is_lost() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(
-            dir.path().join(PROFILES),
+            dir.path().join(COPY_PRESETS),
             r#"{"version": 1, "profiles": [
                 {"id": "a", "name": " FX3 ", "source": " /Volumes/CARD/DCIM/ ", "includeFolder": true, "extensions": ["MP4", ".XML", "mp4"]},
                 {"id": "b", "name": "fx3", "source": "", "includeFolder": true, "extensions": null},
@@ -1760,9 +1770,9 @@ mod tests {
         .unwrap();
         let state = AppState::new(dir.path().to_path_buf());
         let start = state.start_view();
-        let p = &start.profiles;
+        let p = &start.copy_presets;
         let names: Vec<&str> = p.iter().map(|p| p.name.as_str()).collect();
-        assert_eq!(names, ["FX3", "fx3 (2)", "A7", "Unnamed profile"]);
+        assert_eq!(names, ["FX3", "fx3 (2)", "A7", "Unnamed preset"]);
         assert_eq!(p[0].source, "/Volumes/CARD/DCIM");
         assert_eq!(
             p[0].extensions,
@@ -1775,8 +1785,8 @@ mod tests {
         assert_eq!(start.warnings.len(), 3, "{:?}", start.warnings);
         assert!(start.warnings.iter().any(|w| w.contains("“fx3 (2)”")));
         assert!(start.warnings.iter().any(|w| w.contains("(DCIM)")));
-        let saved = Store::new(dir.path().to_path_buf()).load::<Profiles>(PROFILES);
-        assert_eq!(saved, (state.profiles.lock().unwrap().clone(), None));
+        let saved = Store::new(dir.path().to_path_buf()).load::<CopyPresets>(COPY_PRESETS);
+        assert_eq!(saved, (state.copy_presets.lock().unwrap().clone(), None));
         assert!(
             AppState::new(dir.path().to_path_buf())
                 .start_view()
@@ -1786,62 +1796,68 @@ mod tests {
     }
 
     #[test]
-    fn deleting_the_selected_profile_selects_none() {
+    fn deleting_the_selected_preset_selects_none() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::new(dir.path().to_path_buf());
-        let id = state.create_profile(input("FX3", Path::new(""))).unwrap()[0]
+        let id = state
+            .create_copy_preset(input("FX3", Path::new("")))
+            .unwrap()[0]
             .id
             .clone();
-        state.select_profile(Some(id.clone())).unwrap();
-        let after = state.delete_profile(&id).unwrap();
-        assert!(after.profiles.is_empty());
-        assert_eq!(after.session.profile_id, None);
-        assert_eq!(state.remembered.lock().unwrap().last_profile, None);
-        let saved = fs::read_to_string(dir.path().join(PROFILES)).unwrap();
+        state.select_copy_preset(Some(id.clone())).unwrap();
+        let after = state.delete_copy_preset(&id).unwrap();
+        assert!(after.presets.is_empty());
+        assert_eq!(after.session.preset_id, None);
+        assert_eq!(state.remembered.lock().unwrap().last_preset, None);
+        let saved = fs::read_to_string(dir.path().join(COPY_PRESETS)).unwrap();
         assert!(!saved.contains("FX3"));
     }
 
     #[test]
-    fn editing_the_selected_profile_applies_it() {
+    fn editing_the_selected_preset_applies_it() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::new(dir.path().to_path_buf());
         let clip = dir.path().join("CLIP");
         fs::create_dir_all(&clip).unwrap();
         fs::write(clip.join("a.mp4"), b"a").unwrap();
-        let id = state.create_profile(input("FX3", Path::new(""))).unwrap()[0]
+        let id = state
+            .create_copy_preset(input("FX3", Path::new("")))
+            .unwrap()[0]
             .id
             .clone();
-        state.select_profile(Some(id.clone())).unwrap();
-        let after = state.edit_profile(&id, input("FX3 A-cam", &clip)).unwrap();
-        assert_eq!(after.profiles[0].name, "FX3 A-cam");
-        assert_eq!(after.session.profile_id, Some(id));
+        state.select_copy_preset(Some(id.clone())).unwrap();
+        let after = state
+            .edit_copy_preset(&id, input("FX3 A-cam", &clip))
+            .unwrap();
+        assert_eq!(after.presets[0].name, "FX3 A-cam");
+        assert_eq!(after.session.preset_id, Some(id));
         assert_eq!(after.session.source.unwrap().label, show(&clip), "loaded");
     }
 
     #[test]
-    fn save_as_new_selects_and_saves_the_new_profile() {
+    fn save_as_new_selects_and_saves_the_new_preset() {
         let dir = tempfile::tempdir().unwrap();
         let card = dir.path().join("CARD");
         fs::create_dir_all(card.join("DCIM")).unwrap();
         fs::write(card.join("DCIM/a.jpg"), b"a").unwrap();
         let state = AppState::new(dir.path().join("data"));
         state.rescan(Change::Pick(vec![card.join("DCIM")]));
-        let after = state.save_profile_as("Photos".into()).unwrap();
-        let id = after.profiles[0].id.clone();
-        assert_eq!(after.profiles[0].source, show(&card.join("DCIM")));
-        assert_eq!(after.session.profile_id, Some(id.clone()));
-        assert!(!after.session.profile_changed);
-        assert_eq!(state.remembered.lock().unwrap().last_profile, Some(id));
+        let after = state.save_copy_preset_as("Photos".into()).unwrap();
+        let id = after.presets[0].id.clone();
+        assert_eq!(after.presets[0].source, show(&card.join("DCIM")));
+        assert_eq!(after.session.preset_id, Some(id.clone()));
+        assert!(!after.session.preset_changed);
+        assert_eq!(state.remembered.lock().unwrap().last_preset, Some(id));
         assert!(
             state
-                .save_profile_as("photos".into())
+                .save_copy_preset_as("photos".into())
                 .unwrap_err()
-                .contains("already a profile")
+                .contains("already a preset")
         );
         state.rescan(Change::Pick(vec![card.join("DCIM/a.jpg")]));
         assert_eq!(
-            state.save_profile_as("One file".into()).unwrap_err(),
-            "A profile saves a directory as its source; pick a directory first."
+            state.save_copy_preset_as("One file".into()).unwrap_err(),
+            "A preset saves a directory as its source; pick a directory first."
         );
     }
 
@@ -1894,7 +1910,7 @@ mod tests {
                         };
                         let a = state.set_settings(settings).err();
                         let b = state
-                            .create_profile(input(&format!("P{i}"), Path::new("")))
+                            .create_copy_preset(input(&format!("P{i}"), Path::new("")))
                             .err();
                         a.into_iter().chain(b).collect::<Vec<_>>()
                     })
@@ -1911,9 +1927,9 @@ mod tests {
             store.load::<Settings>(SETTINGS).0,
             *state.settings.lock().unwrap()
         );
-        let saved = store.load::<Profiles>(PROFILES).0;
-        assert_eq!(saved.profiles.len(), 16, "no profile lost");
-        assert_eq!(saved, *state.profiles.lock().unwrap());
+        let saved = store.load::<CopyPresets>(COPY_PRESETS).0;
+        assert_eq!(saved.presets.len(), 16, "no preset lost");
+        assert_eq!(saved, *state.copy_presets.lock().unwrap());
     }
 
     #[test]
@@ -2196,12 +2212,14 @@ mod tests {
         let state = queued(dir.path(), &[("A", 1)]);
         poison(&state.queue);
         poison(&state.settings);
-        poison(&state.profiles);
+        poison(&state.copy_presets);
         poison(&state.queue_run);
         assert_eq!(state.queue_view().jobs.len(), 1, "the queue as it was");
         assert!(!state.busy());
         state.set_settings(Settings::default()).unwrap();
-        state.create_profile(input("FX3", Path::new(""))).unwrap();
+        state
+            .create_copy_preset(input("FX3", Path::new("")))
+            .unwrap();
         // The session may be half changed: it starts afresh rather than copy from that.
         state.rescan(Change::Pick(vec![dir.path().join("A")]));
         poison(&state.session);

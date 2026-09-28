@@ -2,7 +2,7 @@
   // The main window (RFD §5.2): FROM, TO, what pre-flight found, mode, Start.
   import { onMount } from "svelte";
   import { useApi } from "../lib/api";
-  import type { ConflictPolicy, Profile, ProfilesView, QueueView, SessionView, Settings } from "../lib/bindings";
+  import type { ConflictPolicy, CopyPreset, CopyPresetsView, QueueView, SessionView, Settings } from "../lib/bindings";
   import { baseName, formatBytes, messageOf, plural } from "../lib/format";
   import type { Snippet } from "svelte";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -17,17 +17,17 @@
   import Hint from "../lib/ui/Hint.svelte";
   import ExtensionChips from "./ExtensionChips.svelte";
   import PreflightPanel from "./PreflightPanel.svelte";
-  import ProfileBar from "./ProfileBar.svelte";
+  import PresetBar from "./PresetBar.svelte";
 
   let {
     view = $bindable(),
     verify = $bindable(true),
-    profiles,
+    presets,
     settings,
     recent,
     onStart,
-    onProfiles,
-    onManageProfiles,
+    onPresets,
+    onManagePresets,
     onMode,
     banner,
     ready = $bindable(false),
@@ -35,13 +35,13 @@
   }: {
     view: SessionView;
     verify: boolean;
-    profiles: Profile[];
+    presets: CopyPreset[];
     settings: Settings;
     /** Recent destinations that still exist (spec B7). */
     recent: string[];
     onStart: () => void;
-    onProfiles: (profiles: Profile[]) => void;
-    onManageProfiles: () => void;
+    onPresets: (presets: CopyPreset[]) => void;
+    onManagePresets: () => void;
     /** Copy or Copy & Verify was chosen; remembered for next time (FR-36). */
     onMode: (verify: boolean) => void;
     /** App-wide messages, shown first. */
@@ -147,12 +147,12 @@
     return update(() => api.setIncludeFolder(include), (e) => (sourceError = e), "scan");
   }
 
-  function selectProfile(id: string | null) {
-    return update(() => api.selectProfile(id), (e) => (sourceError = e), "scan");
+  function selectCopyPreset(id: string | null) {
+    return update(() => api.selectCopyPreset(id), (e) => (sourceError = e), "scan");
   }
 
-  function profilesApplied(result: ProfilesView) {
-    onProfiles(result.profiles);
+  function presetsApplied(result: CopyPresetsView) {
+    onPresets(result.presets);
     view = result.session;
   }
 
@@ -242,14 +242,14 @@
       {#if sourceError}<Notice tone="danger">{sourceError}</Notice>{/if}
       {#snippet aside()}<Button onclick={chooseSource}>Choose…</Button>{/snippet}
     </FormRow>
-    <FormRow label="Profile">
-      <ProfileBar
+    <FormRow label="Preset">
+      <PresetBar
         {view}
-        {profiles}
+        {presets}
         busy={scanning > 0}
-        onSelect={selectProfile}
-        onApplied={profilesApplied}
-        onManage={onManageProfiles}
+        onSelect={selectCopyPreset}
+        onApplied={presetsApplied}
+        onManage={onManagePresets}
       />
     </FormRow>
 
