@@ -4,7 +4,7 @@ import { apiContext } from "../lib/api";
 import type { FinishedRow, SummaryView } from "../lib/bindings";
 import { fakeApi, summaryView } from "../test/fake-api";
 import Summary from "./Summary.svelte";
-import { hintOf } from "../test/hint";
+import { helpOf, hintOf } from "../test/hint";
 
 function show(summary: SummaryView) {
   const { api } = fakeApi();
@@ -230,5 +230,27 @@ describe("Summary", () => {
       "Save report…",
       "New copy",
     ]);
+  });
+});
+
+describe("Summary: help on Retry", () => {
+  test("Retry says how many failed files it sets up again", () => {
+    show(summaryView({ outcome: "failures", failed: 3 }));
+    expect(helpOf(screen.getByRole("button", { name: "Retry" }))).toBe(
+      "Sets up a new copy of just the 3 failed files; press Start to run it.",
+    );
+  });
+
+  test("one failed file", () => {
+    show(summaryView({ outcome: "failures", failed: 1 }));
+    expect(helpOf(screen.getByRole("button", { name: "Retry" }))).toBe(
+      "Sets up a new copy of just the 1 failed file; press Start to run it.",
+    );
+  });
+
+  test("the obvious buttons have none", () => {
+    show(summaryView({ outcome: "failures", failed: 3 }));
+    for (const name of ["Show in Finder", "Save report…", "New copy"])
+      expect(helpOf(screen.getByRole("button", { name }))).toBeNull();
   });
 });

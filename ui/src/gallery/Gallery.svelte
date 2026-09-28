@@ -31,9 +31,18 @@
   import { fakeApi, mirrorPreview, mirrorSummary, verifySummary, mirrors, copyPresets, progress, queue, queueSummary, settings, summary } from "./fake";
 
   const page = location.hash.slice(1) || "components";
-  // ?tips shows every Hint's explanation at once, for screenshots.
-  if (location.search.includes("tips"))
-    document.head.insertAdjacentHTML("beforeend", "<style>.tip{opacity:1!important;visibility:visible!important}</style>");
+  // For screenshots: ?tips shows every Hint's explanation and every Button's help at once,
+  // ?help only the buttons' help, ?help=primary only the primary button's (gallery.html?help=primary#setup).
+  const query = new URLSearchParams(location.search);
+  const shownTips = query.has("tips")
+    ? ".tip"
+    : query.get("help") === "primary"
+      ? ".button-help:has(> .primary) .tip"
+      : query.has("help")
+        ? ".button-help .tip"
+        : "";
+  if (shownTips)
+    document.head.insertAdjacentHTML("beforeend", `<style>${shownTips}{opacity:1!important;visibility:visible!important}</style>`);
   const api = fakeApi(page === "presets-empty" ? { copyPresets: [] } : {});
   provideApi(api);
 
@@ -110,6 +119,13 @@
         <Button variant="link">+ New preset</Button>
         <Button icon="settings">Settings</Button>
         <Button variant="primary" disabled>Disabled</Button>
+      </div>
+      <!-- Room above for the help, which opens upwards like in the action bar. -->
+      <div class="row help-row">
+        <Button help="Adds this copy, as set up now, to the Queue; it runs when you start the queue.">Add to queue</Button>
+        <Button variant="primary" help="Copies 106 files (180.0 GB) to /Volumes/V001/Day01/CLIP and verifies them (⌘↩).">
+          Start
+        </Button>
       </div>
     </Section>
 
@@ -189,6 +205,10 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
+  }
+
+  .help-row {
+    padding-top: 64px;
   }
 
   .column {

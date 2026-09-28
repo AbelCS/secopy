@@ -123,10 +123,20 @@
   {#snippet actions()}
     <ActionBar status={count > 0 ? plural(count, "job") : ""}>
       {#snippet start()}
-        <Button variant="danger" disabled={count === 0} onclick={clear}>Clear…</Button>
+        <Button
+          variant="danger"
+          disabled={count === 0}
+          help="Removes every job from the queue, after asking."
+          onclick={clear}>Clear…</Button
+        >
       {/snippet}
       {#snippet end()}
-        <Button variant="primary" disabled={count === 0} onclick={onRun}>Start</Button>
+        <Button
+          variant="primary"
+          disabled={count === 0}
+          help={count === 1 ? "Runs the one job in the queue." : `Runs the ${plural(count, "job")} one after another.`}
+          onclick={onRun}>Start</Button
+        >
       {/snippet}
     </ActionBar>
   {/snippet}

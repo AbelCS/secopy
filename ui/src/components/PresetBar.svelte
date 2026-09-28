@@ -105,10 +105,19 @@
   {/if}
   {#if selected && view.presetChanged}
     <span class="muted">Changed for this run</span>
-    <Button disabled={busy} onclick={() => act(() => api.updateCopyPreset())}>Update</Button>
+    <Button
+      disabled={busy}
+      help="Saves this source and these choices into the preset “{selected.name}”."
+      onclick={() => act(() => api.updateCopyPreset())}>Update</Button
+    >
   {/if}
   {#if canSaveAs}
-    <Button disabled={busy} onclick={openSaveAs} data-save-as>Save as…</Button>
+    <Button
+      disabled={busy}
+      help="Saves this source and these choices as a new preset."
+      onclick={openSaveAs}
+      data-save-as>Save as…</Button
+    >
   {/if}
 </div>
 {#if savingAs}

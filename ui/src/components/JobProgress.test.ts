@@ -4,7 +4,7 @@ import { apiContext } from "../lib/api";
 import type { FinishedRow, ProgressView } from "../lib/bindings";
 import { fakeApi, progressView } from "../test/fake-api";
 import JobProgress from "./JobProgress.svelte";
-import { hintOf } from "../test/hint";
+import { helpOf, hintOf } from "../test/hint";
 
 function show(progress: ProgressView) {
   const { api } = fakeApi();
@@ -349,5 +349,32 @@ describe("JobProgress", () => {
     within(dialog).getByText(
       "Files already copied stay; the file in progress is removed. Files deleted in the origin are left in the destination.",
     );
+  });
+});
+
+describe("JobProgress: help on the buttons", () => {
+  test("Pause, Resume and Cancel say what they do and their keys", async () => {
+    const { rerender } = show(progressView());
+    expect(helpOf(screen.getByRole("button", { name: "Pause" }))).toBe(
+      "Stops reading and writing until you resume (Space).",
+    );
+    expect(helpOf(screen.getByRole("button", { name: "Cancel" }))).toBe("Asks first, then stops the job (⌘.).");
+    await rerender({ progress: progressView({ paused: true }) });
+    expect(helpOf(screen.getByRole("button", { name: "Resume" }))).toBe("Carries on from where it paused (Space).");
+  });
+
+  test("a check only reads; a queue job's Cancel stops the queue too", () => {
+    const { api } = fakeApi();
+    render(JobProgress, { props: { progress: progressView(), check: true, queue: { index: 0, count: 2 } }, context: apiContext(api) });
+    expect(helpOf(screen.getByRole("button", { name: "Pause" }))).toBe("Stops reading until you resume (Space).");
+    expect(helpOf(screen.getByRole("button", { name: "Cancel" }))).toBe(
+      "Asks first, then stops this job and the queue (⌘.).",
+    );
+  });
+
+  test("done: the buttons are off and give no help", () => {
+    show(progressView({ phase: "done" }));
+    expect(helpOf(screen.getByRole("button", { name: "Pause" }))).toBeNull();
+    expect(helpOf(screen.getByRole("button", { name: "Cancel" }))).toBeNull();
   });
 });

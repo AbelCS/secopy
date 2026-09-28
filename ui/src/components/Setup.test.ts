@@ -12,7 +12,7 @@ import {
   sourceView,
 } from "../test/fake-api";
 import Setup from "./Setup.svelte";
-import { hintOf, showing } from "../test/hint";
+import { helpOf, hintOf, showing } from "../test/hint";
 
 function setup(
   view: SessionView = sessionView(),
@@ -400,5 +400,38 @@ describe("Setup", () => {
     expect(screen.getByRole("button", { name: "Add to queue" })).toHaveProperty("disabled", true);
     setup(readyView({ source: sourceView({ isRetry: true }) }));
     expect(screen.getAllByRole("button", { name: "Add to queue" }).at(-1)).toHaveProperty("disabled", true);
+  });
+});
+
+describe("Setup: help on the buttons", () => {
+  test("Start says what it copies, where, whether it verifies, and its shortcut", async () => {
+    setup(readyView());
+    expect(helpOf(start())).toBe(
+      "Copies 1,284 files (212.4 GB) to /Volumes/RAID/Day01/DCIM and verifies them (⌘↩).",
+    );
+    await fireEvent.click(screen.getByLabelText("Copy"));
+    expect(helpOf(start())).toBe("Copies 1,284 files (212.4 GB) to /Volumes/RAID/Day01/DCIM (⌘↩).");
+  });
+
+  test("a disabled Start has no help: there are no figures yet", () => {
+    setup();
+    expect(helpOf(start())).toBeNull();
+  });
+
+  test("Add to queue says the copy runs later, from the Queue", () => {
+    setup(readyView());
+    expect(helpOf(screen.getByRole("button", { name: "Add to queue" }))).toBe(
+      "Adds this copy, as set up now, to the Queue; it runs when you start the queue.",
+    );
+  });
+
+  test("Update and Save as… say what they save", () => {
+    setup(readyView({ presetId: "fx3", presetChanged: true }), readyView(), { presets: [copyPreset()] });
+    expect(helpOf(screen.getByRole("button", { name: "Update" }))).toBe(
+      "Saves this source and these choices into the preset “Sony FX3”.",
+    );
+    expect(helpOf(screen.getByRole("button", { name: "Save as…" }))).toBe(
+      "Saves this source and these choices as a new preset.",
+    );
   });
 });

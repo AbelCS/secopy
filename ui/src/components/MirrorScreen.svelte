@@ -199,7 +199,12 @@
           {#if previewing}
             <Button onclick={() => api.cancelMirrorPreview()}>Cancel</Button>
           {:else}
-            <Button disabled={busy} onclick={() => act(async () => onQueue(await api.addMirrorToQueue(selected.id)))}>
+            <!-- A queued mirror is only its preset: it's previewed again at its turn. -->
+            <Button
+              disabled={busy}
+              help="Adds this mirror to the Queue; what to copy and remove is worked out again when it runs."
+              onclick={() => act(async () => onQueue(await api.addMirrorToQueue(selected.id)))}
+            >
               Add to queue
             </Button>
           {/if}

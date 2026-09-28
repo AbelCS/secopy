@@ -111,8 +111,19 @@
   {#snippet actions()}
     <ActionBar>
       {#snippet end()}
-        <Button disabled={!ready} onclick={queue}>Add to queue</Button>
-        <Button variant="primary" disabled={!ready} onclick={() => view && onStart(view.directory)}>Start</Button>
+        <Button
+          disabled={!ready}
+          help="Adds this directory to the Queue; it's verified when the queue gets to it."
+          onclick={queue}>Add to queue</Button
+        >
+        <Button
+          variant="primary"
+          disabled={!ready}
+          help={view
+            ? `Reads the ${plural(view.files, "listed file")} (${formatBytes(view.bytes)}) and compares each with its checksum; nothing is written.`
+            : ""}
+          onclick={() => view && onStart(view.directory)}>Start</Button
+        >
       {/snippet}
     </ActionBar>
   {/snippet}

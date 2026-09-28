@@ -4,6 +4,7 @@ import { apiContext } from "../lib/api";
 import type { QueueView } from "../lib/bindings";
 import { fakeApi, queuedJob, queueView } from "../test/fake-api";
 import QueueScreen from "./QueueScreen.svelte";
+import { helpOf } from "../test/hint";
 
 function show(queue: QueueView = queueView({ jobs: [queuedJob(), queuedJob({ source: "/Volumes/CARD_B/DCIM", verify: false })] })) {
   const { api } = fakeApi();
@@ -108,5 +109,26 @@ describe("QueueScreen", () => {
     show(queueView());
     screen.getByText(/Add to queue/);
     expect(screen.getByRole("button", { name: "Start" })).toHaveProperty("disabled", true);
+  });
+});
+
+describe("QueueScreen: help on the buttons", () => {
+  test("Start says how many jobs run; Clear… that it removes them all and asks first", () => {
+    show();
+    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe("Runs the 2 jobs one after another.");
+    expect(helpOf(screen.getByRole("button", { name: "Clear…" }))).toBe(
+      "Removes every job from the queue, after asking.",
+    );
+  });
+
+  test("one job", () => {
+    show(queueView({ jobs: [queuedJob()] }));
+    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe("Runs the one job in the queue.");
+  });
+
+  test("an empty queue: both off, no help", () => {
+    show(queueView());
+    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBeNull();
+    expect(helpOf(screen.getByRole("button", { name: "Clear…" }))).toBeNull();
   });
 });
