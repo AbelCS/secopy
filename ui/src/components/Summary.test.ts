@@ -16,6 +16,39 @@ function show(summary: SummaryView) {
 }
 
 describe("Summary", () => {
+  test("a mirror: its headline, why nothing was removed, what couldn't be, and Done", async () => {
+    const { api } = fakeApi();
+    const calls = { done: 0 };
+    const row = { id: 0, path: "B/old.mov", finalPath: "B/old.mov", size: 0, millis: 0, hash: null, status: "failed" as const, reason: "Permission denied" };
+    render(Summary, {
+      props: {
+        summary: summaryView({
+          outcome: "failures",
+          failed: 0,
+          mirror: { new: 0, updated: 0, removed: 0, archived: true, removalFailures: [row], nothingRemoved: null },
+        }),
+        onDone: () => calls.done++,
+      },
+      context: apiContext(api),
+    });
+    screen.getByRole("heading", { name: /1 file couldn't be removed/ });
+    within(screen.getByRole("region", { name: "Not removed" })).getByText("Permission denied", { exact: false });
+    expect(screen.queryByRole("button", { name: "New copy" })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(calls.done).toBe(1);
+  });
+
+  test("a mirror that removed nothing says why", () => {
+    show(
+      summaryView({
+        outcome: "failures",
+        failed: 2,
+        mirror: { new: 0, updated: 0, removed: 0, archived: true, removalFailures: [], nothingRemoved: "Nothing was removed: 2 files failed." },
+      }),
+    );
+    screen.getByText("Nothing was removed: 2 files failed.");
+  });
+
   test("every file is listed with its status and checksum", async () => {
     const { api } = fakeApi();
     const rows: FinishedRow[] = ["A001.MP4", "A002.MP4", "A003.MP4"].map((name, id) => ({

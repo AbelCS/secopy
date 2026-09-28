@@ -5,11 +5,12 @@ import App from "./App.svelte";
 import JobProgress from "./components/JobProgress.svelte";
 import ProfilesScreen from "./components/ProfilesScreen.svelte";
 import QueueScreen from "./components/QueueScreen.svelte";
+import MirrorPreview from "./components/MirrorPreview.svelte";
 import MirrorScreen from "./components/MirrorScreen.svelte";
 import SettingsScreen from "./components/SettingsScreen.svelte";
 import Summary from "./components/Summary.svelte";
 import { apiContext } from "./lib/api";
-import { fakeApi, profile, progressView, readyView, settingsView, summaryView, queuedJob, queueView, mirrorPreset } from "./test/fake-api";
+import { fakeApi, profile, progressView, readyView, settingsView, summaryView, queuedJob, queueView, mirrorPreset, mirrorPreview } from "./test/fake-api";
 
 async function violations(container: HTMLElement): Promise<string[]> {
   // Colours are checked by tokens.test.ts; the test DOM can't compute them.
@@ -69,6 +70,15 @@ describe("accessibility (axe-core)", () => {
     const { api } = fakeApi();
     const { container } = render(MirrorScreen, {
       props: { presets: [mirrorPreset()], onPresets: () => {}, onPreview: () => {}, onQueue: () => {} },
+      context: apiContext(api),
+    });
+    expect(await violations(container)).toEqual([]);
+  });
+
+  test("Mirror preview", async () => {
+    const { api } = fakeApi();
+    const { container } = render(MirrorPreview, {
+      props: { preview: mirrorPreview({ guard: "3 of the destination's 3 files would be removed." }), onRun: () => {}, onQueue: () => {}, onCancel: () => {} },
       context: apiContext(api),
     });
     expect(await violations(container)).toEqual([]);

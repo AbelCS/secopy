@@ -24,6 +24,7 @@
     banner,
     queueIndex,
     onBack,
+    onDone,
   }: {
     summary: SummaryView;
     onRetry?: () => void;
@@ -31,6 +32,8 @@
     /** A job of the queue run: its files and report, no Retry, and Back instead of New copy. */
     queueIndex?: number;
     onBack?: () => void;
+    /** A mirror's summary: Done goes back to Mirror instead of New copy. */
+    onDone?: () => void;
     onSettings?: () => void;
     /** App-wide messages, shown first. */
     banner?: Snippet;
@@ -72,7 +75,8 @@
       <h2 class:ok class:bad={!ok}><Icon name={ok ? "check" : "x"} size={20} /> {headline(summary)}</h2>
     </div>
     <Stats items={stats} />
-    {#if summary.checksumOff}<p class="muted">No checksum file (off in Settings)</p>{/if}
+    {#if summary.mirror?.nothingRemoved}<Notice tone="danger">{summary.mirror.nothingRemoved}</Notice>{/if}
+    {#if summary.checksumOff && !summary.mirror}<p class="muted">No checksum file (off in Settings)</p>{/if}
     {#if summary.checksumError}
       <Notice tone="danger">The checksum file could not be written: {summary.checksumError}</Notice>
     {/if}
@@ -89,6 +93,16 @@
         {#if summary.failed > summary.failures.length}
           <li class="muted">and {formatCount(summary.failed - summary.failures.length)} more (see the report)</li>
         {/if}
+      </ul>
+    </Section>
+  {/if}
+
+  {#if summary.mirror && summary.mirror.removalFailures.length > 0}
+    <Section title="Not removed">
+      <ul class="failures">
+        {#each summary.mirror.removalFailures as f (f.id)}
+          <li><span class="mono">{f.path}</span>: {f.reason}</li>
+        {/each}
       </ul>
     </Section>
   {/if}
@@ -118,6 +132,8 @@
       {#snippet end()}
         {#if onBack}
           <Button variant="primary" onclick={onBack}>Back</Button>
+        {:else if onDone}
+          <Button variant="primary" onclick={onDone}>Done</Button>
         {:else}
           <Button variant="primary" onclick={onNewCopy}>New copy</Button>
         {/if}

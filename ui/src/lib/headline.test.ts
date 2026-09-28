@@ -14,3 +14,19 @@ test("each outcome has a clear status line", () => {
     "Nothing to copy: everything was already there",
   );
 });
+
+test("a mirror says what it did", () => {
+  const mirror = (over = {}) => ({
+    new: 12, updated: 3, removed: 5, archived: true, removalFailures: [], nothingRemoved: null, ...over,
+  });
+  expect(headline(summaryView({ mirror: mirror() }))).toBe("Mirrored: 12 new, 3 updated, 5 archived");
+  expect(headline(summaryView({ mirror: mirror({ updated: 0, archived: false }) }))).toBe(
+    "Mirrored: 12 new, 5 deleted",
+  );
+  expect(headline(summaryView({ mirror: mirror({ new: 0, updated: 0, removed: 0 }) }))).toBe("Already in sync");
+  expect(headline(summaryView({ outcome: "failures", failed: 3, mirror: mirror() }))).toBe("3 files failed");
+  const row = { id: 0, path: "a", finalPath: "a", size: 0, millis: 0, hash: null, status: "failed" as const, reason: "x" };
+  expect(
+    headline(summaryView({ outcome: "failures", failed: 0, mirror: mirror({ removalFailures: [row, { ...row, id: 1 }] }) })),
+  ).toBe("2 files couldn't be removed");
+});

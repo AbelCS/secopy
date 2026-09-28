@@ -1,11 +1,13 @@
 <script lang="ts">
   // Pick a page with the hash: #components (default), #setup, #progress, #summary,
-  // #settings, #profiles, #profiles-empty.
+  // #settings, #profiles, #profiles-empty, #queue, #queue-summary, #mirror, #mirror-preview,
+  // #mirror-summary, #mirroring.
   import { createRawSnippet } from "svelte";
   import App from "../App.svelte";
   import JobProgress from "../components/JobProgress.svelte";
   import ProfilesScreen from "../components/ProfilesScreen.svelte";
   import QueueScreen from "../components/QueueScreen.svelte";
+  import MirrorPreview from "../components/MirrorPreview.svelte";
   import MirrorScreen from "../components/MirrorScreen.svelte";
   import QueueSummary from "../components/QueueSummary.svelte";
   import SettingsScreen from "../components/SettingsScreen.svelte";
@@ -24,7 +26,7 @@
   import Select from "../lib/ui/Select.svelte";
   import Stats from "../lib/ui/Stats.svelte";
   import TextField from "../lib/ui/TextField.svelte";
-  import { fakeApi, mirrors, profiles, progress, queue, queueSummary, settings, summary } from "./fake";
+  import { fakeApi, mirrorPreview, mirrorSummary, mirrors, profiles, progress, queue, queueSummary, settings, summary } from "./fake";
 
   const page = location.hash.slice(1) || "components";
   const api = fakeApi(page === "profiles-empty" ? { profiles: [] } : {});
@@ -47,6 +49,12 @@
   <SettingsScreen {settings} onSettings={() => {}} onDone={() => {}} />
 {:else if page === "mirror"}
   <MirrorScreen presets={mirrors} onPresets={() => {}} onPreview={() => {}} onQueue={() => {}} onSettings={() => {}} />
+{:else if page === "mirror-preview"}
+  <MirrorPreview preview={mirrorPreview} onRun={() => {}} onQueue={() => {}} onCancel={() => {}} />
+{:else if page === "mirror-summary"}
+  <Summary summary={mirrorSummary} onDone={() => {}} onSettings={() => {}} />
+{:else if page === "mirroring"}
+  <JobProgress progress={{ ...progress, phase: "removing", removing: 5, archiving: true }} title="Mirroring" checksumFile={false} />
 {:else if page === "queue-summary"}
   <QueueSummary summary={queueSummary} onOpen={() => {}} onDone={() => {}} />
 {:else if page === "queue"}

@@ -28,4 +28,18 @@ describe("QueueSummary", () => {
     await fireEvent.click(open[1]);
     expect(calls.open).toEqual([1]);
   });
+
+  test("a mirror job's row names it", () => {
+    render(QueueSummary, {
+      props: {
+        summary: {
+          complete: 1, count: 1, millis: 1000,
+          results: [{ job: queuedJob({ kind: "mirror", name: "Footage" }), result: "complete", reason: null, summary: summaryView() }],
+        },
+        onOpen: () => {},
+        onDone: () => {},
+      },
+    });
+    screen.getByText("Mirror · Footage");
+  });
 });

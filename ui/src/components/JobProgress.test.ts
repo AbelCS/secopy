@@ -26,6 +26,17 @@ function row(i: number, over: Partial<FinishedRow> = {}): FinishedRow {
 }
 
 describe("JobProgress", () => {
+  test("a mirror: its title, then what it archives", () => {
+    const { api } = fakeApi();
+    const { rerender } = render(JobProgress, {
+      props: { progress: progressView(), title: "Mirroring" },
+      context: apiContext(api),
+    });
+    screen.getByRole("heading", { name: "Mirroring" });
+    void rerender({ progress: progressView({ phase: "removing", removing: 5, archiving: true }), title: "Mirroring" });
+    return waitFor(() => screen.getByText("Archiving 5 files"));
+  });
+
   test("phase, bars, the whole job's percent and file counts", () => {
     show(progressView({ copiedBytes: 148_200_000_000, verifiedBytes: 141_000_000_000, filesDone: 902 }));
     screen.getByRole("heading", { name: "Copying & verifying" });

@@ -64,7 +64,7 @@
   <Section title="Queue">
     {#if count === 0}
       <EmptyState>
-        <p>Nothing queued. Set up a copy and press Add to queue: it runs here, one after another with the others.</p>
+        <p>Nothing queued. Set up a copy or a mirror and press Add to queue: it runs here, one after another with the others.</p>
       </EmptyState>
     {:else}
       <ol class="jobs">
@@ -73,7 +73,7 @@
             <span class="number">{i + 1}</span>
             <div class="what">
               {#if job.supported}
-                <span class="mode">{job.verify ? "Copy & Verify" : "Copy"}</span>
+                <span class="mode">{job.kind === "mirror" ? `Mirror · ${job.name ?? ""}` : job.verify ? "Copy & Verify" : "Copy"}</span>
                 <!-- A long path keeps its end visible; <bdi> keeps its slashes in place. -->
                 <span class="path mono" title={job.source}><bdi>{job.source}</bdi></span>
                 <span class="arrow" aria-hidden="true">→</span>

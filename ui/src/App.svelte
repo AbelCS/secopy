@@ -20,6 +20,7 @@
   import ProfilesScreen from "./components/ProfilesScreen.svelte";
   import QueueScreen from "./components/QueueScreen.svelte";
   import QueueSummary from "./components/QueueSummary.svelte";
+  import MirrorPreview from "./components/MirrorPreview.svelte";
   import MirrorScreen from "./components/MirrorScreen.svelte";
   import SettingsScreen from "./components/SettingsScreen.svelte";
   import Button from "./lib/ui/Button.svelte";
@@ -43,10 +44,11 @@
     | "queue-summary"
     | "queue-job"
     | "mirror"
-    | "mirror-preview";
+    | "mirror-preview"
+    | "mirror-summary";
   let screen = $state<Screen>("setup");
   /** Where Settings and Profiles go back to. */
-  let back: "setup" | "summary" | "queue" | "mirror" = "setup";
+  let back: "setup" | "summary" | "queue" | "mirror" | "mirror-summary" = "setup";
   let queue: QueueView = $state({ jobs: [], onFailure: "continue", running: false });
   /** The Copy section's screen to return to: New copy, or the last summary. */
   let copyScreen: "setup" | "summary" = "setup";
@@ -54,7 +56,7 @@
     if (screen === "setup" || screen === "summary") copyScreen = screen;
   });
   const queueScreens: Screen[] = ["queue", "queue-summary", "queue-job"];
-  const mirrorScreens: Screen[] = ["mirror", "mirror-preview"];
+  const mirrorScreens: Screen[] = ["mirror", "mirror-preview", "mirror-summary"];
   const section = $derived(
     queueScreens.includes(screen) ? "queue" : mirrorScreens.includes(screen) ? "mirror" : "copy",
   );
@@ -65,15 +67,27 @@
   let mirrorPresets: MirrorPreset[] = $state([]);
   /** The preview the Mirror section's Preview… worked out; Run mirror runs it. */
   let mirrorPreview: MirrorPreviewView | null = $state(null);
+  /** The last mirror run's summary, shown in the Mirror section. */
+  let mirrorSummary: SummaryView | null = $state(null);
+  /** The Mirror section's screen to return to: the presets, or the last run's summary. */
+  let mirrorScreen: "mirror" | "mirror-summary" = "mirror";
+  $effect(() => {
+    if (screen === "mirror" || screen === "mirror-summary") mirrorScreen = screen;
+  });
   /** The queue run in progress: this job's place and the number of jobs. */
   let queueRun: { index: number; count: number } | null = $state(null);
   let queueSummary: QueueSummaryView | null = $state(null);
+  /** The job running is a mirror. */
+  let mirrorRunning = $state(false);
+  $effect(() => {
+    if (screen !== "progress") mirrorRunning = false;
+  });
   /** The job of the queue summary whose own summary is open. */
   let openedJob: number | null = $state(null);
 
   function go(next: "copy" | "mirror" | "queue") {
     if (!showSidebar) return;
-    screen = next === "queue" ? "queue" : next === "mirror" ? "mirror" : copyScreen;
+    screen = next === "queue" ? "queue" : next === "mirror" ? mirrorScreen : copyScreen;
   }
   /** Saved files that couldn't be read, shown once. */
   let warnings: string[] = $state([]);
@@ -163,7 +177,8 @@
 
   /** Settings or Profiles, over a section's screen; never during a copy. */
   function open(next: "settings" | "profiles") {
-    if (screen !== "setup" && screen !== "summary" && screen !== "queue" && screen !== "mirror") return;
+    if (screen !== "setup" && screen !== "summary" && screen !== "queue" && screen !== "mirror" && screen !== "mirror-summary")
+      return;
     back = screen;
     screen = next;
   }
@@ -175,13 +190,41 @@
   }
 
   async function finish() {
-    summary = (await run(() => api.jobSummary())) ?? null;
-    if (!summary) return;
-    screen = "summary";
+    const done = (await run(() => api.jobSummary())) ?? null;
+    if (!done) return;
+    if (done.mirror) {
+      mirrorSummary = done;
+      screen = "mirror-summary";
+    } else {
+      summary = done;
+      screen = "summary";
+    }
     if (settings.notifyWhenDone && !api.windowFocused()) {
-      const { title, body } = notificationFor(summary);
+      const { title, body } = notificationFor(done);
       void api.notify(title, body).catch(() => {}); // a notification is a courtesy, never an error
     }
+  }
+
+  /** Runs the previewed mirror (FR-47): the Mirroring screen, then its summary. */
+  async function runMirror(preview: MirrorPreviewView) {
+    // The mirror replaces the backend's last copy: no old Summary acts on it.
+    summary = null;
+    copyScreen = "setup";
+    progress = {
+      ...waiting(),
+      verify: true,
+      totalFiles: preview.newFiles + preview.changedFiles,
+      totalBytes: preview.newBytes + preview.changedBytes,
+    };
+    mirrorRunning = true;
+    screen = "progress";
+    const started = await run(() =>
+      api.runMirror((p) => {
+        progress = p;
+        if (p.phase === "done") void finish();
+      }),
+    );
+    if (started === undefined) screen = "mirror-preview";
   }
 
   /** Runs the queue: one Copying screen per job, then the queue summary (FR-40..FR-43). */
@@ -326,6 +369,7 @@
           checksumFile={settings.writeChecksumFile}
           {banner}
           queue={queueRun ?? undefined}
+          title={mirrorRunning ? "Mirroring" : undefined}
         />
       {/key}
     {:else if screen === "summary" && summary}
@@ -351,6 +395,15 @@
         onQueue={(q) => (queue = q)}
         onSettings={openSettings}
       />
+    {:else if screen === "mirror-preview" && mirrorPreview}
+      <MirrorPreview
+        preview={mirrorPreview}
+        onRun={() => mirrorPreview && runMirror(mirrorPreview)}
+        onQueue={(q) => (queue = q)}
+        onCancel={() => (screen = "mirror")}
+      />
+    {:else if screen === "mirror-summary" && mirrorSummary}
+      <Summary summary={mirrorSummary} {banner} onDone={() => (screen = "mirror")} onSettings={openSettings} />
     {:else if screen === "queue"}
       <QueueScreen {queue} {banner} onQueue={(q) => (queue = q)} onRun={runQueue} onSettings={openSettings} />
     {:else if screen === "queue-summary" && queueSummary}
