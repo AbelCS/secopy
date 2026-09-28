@@ -247,8 +247,8 @@ These values are a starting point and will be refined during M2.
 
 ### 5.7 Sections and the job queue
 
-Tabs at the top hold the app's sections: **Copy** (the main window above), **Mirror** (§5.8)
-and **Queue**, with the number of queued jobs, and Settings on the right. They are hidden
+Tabs at the top hold the app's sections: **Copy** (the main window above), **Mirror** (§5.8),
+**Verify** (FR-34) and **Queue**, with the number of queued jobs, and Settings on the right. They are hidden
 while jobs run and on Settings and Profiles.
 
 - **Add to queue** next to Start copy (and on a mirror preset) saves the job as set up; the
@@ -341,7 +341,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-31 | The file is UTF-8 without BOM, with LF line endings. It is sorted by path for stable diffs. Paths containing `\` or newline use the coreutils escaping convention (line prefixed with `\`). Files whose names are not valid UTF-8 are copied but not listed; pre-flight warns about them and the report says why. | M |
 | FR-32 | The checksum file contains only hash lines, no comments, so strict parsers accept it. Job metadata (mode, date, app version, counts, failures) lives in the report (FR-35). | M |
 | FR-33 | The checksum file is written in **both** modes. In plain Copy it uses the source hashes from FR-20, so no extra read is needed. | M |
-| FR-34 | **Verify existing copy:** point Secopy at a folder with a `.xxh64` file and re-check it. | C |
+| FR-34 | **Verify existing copy:** point Secopy at a directory (a copy, or a whole drive); every `.xxh64` checksum file inside it is read, and every file they list is read again from the drive and compared: intact, changed, missing or unreadable, per file. Files no checksum file lists are reported as not checked. Nothing is written to the directory; nothing is repaired. When several checksum files list a file, the newest wins; a path that leaves the directory is a problem, never read. Queueable; `secopy-cli --check`. | S |
 
 ### 6.8 Reporting and settings
 
@@ -374,7 +374,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-49 | Files deleted in the origin are archived to `<destination>/.secopy-archive/<date time>/…` or deleted, only after every copy succeeded; a failed or cancelled run removes nothing. Archives older than N days are removed at the start of a run. | M |
 | FR-50 | **Guard:** a missing or empty origin, or a run removing more than half of the destination's files, needs confirmation by hand and fails in the queue. | M |
 | FR-51 | System files, symlinks and the archive are ignored on both sides; names are compared after Unicode normalization, and a case-only rename on a case-insensitive destination is an update, not a delete and a copy. | S |
-| FR-52 | A mirror summary: what was copied, updated, archived or deleted, failures with reasons, and a report like a copy's. Mirror writes no checksum file. | S |
+| FR-52 | A mirror summary: what was copied, updated, archived or deleted, failures with reasons, and a report like a copy's. After a clean run a mirror keeps `.secopy-checksums.xxh64` in its destination (new and changed files' verified hashes added, removed files dropped), written whole or not at all, so its backup can be verified (FR-34). | S |
 
 ## 7. Engine design (performance)
 
@@ -573,3 +573,4 @@ The stack meets these constraints:
 | 2026-09-28 | **Mirror safety:** one way only; a manual run previews first; deletions happen last and only after every copy succeeded; deleted files are archived (kept N days) or deleted per preset; a guard stops runs with a missing or empty origin or that would remove more than half of the destination. Changed = size or date (2 s tolerance), with an optional deep check by checksum. |
 | 2026-09-28 | **macOS only by design** (#60): no Linux or Windows apps are planned. The engine's Linux and Windows code is removed, and building it for another OS is a compile error. This replaces the 2026-09-27 plan to keep the engine portable. |
 | 2026-09-28 | **Sections as tabs at the top** (#64), not a sidebar: three items don't need 180 px of width, and paths and file lists do. Settings sits on the tab bar, once for the app. |
+| 2026-09-28 | **Verify an existing copy** (#67): a directory, and every checksum file inside it; files nothing lists are "not checked" (shown, not a failure); mirrors keep a hidden checksum file so their backups can be verified. A separate check engine; the copy engine is unchanged. |

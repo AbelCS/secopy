@@ -12,6 +12,8 @@ copied.
 - **Mirror:** keep a backup identical to a directory. New and changed files are copied and
   verified; files deleted in the origin are archived for N days (or deleted), only after a
   clean copy and a preview.
+- **Verify:** point at a backup, a copy or a whole drive; every file its checksum files list
+  is read again and compared, so silent damage shows up. Mirrors keep a checksum file too.
 - **Cancel** can also remove the files already copied, leaving the destination as it was.
 
 > **Status:** early development, Apple Silicon Macs only. Secopy is macOS only by design:
@@ -40,7 +42,7 @@ downloaded with `curl` aren't flagged. If you did download the `.dmg` from the
 File menu: **⌘O** choose the source, **⌘D** choose the destination, **⌘↩** start,
 **⌘.** cancel. While copying, **Space** pauses and resumes. **Esc** goes back from Settings
 and Profiles; **⌘,** opens Settings. The tabs at the top: **⌘1** Copy, **⌘2** Mirror,
-**⌘3** Queue.
+**⌘3** Verify, **⌘4** Queue.
 
 ## Development
 
@@ -71,4 +73,6 @@ cargo run --release -p secopy-cli -- /path/to/source --to /path/to/backup --on-c
 cargo run --release -p secopy-cli -- /path/to/source --to /path/to/backup --report /tmp
 # make the backup a mirror of the directory; --dry-run shows what would change first
 cargo run --release -p secopy-cli -- /path/to/Footage --to /path/to/backup --mirror --dry-run
+# read every file a backup's checksum files list again and compare (exit 1 if any changed)
+cargo run --release -p secopy-cli -- --check /path/to/backup
 ```
