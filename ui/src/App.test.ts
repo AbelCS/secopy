@@ -290,6 +290,18 @@ describe("App", () => {
     await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true));
   });
 
+  test("⌘. is off while a mirror archives or deletes, as Cancel is", async () => {
+    const { api, state } = app();
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-mirror");
+    await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Run mirror" }));
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true));
+    state.progress!(progressView({ phase: "removing", removing: 3, archiving: true }));
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, false));
+  });
+
   test("the last profile is loaded again at start", async () => {
     const { api, state } = fakeApi(sessionView());
     state.start = startView({ session: sessionView(), profiles: [profile()], lastProfile: "fx3" });

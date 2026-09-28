@@ -157,7 +157,8 @@
 
   // The File menu offers only what applies here (spec §3).
   $effect(() => {
-    const copying = screen === "progress" && progress?.phase !== "done";
+    // A mirror's removals can't be cancelled, as on the progress screen.
+    const copying = screen === "progress" && progress?.phase !== "done" && progress?.phase !== "removing";
     void api.setMenuState(screen === "setup", screen === "setup" && setupReady, copying).catch(() => {});
   });
 
