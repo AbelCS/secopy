@@ -333,6 +333,16 @@ mod tests {
         );
     }
 
+    /// Without a signature over the whole bundle, macOS calls a downloaded app "damaged"
+    /// and offers no Open Anyway (#36). Ad-hoc ("-") until it is signed with a Developer ID.
+    #[test]
+    fn the_bundle_is_signed_as_a_whole() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+        let conf: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(conf["bundle"]["macOS"]["signingIdentity"], "-");
+    }
+
     /// The UI only opens checksum files, so that's all it may open.
     #[test]
     fn only_checksum_files_can_be_opened() {
