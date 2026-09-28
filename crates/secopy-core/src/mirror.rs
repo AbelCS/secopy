@@ -52,18 +52,15 @@ pub struct Seen {
     pub modified: Option<std::time::SystemTime>,
     /// The file itself (device and inode): a file saved in its place is another one, even
     /// with the same size and time.
-    #[cfg(unix)]
     pub file: (u64, u64),
 }
 
 impl Seen {
     fn of(meta: &fs::Metadata) -> Seen {
-        #[cfg(unix)]
         use std::os::unix::fs::MetadataExt;
         Seen {
             len: meta.len(),
             modified: meta.modified().ok(),
-            #[cfg(unix)]
             file: (meta.dev(), meta.ino()),
         }
     }

@@ -57,9 +57,8 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - **Queue** jobs and run them one after another, unattended (§5.7, 0.7.0).
 - **Mirror** a directory one way to a backup with saved presets: new and changed files
   copied, deleted ones archived or removed (§5.8, 0.8.0).
-- Run natively on Apple Silicon Macs. v1 is macOS only, and Intel Macs are not supported
-  (§14, 2026-09-27). The engine stays portable: it keeps building for Linux and
-  Windows, so apps for those can follow after v1 (§11).
+- Run natively on Apple Silicon Macs. Secopy is macOS only by design, and Intel Macs are
+  not supported (§14, 2026-09-27 and 2026-09-28).
 
 ### Non-goals (v1)
 
@@ -71,7 +70,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Copying extended attributes, ACLs, resource forks.
 - Encryption or compression.
 - Telemetry of any kind. The app never talks to the network (updates excepted, see NFR-9).
-- Linux and Windows apps (planned after v1, §11).
+- Linux and Windows. Secopy is macOS only by design (§14, 2026-09-28).
 
 ## 4. Glossary
 
@@ -317,7 +316,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-18 | Every file is written to a temporary name in the same directory (`.<name>.secopy-partial`, or `.secopy-<hash>.partial` when that would be too long), flushed to disk (`fsync`), then renamed atomically to its final name. A file with its final name is always complete. Partial files left by an interrupted job are deleted by the next job that copies the same files, unless another running job is still writing them; that file then fails with "another copy is writing this file". | M |
-| FR-19 | Modification time is preserved on files. Creation time is preserved where the OS allows it (macOS, Windows). POSIX permission bits are preserved on macOS/Linux. Directory mtimes are restored after their contents are written. | M |
+| FR-19 | Modification time is preserved on files. Creation time and POSIX permission bits are preserved. Directory mtimes are restored after their contents are written. | M |
 | FR-20 | When a hash is needed (checksum file on, or Copy & Verify), the source xxHash64 is computed **during** the copy from the same bytes being written. The source is read only once. | M |
 | FR-21 | Per-file errors (unreadable file, permission denied, name too long, the source file changed while it was copied…) are recorded and the job continues. Fatal errors stop the job with a clear message: destination disconnected, disk full, source volume gone. | M |
 | FR-22 | Pause stops I/O at the next buffer boundary. Resume continues from where it stopped. | S |
@@ -329,7 +328,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-25 | In **Copy & Verify**, after a file is written and fsynced, it is re-read **from the destination device** and hashed. That hash is compared with the source hash from FR-20. Two independent hashes are compared, and the source is not re-read (rationale in §7.3). | M |
-| FR-26 | The verify read must bypass or evict the OS page cache so it tests the bytes on the device, not the bytes in RAM: `F_NOCACHE` (macOS), `posix_fadvise(DONTNEED)` after fsync or `O_DIRECT` (Linux), `FILE_FLAG_NO_BUFFERING` (Windows). Where bypass is impossible (some network shares), the report says so. | M |
+| FR-26 | The verify read must bypass or evict the OS page cache so it tests the bytes on the device, not the bytes in RAM: `F_NOCACHE`. Where bypass is impossible (some network shares), the report says so. | M |
 | FR-27 | On mismatch, the bad copy is deleted and the file is re-copied **once** automatically. If it mismatches again, it is marked **FAILED (hash mismatch)** and no file is left under the final name. | S |
 | FR-28 | A file that failed verification is **not** listed in the checksum file. | M |
 
@@ -339,7 +338,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 |---|---|---|
 | FR-29 | When **Write checksum file** is on (the default; Settings §5.5), every job writes a checksum file to the **destination directory** (not the copy root), named `secopy_YYYY-MM-DD_HHMMSS.xxh64`. A new file per job, so nothing is ever overwritten. | M |
 | FR-30 | Format: `xxhsum`/GNU-coreutils compatible, one line per file: `<16 lowercase hex chars><two spaces><relative path>`. Paths are relative to the destination directory and use `/` as separator on every OS. `cd DEST && xxhsum -c secopy_….xxh64` must pass. | M |
-| FR-31 | The file is UTF-8 without BOM, with LF line endings. It is sorted by path for stable diffs. Paths containing `\` or newline use the coreutils escaping convention (line prefixed with `\`). Files whose names are not valid UTF-8 (possible on Linux) are copied but not listed; pre-flight warns about them and the report says why. | M |
+| FR-31 | The file is UTF-8 without BOM, with LF line endings. It is sorted by path for stable diffs. Paths containing `\` or newline use the coreutils escaping convention (line prefixed with `\`). Files whose names are not valid UTF-8 are copied but not listed; pre-flight warns about them and the report says why. | M |
 | FR-32 | The checksum file contains only hash lines, no comments, so strict parsers accept it. Job metadata (mode, date, app version, counts, failures) lives in the report (FR-35). | M |
 | FR-33 | The checksum file is written in **both** modes. In plain Copy it uses the source hashes from FR-20, so no extra read is needed. | M |
 | FR-34 | **Verify existing copy:** point Secopy at a folder with a `.xxh64` file and re-check it. | C |
@@ -450,9 +449,9 @@ derives speeds, ETAs and smoothing from them (§5.3).
 | NFR-4 | **Memory:** bounded, independent of file size. < 250 MB at 1M files. |
 | NFR-5 | **Responsiveness:** cold start < 1 s. UI never blocks, and progress updates twice per second regardless of file count. |
 | NFR-6 | **Correctness over speed:** no optimization may weaken FR-18/25/26. |
-| NFR-7 | **Paths:** full Unicode (names are preserved byte-for-byte as the OS reports them; no NFC/NFD rewriting). Windows long paths (> 260 chars) are supported. Files > 4 GiB are supported. |
+| NFR-7 | **Paths:** full Unicode (names are preserved byte-for-byte as the OS reports them; no NFC/NFD rewriting). Files > 4 GiB are supported. |
 | NFR-8 | **No elevated privileges** needed. No network access, no telemetry. |
-| NFR-9 | **Distribution:** Apple Silicon (`arm64`) build, signed and notarized (`.dmg`). An optional auto-updater, off by default, is the only network access. Windows and Linux packages come with those apps, after v1 (§11). |
+| NFR-9 | **Distribution:** Apple Silicon (`arm64`) build, signed and notarized (`.dmg`). An optional auto-updater, off by default, is the only network access. |
 | NFR-10 | **Accessibility:** full keyboard operation, screen-reader labels on every control, WCAG AA contrast on the dark palette, respects "reduce motion". |
 | NFR-11 | **i18n-ready:** all strings externalized. English first. |
 | NFR-12 | **Look and feel:** dark theme only in v1 (§5.6), built on design tokens so a light theme can be added later. Native file pickers, notifications and menus. |
@@ -470,8 +469,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
   release build.
 - **Where tests run:** locally before every commit (fmt, clippy, tests), in one macOS
   (arm64) CI job after each merge to `main`, and again in the release workflow before it
-  builds. PRs don't wait for CI, and docs-only changes skip it. Portability is kept by
-  linting the engine locally for the Linux and Windows targets when their code changes.
+  builds. PRs don't wait for CI, and docs-only changes skip it.
 
 ## 10. Milestones
 
@@ -492,10 +490,6 @@ derives speeds, ETAs and smoothing from them (§5.3).
 - **Multiple destinations** in one job: read the source once, write and verify N copies.
 - **ASC MHL** output (the media-industry standard, which supports xxHash64), alongside the
   `.xxh64` file.
-
-**After v1 — other platforms:** Windows and Linux apps. The engine already builds and
-passes its tests there; the work is the UI on WebView2 / WebKitGTK, installers and signing,
-and Windows small-file speed (`bench.ps1`).
 
 **Later:** include system files (setting) · light theme · paranoid verify (a second,
 independent read of the source) · XXH3-64/XXH128 options · resume interrupted jobs ·
@@ -526,11 +520,10 @@ Q1, Q3, Q5, Q7 and Q8 are resolved (§14). Numbers are kept for traceability.
 
 The stack meets these constraints:
 
-1. Give direct access to low-level file APIs (cache bypass, preallocation, fadvise, Windows
-   long paths, file flags/attributes) on all three OSes.
+1. Give direct access to macOS's low-level file APIs (cache bypass, preallocation, file
+   flags/attributes).
 2. Run the engine off the UI thread with true parallelism and zero-copy buffers.
-3. Produce small, signed, native installers from one codebase: macOS for v1, the other
-   OSes later.
+3. Produce a small, signed, native macOS app.
 4. Allow a polished, themeable UI with native file dialogs, drag and drop and notifications.
 5. Keep the engine as a separate library, usable headless (tests, benchmarks, future CLI).
 
@@ -578,3 +571,4 @@ The stack meets these constraints:
 | 2026-09-28 | A profile saves the full source path instead of a folder relative to the card (B3 in plan 3b-1): a profile is a saved copy setup you load in one step, which is what the user expected. The Start button says "Start copy"; the mode is chosen next to it. |
 | 2026-09-28 | **Job queue and mirror in the same app** (#50, #51): a sidebar with Copy · Mirror · Queue. One engine and one look; the queue holds every kind of job. A separate mirror app was rejected (a duplicated engine, no shared queue). Queue first (0.7.0), mirror next (0.8.0); performance and packaging move after them. |
 | 2026-09-28 | **Mirror safety:** one way only; a manual run previews first; deletions happen last and only after every copy succeeded; deleted files are archived (kept N days) or deleted per preset; a guard stops runs with a missing or empty origin or that would remove more than half of the destination. Changed = size or date (2 s tolerance), with an optional deep check by checksum. |
+| 2026-09-28 | **macOS only by design** (#60): no Linux or Windows apps are planned. The engine's Linux and Windows code is removed, and building it for another OS is a compile error. This replaces the 2026-09-27 plan to keep the engine portable. |

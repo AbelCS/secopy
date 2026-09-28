@@ -2,8 +2,7 @@ name: ci
 
 # One macOS job after each merge, and on demand. PRs don't wait for CI: the checks in
 # AGENTS.md run locally before every commit, and the release workflow runs the full suite
-# again before building (RFD §9). Windows and Linux jobs return when those apps are
-# supported; until then AGENTS.md's local cross-target clippy keeps the engine building.
+# again before building (RFD §9). Secopy is macOS only, so there are no other jobs.
 on:
   push:
     branches:

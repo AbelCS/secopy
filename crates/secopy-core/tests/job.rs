@@ -308,7 +308,6 @@ fn many_small_files_are_all_copied() {
     assert_eq!(read_tree(&dest.join("src")), read_tree(&src));
 }
 
-#[cfg(unix)]
 #[test]
 fn an_unreadable_file_fails_alone() {
     use std::os::unix::fs::PermissionsExt;
@@ -344,7 +343,8 @@ fn files_that_map_to_the_same_name_never_mix() {
 
     assert_eq!(fs::read(dest.join("a.txt")).unwrap(), pattern(500));
     if plan.fs.case_sensitive {
-        // Linux: two different files (FR-17a applies to case-insensitive drives only).
+        // Case-sensitive drive: two different files (FR-17a applies to case-insensitive
+        // drives only).
         assert!(report.is_success(), "{report:?}");
         assert_eq!(fs::read(dest.join("A.TXT")).unwrap(), pattern(900));
     } else {
@@ -493,7 +493,6 @@ fn concurrent_jobs_into_one_destination_never_report_foreign_bytes() {
 }
 
 /// macOS treats `café` in NFC and NFD as the same name, although the bytes differ.
-#[cfg(target_os = "macos")]
 #[test]
 fn names_equal_after_unicode_normalization_never_mix() {
     let dir = tempfile::tempdir().unwrap();
@@ -815,27 +814,22 @@ fn small_files_never_take_the_pipelined_path_by_default() {
 
 #[test]
 fn file_and_folder_metadata_is_kept() {
+    use std::os::macos::fs::FileTimesExt;
+    use std::os::unix::fs::PermissionsExt;
     let f = fixture();
     let t = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_000);
     let file = f.src.join("clips/B002.mov");
-    #[allow(unused_mut)]
-    let mut times = fs::FileTimes::new().set_modified(t).set_accessed(t);
-    #[cfg(target_os = "macos")]
-    {
-        use std::os::macos::fs::FileTimesExt;
-        times = times.set_created(t);
-    }
+    let times = fs::FileTimes::new()
+        .set_modified(t)
+        .set_accessed(t)
+        .set_created(t);
     fs::File::options()
         .write(true)
         .open(&file)
         .unwrap()
         .set_times(times)
         .unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&file, fs::Permissions::from_mode(0o640)).unwrap();
-    }
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o640)).unwrap();
     let dir_t = t + std::time::Duration::from_secs(3600);
     let clips_set = fs::File::open(f.src.join("clips"))
         .and_then(|d| d.set_modified(dir_t))
@@ -848,13 +842,8 @@ fn file_and_folder_metadata_is_kept() {
         assert!(report.is_success(), "{report:?}");
         let copy = fs::metadata(dest.join("CARD/clips/B002.mov")).unwrap();
         assert_eq!(copy.modified().unwrap(), t, "verify={verify}");
-        #[cfg(target_os = "macos")]
         assert_eq!(copy.created().unwrap(), t);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            assert_eq!(copy.permissions().mode() & 0o777, 0o640);
-        }
+        assert_eq!(copy.permissions().mode() & 0o777, 0o640);
         if clips_set {
             let clips = fs::metadata(dest.join("CARD/clips")).unwrap();
             assert_eq!(
@@ -867,7 +856,6 @@ fn file_and_folder_metadata_is_kept() {
 }
 
 /// Many files, one lane each, so a fault in the middle leaves files not started.
-#[cfg(unix)]
 fn long_fixture() -> Fixture {
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("src/CARD");
@@ -883,7 +871,6 @@ fn long_fixture() -> Fixture {
     }
 }
 
-#[cfg(unix)]
 fn one_lane(verify: bool) -> JobOptions {
     JobOptions {
         small_file_lanes: 1,
@@ -894,7 +881,6 @@ fn one_lane(verify: bool) -> JobOptions {
 }
 
 /// Unplugging the destination: its folder disappears mid-job.
-#[cfg(unix)]
 #[test]
 fn a_destination_that_disappears_stops_the_job() {
     let f = long_fixture();
@@ -917,7 +903,6 @@ fn a_destination_that_disappears_stops_the_job() {
 }
 
 /// Unplugging the card: the source folder disappears mid-job.
-#[cfg(unix)]
 #[test]
 fn a_source_that_disappears_stops_the_job() {
     let f = long_fixture();
@@ -969,7 +954,6 @@ fn a_source_file_that_changes_while_copied_fails_alone() {
 }
 
 /// The CLI passes paths as typed, so a relative source must be watched too (FR-21).
-#[cfg(unix)]
 #[test]
 fn a_relative_source_that_disappears_stops_the_job() {
     let f = long_fixture();
@@ -996,7 +980,6 @@ fn a_relative_source_that_disappears_stops_the_job() {
 }
 
 /// `to` relative to `from`, both absolute (`../..` steps up as needed).
-#[cfg(unix)]
 fn pathdiff(to: &Path, from: &Path) -> PathBuf {
     let (to, from) = (
         fs::canonicalize(to).unwrap(),
@@ -1044,7 +1027,6 @@ fn leftover_partial_files_of_skipped_files_are_removed() {
 
 /// A pulled card can't be read any more, but what was already copied only needs the
 /// destination: those files are still verified and kept (FR-21, FR-25).
-#[cfg(unix)]
 #[test]
 fn files_copied_before_the_source_disappears_are_still_verified() {
     let f = long_fixture();
@@ -1246,7 +1228,6 @@ fn a_file_stopped_by_cancel_is_cancelled_not_failed() {
 }
 
 /// #58: what the scan couldn't read wasn't copied: the job isn't a success, and says so.
-#[cfg(unix)]
 #[test]
 fn items_the_scan_couldnt_read_make_the_job_not_complete() {
     use std::os::unix::fs::PermissionsExt;
@@ -1271,7 +1252,6 @@ fn items_the_scan_couldnt_read_make_the_job_not_complete() {
 }
 
 /// #58: a checksum file that couldn't be written means the job isn't a success.
-#[cfg(unix)]
 #[test]
 fn a_checksum_file_that_couldnt_be_written_is_not_a_success() {
     use std::os::unix::fs::PermissionsExt;
@@ -1333,7 +1313,6 @@ fn a_source_rewritten_at_the_same_size_fails() {
 
 /// #58: the new version can't take the old one's place (here, the directory turned
 /// read-only): the old version stays where it was, not only in the archive.
-#[cfg(unix)]
 #[test]
 fn a_failed_replace_leaves_the_old_version_where_it_was() {
     use std::os::unix::fs::PermissionsExt;

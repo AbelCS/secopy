@@ -6,7 +6,8 @@ checksum file in the destination. Queue several copies and let them run one afte
 Mirror a directory to a backup: new and changed files copied and verified, deleted ones
 archived or removed.
 
-> **Status:** early development, Apple Silicon Macs only. Design:
+> **Status:** early development, Apple Silicon Macs only. Secopy is macOS only by design:
+> there are no Windows or Linux versions. Design:
 > [RFD 0001](docs/rfd/0001-secopy.md).
 
 ## Install

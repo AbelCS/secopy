@@ -3213,7 +3213,6 @@ dependencies = [
  "thiserror 2.0.21",
  "unicode-normalization",
  "walkdir",
- "windows-sys 0.61.2",
  "xxhash-rust",
 ]
 

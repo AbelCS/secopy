@@ -296,7 +296,6 @@ mod tests {
     fn per_file_problems_on_fat() {
         let files = vec![
             entry("ok.mov", 10),
-            // Not ':': Windows parses "a:" at the start of a path as a drive.
             entry("a?b.mov", 10),
             entry("huge.mov", FAT_MAX_FILE_SIZE + 1),
             entry("OK.MOV", 10),

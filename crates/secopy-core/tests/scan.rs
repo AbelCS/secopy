@@ -127,7 +127,6 @@ fn include_system_files_scans_everything() {
 
 /// Cameras can set the hidden attribute on their own files on FAT/exFAT cards; macOS
 /// reports it as `UF_HIDDEN`. Those are part of the card and are copied.
-#[cfg(target_os = "macos")]
 #[test]
 fn files_a_camera_marked_hidden_are_copied() {
     use std::os::unix::ffi::OsStrExt;
@@ -214,7 +213,6 @@ fn selecting_with_filter_drops_other_files_and_empty_dirs() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn symlinks_are_skipped_and_reported() {
     let (_dir, card) = card();
@@ -260,8 +258,7 @@ fn file_and_folder_mtimes_are_recorded() {
     file.set_times(fs::FileTimes::new().set_modified(t))
         .unwrap();
     drop(file);
-    // Windows can't open a folder with `File::open`; skip the folder check where
-    // setting its time fails.
+    // Skip the folder check where setting its time fails.
     let dir_set = fs::File::open(card.join("clips"))
         .and_then(|d| d.set_times(fs::FileTimes::new().set_modified(t)))
         .is_ok();
@@ -293,7 +290,6 @@ fn file_and_folder_mtimes_are_recorded() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn a_symlinked_source_folder_keeps_its_own_name() {
     let (dir, card) = card();

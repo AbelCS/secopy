@@ -352,7 +352,6 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
 fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<String> {
     // Every directory, then the drive's cache, whatever happened before: the first device
     // error is kept. Folders that were never created don't exist, which is no error.
-    #[cfg(unix)]
     let problems: Vec<Option<String>> = dirs
         .iter()
         .map(|d| dest.join(&d.rel))
@@ -363,11 +362,6 @@ fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<String> {
             Err(e) => durability_problem(Err(e)),
         })
         .collect();
-    #[cfg(not(unix))]
-    let problems: Vec<Option<String>> = {
-        let _ = dirs;
-        Vec::new()
-    };
     let barrier = durability_problem(os::full_barrier(dest));
     problems.into_iter().flatten().next().or(barrier)
 }
@@ -375,17 +369,14 @@ fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<String> {
 /// A device error (not a file system that can't sync a directory or flush its cache).
 fn durability_problem(result: std::io::Result<()>) -> Option<String> {
     let e = result.err()?;
-    #[cfg(unix)]
     let device = matches!(
         e.raw_os_error(),
         Some(libc::EIO | libc::ENXIO | libc::ENODEV | libc::ENOSPC | libc::EROFS)
     );
-    #[cfg(not(unix))]
-    let device = e.kind() != std::io::ErrorKind::Unsupported;
     device.then(|| e.to_string())
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

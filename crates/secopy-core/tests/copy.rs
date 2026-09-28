@@ -355,7 +355,6 @@ fn a_stale_partial_file_dated_in_the_future_is_replaced() {
 /// Where locks don't separate writers (network file systems), another job may have
 /// replaced this job's partial file by name. Committing or discarding must then leave the
 /// other writer's file alone, and never report its bytes as ours.
-#[cfg(unix)]
 #[test]
 fn a_partial_file_replaced_by_another_writer_is_never_committed_or_deleted() {
     let dir = tempfile::tempdir().unwrap();

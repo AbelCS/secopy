@@ -852,7 +852,6 @@ mod tests {
     }
 
     /// #58: what the scan couldn't read wasn't copied: the summary says so and isn't green.
-    #[cfg(unix)]
     #[test]
     fn items_the_scan_couldnt_read_are_failures_in_the_summary() {
         use std::os::unix::fs::PermissionsExt;
@@ -897,7 +896,6 @@ mod tests {
     }
 
     /// #58: a checksum file that couldn't be written isn't a complete job.
-    #[cfg(unix)]
     #[test]
     fn a_checksum_file_that_couldnt_be_written_is_not_complete() {
         use std::os::unix::fs::PermissionsExt;
@@ -1076,7 +1074,6 @@ mod tests {
         assert_eq!(f.jobs.summary().unwrap().outcome, JobOutcome::Complete);
     }
 
-    #[cfg(unix)]
     #[test]
     fn retry_offers_only_the_failed_files() {
         use std::os::unix::fs::PermissionsExt;

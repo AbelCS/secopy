@@ -185,8 +185,7 @@ fn scan_files(paths: &[PathBuf]) -> Scan {
 }
 
 fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> {
-    // Not `canonicalize`: a symlinked source folder keeps its own name, and some Windows
-    // volumes (RAM disks, VeraCrypt, network drives) can't be canonicalized.
+    // Not `canonicalize`: a symlinked source folder keeps its own name.
     let root = std::path::absolute(root)?;
     let root_meta = fs::metadata(&root)?;
     let prefix = match mode {

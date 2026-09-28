@@ -1,7 +1,6 @@
 //! Fault injection on real (RAM-disk) volumes: disk full, unplugging, FAT and exFAT
-//! rules, case-sensitive APFS (RFD §9). macOS only, where `hdiutil` needs no root.
+//! rules, case-sensitive APFS (RFD §9). `hdiutil` needs no root.
 //! Run with `SECOPY_DEVICE_TESTS=1`; CI's macOS job sets it.
-#![cfg(target_os = "macos")]
 
 mod common;
 

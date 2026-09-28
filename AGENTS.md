@@ -1,8 +1,8 @@
 # Secopy
 
 macOS desktop app for fast file copies with optional
-xxHash64 verification and a checksum file written to the destination. v1 is macOS only (Apple Silicon);
-the engine stays portable and keeps building for Linux and Windows (RFD §14).
+xxHash64 verification and a checksum file written to the destination. Secopy is macOS only
+(Apple Silicon) by design, engine included; building for another OS is a compile error (RFD §14).
 
 - **Source of truth:** [docs/rfd/0001-secopy.md](docs/rfd/0001-secopy.md). Read it before designing or
   changing behaviour. Requirement IDs (FR-x, NFR-x) are used in code comments, commits and
@@ -23,7 +23,7 @@ the engine stays portable and keeps building for Linux and Windows (RFD §14).
   (see [GitHub Issue-Driven Workflow](#github-issue-driven-workflow)).
 - Branches: if you are already on a branch other than `main` (Conductor workspaces come
   with one), work there. Otherwise create `<type>/<issue-number>-<short-slug>` from `main`,
-  e.g. `fix/12-long-windows-paths`. Don't rename existing branches.
+  e.g. `fix/12-long-paths`. Don't rename existing branches.
 - Remote: GitHub (`AbelCS/secopy`). Releases are cut from `main` (see Releases below).
 - Commit and push only when the user asks.
 - Never rewrite published history: no force-push, and no amending or rebasing commits that
@@ -124,10 +124,8 @@ format exactly.
 - Engine flow: `scan → select → preflight → Plan::resolve → run_job`, then `Report` for
   the job report. Design notes per plan are in `docs/superpowers/specs/`.
 - Before every commit: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`
-  and `cargo test --workspace`. All must pass. When a change touches Linux- or Windows-only
-  `cfg` code in the engine, also run `cargo clippy -p secopy-core -p secopy-cli --all-targets`
-  with `--target x86_64-unknown-linux-gnu` and `--target x86_64-pc-windows-msvc` (add them
-  once with `rustup target add`). The app crate is macOS only and isn't linted for them.
+  and `cargo test --workspace`. All must pass. The whole workspace is macOS only: don't add
+  `cfg` code for other platforms.
 - UI checks, from `ui/` (`npm ci` once): `npm run check` (svelte-check) and `npm test`
   (Vitest). Both must pass before every commit that touches `ui/` or `crates/secopy-app`.
 - UI design: follow [docs/design/design-system.md](docs/design/design-system.md). Build

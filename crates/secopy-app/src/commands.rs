@@ -1513,7 +1513,6 @@ mod tests {
         assert_eq!(saved, *state.profiles.lock().unwrap());
     }
 
-    #[cfg(unix)]
     #[test]
     fn retry_after_the_source_is_gone_has_nothing_to_start() {
         use std::os::unix::fs::PermissionsExt;
@@ -1635,7 +1634,6 @@ mod tests {
 
     /// #58: a queued job whose source couldn't all be read fails, stays queued and says why:
     /// nobody was watching when it was scanned.
-    #[cfg(unix)]
     #[test]
     fn a_queued_job_with_unreadable_items_fails() {
         use std::os::unix::fs::PermissionsExt;
@@ -1709,7 +1707,6 @@ mod tests {
     }
 
     /// #57: completed jobs leave the queue even when it can't be saved.
-    #[cfg(unix)]
     #[test]
     fn a_queue_that_cant_be_saved_still_forgets_completed_jobs() {
         use std::os::unix::fs::PermissionsExt;
