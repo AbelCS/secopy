@@ -181,3 +181,48 @@ fn report_flag_writes_text_and_json() {
     assert!(names.iter().any(|n| n.ends_with("_report.txt")));
     assert!(names.iter().any(|n| n.ends_with("_report.json")));
 }
+
+#[test]
+fn mirror_makes_the_destination_match() {
+    let dir = tempfile::tempdir().unwrap();
+    let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+    std::fs::create_dir_all(&o).unwrap();
+    std::fs::create_dir_all(&d).unwrap();
+    std::fs::write(o.join("a.mov"), b"a").unwrap();
+    std::fs::write(d.join("x.mov"), b"x").unwrap();
+    // The guard: removing the destination's only file looks wrong, so nothing runs.
+    let refused = cli()
+        .args(["--mirror", "--to"])
+        .arg(&d)
+        .arg(&o)
+        .output()
+        .unwrap();
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(d.join("x.mov").exists());
+    std::fs::write(o.join("keep.mov"), b"k").unwrap();
+    std::fs::write(d.join("keep.mov"), b"k").unwrap();
+    let dry = cli()
+        .args(["--mirror", "--dry-run", "--to"])
+        .arg(&d)
+        .arg(&o)
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&dry.stdout);
+    assert!(
+        text.contains("+ new: 1") && text.contains("- removed: 1 (archived)"),
+        "{text}"
+    );
+    assert!(d.join("x.mov").exists(), "a dry run changes nothing");
+    let run = cli()
+        .args(["--mirror", "--to"])
+        .arg(&d)
+        .arg(&o)
+        .output()
+        .unwrap();
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(d.join("a.mov").exists() && !d.join("x.mov").exists());
+}
