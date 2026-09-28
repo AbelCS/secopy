@@ -101,7 +101,8 @@ pub struct Listed {
     pub expected: u64,
     /// Its size when planned; 0 when it was missing then.
     pub size: u64,
-    /// The checksum file it came from, relative to the checked directory.
+    /// The checksum file it came from, relative to the checked directory. A check's
+    /// outcome `id` is the index in `CheckPlan::files`, so `plan.files[o.id].from`.
     pub from: PathBuf,
 }
 
