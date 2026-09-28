@@ -1,9 +1,10 @@
 //! One-way mirror (plan 7, RFD §5.8): what a run copies, updates and removes.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use unicode_normalization::UnicodeNormalization;
 use walkdir::WalkDir;
 
 use crate::filter::ExtensionFilter;
@@ -58,7 +59,7 @@ pub struct MirrorPlan {
     pub removals: Vec<PathBuf>,
     /// Destination directories no longer in the origin, deepest first.
     pub remove_dirs: Vec<PathBuf>,
-    /// The same file spelled with other letter case: (destination name, origin name).
+    /// The same file spelled otherwise (letter case, Unicode form): (destination name, origin name).
     pub renames: Vec<(PathBuf, PathBuf)>,
     /// Files in the destination (system files and the archive not counted).
     pub destination_files: u64,
@@ -102,17 +103,36 @@ pub fn plan(
             _ => {}
         }
     }
+    let planned: Vec<&Path> = copy.files.iter().map(|f| f.entry.rel.as_path()).collect();
     let Extras {
-        removals,
-        remove_dirs,
-        renames,
+        mut removals,
+        mut remove_dirs,
+        mut renames,
         destination_files,
-    } = extras(origin, destination, &copy);
-    let guard = guard(
-        sel.files.len() as u64,
-        removals.len() as u64,
-        destination_files,
-    );
+    } = extras(destination, &planned, &|rel| {
+        fs::symlink_metadata(origin.join(rel)).is_ok()
+    });
+    let guard = if let Some(first) = scanned.problems.first() {
+        // What couldn't be read would look deleted in the origin.
+        removals.clear();
+        remove_dirs.clear();
+        renames.clear();
+        Some(format!(
+            "{} in the origin couldn't be read ({}: {}). Nothing is removed from the destination this run.",
+            match scanned.problems.len() {
+                1 => "1 item".to_string(),
+                n => format!("{n} items"),
+            },
+            first.path.display(),
+            first.message
+        ))
+    } else {
+        guard(
+            sel.files.len() as u64,
+            removals.len() as u64,
+            destination_files,
+        )
+    };
     Ok(MirrorPlan {
         origin: origin.to_path_buf(),
         source,
@@ -141,7 +161,6 @@ fn differs(a: &Path, b: &Path) -> bool {
     }
 }
 
-/// What's in the destination but not in the origin: files to remove, directories to remove
 /// What the destination has that the origin doesn't.
 struct Extras {
     removals: Vec<PathBuf>,
@@ -150,9 +169,16 @@ struct Extras {
     destination_files: u64,
 }
 
-/// (deepest first), case-only renames; and the destination's file count.
-fn extras(origin: &Path, destination: &Path, copy: &Plan) -> Extras {
-    let planned: HashSet<&Path> = copy.files.iter().map(|f| f.entry.rel.as_path()).collect();
+/// Files to remove, directories to remove (deepest first), names spelled otherwise, and the
+/// destination's file count. `planned` are the origin's files; `origin_has` says whether the
+/// origin resolves a destination path.
+fn extras(destination: &Path, planned: &[&Path], origin_has: &dyn Fn(&Path) -> bool) -> Extras {
+    let exact: HashSet<&Path> = planned.iter().copied().collect();
+    // The same name in another letter case or Unicode form.
+    let mut alike: HashMap<String, Vec<&Path>> = HashMap::new();
+    for p in planned {
+        alike.entry(name_key(p)).or_default().push(p);
+    }
     let mut removals = Vec::new();
     let mut dirs = Vec::new();
     let mut renames = Vec::new();
@@ -162,7 +188,9 @@ fn extras(origin: &Path, destination: &Path, copy: &Plan) -> Extras {
         .follow_links(false)
         .into_iter()
         .filter_entry(|e| {
-            !(e.depth() == 1 && e.file_name() == ARCHIVE_DIR) && !is_system_file(e.file_name())
+            !(e.depth() == 1 && e.file_name() == ARCHIVE_DIR)
+                && !is_system_file(e.file_name())
+                && !is_nas_file(e.file_name())
         });
     for entry in walk.filter_map(Result::ok) {
         let Ok(rel) = entry.path().strip_prefix(destination) else {
@@ -173,23 +201,27 @@ fn extras(origin: &Path, destination: &Path, copy: &Plan) -> Extras {
             continue;
         }
         if entry.file_type().is_dir() {
-            if fs::symlink_metadata(origin.join(&rel)).is_err() {
+            if !origin_has(&rel) {
                 dirs.push(rel);
             }
             continue;
         }
         count += 1;
-        if planned.contains(rel.as_path()) {
+        if exact.contains(rel.as_path()) {
             continue;
         }
-        // The origin's file system resolves the name (case- or form-insensitively): the same file.
-        if fs::symlink_metadata(origin.join(&rel)).is_ok() {
-            if let Some(spelled) = origin_spelling(origin, &rel)
-                && spelled != rel
-                && spelled.to_string_lossy().to_lowercase() == rel.to_string_lossy().to_lowercase()
-            {
-                renames.push((rel, spelled));
-            }
+        // The copy writes the origin's spelling; if the destination resolves it to this very
+        // file, it is the same file (only a rename away), never one to remove.
+        let same = alike.get(&name_key(&rel)).and_then(|names| {
+            names.iter().find(|p| {
+                same_file::is_same_file(destination.join(p), entry.path()).unwrap_or(false)
+            })
+        });
+        if let Some(spelled) = same {
+            renames.push((rel, spelled.to_path_buf()));
+            continue;
+        }
+        if origin_has(&rel) {
             continue;
         }
         removals.push(rel);
@@ -203,20 +235,32 @@ fn extras(origin: &Path, destination: &Path, copy: &Plan) -> Extras {
     }
 }
 
-/// How the origin spells `rel` (its directory listing's names), when it resolves.
-fn origin_spelling(origin: &Path, rel: &Path) -> Option<PathBuf> {
-    let mut at = origin.to_path_buf();
-    let mut out = PathBuf::new();
-    for part in rel.components() {
-        let want = part.as_os_str().to_string_lossy().to_lowercase();
-        let found = fs::read_dir(&at)
-            .ok()?
-            .filter_map(Result::ok)
-            .find(|e| e.file_name().to_string_lossy().to_lowercase() == want)?;
-        out.push(found.file_name());
-        at = found.path();
-    }
-    Some(out)
+/// A name compared without letter case or Unicode form (NFC).
+fn name_key(p: &Path) -> String {
+    p.to_string_lossy().nfc().collect::<String>().to_lowercase()
+}
+
+/// What a NAS keeps in a share (thumbnails, recycle bins, snapshots, AFP bookkeeping):
+/// never the origin's, so never removed.
+const NAS_NAMES: &[&str] = &[
+    "@eaDir",
+    "#recycle",
+    "#snapshot",
+    "@Recycle",
+    "@Recently-Snapshot",
+    ".snapshot",
+    ".@__thumb",
+    ".@__qini",
+    ".AppleDB",
+    ".AppleDouble",
+    ".AppleDesktop",
+    "Network Trash Folder",
+    "Temporary Items",
+];
+
+fn is_nas_file(name: &std::ffi::OsStr) -> bool {
+    let name = name.to_string_lossy();
+    NAS_NAMES.iter().any(|n| n.eq_ignore_ascii_case(&name))
 }
 
 fn guard(origin_files: u64, removals: u64, destination_files: u64) -> Option<String> {
@@ -290,7 +334,11 @@ pub fn finish(
         let _ = fs::remove_dir(dest.join(dir)); // only if it is empty now
     }
     for (from, to) in &plan.renames {
-        let _ = fs::rename(dest.join(from), dest.join(to)); // same file: only its letter case
+        let (from, to) = (dest.join(from), dest.join(to));
+        // Only the spelling of one file; never onto another one.
+        if same_file::is_same_file(&from, &to).unwrap_or(false) {
+            let _ = fs::rename(from, to);
+        }
     }
     Ok(done)
 }
@@ -313,4 +361,23 @@ pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chron
         }
     }
     removed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Final review 3: an origin that doesn't resolve other Unicode forms (an SMB share) still
+    /// has the file the destination spells in NFD.
+    #[test]
+    fn a_name_in_another_unicode_form_is_the_same_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let nfd = "Cafe\u{301}.mov";
+        let nfc = "Caf\u{e9}.mov";
+        fs::write(dir.path().join(nfd), b"x").unwrap();
+        let planned = [Path::new(nfc)];
+        let e = extras(dir.path(), &planned, &|_| false);
+        assert!(e.removals.is_empty(), "{:?}", e.removals);
+        assert_eq!(e.destination_files, 1);
+    }
 }
