@@ -237,27 +237,95 @@ impl Profiles {
         if taken {
             return Err(format!("There is already a profile called “{name}”."));
         }
-        let extensions = input.extensions.map(|keys| {
-            let keys: BTreeSet<ExtensionKey> = keys
-                .into_iter()
-                .map(|key| {
-                    key.map(|e| e.trim().trim_start_matches('.').to_lowercase())
-                        .filter(|e| !e.is_empty())
-                })
-                .collect();
-            keys.into_iter().collect()
-        });
         Ok(ProfileInput {
             name,
             source: source(&input.source)?,
             include_folder: input.include_folder,
-            extensions,
+            extensions: extensions(input.extensions),
         })
     }
 
     fn new_id(&self) -> String {
         new_id(|id| self.get(id).is_some())
     }
+
+    /// Profiles read from `profiles.json`, put right the way new ones are (#69): names
+    /// trimmed, file types in lowercase without dots, sources as full paths. One with no name,
+    /// or whose name or id another has, gets a free one instead of being dropped; the changes
+    /// the user would notice come back as messages.
+    pub fn repaired(self) -> (Self, Vec<String>) {
+        let loaded_ids: Vec<String> = self.profiles.iter().map(|p| p.id.clone()).collect();
+        let mut out = Self::default();
+        let mut notes = Vec::new();
+        for p in self.profiles {
+            let trimmed = p.name.trim();
+            let wanted = if trimmed.is_empty() {
+                "Unnamed profile"
+            } else {
+                trimmed
+            };
+            let name = out.free_name(wanted);
+            if trimmed.is_empty() {
+                notes.push(format!(
+                    "A profile in {PROFILES} had no name; it is now “{name}”."
+                ));
+            } else if name != wanted {
+                notes.push(format!(
+                    "Two profiles in {PROFILES} were called “{wanted}”; the second is now “{name}”."
+                ));
+            }
+            let source = source(&p.source).unwrap_or_else(|_| {
+                notes.push(format!(
+                    "The profile “{name}” had a source that isn't a full path ({}); choose its directory again.",
+                    p.source.trim()
+                ));
+                String::new()
+            });
+            let id = if p.id.is_empty() || out.get(&p.id).is_some() {
+                new_id(|id| loaded_ids.iter().any(|l| l == id) || out.get(id).is_some())
+            } else {
+                p.id
+            };
+            out.profiles.push(Profile {
+                id,
+                name,
+                source,
+                include_folder: p.include_folder,
+                extensions: extensions(p.extensions),
+            });
+        }
+        (out, notes)
+    }
+
+    /// `name`, or else `name (2)`, `name (3)`…: the first no profile has, in any letter case.
+    fn free_name(&self, name: &str) -> String {
+        let taken = |n: &str| {
+            self.profiles
+                .iter()
+                .any(|p| p.name.to_lowercase() == n.to_lowercase())
+        };
+        if !taken(name) {
+            return name.to_string();
+        }
+        (2..)
+            .map(|i| format!("{name} ({i})"))
+            .find(|n| !taken(n))
+            .expect("a free name")
+    }
+}
+
+/// A profile's file types: lowercase, without leading dots, sorted and without duplicates.
+fn extensions(keys: Option<Vec<ExtensionKey>>) -> Option<Vec<ExtensionKey>> {
+    keys.map(|keys| {
+        let keys: BTreeSet<ExtensionKey> = keys
+            .into_iter()
+            .map(|key| {
+                key.map(|e| e.trim().trim_start_matches('.').to_lowercase())
+                    .filter(|e| !e.is_empty())
+            })
+            .collect();
+        keys.into_iter().collect()
+    })
 }
 
 /// A random id that `taken` doesn't know yet.
