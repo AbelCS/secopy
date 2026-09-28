@@ -627,7 +627,6 @@ mod tests {
         assert!(!settings.show_system_count && settings.write_checksum_file);
     }
 
-    #[cfg(unix)]
     #[test]
     fn a_failed_save_keeps_the_old_file_and_leaves_no_temp_file() {
         use std::os::unix::fs::PermissionsExt;

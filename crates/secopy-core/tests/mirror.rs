@@ -289,7 +289,6 @@ fn archives_older_than_the_limit_are_cleaned_up() {
 }
 
 /// Final review 1: a directory the scan couldn't read isn't "deleted in the origin".
-#[cfg(unix)]
 #[test]
 fn an_origin_directory_that_cant_be_read_removes_nothing() {
     use std::os::unix::fs::PermissionsExt;
@@ -431,7 +430,6 @@ fn the_deep_check_reports_progress_and_can_be_cancelled() {
 }
 
 /// #57 review: a destination reached through a symlink into the origin is refused too.
-#[cfg(unix)]
 #[test]
 fn a_symlink_into_the_origin_is_refused() {
     let (dir, o, _) = pair();
@@ -461,7 +459,6 @@ fn each_run_gets_its_own_archive_directory() {
 
 /// #58: a `.secopy-archive` that is a link leads outside the destination: cleaning up never
 /// follows it, and a mirror that archives refuses to run.
-#[cfg(unix)]
 #[test]
 fn a_linked_archive_is_never_followed() {
     let (dir, o, d) = pair();
@@ -589,7 +586,6 @@ fn nothing_is_removed_after_any_problem() {
 
 /// #58 check: a file replaced after the preview by another with the same size and time
 /// (another app saving through a new file) is still a different file: kept.
-#[cfg(unix)]
 #[test]
 fn a_replaced_file_with_the_same_size_and_time_is_kept() {
     let (dir, o, d) = pair();

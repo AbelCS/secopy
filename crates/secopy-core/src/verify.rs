@@ -28,8 +28,7 @@ pub fn hash_from_device(
     let mut buf = AlignedBuf::new(buffer_size);
     let mut hasher = hash::hasher();
     let mut done = 0u64;
-    // Driven by the file size: with unbuffered I/O on Windows a read after a short
-    // (unaligned) read fails, and on Unix a short read before EOF must not end the hash.
+    // Driven by the file size: a short read before EOF must not end the hash.
     while done < size {
         control.checkpoint()?;
         let chunk = buf.as_mut_slice();

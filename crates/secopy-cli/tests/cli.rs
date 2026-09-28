@@ -75,7 +75,6 @@ fn mixing_a_folder_and_files_is_a_usage_error() {
     assert_eq!(out.status.code(), Some(2));
 }
 
-#[cfg(unix)]
 #[test]
 fn a_failed_file_gives_exit_code_one() {
     use std::os::unix::fs::PermissionsExt;
@@ -228,7 +227,6 @@ fn mirror_makes_the_destination_match() {
 }
 
 /// #58: a directory the scan couldn't read wasn't copied: exit 1, and say so.
-#[cfg(unix)]
 #[test]
 fn an_unreadable_directory_is_not_a_success() {
     use std::os::unix::fs::PermissionsExt;

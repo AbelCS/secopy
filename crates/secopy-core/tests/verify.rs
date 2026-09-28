@@ -23,7 +23,6 @@ fn hashes_the_file_in_chunks_and_reports_progress() {
     assert_eq!(last.get(), data.len() as u64);
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 #[test]
 fn cache_bypass_is_active_on_local_disks() {
     let dir = tempfile::tempdir().unwrap();

@@ -4,29 +4,20 @@
 use std::marker::PhantomData;
 
 /// Why the Mac stays awake, as `pmset -g assertions` shows it.
-#[cfg(target_os = "macos")]
 const REASON: &str = "Secopy is copying files";
-#[cfg(all(unix, not(target_os = "macos")))]
-use std::process::{Child, Command, Stdio};
 
-/// Holds the "stay awake" request until dropped. Not `Send`: on Windows the request
-/// belongs to the thread that made it, so it must end on that thread too.
+/// Holds the "stay awake" request until dropped. Not `Send`, so it ends on the thread
+/// that made it.
 pub struct KeepAwake {
     /// A power assertion inside this process: no helper process, which macOS 27 would
     /// report as the app running in the background.
-    #[cfg(target_os = "macos")]
     assertion: Option<u32>,
-    #[cfg(all(unix, not(target_os = "macos")))]
-    child: Option<Child>,
-    #[cfg(windows)]
-    active: bool,
     _not_send: PhantomData<*const ()>,
 }
 
 impl KeepAwake {
-    /// macOS: an IOKit assertion that prevents idle sleep (what `caffeinate -i` does); it
-    /// ends with this process if it crashes.
-    #[cfg(target_os = "macos")]
+    /// An IOKit assertion that prevents idle sleep (what `caffeinate -i` does); it ends
+    /// with this process if it crashes.
     pub fn new() -> Self {
         Self {
             assertion: iokit::prevent_idle_sleep(REASON),
@@ -34,54 +25,9 @@ impl KeepAwake {
         }
     }
 
-    /// Linux: a logind idle inhibitor via `systemd-inhibit`, which watches this process, so
-    /// it also ends if it crashes.
-    #[cfg(all(unix, not(target_os = "macos")))]
-    pub fn new() -> Self {
-        let pid = std::process::id().to_string();
-        let child = Command::new("systemd-inhibit")
-            .args([
-                "--what=idle",
-                "--who=Secopy",
-                "--why=Copying files",
-                "--mode=block",
-                "tail",
-                &format!("--pid={pid}"),
-                "-f",
-                "/dev/null",
-            ])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok();
-        Self {
-            child,
-            _not_send: PhantomData,
-        }
-    }
-
-    #[cfg(windows)]
-    pub fn new() -> Self {
-        use windows_sys::Win32::System::Power::{
-            ES_CONTINUOUS, ES_SYSTEM_REQUIRED, SetThreadExecutionState,
-        };
-        // SAFETY: plain flags; returns 0 on failure.
-        let active = unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED) } != 0;
-        Self {
-            active,
-            _not_send: PhantomData,
-        }
-    }
-
     /// Whether the request was accepted.
     pub fn is_active(&self) -> bool {
-        #[cfg(target_os = "macos")]
-        return self.assertion.is_some();
-        #[cfg(all(unix, not(target_os = "macos")))]
-        return self.child.is_some();
-        #[cfg(windows)]
-        return self.active;
+        self.assertion.is_some()
     }
 }
 
@@ -93,26 +39,13 @@ impl Default for KeepAwake {
 
 impl Drop for KeepAwake {
     fn drop(&mut self) {
-        #[cfg(target_os = "macos")]
         if let Some(id) = self.assertion {
             iokit::release(id);
-        }
-        #[cfg(all(unix, not(target_os = "macos")))]
-        if let Some(child) = &mut self.child {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-        #[cfg(windows)]
-        if self.active {
-            use windows_sys::Win32::System::Power::{ES_CONTINUOUS, SetThreadExecutionState};
-            // SAFETY: clears this thread's request.
-            unsafe { SetThreadExecutionState(ES_CONTINUOUS) };
         }
     }
 }
 
 /// IOKit's power assertions (`IOPMLib.h`).
-#[cfg(target_os = "macos")]
 mod iokit {
     use std::ffi::{CString, c_char, c_void};
 
@@ -176,7 +109,7 @@ mod iokit {
     }
 }
 
-#[cfg(all(test, any(target_os = "macos", windows)))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -187,7 +120,6 @@ mod tests {
 
     /// macOS 27 reports an app whose helper processes outlive its window as "running in the
     /// background", so staying awake must not start one.
-    #[cfg(target_os = "macos")]
     #[test]
     fn staying_awake_starts_no_helper_process_and_ends_when_released() {
         let assertions = || {

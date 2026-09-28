@@ -57,7 +57,7 @@ const WINDOWS_RESERVED: &[&str] = &[
 ];
 
 /// Checks one file or folder name against the destination file system. Windows rules
-/// apply on NTFS, ReFS, exFAT and FAT, and on every destination when running on Windows.
+/// apply on NTFS, ReFS, exFAT and FAT.
 fn check_name(name: &OsStr, fs: &FsInfo) -> Result<(), NameProblem> {
     let text = name.to_string_lossy();
     if too_long(name, &text, fs.name_limit) {
@@ -65,7 +65,7 @@ fn check_name(name: &OsStr, fs: &FsInfo) -> Result<(), NameProblem> {
             limit: fs.name_limit,
         });
     }
-    if !(cfg!(windows) || fs.kind.has_windows_names()) {
+    if !fs.kind.has_windows_names() {
         return Ok(());
     }
     if let Some(c) = text
@@ -165,7 +165,6 @@ mod tests {
         }
     }
 
-    #[cfg(not(windows))]
     #[test]
     fn unix_file_systems_only_check_length() {
         for name in ["a:b.mov", "CON", "trail.", "what?"] {
@@ -193,7 +192,6 @@ mod tests {
 
     #[test]
     fn every_path_component_is_checked() {
-        // Not ':' here: Windows parses "a:" at the start of a path as a drive.
         let rel = Path::new("CARD").join("a?b").join("A001.mov");
         assert_eq!(
             check_path(&rel, &exfat()),

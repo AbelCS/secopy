@@ -21,7 +21,7 @@ pub enum FsKind {
     Fat,
     Smb,
     Nfs,
-    /// Anything else, with the name or magic number the OS reported.
+    /// Anything else, with the name the OS reported.
     Other(String),
 }
 
@@ -72,8 +72,7 @@ impl FsKind {
         (*self == FsKind::Fat).then_some(FAT_MAX_FILE_SIZE)
     }
 
-    /// Names as macOS (`f_fstypename`) and Windows (`GetVolumeInformation`) report them.
-    #[cfg_attr(target_os = "linux", allow(dead_code))]
+    /// Names as macOS reports them (`f_fstypename`).
     fn from_name(name: &str) -> Self {
         match name.to_ascii_lowercase().as_str() {
             "apfs" => FsKind::Apfs,
@@ -85,22 +84,6 @@ impl FsKind {
             "smbfs" => FsKind::Smb,
             "nfs" => FsKind::Nfs,
             other => FsKind::Other(other.to_string()),
-        }
-    }
-
-    /// Linux `statfs.f_type` magic numbers.
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-    fn from_magic(magic: u64) -> Self {
-        match magic {
-            0xEF53 => FsKind::Ext4,
-            0x9123_683E => FsKind::Btrfs,
-            0x5846_5342 => FsKind::Xfs,
-            0x4D44 => FsKind::Fat,
-            0x2011_BAB0 => FsKind::ExFat,
-            0x7366_746E | 0x5346_544E => FsKind::Ntfs,
-            0xFE53_4D42 | 0xFF53_4D42 | 0x517B => FsKind::Smb,
-            0x6969 => FsKind::Nfs,
-            other => FsKind::Other(format!("0x{other:x}")),
         }
     }
 }
@@ -119,7 +102,7 @@ pub fn fs_info(dir: &Path) -> io::Result<FsInfo> {
     })
 }
 
-/// Identifies the volume holding `path` (`st_dev` on Unix, the volume serial on Windows).
+/// Identifies the volume holding `path` (`st_dev`).
 pub fn device_id(path: &Path) -> io::Result<u64> {
     sys::device_id(path)
 }
@@ -140,7 +123,6 @@ fn probe_case_sensitive(dir: &Path) -> io::Result<bool> {
     Ok(!insensitive)
 }
 
-#[cfg(unix)]
 mod sys {
     use std::io;
     use std::os::unix::fs::MetadataExt;
@@ -149,7 +131,6 @@ mod sys {
     use super::FsKind;
     use crate::os::c_path;
 
-    #[cfg(target_os = "macos")]
     pub fn fs_kind(dir: &Path) -> io::Result<FsKind> {
         let c = c_path(dir)?;
         // SAFETY: an all-zero `statfs` is a valid value to be overwritten.
@@ -163,24 +144,6 @@ mod sys {
         Ok(FsKind::from_name(&name.to_string_lossy()))
     }
 
-    #[cfg(target_os = "linux")]
-    pub fn fs_kind(dir: &Path) -> io::Result<FsKind> {
-        let c = c_path(dir)?;
-        // SAFETY: an all-zero `statfs` is a valid value to be overwritten.
-        let mut st: libc::statfs = unsafe { std::mem::zeroed() };
-        // SAFETY: `c` is NUL-terminated and `st` is a valid out-pointer.
-        if unsafe { libc::statfs(c.as_ptr(), &mut st) } != 0 {
-            return Err(io::Error::last_os_error());
-        }
-        #[allow(clippy::unnecessary_cast)] // the field's type differs between targets
-        Ok(FsKind::from_magic(st.f_type as u64))
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    pub fn fs_kind(_dir: &Path) -> io::Result<FsKind> {
-        Ok(FsKind::Other("unknown".into()))
-    }
-
     pub fn free_bytes(dir: &Path) -> io::Result<u64> {
         let c = c_path(dir)?;
         // SAFETY: an all-zero `statvfs` is a valid value to be overwritten.
@@ -189,86 +152,11 @@ mod sys {
         if unsafe { libc::statvfs(c.as_ptr(), &mut st) } != 0 {
             return Err(io::Error::last_os_error());
         }
-        #[allow(clippy::unnecessary_cast)] // the fields' types differ between targets
-        Ok(st.f_bavail as u64 * st.f_frsize as u64)
+        Ok(u64::from(st.f_bavail) * st.f_frsize)
     }
 
     pub fn device_id(path: &Path) -> io::Result<u64> {
         Ok(std::fs::metadata(path)?.dev())
-    }
-}
-
-#[cfg(windows)]
-mod sys {
-    use std::fs::{File, OpenOptions};
-    use std::io;
-    use std::os::windows::fs::OpenOptionsExt;
-    use std::os::windows::io::AsRawHandle;
-    use std::path::Path;
-
-    use windows_sys::Win32::Storage::FileSystem::{
-        FILE_FLAG_BACKUP_SEMANTICS, GetDiskFreeSpaceExW, GetVolumeInformationByHandleW,
-    };
-
-    use super::FsKind;
-
-    /// Directories can only be opened with backup semantics.
-    fn open_dir(path: &Path) -> io::Result<File> {
-        OpenOptions::new()
-            .read(true)
-            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
-            .open(path)
-    }
-
-    /// (file system name, volume serial number)
-    fn volume(path: &Path) -> io::Result<(String, u32)> {
-        let file = open_dir(path)?;
-        let mut serial = 0u32;
-        let mut name = [0u16; 64];
-        // SAFETY: valid handle; the out-pointers live for the call; null for unused ones.
-        let ok = unsafe {
-            GetVolumeInformationByHandleW(
-                file.as_raw_handle(),
-                std::ptr::null_mut(),
-                0,
-                &mut serial,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                name.as_mut_ptr(),
-                name.len() as u32,
-            )
-        };
-        if ok == 0 {
-            return Err(io::Error::last_os_error());
-        }
-        let len = name.iter().position(|&c| c == 0).unwrap_or(name.len());
-        Ok((String::from_utf16_lossy(&name[..len]), serial))
-    }
-
-    pub fn fs_kind(dir: &Path) -> io::Result<FsKind> {
-        Ok(FsKind::from_name(&volume(dir)?.0))
-    }
-
-    pub fn free_bytes(dir: &Path) -> io::Result<u64> {
-        let wide = crate::os::wide_path(dir)?;
-        let mut available = 0u64;
-        // SAFETY: `wide` is NUL-terminated; unused out-pointers are null.
-        let ok = unsafe {
-            GetDiskFreeSpaceExW(
-                wide.as_ptr(),
-                &mut available,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            )
-        };
-        if ok == 0 {
-            return Err(io::Error::last_os_error());
-        }
-        Ok(available)
-    }
-
-    pub fn device_id(path: &Path) -> io::Result<u64> {
-        Ok(u64::from(volume(path)?.1))
     }
 }
 
@@ -289,18 +177,10 @@ mod tests {
         );
     }
 
-    #[cfg(any(target_os = "macos", windows))]
     #[test]
     fn default_system_volumes_are_case_insensitive() {
         let dir = tempfile::tempdir().unwrap();
         assert!(!fs_info(dir.path()).unwrap().case_sensitive);
-    }
-
-    #[cfg(target_os = "linux")]
-    #[test]
-    fn linux_temp_volumes_are_case_sensitive() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(fs_info(dir.path()).unwrap().case_sensitive);
     }
 
     #[test]
@@ -315,12 +195,8 @@ mod tests {
         assert_eq!(fat, FsKind::Fat);
         assert!(fat.has_windows_names());
         assert_eq!(fat.max_file_size(), Some(FAT_MAX_FILE_SIZE));
-        assert_eq!(FsKind::from_magic(0x4D44), FsKind::Fat);
         assert!(!FsKind::from_name("apfs").has_windows_names());
         assert_eq!(FsKind::from_name("apfs").max_file_size(), None);
-        assert_eq!(
-            FsKind::from_magic(0xEF53).name_limit(),
-            NameLimit::Bytes(255)
-        );
+        assert_eq!(FsKind::Ext4.name_limit(), NameLimit::Bytes(255));
     }
 }

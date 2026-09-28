@@ -91,23 +91,17 @@ impl PartialCopy {
     }
 
     /// Runs `op` on the partial path; `None` if the name no longer belongs to this file.
-    /// On Unix the file stays open, and locked, until `op` has renamed or removed it, so no
-    /// other job can take the name in between. Where locks don't separate writers (some
-    /// network file systems), another job may already have replaced it by name; then the
-    /// name is not ours to rename or delete. Windows can't rename or delete a file that is
-    /// open without delete sharing, so there it is closed first; another writer's file
-    /// can't be renamed or deleted in that gap either.
+    /// The file stays open, and locked, until `op` has renamed or removed it, so no other
+    /// job can take the name in between. Where locks don't separate writers (some network
+    /// file systems), another job may already have replaced it by name; then the name is
+    /// not ours to rename or delete.
     fn release<T>(self, op: impl FnOnce(&Path) -> T) -> Option<T> {
         let PartialCopy { partial, file, .. } = self;
         // An error here (e.g. the drive is gone) is left to `op` to report.
-        #[cfg(unix)]
         if let Ok(false) = os::is_at(&file, &partial) {
             return None;
         }
-        #[cfg(windows)]
-        drop(file);
         let out = op(&partial);
-        #[cfg(not(windows))]
         drop(file);
         Some(out)
     }
@@ -160,7 +154,7 @@ pub fn copy_to_partial(
             file: writer,
         }),
         Err(e) => {
-            // Close before removing: Windows cannot delete an open file.
+            // Close before removing.
             drop(writer);
             let _ = fs::remove_file(&partial);
             Err(e)
@@ -189,16 +183,6 @@ fn create_partial(partial: &Path) -> Result<(File, bool), FileError> {
 }
 
 fn commit_replace(partial: &Path, final_path: &Path) -> Result<PathBuf, FileError> {
-    // Windows refuses to replace a read-only file.
-    #[cfg(windows)]
-    if let Ok(meta) = fs::metadata(final_path)
-        && meta.permissions().readonly()
-    {
-        let mut perms = meta.permissions();
-        #[allow(clippy::permissions_set_readonly_false)] // clears the Windows attribute only
-        perms.set_readonly(false);
-        fs::set_permissions(final_path, perms).map_err(FileError::write_dest)?;
-    }
     fs::rename(partial, final_path).map_err(FileError::write_dest)?;
     Ok(final_path.to_path_buf())
 }
@@ -219,8 +203,8 @@ fn commit_keep_both(
     Err(FileError::AlreadyExists)
 }
 
-/// Uses the OS's no-replace rename. File systems without one (FAT and exFAT on macOS and
-/// Linux) fall back to a hard link, and then to check-then-rename.
+/// Uses the OS's no-replace rename. File systems without one (FAT and exFAT) fall back to
+/// a hard link, and then to check-then-rename.
 fn commit_noreplace(partial: &Path, final_path: &Path) -> Result<(), FileError> {
     match os::rename_noreplace(partial, final_path) {
         Ok(()) => return Ok(()),

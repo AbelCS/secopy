@@ -1,6 +1,9 @@
 //! Secopy engine: scan, copy, verify and write checksum files (RFD 0001).
 //! UI-independent; used by the desktop app, the CLI, tests and benchmarks.
 
+#[cfg(not(target_os = "macos"))]
+compile_error!("Secopy supports macOS only (issue #60).");
+
 pub mod awake;
 pub mod checksum_file;
 pub mod control;

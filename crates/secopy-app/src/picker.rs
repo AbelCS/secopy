@@ -7,7 +7,6 @@ use tauri::{AppHandle, Manager, Runtime};
 
 /// Shows the panel as a sheet on the main window; sends the picked paths, or `None` if
 /// cancelled, to `done`.
-#[cfg(target_os = "macos")]
 pub fn pick_source<R: Runtime>(
     app: &AppHandle<R>,
     done: Sender<Option<Vec<String>>>,
@@ -51,13 +50,4 @@ pub fn pick_source<R: Runtime>(
             None => panel.beginWithCompletionHandler(&handler),
         }
     })
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn pick_source<R: Runtime>(
-    _app: &AppHandle<R>,
-    done: Sender<Option<Vec<String>>>,
-) -> tauri::Result<()> {
-    let _ = done.send(None);
-    Ok(())
 }

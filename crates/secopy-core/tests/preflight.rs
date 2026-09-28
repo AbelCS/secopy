@@ -161,26 +161,3 @@ fn loose_files_report_each_parent_folder_once() {
     let roots: Vec<PathBuf> = pf.source_roots.into_iter().map(|r| r.path).collect();
     assert_eq!(roots, vec![dir.path().join("x"), dir.path().join("y")]);
 }
-
-/// Linux file names are bytes; the checksum file can only hold UTF-8 (FR-31).
-#[cfg(target_os = "linux")]
-#[test]
-fn non_utf8_names_are_left_out_of_the_checksum_file() {
-    use std::ffi::OsStr;
-    use std::os::unix::ffi::OsStrExt;
-    let dir = tempfile::tempdir().unwrap();
-    let src = dir.path().join("CARD");
-    fs::create_dir_all(&src).unwrap();
-    fs::write(src.join(OsStr::from_bytes(b"caf\xe9.wav")), b"x").unwrap();
-    let source = Source::Directory {
-        path: src,
-        mode: DirMode::FolderItself,
-    };
-    let sel = scan(&source, &ScanOptions::default())
-        .unwrap()
-        .select(&ExtensionFilter::All);
-    let dest = dir.path().join("dest");
-    fs::create_dir_all(&dest).unwrap();
-    let pf = preflight(&source, &sel, &dest).unwrap();
-    assert_eq!(pf.checksum_omissions, vec![0]);
-}

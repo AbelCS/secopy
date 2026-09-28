@@ -127,7 +127,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
     #[test]
     fn names_with_newline_or_backslash_are_escaped() {
         assert_eq!(
