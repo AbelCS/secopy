@@ -279,7 +279,9 @@ impl Session {
         if picked.is_retry || !matches!(picked.source, Source::Directory { .. }) {
             return false;
         }
-        self.picked_source().as_deref() != Some(profile.source.as_str())
+        !self
+            .picked_source()
+            .is_some_and(|picked| same_dir(Path::new(&picked), Path::new(&profile.source)))
             || profile.include_folder != self.include_folder
             || picked
                 .scan
@@ -628,6 +630,16 @@ pub(crate) fn gone(path: &Path) -> String {
     format!("{} isn't there any more.", show(path))
 }
 
+/// Whether `a` and `b` are the same directory on disk: on a case-insensitive drive `DCIM`
+/// and `dcim` are one (#69). Compared as text when either can't be looked at.
+fn same_dir(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (fs::metadata(a), fs::metadata(b)) {
+        (Ok(a), Ok(b)) => (a.dev(), a.ino()) == (b.dev(), b.ino()),
+        _ => a == b,
+    }
+}
+
 /// Visible items in `dir` (names starting with `.` aren't counted); `None` if it isn't a
 /// folder.
 fn existing_items(dir: &Path) -> Option<u32> {
@@ -817,6 +829,23 @@ mod tests {
         let view = apply(&mut s, Change::Pick(vec![f.card.clone()]));
         assert!(view.profile_changed, "another source");
         assert_eq!(s.updated_profile().unwrap().source, show(&f.card));
+    }
+
+    /// #69: the profile's directory picked in other letter case is the same directory on a
+    /// case-insensitive drive, not "Changed for this run".
+    #[test]
+    fn the_same_directory_in_other_letter_case_isnt_a_change() {
+        let f = fixture();
+        let clip = card(&f);
+        let mut s = Session::new();
+        apply(&mut s, Change::Profile(Some(profile(&clip, None))));
+        let other_case = clip.with_file_name("clip");
+        if !other_case.is_dir() {
+            return; // a case-sensitive drive: that is another directory
+        }
+        let view = apply(&mut s, Change::Pick(vec![other_case]));
+        assert!(view.source.is_some());
+        assert!(!view.profile_changed);
     }
 
     #[test]
