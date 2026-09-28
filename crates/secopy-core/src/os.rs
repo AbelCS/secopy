@@ -67,10 +67,14 @@ pub fn set_nocache(file: &File) -> bool {
     unsafe { libc::fcntl(file.as_raw_fd(), libc::F_NOCACHE, 1) != -1 }
 }
 
-/// Opens `path` so reads come from the device, not the page cache.
-/// The bool is false when the file system cannot guarantee that.
+/// Opens `path` so reads come from the device, not the page cache; a link fails (`ELOOP`).
+/// The bool is false when the file system cannot guarantee the bypass.
 pub fn open_uncached(path: &Path) -> io::Result<(File, bool)> {
-    let file = File::open(path)?;
+    use std::os::unix::fs::OpenOptionsExt;
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)?;
     let bypassed = set_nocache(&file);
     Ok((file, bypassed))
 }
@@ -192,6 +196,19 @@ fn lock(file: &File, wait: bool) -> io::Result<bool> {
 mod tests {
     use super::*;
     use std::os::fd::AsRawFd;
+
+    /// #69: a device read never follows a link, even one put in place after the path was
+    /// looked at (Verify checks the path first, then opens it).
+    #[test]
+    fn a_device_read_doesnt_follow_a_link() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("outside.mov");
+        fs::write(&target, b"x").unwrap();
+        let link = dir.path().join("clip.mov");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        assert!(open_uncached(&link).is_err());
+        assert!(open_uncached(&target).is_ok());
+    }
 
     /// SMB shares don't support F_FULLFSYNC (ENOTSUP); the file is still written, so a
     /// plain fsync must do instead of failing the checksum file (#32).
