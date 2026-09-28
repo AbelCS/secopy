@@ -3,7 +3,7 @@
   // (FR-50). Run mirror runs exactly this.
   import { useApi } from "../lib/api";
   import type { MirrorPreviewView, PreviewKind, PreviewRow, QueueView } from "../lib/bindings";
-  import { formatBytes, formatCount } from "../lib/format";
+  import { formatBytes, formatCount, plural } from "../lib/format";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
@@ -33,7 +33,9 @@
   let error: string | null = $state(null);
   let busy = $state(false);
 
-  const inSync = $derived(preview.newFiles + preview.changedFiles + preview.removedFiles === 0);
+  const inSync = $derived(
+    preview.newFiles + preview.changedFiles + preview.removedFiles + preview.failing === 0,
+  );
   const total = $derived(
     {
       all: preview.newFiles + preview.changedFiles + preview.removedFiles,
@@ -104,6 +106,11 @@
               >archived, kept {formatCount(preview.archiveDays)} days</Hint
             >{/if}
         </span></li>
+        {#if preview.failing > 0}
+          <li class="failing"><span class="sign" aria-hidden="true">✗</span><span>
+            {plural(preview.failing, "file")} will fail: a name the destination can't take, or something in the way
+          </span></li>
+        {/if}
       </ul>
     {/if}
     <p class="muted unchanged">{formatCount(preview.unchanged)} unchanged</p>
@@ -187,6 +194,10 @@
     display: flex;
     gap: var(--space-2);
     align-items: baseline;
+  }
+
+  .failing {
+    color: var(--danger);
   }
 
   .sign {

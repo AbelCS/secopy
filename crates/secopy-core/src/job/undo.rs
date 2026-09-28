@@ -31,6 +31,14 @@ pub fn undo(plan: &Plan, report: &JobReport, archive: Option<&Path>) -> Undone {
             continue;
         }
         let landed = plan.dest.join(&o.final_rel);
+        // Still the copy this job made? A file rewritten since (another size) isn't ours to undo.
+        if fs::metadata(&landed).is_ok_and(|m| m.len() != o.size) {
+            done.failed.push((
+                o.final_rel.clone(),
+                "It changed since it was copied, so it was kept.".into(),
+            ));
+            continue;
+        }
         let old = match plan.files[o.id].action {
             Action::Overwrite => archive.map(|a| a.join(&o.rel)).filter(|p| p.is_file()),
             _ => None,

@@ -329,6 +329,7 @@ impl Job {
                 || !done.report.unread.is_empty()
                 || done.report.checksum_error.is_some()
                 || done.report.durability_error.is_some()
+                || !done.report.dir_errors.is_empty()
             {
                 JobOutcome::Failures
             } else {
@@ -344,6 +345,7 @@ impl Job {
             failed: count(c.failed),
             unread: count(done.report.unread.len()),
             durability_error: done.report.durability_error.clone(),
+            dir_errors: count(done.report.dir_errors.len()),
             not_started: count(c.not_started),
             bytes_written: c.bytes_written,
             millis: done.report.elapsed.as_millis() as u64,
@@ -363,6 +365,16 @@ impl Job {
                     status: RowStatus::Failed,
                     reason: Some(format!("Couldn't be read: {}", p.message)),
                 })
+                .chain(done.report.dir_errors.iter().map(|(rel, why)| FinishedRow {
+                    id: 0,
+                    path: show(rel),
+                    final_path: show(rel),
+                    size: 0,
+                    millis: 0,
+                    hash: None,
+                    status: RowStatus::Failed,
+                    reason: Some(format!("Empty directory not created: {why}")),
+                }))
                 .chain(
                     outcomes
                         .iter()

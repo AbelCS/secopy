@@ -84,6 +84,8 @@ pub struct Report {
     pub durability_error: Option<String>,
     /// A mirror's removals after its copy phase (plan 7).
     pub mirror: Option<MirrorPart>,
+    /// Empty directories that couldn't be created (#58).
+    pub dir_errors: Vec<Unread>,
 }
 
 /// What a mirror did after copying: removals, and names changed to the origin's spelling.
@@ -189,6 +191,14 @@ impl Report {
             files,
             durability_error: job.durability_error.clone(),
             mirror: None,
+            dir_errors: job
+                .dir_errors
+                .iter()
+                .map(|(rel, why)| Unread {
+                    path: slash_path(rel),
+                    reason: why.clone(),
+                })
+                .collect(),
             unread: job
                 .unread
                 .iter()
@@ -293,6 +303,13 @@ impl Report {
                 let _ = writeln!(t, "  {}: {}", u.path, u.reason);
             }
         }
+        if !self.dir_errors.is_empty() {
+            let _ = writeln!(t);
+            let _ = writeln!(t, "EMPTY DIRECTORIES NOT CREATED");
+            for d in &self.dir_errors {
+                let _ = writeln!(t, "  {}: {}", d.path, d.reason);
+            }
+        }
         if let Some(m) = &self.mirror {
             let _ = writeln!(t);
             match &m.nothing_removed {
@@ -381,6 +398,10 @@ fn result_line(job: &JobReport, counts: &Counts) -> String {
         0 if !job.unread.is_empty() => match job.unread.len() {
             1 => "1 item couldn't be read".to_string(),
             n => format!("{n} items couldn't be read"),
+        },
+        0 if !job.dir_errors.is_empty() => match job.dir_errors.len() {
+            1 => "1 directory couldn't be created".to_string(),
+            n => format!("{n} directories couldn't be created"),
         },
         0 if job.checksum_error.is_some() => "checksum file not written".to_string(),
         0 if job.durability_error.is_some() => "not confirmed saved to disk".to_string(),

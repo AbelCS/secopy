@@ -100,6 +100,7 @@ export const summary: SummaryView = {
   failed: 1,
   unread: 0,
   durabilityError: null,
+  dirErrors: 0,
   notStarted: 0,
   bytesWritten: 180_000_000_000,
   millis: 252_000,
@@ -131,6 +132,7 @@ export const mirrorPreview: MirrorPreviewView = {
   changedBytes: 9_400_000_000,
   removedFiles: 5,
   archiveDays: 30,
+  failing: 0,
   unchanged: 2410,
   guard: null,
 };

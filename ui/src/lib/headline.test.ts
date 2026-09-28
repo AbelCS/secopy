@@ -61,3 +61,9 @@ test("files Skip left out are never hidden behind \"All\" or \"everything was al
     "Nothing copied: 1 different file left as it was",
   );
 });
+
+test("empty directories that couldn't be created aren't a success", () => {
+  expect(headline(summaryView({ outcome: "failures", failed: 0, dirErrors: 2 }))).toBe(
+    "2 empty directories couldn't be created",
+  );
+});

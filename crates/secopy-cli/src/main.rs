@@ -394,6 +394,9 @@ fn print_summary(report: &JobReport, total_bytes: u64) {
     if let Some(e) = &report.checksum_error {
         println!("checksum file NOT written: {e}");
     }
+    for (dir, e) in &report.dir_errors {
+        println!("empty directory NOT created {}: {e}", dir.display());
+    }
     if let Some(e) = &report.durability_error {
         println!("NOT confirmed saved to disk: {e}");
     }

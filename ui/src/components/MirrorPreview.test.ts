@@ -56,6 +56,12 @@ describe("MirrorPreview", () => {
     expect(hintOf(screen.getByText("archived, kept 30 days"))).toMatch(/\.secopy-archive/);
   });
 
+  test("files that will fail are counted, and never \"Already in sync\"", () => {
+    show(mirrorPreview({ newFiles: 0, changedFiles: 0, removedFiles: 0, failing: 2, unchanged: 10 }));
+    screen.getByText(/2 files will fail/);
+    expect(screen.queryByText("Already in sync.")).toBeNull();
+  });
+
   test("nothing to do: Already in sync, Run off", () => {
     show(mirrorPreview({ newFiles: 0, changedFiles: 0, removedFiles: 0, unchanged: 10 }));
     screen.getByText("Already in sync.");
