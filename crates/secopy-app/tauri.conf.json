@@ -28,6 +28,19 @@
     "targets": ["dmg"],
     "category": "Utility",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns"],
-    "macOS": { "signingIdentity": "-" }
+    "macOS": { "signingIdentity": "-" },
+    "fileAssociations": [
+      {
+        "ext": ["secopy"],
+        "name": "Secopy settings",
+        "description": "Secopy settings and presets",
+        "role": "Editor",
+        "mimeType": "application/json",
+        "exportedType": {
+          "identifier": "com.latecommits.secopy.settings",
+          "conformsTo": ["public.json"]
+        }
+      }
+    ]
   }
 }

@@ -165,6 +165,13 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("failed to start Secopy")
         .run(|app, event| {
+            // A `.secopy` double-clicked in Finder, also at launch: the window imports it.
+            if let RunEvent::Opened { urls } = &event
+                && let Some(path) = opened_file(urls)
+            {
+                app.state::<AppState>().set_opened(path);
+                let _ = app.emit(OPEN_FILE, ());
+            }
             // The app is going away: stop the copy first, so no partial file is left behind.
             // `Exit` also covers quitting from the Dock or at logout, which can't be refused.
             if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
@@ -196,12 +203,18 @@ const SHOW_COPY: &str = "show-copy";
 const SHOW_MIRROR: &str = "show-mirror";
 const SHOW_VERIFY: &str = "show-verify";
 const SHOW_QUEUE: &str = "show-queue";
+const IMPORT_FILE: &str = "import-file";
+const EXPORT_FILE: &str = "export-file";
+/// Tells the window a `.secopy` was opened from Finder; it asks for it with `take_opened_file`.
+pub const OPEN_FILE: &str = "open-file";
 /// Menu items the window handles (File and View).
-const MENU_ITEMS: [&str; 8] = [
+const MENU_ITEMS: [&str; 10] = [
     CHOOSE_SOURCE,
     CHOOSE_DESTINATION,
     START_COPY,
     CANCEL_COPY,
+    IMPORT_FILE,
+    EXPORT_FILE,
     SHOW_COPY,
     SHOW_MIRROR,
     SHOW_VERIFY,
@@ -210,7 +223,7 @@ const MENU_ITEMS: [&str; 8] = [
 
 /// The File menu's items, kept to grey them out.
 pub struct FileMenu<R: Runtime> {
-    items: [MenuItem<R>; 4],
+    items: [MenuItem<R>; 5],
 }
 
 impl<R: Runtime> FileMenu<R> {
@@ -225,6 +238,7 @@ impl<R: Runtime> FileMenu<R> {
                 item(CHOOSE_DESTINATION)?,
                 item(START_COPY)?,
                 item(CANCEL_COPY)?,
+                item(IMPORT_FILE)?,
             ],
         })
     }
@@ -236,9 +250,18 @@ impl<R: Runtime> FileMenu<R> {
     }
 }
 
-/// Which File items apply: [Choose Source, Choose Destination, Start Copy, Cancel Copy].
-fn menu_state(setup: bool, can_start: bool, copying: bool) -> [bool; 4] {
-    [setup, setup, setup && can_start, copying]
+/// Which File items apply: [Choose Source, Choose Destination, Start Copy, Cancel Copy,
+/// Import…]. Importing waits while a job runs (#77); Export… always applies.
+fn menu_state(setup: bool, can_start: bool, copying: bool) -> [bool; 5] {
+    [setup, setup, setup && can_start, copying, !copying]
+}
+
+/// The first `.secopy` file among `urls` Finder opened Secopy with.
+fn opened_file(urls: &[tauri::Url]) -> Option<std::path::PathBuf> {
+    urls.iter().filter_map(|u| u.to_file_path().ok()).find(|p| {
+        p.extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("secopy"))
+    })
 }
 
 /// The window's minimum size (`tauri.conf.json`).
@@ -347,6 +370,9 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::separator(app)?,
             &start,
             &cancel,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, IMPORT_FILE, "Import…", true, None::<&str>)?,
+            &MenuItem::with_id(app, EXPORT_FILE, "Export…", true, None::<&str>)?,
         ],
     )?;
     let edit = Submenu::with_items(
@@ -424,14 +450,35 @@ mod tests {
     #[test]
     fn the_file_menu_offers_only_what_applies() {
         use super::menu_state;
-        assert_eq!(menu_state(true, false, false), [true, true, false, false]);
-        assert_eq!(menu_state(true, true, false), [true, true, true, false]);
-        assert_eq!(menu_state(false, false, true), [false, false, false, true]);
+        assert_eq!(
+            menu_state(true, false, false),
+            [true, true, false, false, true]
+        );
+        assert_eq!(
+            menu_state(true, true, false),
+            [true, true, true, false, true]
+        );
+        assert_eq!(
+            menu_state(false, false, true),
+            [false, false, false, true, false]
+        );
         assert_eq!(
             menu_state(false, true, false),
-            [false, false, false, false],
-            "Start only on New copy"
+            [false, false, false, false, true]
         );
+    }
+
+    /// #77: Import… is off while copying; only `.secopy` files come in from Finder.
+    #[test]
+    fn only_secopy_files_are_imported_from_finder() {
+        use super::opened_file;
+        use std::path::PathBuf;
+        let url = |s: &str| s.parse::<tauri::Url>().unwrap();
+        assert_eq!(
+            opened_file(&[url("file:///Users/me/Sony%20FX3.secopy")]),
+            Some(PathBuf::from("/Users/me/Sony FX3.secopy"))
+        );
+        assert_eq!(opened_file(&[url("file:///Users/me/notes.txt")]), None);
     }
 
     fn capability() -> serde_json::Value {
