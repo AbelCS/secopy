@@ -71,8 +71,19 @@ fn keep_only_if_written(path: PathBuf, written: io::Result<()>) -> io::Result<Pa
 }
 
 /// Writes `entries` to `path` whole or not at all: a temporary `<name>.partial` beside it
-/// (a Secopy partial file, which no copy or mirror picks up), synced, then renamed over it.
+/// (a Secopy partial file, which no copy or mirror picks up), synced, then renamed over it,
+/// and the directory synced so the new name is on disk (`F_FULLFSYNC`). A device error
+/// doing that is an error, even though the new file is in place.
 pub fn write_replacing(path: &Path, entries: &[(PathBuf, u64)]) -> io::Result<()> {
+    replace_then_sync(path, entries, crate::os::full_barrier)
+}
+
+/// `write_replacing`, with how the directory is synced after the rename.
+fn replace_then_sync(
+    path: &Path,
+    entries: &[(PathBuf, u64)],
+    sync_dir: impl FnOnce(&Path) -> io::Result<()>,
+) -> io::Result<()> {
     let mut lines: Vec<(String, String)> = entries
         .iter()
         .map(|(rel, hash)| (slash_path(rel), format_line(*hash, rel)))
@@ -99,7 +110,13 @@ pub fn write_replacing(path: &Path, entries: &[(PathBuf, u64)]) -> io::Result<()
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
     }
-    Ok(())
+    // The rename is in the directory: until that is on disk, a power cut can bring the old
+    // file back. As in a copy job, only a device error fails (not a file system that can't).
+    let dir = path.parent().filter(|d| !d.as_os_str().is_empty());
+    match sync_dir(dir.unwrap_or(Path::new("."))) {
+        Err(e) if crate::os::is_device_error(&e) => Err(e),
+        _ => Ok(()),
+    }
 }
 
 fn create_unique(dest: &Path, now: DateTime<Local>) -> io::Result<(PathBuf, File)> {
@@ -139,6 +156,29 @@ mod tests {
         let result = keep_only_if_written(path.clone(), Err(io::Error::other("disk full")));
         assert_eq!(result.unwrap_err().to_string(), "disk full");
         assert!(!path.exists());
+    }
+
+    /// #69 V6: after the rename the directory is synced, or a power cut could bring the old
+    /// file back; a device error doing so is an error, never a success.
+    #[test]
+    fn replacing_syncs_the_directory_after_the_rename() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sums.xxh64");
+        fs::write(&path, "old\n").unwrap();
+        let entries = [(PathBuf::from("a.mov"), 1)];
+        let mut synced = None;
+        replace_then_sync(&path, &entries, |d| {
+            synced = Some((d.to_path_buf(), fs::read_to_string(&path).unwrap()));
+            Ok(())
+        })
+        .unwrap();
+        let new = "0000000000000001  a.mov\n".to_string();
+        assert_eq!(synced, Some((dir.path().to_path_buf(), new)));
+        let err = |code| move |_: &Path| Err(io::Error::from_raw_os_error(code));
+        let failed = replace_then_sync(&path, &entries, err(libc::EIO));
+        assert_eq!(failed.unwrap_err().raw_os_error(), Some(libc::EIO));
+        // As in a copy job: a file system that can't sync a directory is not a failure.
+        assert!(replace_then_sync(&path, &entries, err(libc::ENOTSUP)).is_ok());
     }
 
     fn at(h: u32, m: u32, s: u32) -> DateTime<Local> {

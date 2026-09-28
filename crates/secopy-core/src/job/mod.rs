@@ -369,11 +369,7 @@ fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<String> {
 /// A device error (not a file system that can't sync a directory or flush its cache).
 fn durability_problem(result: std::io::Result<()>) -> Option<String> {
     let e = result.err()?;
-    let device = matches!(
-        e.raw_os_error(),
-        Some(libc::EIO | libc::ENXIO | libc::ENODEV | libc::ENOSPC | libc::EROFS)
-    );
-    device.then(|| e.to_string())
+    os::is_device_error(&e).then(|| e.to_string())
 }
 
 #[cfg(test)]
