@@ -6,6 +6,8 @@ use std::ffi::OsStr;
 /// Exact names: macOS and Windows bookkeeping. A directory with one of these names is skipped
 /// with everything in it.
 const NAMES: &[&str] = &[
+    // Secopy: a mirror's checksum file (plan 8)
+    ".secopy-checksums.xxh64",
     // macOS
     ".DS_Store",
     ".Spotlight-V100",
