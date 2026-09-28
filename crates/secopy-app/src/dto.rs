@@ -151,7 +151,7 @@ pub struct ProgressView {
     pub files_failed: u32,
     /// Files of 8 MiB or more in progress.
     pub active: Vec<ActiveFileView>,
-    /// Smaller files in progress, summed into one row.
+    /// The job's smaller files, as one steady row; `None` when it has none.
     pub small_files: Option<SmallFilesView>,
     /// Files a mirror is archiving or deleting, while it does (`JobPhase::Removing`).
     pub removing: u32,
@@ -188,11 +188,9 @@ pub struct ActiveFileView {
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SmallFilesView {
-    pub count: u32,
-    #[specta(type = specta_typescript::Number)]
-    pub size: u64,
-    #[specta(type = specta_typescript::Number)]
-    pub bytes_done: u64,
+    /// Of the job's small files, those finished (only ever goes up).
+    pub done: u32,
+    pub total: u32,
 }
 
 /// One row of the finished list (RFD §5.3).

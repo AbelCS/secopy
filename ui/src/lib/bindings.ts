@@ -304,7 +304,7 @@ export type ProgressView = {
 	filesFailed: number,
 	/**  Files of 8 MiB or more in progress. */
 	active: ActiveFileView[],
-	/**  Smaller files in progress, summed into one row. */
+	/**  The job's smaller files, as one steady row; `None` when it has none. */
 	smallFiles: SmallFilesView | null,
 	/**  Files a mirror is archiving or deleting, while it does (`JobPhase::Removing`). */
 	removing: number,
@@ -400,9 +400,9 @@ export type Settings = {
 };
 
 export type SmallFilesView = {
-	count: number,
-	size: number,
-	bytesDone: number,
+	/**  Of the job's small files, those finished (only ever goes up). */
+	done: number,
+	total: number,
 };
 
 export type SourceView = {

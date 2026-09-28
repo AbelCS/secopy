@@ -112,6 +112,9 @@ struct Job {
     /// The engine's latest progress; the final view is built from it.
     last: Mutex<Progress>,
     failed: AtomicU32,
+    /// The files under `OWN_ROW` this job writes, and how many of them finished.
+    small_total: u32,
+    small_done: AtomicU32,
     /// Cancel asked to remove the files already copied (#54).
     remove_copied: AtomicBool,
     done: Mutex<Option<Done>>,
@@ -153,6 +156,14 @@ impl Jobs {
         if current.as_ref().is_some_and(|job| job.running()) {
             return Err("A copy is already running.".into());
         }
+        let small_total = count(
+            ready
+                .plan
+                .files
+                .iter()
+                .filter(|f| f.action.writes() && f.entry.size < OWN_ROW)
+                .count(),
+        );
         let job = Arc::new(Job {
             ready,
             verify,
@@ -163,6 +174,8 @@ impl Jobs {
             outcomes: Mutex::new(Vec::new()),
             last: Mutex::new(Progress::default()),
             failed: AtomicU32::new(0),
+            small_total,
+            small_done: AtomicU32::new(0),
             remove_copied: AtomicBool::new(false),
             done: Mutex::new(None),
         });
@@ -399,6 +412,10 @@ impl Job {
                 if matches!(o.status, FileStatus::Failed(_)) {
                     self.failed.fetch_add(1, Relaxed);
                 }
+                let file = &plan.files[o.id];
+                if file.action.writes() && file.entry.size < OWN_ROW {
+                    self.small_done.fetch_add(1, Relaxed);
+                }
                 self.outcomes.lock().expect("job lock poisoned").push(o);
             }
         });
@@ -450,14 +467,10 @@ impl Job {
 
     fn progress(&self, p: &Progress, finished: bool, fatal: Option<String>) -> ProgressView {
         let total_bytes = self.ready.plan.bytes_to_write();
-        let mut small = SmallFilesView {
-            count: 0,
-            size: 0,
-            bytes_done: 0,
-        };
         let mut active = Vec::new();
-        for f in &p.active {
-            if f.size >= OWN_ROW {
+        // Small files are one steady row below; only big ones are worth a bar each.
+        for f in p.active.iter().filter(|f| f.size >= OWN_ROW) {
+            {
                 active.push(ActiveFileView {
                     id: count(f.id),
                     name: f
@@ -470,10 +483,6 @@ impl Job {
                     size: f.size,
                     bytes_done: f.bytes_done,
                 });
-            } else {
-                small.count += 1;
-                small.size += f.size;
-                small.bytes_done += f.bytes_done;
             }
         }
         let copying = p
@@ -499,7 +508,10 @@ impl Job {
             files_skipped: count(p.files_skipped),
             files_failed: self.failed.load(Relaxed),
             active,
-            small_files: (small.count > 0).then_some(small),
+            small_files: (self.small_total > 0).then(|| SmallFilesView {
+                done: self.small_done.load(Relaxed).min(self.small_total),
+                total: self.small_total,
+            }),
             fatal,
             removing: 0,
             archiving: false,
@@ -886,6 +898,27 @@ mod tests {
             out.contains("Renamed to match the origin: 1\n  IMG.jpg → img.jpg\n"),
             "{out}"
         );
+    }
+
+    /// #57: small files are one steady row for the whole job: its count never goes back.
+    #[test]
+    fn small_files_are_one_steady_row() {
+        let f = fixture(40, 1000);
+        let sink = run(&f, true);
+        let views = sink.0.lock().unwrap().clone();
+        let small: Vec<(u32, u32)> = views
+            .iter()
+            .map(|v| {
+                let s = v.small_files.as_ref().expect("shown the whole time");
+                (s.done, s.total)
+            })
+            .collect();
+        assert!(small.iter().all(|&(_, total)| total == 40), "{small:?}");
+        assert!(
+            small.windows(2).all(|w| w[0].0 <= w[1].0),
+            "never goes back: {small:?}"
+        );
+        assert_eq!(small.last(), Some(&(40, 40)));
     }
 
     /// #54: Cancel with "Also remove the files already copied".

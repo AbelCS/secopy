@@ -68,7 +68,7 @@ export const progress: ProgressView = {
     { id: 41, name: "C0041.MP4", path: "CLIP/C0041.MP4", verifying: false, size: 2_300_000_000, bytesDone: 1_100_000_000 },
     { id: 39, name: "C0039.MP4", path: "CLIP/C0039.MP4", verifying: true, size: 2_100_000_000, bytesDone: 900_000_000 },
   ],
-  smallFiles: null,
+  smallFiles: { done: 1234, total: 5000 },
   fatal: null,
   removing: 0,
   archiving: false,

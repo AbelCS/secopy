@@ -131,7 +131,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-{#snippet activeRow(name: string, path: string, doing: string, done: number, size: number)}
+{#snippet activeRow(name: string, path: string, doing: string, done: number, size: number, of: string)}
   <tr>
     <td class="name" title={path}>{name}</td>
     <td class="doing">{doing}</td>
@@ -147,7 +147,7 @@
         <div class="fill" style:width={formatPercent(done, size).replace(" ", "")}></div>
       </div>
     </td>
-    <td class="of">{formatBytes(done)} of {formatBytes(size)}</td>
+    <td class="of">{of}</td>
   </tr>
 {/snippet}
 
@@ -204,11 +204,27 @@
         <tbody>
           <!-- Verifying is a new row: one bar never runs from 100 % back to 0. -->
           {#each progress.active as f (`${f.id}-${f.verifying}`)}
-            {@render activeRow(f.name, f.path, f.verifying ? "Verifying" : "Copying", f.bytesDone, f.size)}
+            {@render activeRow(
+              f.name,
+              f.path,
+              f.verifying ? "Verifying" : "Copying",
+              f.bytesDone,
+              f.size,
+              `${formatBytes(f.bytesDone)} of ${formatBytes(f.size)}`,
+            )}
           {/each}
+          <!-- Small files: one steady row for the whole job, counted in files, so it never
+               jumps back or vanishes while many finish at once. -->
           {#if progress.smallFiles}
             {@const small = progress.smallFiles}
-            {@render activeRow(`+ ${plural(small.count, "small file")}`, "", "", small.bytesDone, small.size)}
+            {@render activeRow(
+              "Small files",
+              "",
+              "",
+              small.done,
+              small.total,
+              `${formatCount(small.done)} of ${formatCount(small.total)}`,
+            )}
           {/if}
         </tbody>
       </table>
