@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -256,20 +256,172 @@ impl Profiles {
     }
 
     fn new_id(&self) -> String {
-        static NEXT: AtomicU64 = AtomicU64::new(1);
-        loop {
-            let nanos = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_or(0, |d| d.as_nanos() as u64);
-            let id = format!(
-                "{:x}",
-                nanos ^ NEXT.fetch_add(1, Ordering::Relaxed).rotate_left(32)
-            );
-            if self.get(&id).is_none() {
-                return id;
-            }
+        new_id(|id| self.get(id).is_some())
+    }
+}
+
+/// A random id that `taken` doesn't know yet.
+fn new_id(taken: impl Fn(&str) -> bool) -> String {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    loop {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos() as u64);
+        let id = format!(
+            "{:x}",
+            nanos ^ NEXT.fetch_add(1, Ordering::Relaxed).rotate_left(32)
+        );
+        if !taken(&id) {
+            return id;
         }
     }
+}
+
+pub const MIRRORS: &str = "mirrors.json";
+
+/// What a mirror does with files deleted in the origin (FR-44).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum DeletedMode {
+    Archive,
+    Delete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletedFiles {
+    pub mode: DeletedMode,
+    /// Days archived files are kept (archive mode).
+    pub days: u32,
+}
+
+impl From<&DeletedFiles> for secopy_core::mirror::Deleted {
+    fn from(d: &DeletedFiles) -> Self {
+        match d.mode {
+            DeletedMode::Archive => Self::Archive { days: d.days },
+            DeletedMode::Delete => Self::Delete,
+        }
+    }
+}
+
+/// A saved one-way mirror (plan 7, FR-44).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MirrorPreset {
+    pub id: String,
+    pub name: String,
+    pub origin: String,
+    pub destination: String,
+    pub deleted: DeletedFiles,
+    /// Also compare contents by checksum (FR-46).
+    pub deep_check: bool,
+}
+
+/// A mirror preset as typed in its editor.
+#[derive(Debug, Clone, PartialEq, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MirrorPresetInput {
+    pub name: String,
+    pub origin: String,
+    pub destination: String,
+    pub deleted: DeletedFiles,
+    pub deep_check: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MirrorPresets {
+    pub presets: Vec<MirrorPreset>,
+}
+
+impl MirrorPresets {
+    pub fn get(&self, id: &str) -> Option<&MirrorPreset> {
+        self.presets.iter().find(|p| p.id == id)
+    }
+
+    pub fn add(&mut self, input: MirrorPresetInput) -> Result<MirrorPreset, String> {
+        let input = self.check(input, None)?;
+        let preset = MirrorPreset {
+            id: new_id(|id| self.get(id).is_some()),
+            name: input.name,
+            origin: input.origin,
+            destination: input.destination,
+            deleted: input.deleted,
+            deep_check: input.deep_check,
+        };
+        self.presets.push(preset.clone());
+        Ok(preset)
+    }
+
+    pub fn edit(&mut self, id: &str, input: MirrorPresetInput) -> Result<MirrorPreset, String> {
+        let input = self.check(input, Some(id))?;
+        let preset = self
+            .presets
+            .iter_mut()
+            .find(|p| p.id == id)
+            .ok_or("That mirror no longer exists.")?;
+        preset.name = input.name;
+        preset.origin = input.origin;
+        preset.destination = input.destination;
+        preset.deleted = input.deleted;
+        preset.deep_check = input.deep_check;
+        Ok(preset.clone())
+    }
+
+    pub fn delete(&mut self, id: &str) -> bool {
+        let before = self.presets.len();
+        self.presets.retain(|p| p.id != id);
+        self.presets.len() < before
+    }
+
+    /// Validates and normalizes `input`; `editing` is the id of the preset being edited.
+    fn check(
+        &self,
+        input: MirrorPresetInput,
+        editing: Option<&str>,
+    ) -> Result<MirrorPresetInput, String> {
+        let name = input.name.trim().to_string();
+        if name.is_empty() {
+            return Err("The mirror needs a name.".into());
+        }
+        let taken = self.presets.iter().any(|p| {
+            Some(p.id.as_str()) != editing && p.name.to_lowercase() == name.to_lowercase()
+        });
+        if taken {
+            return Err(format!("There is already a mirror called “{name}”."));
+        }
+        let origin = full_path(&input.origin, "origin", "/Volumes/SSD/Footage")?;
+        let destination = full_path(&input.destination, "destination", "/Volumes/NAS/Footage")?;
+        let (o, d) = (Path::new(&origin), Path::new(&destination));
+        if o == d {
+            return Err("The origin and the destination are the same directory.".into());
+        }
+        if d.starts_with(o) {
+            return Err("The destination can't be inside the origin.".into());
+        }
+        if o.starts_with(d) {
+            return Err("The origin can't be inside the destination.".into());
+        }
+        if input.deleted.mode == DeletedMode::Archive && input.deleted.days == 0 {
+            return Err("Keep archived files for at least 1 day.".into());
+        }
+        Ok(MirrorPresetInput {
+            name,
+            origin,
+            destination,
+            ..input
+        })
+    }
+}
+
+/// A preset's origin or destination: a full path without a trailing `/`.
+fn full_path(text: &str, what: &str, example: &str) -> Result<String, String> {
+    let text = text.trim();
+    if !text.starts_with('/') {
+        return Err(format!("The {what} must be a full path, like {example}."));
+    }
+    let trimmed = text.trim_end_matches('/');
+    Ok(if trimmed.is_empty() { "/" } else { trimmed }.to_string())
 }
 
 /// A profile's source, normalized: a full path without a trailing `/`, or empty.
@@ -617,5 +769,67 @@ mod tests {
         assert_eq!(warning, None);
         assert_eq!(profiles.profiles[0].name, "FX3");
         assert_eq!(profiles.profiles[0].source, "");
+    }
+    fn mirror_input(name: &str, origin: &str, destination: &str) -> MirrorPresetInput {
+        MirrorPresetInput {
+            name: name.into(),
+            origin: origin.into(),
+            destination: destination.into(),
+            deleted: DeletedFiles {
+                mode: DeletedMode::Archive,
+                days: 30,
+            },
+            deep_check: false,
+        }
+    }
+
+    #[test]
+    fn mirror_presets_are_checked() {
+        let mut m = MirrorPresets::default();
+        let p = m
+            .add(mirror_input(
+                " Footage → NAS ",
+                "/Volumes/SSD/Footage/",
+                "/Volumes/Media/Footage",
+            ))
+            .unwrap();
+        assert_eq!(
+            (p.name.as_str(), p.origin.as_str()),
+            ("Footage → NAS", "/Volumes/SSD/Footage")
+        );
+        let err = |r: Result<MirrorPreset, String>| r.unwrap_err();
+        assert_eq!(
+            err(m.add(mirror_input("footage → nas", "/a", "/b"))),
+            "There is already a mirror called “footage → nas”."
+        );
+        assert_eq!(
+            err(m.add(mirror_input("A", "Footage", "/b"))),
+            "The origin must be a full path, like /Volumes/SSD/Footage."
+        );
+        assert_eq!(
+            err(m.add(mirror_input("B", "/x", "/x"))),
+            "The origin and the destination are the same directory."
+        );
+        assert_eq!(
+            err(m.add(mirror_input("C", "/x", "/x/backup"))),
+            "The destination can't be inside the origin."
+        );
+        assert_eq!(
+            err(m.add(mirror_input("D", "/x/sub", "/x"))),
+            "The origin can't be inside the destination."
+        );
+        let mut zero = mirror_input("E", "/a", "/b");
+        zero.deleted.days = 0;
+        assert_eq!(err(m.add(zero)), "Keep archived files for at least 1 day.");
+    }
+
+    #[test]
+    fn mirror_presets_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let mut m = MirrorPresets::default();
+        m.add(mirror_input("N", "/a", "/b")).unwrap();
+        store.save(MIRRORS, &m).unwrap();
+        assert_eq!(store.load::<MirrorPresets>(MIRRORS), (m, None));
     }
 }
