@@ -245,4 +245,41 @@ describe("App", () => {
     expect(api.notify).toHaveBeenCalledTimes(1);
     expect(api.notify).toHaveBeenCalledWith("Queue done: 2 of 2 jobs complete", expect.any(String));
   });
+
+  test("each queue job gets a fresh Copying screen: its own files, speed and time", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.queue = queueView({ jobs: [queuedJob(), queuedJob()] });
+    api.finishedPage.mockResolvedValue([
+      { id: 0, path: "A.mov", finalPath: "A.mov", size: 1, millis: 1, hash: "h", status: "verified", reason: null },
+    ]);
+    render(App, { props: { api } });
+    await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await waitFor(() => expect(state.queueEvent).not.toBeNull());
+    state.queueEvent!({ type: "jobStarted", index: 0, count: 2 });
+    state.queueEvent!({ type: "progress", view: progressView({ filesDone: 1 }) });
+    await waitFor(() => expect(api.finishedPage).toHaveBeenCalledTimes(1));
+    state.queueEvent!({ type: "jobStarted", index: 1, count: 2 });
+    await screen.findByText("Job 2 of 2");
+    state.queueEvent!({ type: "progress", view: progressView({ filesDone: 1 }) });
+    await waitFor(() => expect(api.finishedPage).toHaveBeenCalledTimes(2), { timeout: 500 });
+  });
+
+  test("after a queue run, Copy opens New copy, not an older summary", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.queue = queueView({ jobs: [queuedJob()] });
+    render(App, { props: { api } });
+    await fireEvent.click(await startButton());
+    state.progress!(progressView({ phase: "done" }));
+    await screen.findByRole("heading", { level: 1, name: "Summary" });
+    state.menu!("show-queue");
+    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await waitFor(() => expect(state.queueEvent).not.toBeNull());
+    state.queueEvent!({ type: "done", summary: { complete: 1, count: 1, millis: 1000, results: [
+      { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
+    ] } });
+    await screen.findByRole("heading", { name: "Queue done: 1 of 1 job complete" });
+    state.menu!("show-copy");
+    await screen.findByRole("heading", { level: 1, name: "New copy" });
+  });
 });

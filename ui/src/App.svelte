@@ -170,6 +170,10 @@
 
   /** Runs the queue: one Copying screen per job, then the queue summary (FR-40..FR-43). */
   async function runQueue() {
+    // The queue's jobs replace the backend's last copy: the Copy section starts afresh, so no
+    // old Summary acts on a queue job.
+    summary = null;
+    copyScreen = "setup";
     queueRun = { index: 0, count: queue.jobs.length };
     progress = waiting();
     screen = "progress";
@@ -294,13 +298,16 @@
         onQueued={(q) => (queue = q)}
       />
     {:else if screen === "progress" && progress}
-      <JobProgress
-        bind:this={progressScreen}
-        {progress}
-        checksumFile={settings.writeChecksumFile}
-        {banner}
-        queue={queueRun ?? undefined}
-      />
+      <!-- A new screen for each queue job: its own file list, speed and time left. -->
+      {#key queueRun?.index}
+        <JobProgress
+          bind:this={progressScreen}
+          {progress}
+          checksumFile={settings.writeChecksumFile}
+          {banner}
+          queue={queueRun ?? undefined}
+        />
+      {/key}
     {:else if screen === "summary" && summary}
       <Summary {summary} {banner} onRetry={retry} onNewCopy={newCopy} onSettings={openSettings} />
     {:else if screen === "settings"}

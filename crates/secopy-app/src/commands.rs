@@ -375,7 +375,9 @@ impl AppState {
 
     /// Cancel: the current job, and the queue if it runs (spec Q5).
     pub fn cancel(&self) {
-        lock(&self.queue_run).cancelled = true;
+        // Under the queue's lock, so it can't slip between a queued job's check and its start.
+        let mut run = lock(&self.queue_run);
+        run.cancelled = true;
         self.jobs.cancel();
     }
 
@@ -482,11 +484,19 @@ impl AppState {
             Err(reason) => return (QueueResult::Failed, Some(reason), None),
         };
         let settings = JobSettings::from(&*lock(&self.settings));
-        if let Err(reason) = self
-            .jobs
-            .start(ready, job.verify, settings, Forward(sink.clone()))
         {
-            return (QueueResult::Failed, Some(reason), None);
+            // A cancel during the scan above stops the job before it starts: the check and
+            // the start happen under the lock `cancel` takes.
+            let run = lock(&self.queue_run);
+            if run.cancelled {
+                return (QueueResult::Cancelled, Some("Cancelled.".into()), None);
+            }
+            if let Err(reason) = self
+                .jobs
+                .start(ready, job.verify, settings, Forward(sink.clone()))
+            {
+                return (QueueResult::Failed, Some(reason), None);
+            }
         }
         self.remember(|r| r.used_destination(&show(&job.destination)));
         self.jobs.wait();
@@ -1248,7 +1258,11 @@ mod tests {
         });
         assert!(!state.busy());
         let left = state.queue_view().jobs;
-        assert!(!left.is_empty(), "nothing lost");
+        assert_eq!(
+            left.len(),
+            2,
+            "the cancelled job and the one not run both stay"
+        );
     }
 
     /// Review focus 4.
@@ -1290,5 +1304,23 @@ mod tests {
             state.store.load::<Queue>(crate::queue::QUEUE).0.jobs.len(),
             1
         );
+    }
+
+    /// A cancel that lands while the next job is being scanned stops it before it starts.
+    #[test]
+    fn a_cancel_between_jobs_stops_the_next_one_before_it_starts() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        let entry = lock(&state.queue).jobs[0].clone();
+        {
+            let mut run = lock(&state.queue_run);
+            run.running = true;
+            run.cancelled = true;
+        }
+        let (result, _, handle) = state.run_one(&entry, &Events::default());
+        assert_eq!(result, QueueResult::Cancelled);
+        assert!(handle.is_none());
+        assert!(!dir.path().join("dest/A").exists(), "nothing copied");
+        lock(&state.queue_run).running = false;
     }
 }
