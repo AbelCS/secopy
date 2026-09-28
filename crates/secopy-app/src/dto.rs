@@ -240,6 +240,8 @@ pub struct SummaryView {
     pub unread: u32,
     /// The destination reported an error while the copy was made durable (#58).
     pub durability_error: Option<String>,
+    /// Empty directories that couldn't be created (#58); listed with the failures.
+    pub dir_errors: u32,
     pub not_started: u32,
     #[specta(type = specta_typescript::Number)]
     pub bytes_written: u64,
@@ -451,6 +453,8 @@ pub struct MirrorPreviewView {
     pub removed_files: u32,
     /// Days removed files are archived for; `None` when they are deleted.
     pub archive_days: Option<u32>,
+    /// Files that will fail (a name the destination can't take, something in the way).
+    pub failing: u32,
     pub unchanged: u32,
     /// Why the run looks wrong (FR-50): Run mirror asks first.
     pub guard: Option<String>,

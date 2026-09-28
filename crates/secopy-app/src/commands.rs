@@ -691,6 +691,14 @@ fn failure_reason(s: &SummaryView) -> String {
     if n > 0 {
         return format!("{n} {} couldn't be removed.", files(n));
     }
+    if s.dir_errors > 0 {
+        let dirs = if s.dir_errors == 1 {
+            "directory"
+        } else {
+            "directories"
+        };
+        return format!("{} empty {dirs} couldn't be created.", s.dir_errors);
+    }
     if let Some(e) = &s.checksum_error {
         return format!("The checksum file couldn't be written: {e}");
     }
@@ -929,6 +937,12 @@ impl AppState {
             (count(files.len()), files.iter().sum::<u64>())
         };
         let ((new_files, new_bytes), (changed_files, changed_bytes)) = (sum(true), sum(false));
+        let failing = plan
+            .copy
+            .files
+            .iter()
+            .filter(|f| matches!(f.action, secopy_core::plan::Action::Fail(_)))
+            .count();
         let view = MirrorPreviewView {
             preset_id: preset.id.clone(),
             name: preset.name.clone(),
@@ -943,7 +957,8 @@ impl AppState {
                 secopy_core::mirror::Deleted::Archive { days } => Some(days),
                 secopy_core::mirror::Deleted::Delete => None,
             },
-            unchanged: count(plan.copy.files.len() - plan.changes.len()),
+            failing: count(failing),
+            unchanged: count(plan.copy.files.len() - plan.changes.len() - failing),
             guard: plan.guard.clone(),
         };
         *lock(&self.preview) = Some((preset, job));
@@ -1891,6 +1906,16 @@ mod tests {
         );
         let removed = state.mirror_preview_page(Some(PreviewKind::Removed), 0, 10);
         assert_eq!(removed.len(), 3);
+    }
+
+    /// #58: a file that will fail (a directory is in its way) isn't "unchanged".
+    #[test]
+    fn preview_counts_files_that_will_fail() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        fs::create_dir_all(d.join("a.mov")).unwrap();
+        let p = state.preview_mirror(&id, &|_, _| {}).unwrap();
+        assert_eq!((p.failing, p.unchanged, p.new_files), (1, 0, 0));
     }
 
     /// #57: Run mirror runs the preview of that preset, as it was previewed, once.

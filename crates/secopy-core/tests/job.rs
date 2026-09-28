@@ -1289,7 +1289,6 @@ fn a_checksum_file_that_couldnt_be_written_is_not_a_success() {
     assert_eq!(r.result, "checksum file not written");
 }
 
-#[cfg(unix)]
 fn meta() -> secopy_core::report::JobMeta {
     secopy_core::report::JobMeta {
         app_version: "test".into(),
@@ -1378,4 +1377,40 @@ fn an_archive_that_cant_be_written_leaves_no_partial_file() {
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     assert_eq!(left, ["clip.mov"], "no partial file left");
+}
+
+/// #58: undo removes a copy only while it is still the copy: one rewritten since is kept.
+#[test]
+fn undo_keeps_a_file_that_changed_since_it_was_copied() {
+    let f = fixture();
+    let plan = plan(&f.src, &f.dest);
+    let (report, _) = run(&plan, &opts(true));
+    fs::write(
+        f.dest.join("CARD/notes.txt"),
+        b"edited after the copy, longer",
+    )
+    .unwrap();
+    let undone = undo(&plan, &report, None);
+    assert!(f.dest.join("CARD/notes.txt").exists());
+    assert_eq!(undone.failed.len(), 1, "{undone:?}");
+    assert!(undone.failed[0].1.contains("changed"), "{undone:?}");
+}
+
+/// #58: an empty source directory that couldn't be created (a file is in the way) is part of
+/// the copy that's missing: the job isn't a success, and the report says which.
+#[test]
+fn an_empty_directory_that_couldnt_be_created_is_reported() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    let dest = dir.path().join("dest");
+    write_files(&src, &[("a.bin", b"a")]);
+    fs::create_dir_all(src.join("EMPTY")).unwrap();
+    write_files(&dest, &[("CARD/EMPTY", b"a file in the way")]);
+    let plan = plan(&src, &dest);
+    let (report, _) = run(&plan, &opts(true));
+    assert_eq!(report.dir_errors.len(), 1, "{report:?}");
+    assert!(!report.is_success());
+    let r = secopy_core::report::Report::new(&plan, &report, &meta());
+    assert_eq!(r.result, "1 directory couldn't be created");
+    assert!(r.to_text().contains("EMPTY"), "{}", r.to_text());
 }

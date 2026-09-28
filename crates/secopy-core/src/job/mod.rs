@@ -145,6 +145,8 @@ pub struct JobReport {
     pub unread: Vec<ScanProblem>,
     /// The device reported an error while the copy was made durable (#58).
     pub durability_error: Option<String>,
+    /// Empty directories that couldn't be created, with why (#58).
+    pub dir_errors: Vec<(PathBuf, String)>,
 }
 
 impl JobReport {
@@ -170,6 +172,7 @@ impl JobReport {
             && self.unread.is_empty()
             && self.checksum_error.is_none()
             && self.durability_error.is_none()
+            && self.dir_errors.is_empty()
     }
 }
 
@@ -250,10 +253,11 @@ pub fn run_job(
     let fatal = runner.fatal.into_inner().expect("fatal lock poisoned");
     let created_dirs = runner.made_dirs.into_inner().expect("dirs lock poisoned");
     let mut removed_partials = runner.removed_partials.load(Relaxed);
+    let mut dir_errors = Vec::new();
     if !control.is_stopped() && fatal.is_none() {
         // Before the folder times: removing a file changes its folder's time.
         removed_partials += remove_leftover_partials(plan);
-        create_empty_dirs(plan);
+        dir_errors = create_empty_dirs(plan);
         restore_dir_mtimes(plan);
     }
     let (checksum_file, checksum_error) = if opts.write_checksum_file {
@@ -280,6 +284,7 @@ pub fn run_job(
         created_dirs,
         unread: plan.unread.clone(),
         durability_error,
+        dir_errors,
     }
 }
 
@@ -293,8 +298,8 @@ fn remove_leftover_partials(plan: &Plan) -> u64 {
 }
 
 /// Source folders with no files in the plan are created at the end (FR-6). Folders with
-/// files were created when their first file started.
-fn create_empty_dirs(plan: &Plan) {
+/// files were created when their first file started. Returns the ones that couldn't be.
+fn create_empty_dirs(plan: &Plan) -> Vec<(PathBuf, String)> {
     let mut with_files = HashSet::new();
     for file in &plan.files {
         for dir in file.entry.rel.ancestors().skip(1) {
@@ -303,13 +308,15 @@ fn create_empty_dirs(plan: &Plan) {
             }
         }
     }
-    for dir in plan
-        .dirs
+    plan.dirs
         .iter()
         .filter(|d| !with_files.contains(d.rel.as_path()))
-    {
-        let _ = fs::create_dir_all(plan.dest.join(&dir.rel));
-    }
+        .filter_map(|dir| {
+            fs::create_dir_all(plan.dest.join(&dir.rel))
+                .err()
+                .map(|e| (dir.rel.clone(), e.to_string()))
+        })
+        .collect()
 }
 
 /// Deepest folders first: setting a folder's time doesn't change its parent's (FR-19).

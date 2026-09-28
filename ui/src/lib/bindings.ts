@@ -56,6 +56,8 @@ export const commands = {
 	unread: number,
 	/**  The destination reported an error while the copy was made durable (#58). */
 	durabilityError: string | null,
+	/**  Empty directories that couldn't be created (#58); listed with the failures. */
+	dirErrors: number,
 	notStarted: number,
 	bytesWritten: number,
 	millis: number,
@@ -224,6 +226,8 @@ export type MirrorPreviewView = {
 	removedFiles: number,
 	/**  Days removed files are archived for; `None` when they are deleted. */
 	archiveDays: number | null,
+	/**  Files that will fail (a name the destination can't take, something in the way). */
+	failing: number,
 	unchanged: number,
 	/**  Why the run looks wrong (FR-50): Run mirror asks first. */
 	guard: string | null,
@@ -469,6 +473,8 @@ export type SummaryView = {
 	unread: number,
 	/**  The destination reported an error while the copy was made durable (#58). */
 	durabilityError: string | null,
+	/**  Empty directories that couldn't be created (#58); listed with the failures. */
+	dirErrors: number,
 	notStarted: number,
 	bytesWritten: number,
 	millis: number,
