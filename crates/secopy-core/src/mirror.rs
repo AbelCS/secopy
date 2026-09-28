@@ -73,9 +73,22 @@ pub fn plan(
     destination: &Path,
     options: &MirrorOptions,
 ) -> Result<MirrorPlan, String> {
+    plan_watched(origin, destination, options, &JobControl::new(), &|_, _| {})
+}
+
+/// `plan`, telling how far the deep check is (files compared, of how many) and stopping with
+/// "Cancelled." when `control` is cancelled.
+pub fn plan_watched(
+    origin: &Path,
+    destination: &Path,
+    options: &MirrorOptions,
+    control: &JobControl,
+    on_compared: &(dyn Fn(u64, u64) + Sync),
+) -> Result<MirrorPlan, String> {
     if !origin.is_dir() {
         return Err(format!("The origin isn't there: {}", origin.display()));
     }
+    nested(origin, destination)?;
     let source = Source::Directory {
         path: origin.to_path_buf(),
         mode: DirMode::ContentsOnly,
@@ -89,16 +102,33 @@ pub fn plan(
     let pf = preflight(&source, &sel, destination).map_err(|b| b.to_string())?;
     let mut copy = Plan::resolve(&sel, &pf, DiffersPolicy::Overwrite);
     let mut changes = Vec::new();
+    let to_compare = if options.deep_check {
+        copy.files
+            .iter()
+            .filter(|f| f.action == Action::SkipIdentical)
+            .count() as u64
+    } else {
+        0
+    };
+    let mut compared = 0;
+    if options.deep_check {
+        on_compared(0, to_compare);
+    }
     for (i, f) in copy.files.iter_mut().enumerate() {
         match f.action {
             Action::Copy => changes.push((i, Change::New)),
             Action::Overwrite => changes.push((i, Change::Changed)),
-            Action::SkipIdentical
-                if options.deep_check
-                    && differs(&f.entry.source, &destination.join(&f.entry.rel)) =>
-            {
-                f.action = Action::Overwrite;
-                changes.push((i, Change::ContentsDiffer));
+            Action::SkipIdentical if options.deep_check => {
+                let different = differs(&f.entry.source, &destination.join(&f.entry.rel), control);
+                if control.is_stopped() {
+                    return Err("Cancelled.".into());
+                }
+                if different {
+                    f.action = Action::Overwrite;
+                    changes.push((i, Change::ContentsDiffer));
+                }
+                compared += 1;
+                on_compared(compared, to_compare);
             }
             _ => {}
         }
@@ -147,11 +177,26 @@ pub fn plan(
     })
 }
 
+/// One of the two directories holds the other, or they are the same one, however the paths
+/// are written (letter case, symlinks): mirroring would copy or remove its own files.
+fn nested(origin: &Path, destination: &Path) -> Result<(), String> {
+    let same = |a: &Path, b: &Path| same_file::is_same_file(a, b).unwrap_or(false);
+    if same(origin, destination) {
+        return Err("The origin and the destination are the same directory.".into());
+    }
+    if destination.ancestors().skip(1).any(|a| same(a, origin)) {
+        return Err("The destination can't be inside the origin.".into());
+    }
+    if origin.ancestors().skip(1).any(|a| same(a, destination)) {
+        return Err("The origin can't be inside the destination.".into());
+    }
+    Ok(())
+}
+
 /// Contents differ (the deep check): either side unreadable counts as different.
-fn differs(a: &Path, b: &Path) -> bool {
-    let control = JobControl::new();
+fn differs(a: &Path, b: &Path, control: &JobControl) -> bool {
     let hash = |p: &Path| {
-        hash_from_device(p, 4 << 20, &|_| {}, &control)
+        hash_from_device(p, 4 << 20, &|_| {}, control)
             .map(|(h, _)| h)
             .ok()
     };
@@ -281,6 +326,14 @@ pub struct Removal {
     pub result: Result<(), String>,
 }
 
+/// What `finish` did: the removals, and the names changed to the origin's spelling.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Finished {
+    pub removals: Vec<Removal>,
+    /// (destination name before, the origin's name).
+    pub renamed: Vec<(PathBuf, PathBuf)>,
+}
+
 const STAMP: &str = "%Y-%m-%d %H.%M.%S";
 
 pub fn archive_dir(destination: &Path, now: chrono::DateTime<chrono::Local>) -> PathBuf {
@@ -294,7 +347,7 @@ pub fn finish(
     plan: &MirrorPlan,
     report: &JobReport,
     archive: Option<&Path>,
-) -> Result<Vec<Removal>, String> {
+) -> Result<Finished, String> {
     let failed = report.failed().count();
     if report.cancelled {
         return Err("Nothing was removed: the mirror was cancelled.".into());
@@ -333,14 +386,18 @@ pub fn finish(
     for dir in &plan.remove_dirs {
         let _ = fs::remove_dir(dest.join(dir)); // only if it is empty now
     }
+    let mut renamed = Vec::new();
     for (from, to) in &plan.renames {
-        let (from, to) = (dest.join(from), dest.join(to));
+        let (a, b) = (dest.join(from), dest.join(to));
         // Only the spelling of one file; never onto another one.
-        if same_file::is_same_file(&from, &to).unwrap_or(false) {
-            let _ = fs::rename(from, to);
+        if same_file::is_same_file(&a, &b).unwrap_or(false) && fs::rename(&a, &b).is_ok() {
+            renamed.push((from.clone(), to.clone()));
         }
     }
-    Ok(done)
+    Ok(Finished {
+        removals: done,
+        renamed,
+    })
 }
 
 /// Removes archive run directories older than `days` (named by `archive_dir`).

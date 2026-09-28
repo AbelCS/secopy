@@ -119,6 +119,19 @@ describe("JobProgress", () => {
     expect(api.cancelJob).not.toHaveBeenCalled();
   });
 
+  test("while a mirror archives, Pause and Cancel are off", async () => {
+    const { api } = fakeApi();
+    const { component } = render(JobProgress, {
+      props: { progress: progressView({ phase: "removing", removing: 3, archiving: true }), title: "Mirroring" },
+      context: apiContext(api),
+    });
+    expect(screen.getByRole("button", { name: "Pause" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveProperty("disabled", true);
+    component.cancel(); // ⌘. from the menu
+    await Promise.resolve();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   test("a mirror asks Stop mirroring?", async () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), title: "Mirroring" }, context: apiContext(api) });

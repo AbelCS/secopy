@@ -3,17 +3,17 @@
 //! never freezes (NFR-5).
 
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 
+use crate::dto::{ComparedView, MirrorPreviewView, PreviewKind, PreviewRow, count};
 use crate::dto::{
     ConflictPolicy, ExtensionKey, FinishedRow, JobOutcome, ProfilesView, ProgressView, QueueEvent,
     QueueResult, QueueResultView, QueueSummaryView, QueueView, QueuedJobView, SessionView,
     StartView, SummaryView, show,
 };
-use crate::dto::{MirrorPreviewView, PreviewKind, PreviewRow, count};
 use crate::jobs::{JobHandle, JobSettings, Jobs, ProgressSink};
 use crate::mirrors::MirrorJob;
 use crate::queue::{Entry, OnFailure, QUEUE, Queue, QueuedJob};
@@ -22,6 +22,7 @@ use crate::store::{
     MIRRORS, MirrorPreset, MirrorPresetInput, MirrorPresets, PROFILES, Profile, ProfileInput,
     Profiles, REMEMBERED, Remembered, SETTINGS, Settings, Store, WindowSize,
 };
+use secopy_core::control::JobControl;
 
 /// Everything the app keeps between commands.
 pub struct AppState {
@@ -37,8 +38,11 @@ pub struct AppState {
     pub(crate) queue: Mutex<Queue>,
     /// Saved mirror presets (plan 7).
     pub(crate) mirrors: Mutex<MirrorPresets>,
-    /// The mirror last previewed: Run mirror runs exactly this (FR-47).
-    preview: Mutex<Option<MirrorJob>>,
+    /// The mirror last previewed, with its preset as it was: Run mirror runs exactly this, once
+    /// (FR-47).
+    preview: Mutex<Option<(MirrorPreset, MirrorJob)>>,
+    /// Stops a mirror being planned (its deep check), for Preview's Cancel and the queue's.
+    planning: Mutex<Option<Arc<JobControl>>>,
     pub(crate) queue_run: Mutex<QueueRun>,
 }
 
@@ -75,6 +79,7 @@ impl AppState {
             warnings: Mutex::new([w1, w2, w3, w4, w5].into_iter().flatten().collect()),
             mirrors: Mutex::new(mirrors),
             preview: Mutex::new(None),
+            planning: Mutex::new(None),
             queue: Mutex::new(queue),
             queue_run: Mutex::new(QueueRun::default()),
         }
@@ -420,6 +425,27 @@ impl AppState {
         let mut run = lock(&self.queue_run);
         run.cancelled = true;
         self.jobs.cancel(remove_copied);
+        self.cancel_preview();
+    }
+
+    /// Stops a mirror being planned: Preview's Cancel, or a queued mirror's deep check.
+    pub fn cancel_preview(&self) {
+        if let Some(control) = lock(&self.planning).as_ref() {
+            control.cancel();
+        }
+    }
+
+    /// Plans a mirror with a control Cancel can reach.
+    fn plan_mirror(
+        &self,
+        preset: &MirrorPreset,
+        on_compared: &(dyn Fn(u64, u64) + Sync),
+    ) -> Result<MirrorJob, String> {
+        let control = Arc::new(JobControl::new());
+        *lock(&self.planning) = Some(control.clone());
+        let job = crate::mirrors::prepare(preset, &control, on_compared);
+        *lock(&self.planning) = None;
+        job
     }
 
     pub fn queue_job(&self, index: usize) -> Option<JobHandle> {
@@ -572,7 +598,7 @@ impl AppState {
                 let Some(preset) = lock(&self.mirrors).get(preset).cloned() else {
                     return (QueueResult::Failed, Some(PRESET_GONE.into()), None);
                 };
-                let job = match crate::mirrors::prepare(&preset) {
+                let job = match self.plan_mirror(&preset, &|_, _| {}) {
                     Ok(job) => job,
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
@@ -861,9 +887,13 @@ impl AppState {
     }
 
     /// Works out what the preset would do now and keeps it for Run mirror (FR-47).
-    pub fn preview_mirror(&self, id: &str) -> Result<MirrorPreviewView, String> {
+    pub fn preview_mirror(
+        &self,
+        id: &str,
+        on_compared: &(dyn Fn(u64, u64) + Sync),
+    ) -> Result<MirrorPreviewView, String> {
         let preset = lock(&self.mirrors).get(id).cloned().ok_or(PRESET_GONE)?;
-        let job = crate::mirrors::prepare(&preset)?;
+        let job = self.plan_mirror(&preset, on_compared)?;
         let plan = &job.plan;
         let sum = |new: bool| {
             let files: Vec<u64> = plan
@@ -892,7 +922,7 @@ impl AppState {
             unchanged: count(plan.copy.files.len() - plan.changes.len()),
             guard: plan.guard.clone(),
         };
-        *lock(&self.preview) = Some(job);
+        *lock(&self.preview) = Some((preset, job));
         Ok(view)
     }
 
@@ -905,7 +935,7 @@ impl AppState {
     ) -> Vec<PreviewRow> {
         use secopy_core::mirror::Change;
         let preview = lock(&self.preview);
-        let Some(job) = preview.as_ref() else {
+        let Some((_, job)) = preview.as_ref() else {
             return Vec::new();
         };
         let plan = &job.plan;
@@ -938,15 +968,24 @@ impl AppState {
     }
 
     /// Run mirror: the previewed plan, through the job runner (FR-47).
-    pub fn run_mirror(&self, sink: impl ProgressSink) -> Result<(), String> {
+    /// Runs the preview of preset `id`, as it was previewed; a preview runs once.
+    pub fn run_mirror(&self, id: &str, sink: impl ProgressSink) -> Result<(), String> {
         if lock(&self.queue_run).running {
             return Err("A copy or the queue is already running.".into());
         }
-        let job = lock(&self.preview)
-            .clone()
-            .ok_or("Preview the mirror first.")?;
+        let mut preview = lock(&self.preview);
+        let (previewed, job) = match preview.as_ref() {
+            Some((preset, job)) if preset.id == id => (preset.clone(), job.clone()),
+            _ => return Err("Preview the mirror first.".into()),
+        };
+        if lock(&self.mirrors).get(id) != Some(&previewed) {
+            *preview = None;
+            return Err("The mirror changed since its preview. Preview it again.".into());
+        }
         let settings = JobSettings::for_mirror(&job, chrono::Local::now());
-        self.jobs.start(job.ready(), true, settings, sink)
+        self.jobs.start(job.ready(), true, settings, sink)?;
+        *preview = None;
+        Ok(())
     }
 
     pub fn add_mirror_to_queue(&self, id: &str) -> Result<QueueView, String> {
@@ -1106,8 +1145,27 @@ pub async fn delete_mirror_preset(app: AppHandle, id: String) -> Result<Vec<Mirr
 /// A mirror's preview (FR-47); Run mirror then runs it.
 #[tauri::command]
 #[specta::specta]
-pub async fn preview_mirror(app: AppHandle, id: String) -> Result<MirrorPreviewView, String> {
-    blocking(app, move |state| state.preview_mirror(&id)).await?
+pub async fn preview_mirror(
+    app: AppHandle,
+    id: String,
+    on_compared: Channel<ComparedView>,
+) -> Result<MirrorPreviewView, String> {
+    blocking(app, move |state| {
+        state.preview_mirror(&id, &|done, total| {
+            let _ = on_compared.send(ComparedView {
+                done: count(done),
+                total: count(total),
+            });
+        })
+    })
+    .await?
+}
+
+/// Stops a preview's deep check.
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_mirror_preview(app: AppHandle) {
+    app.state::<AppState>().cancel_preview();
 }
 
 #[tauri::command]
@@ -1127,8 +1185,12 @@ pub async fn mirror_preview_page(
 /// Runs the previewed mirror; progress arrives on `on_progress`.
 #[tauri::command]
 #[specta::specta]
-pub async fn run_mirror(app: AppHandle, on_progress: Channel<ProgressView>) -> Result<(), String> {
-    blocking(app, move |state| state.run_mirror(on_progress)).await?
+pub async fn run_mirror(
+    app: AppHandle,
+    id: String,
+    on_progress: Channel<ProgressView>,
+) -> Result<(), String> {
+    blocking(app, move |state| state.run_mirror(&id, on_progress)).await?
 }
 
 #[tauri::command]
@@ -1776,7 +1838,7 @@ mod tests {
     fn preview_counts_and_lists_the_changes() {
         let dir = tempfile::tempdir().unwrap();
         let (state, id, ..) = mirror_state(dir.path());
-        let p = state.preview_mirror(&id).unwrap();
+        let p = state.preview_mirror(&id, &|_, _| {}).unwrap();
         assert_eq!((p.new_files, p.removed_files, p.unchanged), (1, 3, 0));
         assert_eq!(
             p.guard.as_deref(),
@@ -1784,6 +1846,92 @@ mod tests {
         );
         let removed = state.mirror_preview_page(Some(PreviewKind::Removed), 0, 10);
         assert_eq!(removed.len(), 3);
+    }
+
+    /// #57: Run mirror runs the preview of that preset, as it was previewed, once.
+    #[test]
+    fn run_mirror_runs_only_the_preview_of_that_preset() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, ..) = mirror_state(dir.path());
+        state.preview_mirror(&id, &|_, _| {}).unwrap();
+        assert_eq!(
+            state.run_mirror("another", Sink::default()).unwrap_err(),
+            "Preview the mirror first."
+        );
+        let mut preset = state.mirror_presets()[0].clone();
+        preset.name = "Renamed".into();
+        state
+            .edit_mirror_preset(
+                &id,
+                crate::store::MirrorPresetInput {
+                    name: preset.name,
+                    origin: preset.origin,
+                    destination: preset.destination,
+                    deleted: preset.deleted,
+                    deep_check: preset.deep_check,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            state.run_mirror(&id, Sink::default()).unwrap_err(),
+            "The mirror changed since its preview. Preview it again."
+        );
+        state.preview_mirror(&id, &|_, _| {}).unwrap();
+        state.run_mirror(&id, Sink::default()).unwrap();
+        state.jobs.wait();
+        assert_eq!(
+            state.run_mirror(&id, Sink::default()).unwrap_err(),
+            "Preview the mirror first.",
+            "a preview runs once"
+        );
+    }
+
+    /// #57: the deep check of a preview can be cancelled, also by Cancel of the queue.
+    #[test]
+    fn a_deep_check_can_be_cancelled() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, o, d) = mirror_state(dir.path());
+        fs::copy(o.join("a.mov"), d.join("a.mov")).unwrap();
+        let t = fs::metadata(o.join("a.mov")).unwrap().modified().unwrap();
+        fs::File::options()
+            .write(true)
+            .open(d.join("a.mov"))
+            .unwrap()
+            .set_modified(t)
+            .unwrap();
+        let mut preset = state.mirror_presets()[0].clone();
+        preset.deep_check = true;
+        state
+            .edit_mirror_preset(
+                &id,
+                crate::store::MirrorPresetInput {
+                    name: preset.name,
+                    origin: preset.origin,
+                    destination: preset.destination,
+                    deleted: preset.deleted,
+                    deep_check: true,
+                },
+            )
+            .unwrap();
+        let seen = StdMutex::new(Vec::new());
+        let err = state
+            .preview_mirror(&id, &|done, total| {
+                seen.lock().unwrap().push((done, total));
+                if done == 0 {
+                    state.cancel_preview();
+                }
+            })
+            .unwrap_err();
+        assert_eq!(err, "Cancelled.");
+        assert_eq!(seen.lock().unwrap()[0], (0, 1));
+        let err = state
+            .preview_mirror(&id, &|done, _| {
+                if done == 0 {
+                    state.cancel(false);
+                }
+            })
+            .unwrap_err();
+        assert_eq!(err, "Cancelled.");
     }
 
     /// Review focus 4.

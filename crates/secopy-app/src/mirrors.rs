@@ -3,6 +3,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use secopy_core::control::JobControl;
 use secopy_core::mirror::{self, MirrorOptions, MirrorPlan};
 
 use crate::session::{Ready, gone};
@@ -15,8 +16,14 @@ pub struct MirrorJob {
     pub name: String,
 }
 
-/// Plans `preset` now; a missing origin or destination says so, like New copy does.
-pub fn prepare(preset: &MirrorPreset) -> Result<MirrorJob, String> {
+/// Plans `preset` now; a missing origin or destination says so, like New copy does. The deep
+/// check reports to `on_compared` (files compared, of how many) and stops when `control` is
+/// cancelled.
+pub fn prepare(
+    preset: &MirrorPreset,
+    control: &JobControl,
+    on_compared: &(dyn Fn(u64, u64) + Sync),
+) -> Result<MirrorJob, String> {
     for p in [&preset.origin, &preset.destination] {
         let path = Path::new(p);
         if !path.is_dir() {
@@ -27,10 +34,12 @@ pub fn prepare(preset: &MirrorPreset) -> Result<MirrorJob, String> {
         deleted: (&preset.deleted).into(),
         deep_check: preset.deep_check,
     };
-    let plan = mirror::plan(
+    let plan = mirror::plan_watched(
         Path::new(&preset.origin),
         Path::new(&preset.destination),
         &options,
+        control,
+        on_compared,
     )?;
     Ok(MirrorJob {
         plan: Arc::new(plan),

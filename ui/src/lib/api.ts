@@ -14,6 +14,7 @@ import {
   commands,
   type ConflictPolicy,
   type FinishedRow,
+  type ComparedView,
   type MirrorPreset,
   type MirrorPresetInput,
   type MirrorPreviewView,
@@ -95,13 +96,20 @@ export const tauriApi = {
     unwrap(commands.editMirrorPreset(id, input)),
   deleteMirrorPreset: (id: string): Promise<MirrorPreset[]> => unwrap(commands.deleteMirrorPreset(id)),
   /** What a preset would do now; Run mirror then runs exactly this (FR-47). */
-  previewMirror: (id: string): Promise<MirrorPreviewView> => unwrap(commands.previewMirror(id)),
+  previewMirror: (id: string, onCompared: (c: ComparedView) => void): Promise<MirrorPreviewView> => {
+    const channel = new Channel<ComparedView>();
+    channel.onmessage = onCompared;
+    return unwrap(commands.previewMirror(id, channel));
+  },
+  /** Stops a preview's deep check; the preview then fails with "Cancelled.". */
+  cancelMirrorPreview: (): Promise<void> => commands.cancelMirrorPreview(),
   mirrorPreviewPage: (kind: PreviewKind | null, offset: number, limit: number): Promise<PreviewRow[]> =>
     unwrap(commands.mirrorPreviewPage(kind, offset, limit)),
-  runMirror: (onProgress: (p: ProgressView) => void): Promise<null> => {
+  /** Runs preset `id`'s preview, once; a preset changed since fails. */
+  runMirror: (id: string, onProgress: (p: ProgressView) => void): Promise<null> => {
     const channel = new Channel<ProgressView>();
     channel.onmessage = onProgress;
-    return unwrap(commands.runMirror(channel));
+    return unwrap(commands.runMirror(id, channel));
   },
   addMirrorToQueue: (id: string): Promise<QueueView> => unwrap(commands.addMirrorToQueue(id)),
   appStart: (): Promise<StartView> => unwrap(commands.appStart()),

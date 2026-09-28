@@ -6,6 +6,7 @@
   import type { MirrorPreset, MirrorPresetInput, MirrorPreviewView, QueueView } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
+  import { formatCount, plural } from "../lib/format";
   import Button from "../lib/ui/Button.svelte";
   import EmptyState from "../lib/ui/EmptyState.svelte";
   import Notice from "../lib/ui/Notice.svelte";
@@ -38,6 +39,9 @@
   let selectedId: string | null = $state(presets[0]?.id ?? null);
   let error: string | null = $state(null);
   let busy = $state(false);
+  /** Preview… is working; with the deep check, how far it is. */
+  let previewing = $state(false);
+  let compared: { done: number; total: number } | null = $state(null);
   /** The editor has unsaved changes. */
   let changed = $state(false);
   let canSave = $state(false);
@@ -84,6 +88,21 @@
       error = e instanceof Error ? e.message : String(e);
     } finally {
       busy = false;
+    }
+  }
+
+  async function preview(p: MirrorPreset) {
+    previewing = true;
+    compared = null;
+    try {
+      onPreview(await api.previewMirror(p.id, (c) => (compared = c)));
+      error = null;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      error = message === "Cancelled." ? null : message;
+    } finally {
+      previewing = false;
+      compared = null;
     }
   }
 
@@ -160,7 +179,15 @@
   </div>
 
   {#snippet actions()}
-    <ActionBar status={changed ? "Unsaved changes" : ""}>
+    <ActionBar
+      status={changed
+        ? "Unsaved changes"
+        : compared
+          ? `Comparing contents: ${formatCount(compared.done)} of ${plural(compared.total, "file")}`
+          : previewing
+            ? "Working out the preview…"
+            : ""}
+    >
       {#snippet start()}
         {#if selected && selectedId !== NEW}
           <Button variant="danger" onclick={() => remove(selected)}>Delete…</Button>
@@ -171,12 +198,14 @@
           <Button disabled={!changed} onclick={() => editor?.revert()}>Revert</Button>
           <Button variant="primary" type="submit" form={FORM} disabled={!canSave}>Save</Button>
         {:else if selected}
-          <Button disabled={busy} onclick={() => act(async () => onQueue(await api.addMirrorToQueue(selected.id)))}>
-            Add to queue
-          </Button>
-          <Button variant="primary" disabled={busy} onclick={() => act(async () => onPreview(await api.previewMirror(selected.id)))}>
-            Preview…
-          </Button>
+          {#if previewing}
+            <Button onclick={() => api.cancelMirrorPreview()}>Cancel</Button>
+          {:else}
+            <Button disabled={busy} onclick={() => act(async () => onQueue(await api.addMirrorToQueue(selected.id)))}>
+              Add to queue
+            </Button>
+          {/if}
+          <Button variant="primary" disabled={busy || previewing} onclick={() => preview(selected)}>Preview…</Button>
         {/if}
       {/snippet}
     </ActionBar>
