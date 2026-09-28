@@ -672,6 +672,7 @@ fn row(o: &FileOutcome) -> FinishedRow {
             Some("A different file with this name was kept".to_string()),
         ),
         FileStatus::Failed(e) => (RowStatus::Failed, Some(sentence(&e.to_string()))),
+        FileStatus::Cancelled => (RowStatus::Cancelled, None),
     };
     FinishedRow {
         id: count(o.id),

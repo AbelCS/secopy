@@ -220,6 +220,8 @@ pub enum RowStatus {
     Verified,
     Skipped,
     Failed,
+    /// Stopped by Cancel.
+    Cancelled,
 }
 
 /// The summary after a job (RFD §5.4).

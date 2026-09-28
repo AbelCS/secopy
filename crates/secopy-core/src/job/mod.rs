@@ -87,6 +87,8 @@ pub enum FileStatus {
     /// Not read or written (FR-17).
     Skipped(SkipReason),
     Failed(FileError),
+    /// Stopped by Cancel before it was done; nothing of it is left at the destination.
+    Cancelled,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

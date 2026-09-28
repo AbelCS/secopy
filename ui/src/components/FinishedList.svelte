@@ -80,7 +80,9 @@
   }
 
   const statusText = (r: FinishedRow) =>
-    ({ verified: "✓ Verified", copied: "✓ Copied", skipped: "Skipped", failed: "✗ Failed" })[r.status];
+    ({ verified: "✓ Verified", copied: "✓ Copied", skipped: "Skipped", failed: "✗ Failed", cancelled: "Cancelled" })[
+      r.status
+    ];
 </script>
 
 <Section {title}>
@@ -117,17 +119,9 @@
           <span>{formatBytes(row.size)}</span>
           <span>{formatDuration(row.millis)}</span>
           <span>{formatSpeed(row.millis > 0 ? (row.size * 1000) / row.millis : null)}</span>
-          {#if row.status === "failed"}
-            <!-- A failed file has no checksum: its reason takes both columns. -->
-            <span class="failed wide" title={row.reason ?? ""}>
-              {statusText(row)}{row.reason ? ` — ${row.reason}` : ""}
-            </span>
-          {:else}
-            <span class="mono">{row.hash ?? "—"}</span>
-            <span class={row.status} title={row.reason ?? ""}>
-              {statusText(row)}{row.reason ? ` — ${row.reason}` : ""}
-            </span>
-          {/if}
+          <span class="mono">{row.hash ?? "—"}</span>
+          <!-- A short word; why is on hover, and in the summary's Failed list. -->
+          <span class={row.status} title={row.reason ?? ""}>{statusText(row)}</span>
         {:else}
           <span class="muted">…</span>
         {/if}
@@ -182,10 +176,6 @@
     text-overflow: ellipsis;
   }
 
-  .row .wide {
-    grid-column: span 2;
-  }
-
   .row.head {
     position: static;
     height: auto;
@@ -206,7 +196,8 @@
   }
 
   .muted,
-  .skipped {
+  .skipped,
+  .cancelled {
     color: var(--text-muted);
   }
 </style>

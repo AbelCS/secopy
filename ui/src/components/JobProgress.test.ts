@@ -193,15 +193,19 @@ describe("JobProgress", () => {
     await waitFor(() => expect(api.finishedPage).toHaveBeenCalledWith(4900, 100, false));
   });
 
-  test("a failed file's reason takes the checksum's place, so it can be read", async () => {
+  test("the Status column holds a short word; a failure's reason is on hover", async () => {
     const { api } = fakeApi();
-    api.finishedPage.mockResolvedValue([row(0, { status: "failed", hash: null, reason: "Cancelled" })]);
-    render(JobProgress, { props: { progress: progressView({ filesDone: 1, filesFailed: 1 }) }, context: apiContext(api) });
-    const item = await screen.findByRole("listitem");
-    await waitFor(() => within(item).getByText("✗ Failed — Cancelled"));
-    const status = within(item).getByText("✗ Failed — Cancelled");
-    expect(status.classList.contains("wide")).toBe(true);
-    expect(within(item).queryByText("—")).toBeNull();
+    api.finishedPage.mockResolvedValue([
+      row(0, { status: "failed", hash: null, reason: "The source file changed while it was copied" }),
+      row(1, { status: "cancelled", hash: null, reason: null }),
+    ]);
+    render(JobProgress, { props: { progress: progressView({ filesDone: 2, filesFailed: 1 }) }, context: apiContext(api) });
+    await waitFor(() => expect(screen.getAllByRole("listitem")[1].textContent).toContain("Cancelled"));
+    const [failed, cancelled] = screen.getAllByRole("listitem");
+    const status = within(failed).getByText("✗ Failed");
+    expect(status.getAttribute("title")).toBe("The source file changed while it was copied");
+    within(failed).getByText("—"); // no checksum, in the Checksum column
+    within(cancelled).getByText("Cancelled");
   });
 
   test("Failed only goes back to the top", async () => {
