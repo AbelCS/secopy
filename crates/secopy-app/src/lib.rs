@@ -9,6 +9,7 @@ mod picker;
 pub mod queue;
 pub mod session;
 pub mod store;
+pub mod transfer;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, Runtime, WindowEvent};
