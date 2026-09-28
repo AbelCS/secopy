@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/AbelCS/secopy/compare/v0.5.0...v0.5.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **app:** sign the whole app bundle so macOS doesn't call it damaged ([7526d51](https://github.com/AbelCS/secopy/commit/7526d51c6046642911493c4701bd95c41223441a)), closes [#36](https://github.com/AbelCS/secopy/issues/36)
+
 ## [0.5.0](https://github.com/AbelCS/secopy/compare/v0.4.0...v0.5.0) (2026-09-28)
 
 
