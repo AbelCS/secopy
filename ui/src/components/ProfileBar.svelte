@@ -1,6 +1,7 @@
 <script lang="ts">
   // FROM's source profile (FR-38): pick one, see when this run differs from it, and save
   // the difference with Update profile or Save as new….
+  import { tick } from "svelte";
   import { useApi } from "../lib/api";
   import type { Profile, ProfilesView, SessionView } from "../lib/bindings";
   import Button from "../lib/ui/Button.svelte";
@@ -65,6 +66,15 @@
     onSelect(value === "" ? null : value);
   }
 
+  let bar: HTMLElement;
+
+  /** Closes Save as new… and gives focus back to the button that opened it. */
+  async function closeSaveAs() {
+    savingAs = false;
+    await tick();
+    bar.querySelector<HTMLElement>("[data-save-as]")?.focus();
+  }
+
   function openSaveAs() {
     name = "";
     folder = view.suggestedFolder;
@@ -78,14 +88,19 @@
   }
 </script>
 
-<div class="profile">
-  <Select label="Profile" hideLabel value={view.profileId ?? ""} {options} disabled={forFiles} onChange={choose} />
+<div class="profile" bind:this={bar}>
+  {#if profiles.length > 0}
+    <Select label="Profile" hideLabel value={view.profileId ?? ""} {options} disabled={forFiles} onChange={choose} />
+  {:else if !canSaveAs}
+    <!-- Nothing to choose yet: a menu with only None would be noise. -->
+    <Button onclick={onManage}>Create a profile…</Button>
+  {/if}
   {#if selected && view.profileChanged}
     <span class="muted">Changed for this run</span>
     <Button disabled={busy} onclick={() => act(() => api.updateProfile())}>Update profile</Button>
   {/if}
   {#if canSaveAs}
-    <Button disabled={busy} onclick={openSaveAs}>Save as new…</Button>
+    <Button disabled={busy} onclick={openSaveAs} data-save-as>Save as new…</Button>
   {/if}
 </div>
 {#if savingAs}
@@ -97,14 +112,14 @@
     onkeydown={(e) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        savingAs = false;
+        void closeSaveAs();
       }
     }}
   >
     <TextField label="Name" bind:value={name} placeholder="e.g. Sony FX3" />
     <TextField label="Directory on the card" bind:value={folder} mono placeholder="e.g. PRIVATE/M4ROOT/CLIP" />
     <div class="buttons">
-      <Button onclick={() => (savingAs = false)}>Cancel</Button>
+      <Button onclick={closeSaveAs}>Cancel</Button>
       <Button variant="primary" type="submit" disabled={busy}>Save</Button>
     </div>
   </form>

@@ -86,7 +86,8 @@
     if (!destination) return "Choose where to copy to.";
     if (destination.blocker || view.plan?.blocker) return "Something above blocks the copy.";
     if (!view.plan || view.plan.filesToWrite === 0) return "Nothing to copy.";
-    return `To ${destination.copyRoot}`;
+    // Ready: the Start button says what it will do.
+    return "";
   });
 
   function setMode(mode: "copy" | "verify") {

@@ -54,7 +54,7 @@
 
   .primary:hover:not(:disabled) {
     border-color: var(--accent-strong);
-    background: color-mix(in srgb, var(--accent-strong) 88%, white);
+    background: var(--accent-strong-hover);
   }
 
   .danger {

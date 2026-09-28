@@ -10,6 +10,8 @@
   --accent: #4f8cff;
   /* Filled accent backgrounds (primary buttons, the selected segment): white on it is 4.7:1. */
   --accent-strong: #2f6fe0;
+  /* A filled button under the pointer: darker, so white text keeps 4.5:1. */
+  --accent-strong-hover: #2962c5;
   --success: #3ecf8e;
   --warning: #f5a524;
   --danger: #f25f5c;
