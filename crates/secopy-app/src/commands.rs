@@ -56,7 +56,7 @@ pub struct AppState {
     checking: Mutex<Option<(PathBuf, Arc<CheckPlan>)>>,
     pub(crate) queue_run: Mutex<QueueRun>,
     /// The file on the Import screen, as read when it opened: Import applies exactly this.
-    importing: Mutex<Option<Contents>>,
+    importing: Mutex<Option<Pending>>,
     /// A `.secopy` file opened from Finder that the window hasn't shown yet.
     opened: Mutex<Option<PathBuf>>,
 }
@@ -1576,8 +1576,16 @@ pub async fn set_mode(app: AppHandle, verify: bool) -> Result<(), String> {
     blocking(app, move |state| state.remember(|r| r.verify = verify)).await
 }
 
+/// A file on the Import screen, and what the screen was worked out against.
+struct Pending {
+    contents: Contents,
+    seen: (CopyPresets, MirrorPresets, Settings),
+}
+
 /// Why Import is refused while a job or the queue runs (#77).
 pub const IMPORT_WAITS: &str = "Import it when the copy has finished.";
+/// Why Import is refused when presets or settings changed after the file was opened.
+pub const IMPORT_CHANGED: &str = "Your presets or settings changed since this file was opened. Open it again to see what it would change.";
 
 /// "1 copy preset, 2 mirror presets and the settings".
 fn what_line(copies: usize, mirrors: usize, settings: bool) -> String {
@@ -1676,27 +1684,42 @@ impl AppState {
         let name = path
             .file_name()
             .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-        let (copies, mirrors, settings) = (
-            lock(&self.copy_presets).clone(),
-            lock(&self.mirrors).clone(),
-            lock(&self.settings).clone(),
-        );
+        // One lock at a time: a guard in a tuple lives to the end of the statement.
+        let copies = lock(&self.copy_presets).clone();
+        let mirrors = lock(&self.mirrors).clone();
+        let settings = lock(&self.settings).clone();
         let view = transfer::plan(&name, &contents, &copies, &mirrors, &settings, &|p| {
             Path::new(p).exists()
         });
-        *lock(&self.importing) = Some(contents);
+        *lock(&self.importing) = Some(Pending {
+            contents,
+            seen: (copies, mirrors, settings),
+        });
         Ok(view)
     }
 
     /// Imports what was ticked, kind by kind (copy presets, mirror presets, settings), each
-    /// saved before the next; the first failure stops it, and the message says what went in.
+    /// saved before the next; the first failure stops it, and the message says what went in
+    /// and what didn't. The file is taken once, so a second press imports nothing; nothing is
+    /// imported if a job runs or the presets or settings changed since the screen was shown.
     pub fn apply_import(&self, choices: &ImportChoices) -> Result<ImportDone, String> {
-        if self.busy() {
+        // Held throughout, so the queue can't start in the middle (`claim_queue_run`).
+        let run = lock(&self.queue_run);
+        if run.running || self.jobs.is_running() {
             return Err(IMPORT_WAITS.into());
         }
-        let contents = lock(&self.importing)
-            .clone()
+        let Pending { contents, seen } = lock(&self.importing)
+            .take()
             .ok_or("There is no file to import.")?;
+        let now = (
+            lock(&self.copy_presets).clone(),
+            lock(&self.mirrors).clone(),
+            lock(&self.settings).clone(),
+        );
+        if now != seen {
+            return Err(IMPORT_CHANGED.into());
+        }
+        let wants_settings = choices.settings && matches!(contents.settings, Some(Ok(_)));
         let mut done = (0usize, 0usize, false);
         let failure = (|| -> Result<(), (&str, String)> {
             if !choices.copy_presets.is_empty() {
@@ -1713,9 +1736,7 @@ impl AppState {
                     })
                     .map_err(|e| ("The mirror presets", e))?;
             }
-            if choices.settings
-                && let Some(Ok(theirs)) = &contents.settings
-            {
+            if wants_settings && let Some(Ok(theirs)) = &contents.settings {
                 self.change_whole(&self.settings, SETTINGS, |_| Ok((theirs.clone(), ())))
                     .map_err(|e| ("The settings", e))?;
                 done.2 = true;
@@ -1723,26 +1744,48 @@ impl AppState {
             Ok(())
         })()
         .err();
+        drop(run);
         let imported = what_line(done.0, done.1, done.2);
         let (message, failed) = match failure {
             None => (format!("Imported {imported}."), false),
-            Some((what, why)) if done == (0, 0, false) => {
-                (format!("{what} couldn't be saved: {why}"), true)
+            Some((what, why)) => {
+                // The kinds after the one that failed were never tried.
+                let later: Vec<&str> = match what {
+                    "The copy presets" => [
+                        (!choices.mirror_presets.is_empty()).then_some("the mirror presets"),
+                        wants_settings.then_some("the settings"),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+                    "The mirror presets" => wants_settings
+                        .then_some("the settings")
+                        .into_iter()
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                let mut message = if done == (0, 0, false) {
+                    format!("{what} couldn't be saved: {why}")
+                } else {
+                    format!("Imported {imported}. {what} couldn't be saved: {why}")
+                };
+                if !later.is_empty() {
+                    let rest = later.join(" and ");
+                    let rest = rest[..1].to_uppercase() + &rest[1..];
+                    message.push_str(&format!(" {rest} weren't imported."));
+                }
+                (message, true)
             }
-            Some((what, why)) => (
-                format!("Imported {imported}. {what} couldn't be saved: {why}"),
-                true,
-            ),
         };
-        if !failed {
-            *lock(&self.importing) = None;
-        }
+        let settings = lock(&self.settings).clone();
+        let copy_presets = lock(&self.copy_presets).presets.clone();
+        let mirror_presets = lock(&self.mirrors).presets.clone();
         Ok(ImportDone {
             message,
             failed,
-            settings: lock(&self.settings).clone(),
-            copy_presets: lock(&self.copy_presets).presets.clone(),
-            mirror_presets: lock(&self.mirrors).presets.clone(),
+            settings,
+            copy_presets,
+            mirror_presets,
         })
     }
 
@@ -3103,7 +3146,7 @@ mod tests {
     fn a_failed_save_says_what_was_imported() {
         let dir = tempfile::tempdir().unwrap();
         let a = with_presets(dir.path());
-        let text = r#"{"secopy":1,
+        let text = r#"{"secopy":1,"settings":{"writeChecksumFile":false},
             "copyPresets":[{"name":"DJI","source":"","includeFolder":true,"extensions":null}],
             "mirrorPresets":[{"name":"M","origin":"/a","destination":"/b","deleted":{"mode":"delete","days":0},"deepCheck":false}]}"#;
         let file = dir.path().join("mixed.secopy");
@@ -3113,7 +3156,7 @@ mod tests {
         std::fs::create_dir_all(dir.path().join("data").join("mirrors.json.tmp")).unwrap();
         let done = a
             .apply_import(&ImportChoices {
-                settings: false,
+                settings: true,
                 copy_presets: vec![PresetChoice {
                     index: 0,
                     replace: false,
@@ -3131,6 +3174,12 @@ mod tests {
             "{}",
             done.message
         );
+        assert!(
+            done.message.ends_with(" The settings weren't imported."),
+            "{}",
+            done.message
+        );
+        assert!(lock(&a.settings).write_checksum_file);
         assert_eq!(lock(&a.copy_presets).presets.len(), 2);
         assert!(lock(&a.mirrors).presets.is_empty());
     }
@@ -3145,5 +3194,65 @@ mod tests {
             Some("/Users/me/Sony FX3.secopy")
         );
         assert_eq!(a.take_opened(), None);
+    }
+
+    /// Review: presets changed after the file was opened aren't overwritten by what the
+    /// screen showed before.
+    #[test]
+    fn a_stale_import_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = with_presets(dir.path());
+        let file = dir.path().join("one.secopy");
+        let id = lock(&a.copy_presets).presets[0].id.clone();
+        a.export_copy_preset(&id, &file).unwrap();
+        a.open_import(&file).unwrap();
+        a.change_copy_presets(|p| {
+            p.edit(
+                &id,
+                crate::store::CopyPresetInput {
+                    name: "Sony FX3".into(),
+                    source: "/Volumes/CARD_B".into(),
+                    include_folder: true,
+                    extensions: None,
+                },
+            )
+        })
+        .unwrap();
+        let replace = ImportChoices {
+            copy_presets: vec![PresetChoice {
+                index: 0,
+                replace: true,
+            }],
+            ..Default::default()
+        };
+        assert_eq!(a.apply_import(&replace).unwrap_err(), IMPORT_CHANGED);
+        assert_eq!(
+            lock(&a.copy_presets).get(&id).unwrap().source,
+            "/Volumes/CARD_B"
+        );
+    }
+
+    /// Review: pressing Import twice imports once.
+    #[test]
+    fn an_import_applies_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = with_presets(dir.path());
+        let file = dir.path().join("one.secopy");
+        let id = lock(&a.copy_presets).presets[0].id.clone();
+        a.export_copy_preset(&id, &file).unwrap();
+        a.open_import(&file).unwrap();
+        let keep = ImportChoices {
+            copy_presets: vec![PresetChoice {
+                index: 0,
+                replace: false,
+            }],
+            ..Default::default()
+        };
+        a.apply_import(&keep).unwrap();
+        assert_eq!(
+            a.apply_import(&keep).unwrap_err(),
+            "There is no file to import."
+        );
+        assert_eq!(lock(&a.copy_presets).presets.len(), 2);
     }
 }

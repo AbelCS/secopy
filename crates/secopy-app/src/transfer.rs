@@ -18,6 +18,8 @@ use crate::store::{
 pub const FORMAT: u32 = 1;
 /// A real file is a few KB; anything this big isn't one, and isn't read.
 pub const MAX_BYTES: u64 = 10 << 20;
+/// Presets of each kind a file may hold: more is no real setup, and isn't worked through.
+pub const MAX_PRESETS: usize = 1000;
 pub const NOT_SECOPY: &str = "This isn't a Secopy file.";
 pub const NOTHING: &str = "There is nothing in this file to import.";
 
@@ -76,9 +78,20 @@ pub fn write_file(path: &Path, text: &str) -> Result<(), String> {
         .file_name()
         .ok_or("That isn't a file name.")?
         .to_string_lossy();
-    let tmp = path.with_file_name(format!(".{name}.secopy-tmp"));
+    // A name nobody can have put a link at, created only if nothing is there (never through
+    // a link: a file the save panel didn't name is never written).
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let tmp = path.with_file_name(format!(
+        ".{name}.{}-{nanos:x}.secopy-tmp",
+        std::process::id()
+    ));
     let written = (|| {
-        let mut file = fs::File::create(&tmp)?;
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)?;
         file.write_all(text.as_bytes())?;
         file.sync_all()?;
         fs::rename(&tmp, path)
@@ -89,15 +102,24 @@ pub fn write_file(path: &Path, text: &str) -> Result<(), String> {
     written.map_err(|e| format!("The file couldn't be saved: {e}"))
 }
 
-/// Reads the file at `path`; one over [`MAX_BYTES`] isn't read at all.
+/// Reads the file at `path`: only a plain file, and never more than [`MAX_BYTES`] of it.
 pub fn read_file(path: &Path) -> Result<Contents, String> {
-    let size = fs::metadata(path)
-        .map_err(|e| format!("The file can't be opened: {e}"))?
-        .len();
-    if size > MAX_BYTES {
+    use std::io::Read;
+    // A device or a pipe could be read forever (or never open): not a Secopy file.
+    let meta = fs::metadata(path).map_err(|e| format!("The file can't be opened: {e}"))?;
+    if !meta.is_file() {
+        return Err(NOT_SECOPY.into());
+    }
+    if meta.len() > MAX_BYTES {
         return Err("This file is too big to be a Secopy file.".into());
     }
-    let bytes = fs::read(path).map_err(|e| format!("The file can't be read: {e}"))?;
+    let mut bytes = Vec::new();
+    fs::File::open(path)
+        .and_then(|f| f.take(MAX_BYTES + 1).read_to_end(&mut bytes))
+        .map_err(|e| format!("The file can't be read: {e}"))?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err("This file is too big to be a Secopy file.".into());
+    }
     read(&bytes)
 }
 
@@ -123,8 +145,19 @@ pub fn read(bytes: &[u8]) -> Result<Contents, String> {
         serde_json::from_value::<Settings>(v)
             .map_err(|_| "The settings in this file can't be read.".to_string())
     });
-    let copy_presets = presets(file.remove("copyPresets"), "A copy preset with no name");
-    let mirror_presets = presets(file.remove("mirrorPresets"), "A mirror preset with no name");
+    let (copies, mirrors) = (file.remove("copyPresets"), file.remove("mirrorPresets"));
+    let count = |list: &Option<Value>| list.as_ref().and_then(Value::as_array).map_or(0, Vec::len);
+    if count(&copies) > MAX_PRESETS || count(&mirrors) > MAX_PRESETS {
+        return Err(format!(
+            "This file has too many presets. Secopy imports up to {MAX_PRESETS} of each kind."
+        ));
+    }
+    let copy_presets = presets(copies, "The copy presets", "A copy preset with no name");
+    let mirror_presets = presets(
+        mirrors,
+        "The mirror presets",
+        "A mirror preset with no name",
+    );
     if settings.is_none() && copy_presets.is_empty() && mirror_presets.is_empty() {
         return Err(NOTHING.into());
     }
@@ -138,10 +171,19 @@ pub fn read(bytes: &[u8]) -> Result<Contents, String> {
 /// Each entry of a preset list, read on its own.
 fn presets<T: serde::de::DeserializeOwned>(
     list: Option<Value>,
+    section: &str,
     unnamed: &str,
 ) -> Vec<Result<T, Unreadable>> {
-    let Some(Value::Array(items)) = list else {
-        return Vec::new();
+    let items = match list {
+        None => return Vec::new(),
+        Some(Value::Array(items)) => items,
+        // Shown, not dropped: the file meant to hold some.
+        Some(_) => {
+            return vec![Err(Unreadable {
+                name: section.to_string(),
+                why: "This part of the file can't be read.".into(),
+            })];
+        }
     };
     items
         .into_iter()
@@ -232,71 +274,39 @@ pub fn plan(
             problem: Some(why.clone()),
         },
     });
-    // Keep both for every preset, in order, so names in the file don't clash with each other.
-    let mut copy_names = copy.clone();
-    let copy_presets = c
-        .copy_presets
-        .iter()
-        .map(|p| {
-            match p.as_ref().map_err(|u| u.clone()).and_then(|p| {
-                CopyPresets::normalized(p.clone()).map_err(|why| Unreadable {
-                    name: p.name.clone(),
-                    why,
-                })
-            }) {
-                Err(u) => unreadable(u),
-                Ok(p) => {
-                    let row = PresetImport {
-                        clash: copy.named(&p.name).map(|x| x.name.clone()),
-                        new_name: copy_names.free_name(&p.name),
-                        missing: [&p.source]
-                            .into_iter()
-                            .filter(|s| !s.is_empty() && !exists(s))
-                            .cloned()
-                            .collect(),
-                        paths: [p.source.clone()]
-                            .into_iter()
-                            .filter(|s| !s.is_empty())
-                            .collect(),
-                        name: p.name.clone(),
-                        problem: None,
-                    };
-                    let _ = copy_names.add(CopyPresetInput {
-                        name: row.new_name.clone(),
-                        ..p
-                    });
-                    row
+    let copy_presets = copy_rows(c, copy)
+        .into_iter()
+        .map(|row| match row {
+            Err(u) => unreadable(u),
+            Ok((p, new_name)) => {
+                let paths: Vec<String> = [p.source.clone()]
+                    .into_iter()
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                PresetImport {
+                    clash: copy.named(&p.name).map(|x| x.name.clone()),
+                    new_name,
+                    missing: paths.iter().filter(|s| !exists(s)).cloned().collect(),
+                    paths,
+                    name: p.name,
+                    problem: None,
                 }
             }
         })
         .collect();
-    let mut mirror_names = mirrors.clone();
-    let mirror_presets = c
-        .mirror_presets
-        .iter()
-        .map(|p| {
-            match p.as_ref().map_err(|u| u.clone()).and_then(|p| {
-                MirrorPresets::normalized(p.clone()).map_err(|why| Unreadable {
-                    name: p.name.clone(),
-                    why,
-                })
-            }) {
-                Err(u) => unreadable(u),
-                Ok(p) => {
-                    let paths = vec![p.origin.clone(), p.destination.clone()];
-                    let row = PresetImport {
-                        clash: mirrors.named(&p.name).map(|x| x.name.clone()),
-                        new_name: mirror_names.free_name(&p.name),
-                        missing: paths.iter().filter(|s| !exists(s)).cloned().collect(),
-                        paths,
-                        name: p.name.clone(),
-                        problem: None,
-                    };
-                    let _ = mirror_names.add(MirrorPresetInput {
-                        name: row.new_name.clone(),
-                        ..p
-                    });
-                    row
+    let mirror_presets = mirror_rows(c, mirrors)
+        .into_iter()
+        .map(|row| match row {
+            Err(u) => unreadable(u),
+            Ok((p, new_name)) => {
+                let paths = vec![p.origin.clone(), p.destination.clone()];
+                PresetImport {
+                    clash: mirrors.named(&p.name).map(|x| x.name.clone()),
+                    new_name,
+                    missing: paths.iter().filter(|s| !exists(s)).cloned().collect(),
+                    paths,
+                    name: p.name,
+                    problem: None,
                 }
             }
         })
@@ -320,56 +330,124 @@ fn unreadable(u: Unreadable) -> PresetImport {
     }
 }
 
+/// Each copy preset in the file, checked like one typed by hand, with the name Keep both
+/// gives it. Every earlier preset in the file counts as kept, whatever is ticked, so the name
+/// the Import screen shows is the name it gets.
+fn copy_rows(
+    c: &Contents,
+    copy: &CopyPresets,
+) -> Vec<Result<(CopyPresetInput, String), Unreadable>> {
+    let mut names = copy.clone();
+    c.copy_presets
+        .iter()
+        .map(|p| {
+            let p = p.as_ref().map_err(Clone::clone)?;
+            let p = CopyPresets::normalized(p.clone()).map_err(|why| Unreadable {
+                name: p.name.clone(),
+                why,
+            })?;
+            let name = names.free_name(&p.name);
+            let _ = names.add(CopyPresetInput {
+                name: name.clone(),
+                ..p.clone()
+            });
+            Ok((p, name))
+        })
+        .collect()
+}
+
+/// [`copy_rows`] for mirror presets.
+fn mirror_rows(
+    c: &Contents,
+    mirrors: &MirrorPresets,
+) -> Vec<Result<(MirrorPresetInput, String), Unreadable>> {
+    let mut names = mirrors.clone();
+    c.mirror_presets
+        .iter()
+        .map(|p| {
+            let p = p.as_ref().map_err(Clone::clone)?;
+            let p = MirrorPresets::normalized(p.clone()).map_err(|why| Unreadable {
+                name: p.name.clone(),
+                why,
+            })?;
+            let name = names.free_name(&p.name);
+            let _ = names.add(MirrorPresetInput {
+                name: name.clone(),
+                ..p.clone()
+            });
+            Ok((p, name))
+        })
+        .collect()
+}
+
+fn two_replace(name: &str) -> String {
+    format!("Two presets in the file would replace “{name}”; choose Keep both for one of them.")
+}
+
 /// The copy presets after importing the chosen ones, in the file's order, and how many.
+/// Replace takes the place of your preset with that name; Keep both gives the name the Import
+/// screen showed.
 pub fn apply_copy(
     c: &Contents,
     chosen: &[PresetChoice],
     copy: &CopyPresets,
 ) -> Result<(CopyPresets, usize), String> {
+    let rows = copy_rows(c, copy);
     let mut next = copy.clone();
+    let mut replaced = std::collections::HashSet::new();
     let chosen = sorted(chosen);
     for &choice in &chosen {
-        let input = c
-            .copy_presets
+        let (input, keep_name) = rows
             .get(choice.index as usize)
-            .and_then(|p| p.as_ref().ok())
+            .and_then(|r| r.as_ref().ok())
+            .cloned()
             .ok_or("That preset can't be imported.")?;
-        let input = CopyPresets::normalized(input.clone())?;
-        match next.named(&input.name).map(|p| p.id.clone()) {
-            Some(id) if choice.replace => {
-                next.edit(&id, input)?;
+        match copy.named(&input.name) {
+            Some(yours) if choice.replace => {
+                if !replaced.insert(yours.id.clone()) {
+                    return Err(two_replace(&yours.name));
+                }
+                next.edit(&yours.id, input)?;
             }
             _ => {
-                let name = next.free_name(&input.name);
-                next.add(CopyPresetInput { name, ..input })?;
+                next.add(CopyPresetInput {
+                    name: keep_name,
+                    ..input
+                })?;
             }
         }
     }
     Ok((next, chosen.len()))
 }
 
-/// The mirror presets after importing the chosen ones, and how many.
+/// The mirror presets after importing the chosen ones, and how many; like [`apply_copy`].
 pub fn apply_mirrors(
     c: &Contents,
     chosen: &[PresetChoice],
     mirrors: &MirrorPresets,
 ) -> Result<(MirrorPresets, usize), String> {
+    let rows = mirror_rows(c, mirrors);
     let mut next = mirrors.clone();
+    let mut replaced = std::collections::HashSet::new();
     let chosen = sorted(chosen);
     for &choice in &chosen {
-        let input = c
-            .mirror_presets
+        let (input, keep_name) = rows
             .get(choice.index as usize)
-            .and_then(|p| p.as_ref().ok())
+            .and_then(|r| r.as_ref().ok())
+            .cloned()
             .ok_or("That preset can't be imported.")?;
-        let input = MirrorPresets::normalized(input.clone())?;
-        match next.named(&input.name).map(|p| p.id.clone()) {
-            Some(id) if choice.replace => {
-                next.edit(&id, input)?;
+        match mirrors.named(&input.name) {
+            Some(yours) if choice.replace => {
+                if !replaced.insert(yours.id.clone()) {
+                    return Err(two_replace(&yours.name));
+                }
+                next.edit(&yours.id, input)?;
             }
             _ => {
-                let name = next.free_name(&input.name);
-                next.add(MirrorPresetInput { name, ..input })?;
+                next.add(MirrorPresetInput {
+                    name: keep_name,
+                    ..input
+                })?;
             }
         }
     }
@@ -782,5 +860,110 @@ mod tests {
             &|_| true,
         );
         assert_eq!(view.settings.unwrap().changes.len(), 2);
+    }
+
+    /// Review: a link at the temporary name can't make an export write through it.
+    #[test]
+    fn a_link_at_the_temporary_name_is_never_written_through() {
+        let dir = tempfile::tempdir().unwrap();
+        let victim = dir.path().join("clip.mov");
+        std::fs::write(&victim, b"footage").unwrap();
+        let path = dir.path().join("x.secopy");
+        std::os::unix::fs::symlink(&victim, dir.path().join(".x.secopy.secopy-tmp")).unwrap();
+        write_file(&path, "{\"secopy\":1}").unwrap();
+        assert_eq!(std::fs::read(&victim).unwrap(), b"footage");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"secopy\":1}");
+    }
+
+    /// Review: a device or a pipe is refused, not read forever.
+    #[test]
+    fn a_device_is_not_a_secopy_file() {
+        assert_eq!(read_file(Path::new("/dev/zero")).unwrap_err(), NOT_SECOPY);
+    }
+
+    /// Review: a section that isn't a list is listed as unreadable, not left out.
+    #[test]
+    fn a_section_of_the_wrong_type_is_listed() {
+        let text = r#"{"secopy":1,"settings":{"writeChecksumFile":false},"mirrorPresets":{"a":1}}"#;
+        let read = read(text.as_bytes()).unwrap();
+        let bad = read.mirror_presets[0].clone().unwrap_err();
+        assert_eq!(bad.name, "The mirror presets");
+        assert_eq!(bad.why, "This part of the file can't be read.");
+    }
+
+    /// Review: a file with thousands of presets is refused before any work.
+    #[test]
+    fn too_many_presets_are_refused() {
+        let one = r#"{"name":"A","source":"","includeFolder":true,"extensions":null}"#;
+        let text = format!(
+            r#"{{"secopy":1,"copyPresets":[{}]}}"#,
+            vec![one; MAX_PRESETS + 1].join(",")
+        );
+        assert_eq!(
+            read(text.as_bytes()).unwrap_err(),
+            format!(
+                "This file has too many presets. Secopy imports up to {MAX_PRESETS} of each kind."
+            )
+        );
+    }
+
+    /// Review: the name the Import screen shows is the name Keep both gives, whatever
+    /// happens to the presets before it.
+    #[test]
+    fn the_name_shown_is_the_name_given() {
+        let text = r#"{"secopy":1,"copyPresets":[
+            {"name":"Sony FX3","source":"","includeFolder":true,"extensions":null},
+            {"name":"SONY FX3","source":"","includeFolder":true,"extensions":null}
+        ]}"#;
+        let c = contents(text);
+        let mine = copy_presets();
+        let view = plan(
+            "x",
+            &c,
+            &mine,
+            &MirrorPresets::default(),
+            &Settings::default(),
+            &|_| true,
+        );
+        let shown = view.copy_presets[1].new_name.clone();
+        for first in [None, Some(false), Some(true)] {
+            let mut chosen: Vec<PresetChoice> = first
+                .map(|replace| PresetChoice { index: 0, replace })
+                .into_iter()
+                .collect();
+            chosen.push(PresetChoice {
+                index: 1,
+                replace: false,
+            });
+            let (after, _) = apply_copy(&c, &chosen, &mine).unwrap();
+            assert!(
+                after.presets.iter().any(|p| p.name == shown),
+                "{first:?}: {:?}",
+                after.presets
+            );
+        }
+    }
+
+    /// Review: two presets in the file can't both replace one of yours.
+    #[test]
+    fn two_replaces_of_one_preset_are_refused() {
+        let text = r#"{"secopy":1,"copyPresets":[
+            {"name":"Sony FX3","source":"/a","includeFolder":true,"extensions":null},
+            {"name":"sony fx3","source":"/b","includeFolder":true,"extensions":null}
+        ]}"#;
+        let both = [
+            PresetChoice {
+                index: 0,
+                replace: true,
+            },
+            PresetChoice {
+                index: 1,
+                replace: true,
+            },
+        ];
+        assert_eq!(
+            apply_copy(&contents(text), &both, &copy_presets()).unwrap_err(),
+            "Two presets in the file would replace “Sony FX3”; choose Keep both for one of them."
+        );
     }
 }
