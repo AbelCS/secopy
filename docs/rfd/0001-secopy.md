@@ -184,9 +184,10 @@ to files already copied). The OS is kept awake while the job runs.
 - Stats: file count, total size, duration, average speed. Files skipped because they were
   already at the destination are counted separately and marked as not checked (FR-17).
 - Failure list with the reason for each file (permission denied, hash mismatch, disk full…).
-- Actions: **Reveal in Finder/Explorer/Files**, **Open checksum file**, **Save report…**,
-  **Retry failed**, **Eject <card>** (when the source is on an ejectable drive; never
-  automatic, since Retry failed may still need the card), **New copy**.
+- Actions, what you'd do next first: **Retry failed**, **Eject <card>** (when the source is
+  on an ejectable drive; never automatic, since Retry failed may still need the card),
+  **Show in Finder/Explorer/Files**, **Open checksum file**, **Save report…**, and
+  **New copy** on the right.
 - "Safe to eject <drive>" when the destination is on an ejectable drive.
 - System notification when the job ends while the window is in the background (a setting,
   on by default).

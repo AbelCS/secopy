@@ -1,22 +1,20 @@
 <script lang="ts">
-  // One phase's bar (RFD §5.3): bytes, percent, current and average speed, ETA. The fill
+  // One phase's bar (RFD §5.3): bytes done of the total, and the current speed once it is
+  // known. The whole job's percent and time left are shown once, above the bars. The fill
   // animates for as long as the gap between updates, so two updates a second look smooth.
-  import { formatBytes, formatDuration, formatPercent, formatSpeed } from "../format";
+  import { formatBytes, formatSpeed } from "../format";
 
   let {
     label,
     done,
     total,
-    speed,
-    average,
-    eta,
+    speed = null,
   }: {
     label: string;
     done: number;
     total: number;
-    speed: number | null;
-    average: number | null;
-    eta: number | null;
+    /** Bytes per second; `null` until it is known. */
+    speed?: number | null;
   } = $props();
 
   const fraction = $derived(total === 0 ? 1 : Math.min(1, done / total));
@@ -34,10 +32,7 @@
   >
     <div class="fill" style:width="{fraction * 100}%"></div>
   </div>
-  <span class="figures">
-    {formatBytes(done)} / {formatBytes(total)} · {formatPercent(done, total)} ·
-    {formatSpeed(speed)} (avg {formatSpeed(average)}) · ETA {formatDuration(eta)}
-  </span>
+  <span class="figures">{formatBytes(done)} of {formatBytes(total)}{speed === null ? "" : ` · ${formatSpeed(speed)}`}</span>
 </div>
 
 <style>

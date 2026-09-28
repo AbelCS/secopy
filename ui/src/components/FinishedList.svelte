@@ -23,6 +23,7 @@
 
   const api = useApi();
   const ROW = 28;
+  /** The most the list shows before it scrolls; a shorter list is only as tall as its rows. */
   const HEIGHT = 280;
   const PAGE = 100;
   const OVERSCAN = 5;
@@ -40,6 +41,7 @@
   const asked = new Map<number, number>();
 
   const count = $derived(failedOnly ? failedTotal : total);
+  const height = $derived(Math.min(HEIGHT, Math.max(1, count) * ROW));
   const first = $derived(Math.max(0, Math.floor(scrollTop / ROW) - OVERSCAN));
   const last = $derived(Math.min(count, Math.ceil((scrollTop + HEIGHT) / ROW) + OVERSCAN));
   const visible = $derived(
@@ -89,12 +91,16 @@
       Failed only
     </label>
   {/snippet}
+<!-- Column names for the eye; each row's cells are read in order. -->
+<div class="row head" aria-hidden="true">
+  <span>File</span><span>Size</span><span>Time</span><span>Speed</span><span>Checksum</span><span>Status</span>
+</div>
 <!-- Focusable so the arrow keys scroll it (a scrollable region, WCAG 2.1.1). -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   bind:this={viewport}
   class="viewport"
-  style:height="{HEIGHT}px"
+  style:height="{height}px"
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
   role="list"
   aria-label="Finished files"
@@ -164,6 +170,16 @@
   .row span {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .row.head {
+    position: static;
+    height: auto;
+    padding-bottom: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   .verified,
