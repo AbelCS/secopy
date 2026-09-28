@@ -1,6 +1,6 @@
 // Fake data and a fake Api for the gallery: every screen without Tauri. Dev only.
 import type { Api } from "../lib/api";
-import type { FinishedRow, Profile, ProgressView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
+import type { FinishedRow, Profile, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
 
 export const profiles: Profile[] = [
   { id: "fx3", name: "Sony FX3", source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
@@ -116,6 +116,17 @@ export const queue: QueueView = {
     { kind: "copy", verify: true, source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", destination: "/Volumes/V001/Day01", lastError: null, supported: true },
     { kind: "copy", verify: true, source: "/Volumes/CARD_B/PRIVATE/M4ROOT/CLIP", destination: "/Volumes/V001/Day01", lastError: "CARD_B isn't connected.", supported: true },
     { kind: "copy", verify: false, source: "/Users/me/Desktop/Stills", destination: "/Volumes/Media/Stills", lastError: null, supported: true },
+  ],
+};
+
+export const queueSummary: QueueSummaryView = {
+  complete: 1,
+  count: 3,
+  millis: 6_130_000,
+  results: [
+    { job: queue.jobs[0], result: "complete", reason: null, summary: { ...summary, outcome: "complete", failed: 0, failures: [] } },
+    { job: queue.jobs[1], result: "failed", reason: "CARD_B isn't connected.", summary: null },
+    { job: queue.jobs[2], result: "notRun", reason: "Not run: the queue stopped.", summary: null },
   ],
 };
 

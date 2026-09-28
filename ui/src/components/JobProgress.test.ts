@@ -185,4 +185,12 @@ describe("JobProgress", () => {
     expect(verifying).not.toBe(copying);
     expect(verifying.getAttribute("aria-valuenow")).toBe("10");
   });
+
+  test("in a queue: Job n of m, and Cancel stops the queue", async () => {
+    const { api } = fakeApi();
+    render(JobProgress, { props: { progress: progressView(), queue: { index: 1, count: 3 } }, context: apiContext(api) });
+    screen.getByText("Job 2 of 3");
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(api.confirm).toHaveBeenCalledWith(expect.any(String), "Stop copying and stop the queue?"));
+  });
 });

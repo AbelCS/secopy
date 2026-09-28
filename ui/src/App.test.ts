@@ -10,6 +10,8 @@ import {
   settingsView,
   startView,
   summaryView,
+  queuedJob,
+  queueView,
 } from "./test/fake-api";
 
 function app(view = readyView()) {
@@ -222,5 +224,25 @@ describe("App", () => {
     await fireEvent.click(await startButton());
     await screen.findByRole("heading", { name: "Copying & verifying" });
     expect(screen.queryByRole("navigation", { name: "Sections" })).toBeNull();
+  });
+
+  test("a queue run: progress per job, one notification, then the queue summary", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.queue = queueView({ jobs: [queuedJob(), queuedJob()] });
+    api.windowFocused.mockReturnValue(false);
+    render(App, { props: { api } });
+    await fireEvent.click(await screen.findByRole("button", { name: /^Queue/ }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Run queue" }));
+    await waitFor(() => expect(state.queueEvent).not.toBeNull());
+    state.queueEvent!({ type: "jobStarted", index: 0, count: 2 });
+    state.queueEvent!({ type: "progress", view: progressView() });
+    await screen.findByText("Job 1 of 2");
+    state.queueEvent!({ type: "done", summary: { complete: 2, count: 2, millis: 1000, results: [
+      { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
+      { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
+    ] } });
+    await screen.findByRole("heading", { name: "Queue done: 2 of 2 jobs complete" });
+    expect(api.notify).toHaveBeenCalledTimes(1);
+    expect(api.notify).toHaveBeenCalledWith("Queue done: 2 of 2 jobs complete", expect.any(String));
   });
 });
