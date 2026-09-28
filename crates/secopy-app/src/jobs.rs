@@ -501,7 +501,9 @@ impl Job {
             copy_root: show(job.root()),
             checksum_file: done.report.checksum_file.as_deref().map(show),
             checksum_error: done.report.checksum_error.clone(),
-            checksum_off: !job.settings().is_some_and(|s| s.write_checksum_file),
+            // A check writes no checksum file: none was turned off.
+            checksum_off: job.copy().is_some()
+                && !job.settings().is_some_and(|s| s.write_checksum_file),
             report_file: done.report_file.as_deref().ok().map(show),
             report_error: {
                 let errors: Vec<String> = done
@@ -558,7 +560,9 @@ impl Job {
             not_started: (self.totals().0.saturating_sub(finished)) as u64,
             checksum_file: None,
             checksum_error: None,
-            checksum_off: !self.settings().is_some_and(|s| s.write_checksum_file),
+            // A check writes no checksum file: none was turned off.
+            checksum_off: self.copy().is_some()
+                && !self.settings().is_some_and(|s| s.write_checksum_file),
             cache_bypass: None,
             removed_partials: 0,
             fatal: None,
@@ -569,6 +573,15 @@ impl Job {
             durability_error: None,
             dir_errors: Vec::new(),
         };
+        // A check stays a check: what was read so far, counted.
+        let check = self.check_plan().map(|plan| CheckReport {
+            job: JobReport {
+                outcomes: lock(&self.outcomes).clone(),
+                ..report.clone()
+            },
+            not_checked: plan.not_checked.clone(),
+            problems: plan.problems.clone(),
+        });
         let done = Done {
             report,
             finished: Local::now(),
@@ -576,7 +589,7 @@ impl Job {
             next_to_error: None,
             removals: None,
             undone: None,
-            check: None,
+            check,
             panicked: true,
         };
         let last = lock(&self.last).clone();
@@ -1636,21 +1649,38 @@ mod tests {
         assert_eq!(jobs.summary().unwrap().outcome, JobOutcome::Complete);
     }
 
+    /// Panics on its first view, like a bug in the job's thread would.
+    #[derive(Clone, Default)]
+    struct PanicsFirst(Collect, Arc<AtomicBool>);
+    impl ProgressSink for PanicsFirst {
+        fn send(&self, view: ProgressView) {
+            if !self.1.swap(true, Relaxed) {
+                panic!("a bug");
+            }
+            self.0.send(view);
+        }
+    }
+
+    /// #69 review: a check whose thread panicked is still a check: its summary counts what
+    /// was read, and says nothing about a checksum file.
+    #[test]
+    fn a_check_that_panicked_is_still_a_check() {
+        let (dir, root) = check_fixture();
+        let jobs = Jobs::new(dir.path().join("reports"));
+        let plan = Arc::new(secopy_core::check::plan(&root).unwrap());
+        jobs.start_work(Work::Check(plan), PanicsFirst::default())
+            .unwrap();
+        jobs.wait();
+        let s = jobs.summary().unwrap();
+        assert_eq!(s.outcome, JobOutcome::Stopped);
+        assert!(s.check.is_some(), "a check summary");
+        assert!(!s.checksum_off);
+    }
+
     /// #69: a panic in the job's thread still ends the job, as stopped and saying why, so the
     /// window doesn't stay on the Copying screen.
     #[test]
     fn a_panic_in_the_job_ends_it_as_stopped() {
-        /// Panics on its first view, like a bug in the job's thread would.
-        #[derive(Clone, Default)]
-        struct PanicsFirst(Collect, Arc<AtomicBool>);
-        impl ProgressSink for PanicsFirst {
-            fn send(&self, view: ProgressView) {
-                if !self.1.swap(true, Relaxed) {
-                    panic!("a bug");
-                }
-                self.0.send(view);
-            }
-        }
         let f = fixture(3, 10);
         let sink = PanicsFirst::default();
         f.jobs

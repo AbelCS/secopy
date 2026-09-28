@@ -76,6 +76,16 @@ test("a check says intact, or what it found", () => {
   );
 });
 
+test("a check that stopped says so, not what it read so far", () => {
+  const check = { intact: 3, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: [] };
+  expect(headline(summaryView({ outcome: "stopped", stoppedBecause: "Secopy hit an internal error", check }))).toBe(
+    "Stopped: Secopy hit an internal error",
+  );
+  expect(headline(summaryView({ outcome: "stopped", stoppedBecause: null, check }))).toBe(
+    "Stopped: the check could not continue",
+  );
+});
+
 test("a check counts every checksum file problem, also past the ones listed", () => {
   const check = { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: Array<string>(1000).fill("a.xxh64:1: bad line") };
   expect(headline(summaryView({ outcome: "failures", check: { ...check, moreProblems: 234 } }))).toBe(

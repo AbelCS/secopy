@@ -7,6 +7,7 @@ export function headline(s: SummaryView): string {
   const c = s.check;
   if (c) {
     if (s.outcome === "cancelled") return "Cancelled";
+    if (s.outcome === "stopped") return `Stopped: ${s.stoppedBecause ?? "the check could not continue"}`;
     // The summary lists the first 1,000 problems; the rest are only counted.
     const problems = c.problems.length + (c.moreProblems ?? 0);
     const parts = [
