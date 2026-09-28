@@ -70,6 +70,31 @@ fn keep_only_if_written(path: PathBuf, written: io::Result<()>) -> io::Result<Pa
     }
 }
 
+/// Writes `entries` to `path` whole or not at all: a temporary `<name>.partial` beside it
+/// (a Secopy partial file, which no copy or mirror picks up), synced, then renamed over it.
+pub fn write_replacing(path: &Path, entries: &[(PathBuf, u64)]) -> io::Result<()> {
+    let mut lines: Vec<(String, String)> = entries
+        .iter()
+        .map(|(rel, hash)| (slash_path(rel), format_line(*hash, rel)))
+        .collect();
+    lines.sort();
+    let mut body = String::new();
+    for (_, line) in &lines {
+        body.push_str(line);
+        body.push('\n');
+    }
+    let tmp = path.with_extension("partial");
+    let written = File::create(&tmp).and_then(|mut f| {
+        f.write_all(body.as_bytes())
+            .and_then(|()| crate::os::sync_durable(&f))
+    });
+    if let Err(e) = written.and_then(|()| std::fs::rename(&tmp, path)) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    Ok(())
+}
+
 fn create_unique(dest: &Path, now: DateTime<Local>) -> io::Result<(PathBuf, File)> {
     let name = file_name(now);
     let stem = name.trim_end_matches(".xxh64");

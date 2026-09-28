@@ -80,6 +80,8 @@ pub struct MirrorPlan {
     pub removals: Vec<PathBuf>,
     /// How each removal looked in the preview: a file that changed since isn't removed.
     pub seen: HashMap<PathBuf, Seen>,
+    /// Unchanged files the deep check read on both sides and found equal, with their hash.
+    pub same: HashMap<PathBuf, u64>,
     /// Destination directories no longer in the origin, deepest first.
     pub remove_dirs: Vec<PathBuf>,
     /// The same file spelled otherwise (letter case, Unicode form): (destination name, origin name).
@@ -142,6 +144,7 @@ pub fn plan_watched(
     } else {
         0
     };
+    let mut same = HashMap::new();
     let mut compared = 0;
     if options.deep_check {
         on_compared(0, to_compare);
@@ -151,13 +154,18 @@ pub fn plan_watched(
             Action::Copy => changes.push((i, Change::New)),
             Action::Overwrite => changes.push((i, Change::Changed)),
             Action::SkipIdentical if options.deep_check => {
-                let different = differs(&f.entry.source, &destination.join(&f.entry.rel), control);
+                let equal = compare(&f.entry.source, &destination.join(&f.entry.rel), control);
                 if control.is_stopped() {
                     return Err("Cancelled.".into());
                 }
-                if different {
-                    f.action = Action::Overwrite;
-                    changes.push((i, Change::ContentsDiffer));
+                match equal {
+                    Some(hash) => {
+                        same.insert(f.entry.rel.clone(), hash);
+                    }
+                    None => {
+                        f.action = Action::Overwrite;
+                        changes.push((i, Change::ContentsDiffer));
+                    }
                 }
                 compared += 1;
                 on_compared(compared, to_compare);
@@ -203,6 +211,7 @@ pub fn plan_watched(
         changes,
         removals,
         seen,
+        same,
         remove_dirs,
         renames,
         destination_files,
@@ -248,16 +257,17 @@ fn resolved(p: &Path) -> PathBuf {
     }
 }
 
-/// Contents differ (the deep check): either side unreadable counts as different.
-fn differs(a: &Path, b: &Path, control: &JobControl) -> bool {
+/// The deep check: `Some(hash)` when both sides read in full and are equal; either side
+/// unreadable counts as different.
+fn compare(a: &Path, b: &Path, control: &JobControl) -> Option<u64> {
     let hash = |p: &Path| {
         hash_from_device(p, 4 << 20, &|_| {}, control)
             .map(|(h, _)| h)
             .ok()
     };
     match (hash(a), hash(b)) {
-        (Some(x), Some(y)) => x != y,
-        _ => true,
+        (Some(x), Some(y)) if x == y => Some(x),
+        _ => None,
     }
 }
 
@@ -552,6 +562,38 @@ pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chron
         }
     }
     removed
+}
+
+/// The mirror's checksum file, after a clean run (plan 8): the previous one, with this run's
+/// copied and updated files, the deep check's equal files, removals dropped and renames moved.
+pub fn write_checksums(
+    plan: &MirrorPlan,
+    report: &JobReport,
+    finished: &Finished,
+) -> std::io::Result<()> {
+    use crate::job::FileStatus;
+    let path = plan.copy.dest.join(crate::check::MIRROR_CHECKSUMS);
+    let mut sums: std::collections::BTreeMap<PathBuf, u64> = fs::read_to_string(&path)
+        .map(|text| crate::check::parse(&text).0.into_iter().collect())
+        .unwrap_or_default();
+    sums.extend(plan.same.iter().map(|(p, h)| (p.clone(), *h)));
+    for o in &report.outcomes {
+        if matches!(o.status, FileStatus::Copied | FileStatus::Verified)
+            && let Some(hash) = o.hash
+        {
+            sums.insert(o.final_rel.clone(), hash);
+        }
+    }
+    for r in finished.removals.iter().filter(|r| r.result.is_ok()) {
+        sums.remove(&r.rel);
+    }
+    for (from, to) in &finished.renamed {
+        if let Some(hash) = sums.remove(from) {
+            sums.insert(to.clone(), hash);
+        }
+    }
+    let entries: Vec<(PathBuf, u64)> = sums.into_iter().collect();
+    crate::checksum_file::write_replacing(&path, &entries)
 }
 
 #[cfg(test)]
