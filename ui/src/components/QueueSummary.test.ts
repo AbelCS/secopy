@@ -15,6 +15,7 @@ describe("QueueSummary", () => {
             { job: queuedJob({ source: "/Volumes/CARD_B/DCIM" }), result: "failed", reason: "3 files failed.", summary: summaryView({ outcome: "failures", failed: 3 }) },
             { job: queuedJob({ source: "/x" }), result: "notRun", reason: "Not run: the queue stopped.", summary: null },
           ],
+          saveError: null,
         },
         onOpen: (i: number) => calls.open.push(i),
         onDone: () => calls.done++,
@@ -35,11 +36,30 @@ describe("QueueSummary", () => {
         summary: {
           complete: 1, count: 1, millis: 1000,
           results: [{ job: queuedJob({ kind: "mirror", name: "Footage" }), result: "complete", reason: null, summary: summaryView() }],
+          saveError: null,
         },
         onOpen: () => {},
         onDone: () => {},
       },
     });
     screen.getByText("Mirror · Footage");
+  });
+
+  test("a job for a newer Secopy says so, and a queue that couldn't be saved says why", () => {
+    render(QueueSummary, {
+      props: {
+        summary: {
+          complete: 0, count: 1, millis: 1000,
+          results: [{ job: queuedJob({ kind: "unknown", supported: false, source: "", destination: "" }), result: "failed", reason: "Needs a newer Secopy.", summary: null }],
+          saveError: "Couldn't save the queue: permission denied",
+        },
+        onOpen: () => {},
+        onDone: () => {},
+      },
+    });
+    screen.getByText("A job for a newer Secopy");
+    expect(screen.queryByText("→")).toBeNull();
+    screen.getByText("Couldn't save the queue: permission denied");
+    expect(screen.getByRole("list")).toBeTruthy();
   });
 });

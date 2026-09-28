@@ -371,15 +371,31 @@ pub struct QueueSummaryView {
     pub count: u32,
     #[specta(type = specta_typescript::Number)]
     pub millis: u64,
+    /// Why the queue couldn't be saved after a job; the run itself went on.
+    pub save_error: Option<String>,
 }
 
 /// What a queue run sends to the window.
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum QueueEvent {
-    JobStarted { index: u32, count: u32 },
-    Progress { view: ProgressView },
-    Done { summary: QueueSummaryView },
+    /// The job is being checked (its source scanned, the destination looked at).
+    JobChecking {
+        index: u32,
+        count: u32,
+    },
+    /// The checks passed and it runs: a job that can't start never gets this.
+    JobStarted {
+        index: u32,
+        count: u32,
+        job: QueuedJobView,
+    },
+    Progress {
+        view: ProgressView,
+    },
+    Done {
+        summary: QueueSummaryView,
+    },
 }
 
 /// What a mirror did besides copying (FR-52).

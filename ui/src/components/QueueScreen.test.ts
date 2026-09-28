@@ -41,11 +41,21 @@ describe("QueueScreen", () => {
 
   test("jobs move and are removed", async () => {
     const { api } = show();
-    await fireEvent.click(screen.getAllByRole("button", { name: "Move down" })[0]);
+    await fireEvent.click(screen.getByRole("button", { name: "Move job 1 down" }));
     expect(api.moveInQueue).toHaveBeenCalledWith(0, 1);
-    await fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[1]);
+    await fireEvent.click(screen.getByRole("button", { name: "Remove job 2" }));
     expect(api.removeFromQueue).toHaveBeenCalledWith(1);
-    expect(screen.getAllByRole("button", { name: "Move up" })[0]).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Move job 1 up" })).toHaveProperty("disabled", true);
+  });
+
+  test("for VoiceOver: a list, and focus follows a moved job", async () => {
+    show();
+    expect(screen.getByRole("list")).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Move job 1 down" }));
+    // Job 1 is now job 2, the last: its Move down is off, so Move up takes the focus.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Move job 2 up" })),
+    );
   });
 
   test("Clear queue asks first", async () => {

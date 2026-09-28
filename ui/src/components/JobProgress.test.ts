@@ -243,7 +243,7 @@ describe("JobProgress", () => {
   test("in a queue: Job n of m, and Cancel stops the queue", async () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), queue: { index: 1, count: 3 } }, context: apiContext(api) });
-    screen.getByText("Job 2 of 3");
+    within(screen.getByRole("group", { name: "Actions" })).getByText(/^Job 2 of 3 · /);
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     screen.getByRole("dialog", { name: "Stop copying and stop the queue?" });
     expect(api.confirm).not.toHaveBeenCalled();
