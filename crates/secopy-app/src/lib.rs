@@ -138,6 +138,10 @@ pub fn run() {
                 }
             }
             app.manage(AppState::new(data));
+            // Its items, to grey out what doesn't apply (`set_menu_state`).
+            if let Some(file) = app.menu().as_ref().and_then(FileMenu::find) {
+                app.manage(file);
+            }
             if let Some(window) = app.get_webview_window("main") {
                 if let Some(saved) = app.state::<AppState>().saved_window() {
                     let screen = window.current_monitor().ok().flatten().map(|m| {
@@ -174,7 +178,8 @@ const SETTINGS_MENU: &str = "settings";
 /// Asks the UI to show Settings (Secopy → Settings…).
 pub const OPEN_SETTINGS: &str = "open-settings";
 
-/// File menu items, and the event that tells the UI one was chosen.
+/// The File menu, and its items and the event that tells the UI one was chosen.
+const FILE_MENU: &str = "file";
 const CHOOSE_SOURCE: &str = "choose-source";
 const CHOOSE_DESTINATION: &str = "choose-destination";
 const START_COPY: &str = "start-copy";
@@ -202,6 +207,21 @@ pub struct FileMenu<R: Runtime> {
 }
 
 impl<R: Runtime> FileMenu<R> {
+    /// The items in the app's menu; `None` if it has no such File menu.
+    fn find(menu: &Menu<R>) -> Option<Self> {
+        let kind = menu.get(FILE_MENU)?;
+        let file = kind.as_submenu()?;
+        let item = |id| file.get(id)?.as_menuitem().cloned();
+        Some(Self {
+            items: [
+                item(CHOOSE_SOURCE)?,
+                item(CHOOSE_DESTINATION)?,
+                item(START_COPY)?,
+                item(CANCEL_COPY)?,
+            ],
+        })
+    }
+
     pub fn update(&self, setup: bool, can_start: bool, copying: bool) {
         for (item, on) in self.items.iter().zip(menu_state(setup, can_start, copying)) {
             let _ = item.set_enabled(on);
@@ -309,8 +329,9 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         false,
         Some("CmdOrCtrl+Period"),
     )?;
-    let file = Submenu::with_items(
+    let file = Submenu::with_id_and_items(
         app,
+        FILE_MENU,
         "File",
         true,
         &[
@@ -321,9 +342,6 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &cancel,
         ],
     )?;
-    app.manage(FileMenu {
-        items: [source, destination, start, cancel],
-    });
     let edit = Submenu::with_items(
         app,
         "Edit",
