@@ -73,6 +73,32 @@ describe("ProfilesScreen", () => {
     await waitFor(() => expect(api.editProfile).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: null })));
   });
 
+  test("types typed together, split by commas or spaces, become one chip each", async () => {
+    const { api } = show();
+    await fireEvent.input(typeInput(), { target: { value: " .MOV, wav  mp4,,.mov braw *.MXF" } });
+    await fireEvent.keyDown(typeInput(), { key: "Enter" });
+    for (const t of [".mp4", ".mov", ".wav", ".braw", ".mxf"]) screen.getByText(t);
+    await fireEvent.click(save());
+    await waitFor(() =>
+      expect(api.editProfile).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: ["mp4", "mov", "wav", "braw", "mxf"] })),
+    );
+  });
+
+  test("* or *.* typed as a type means All types", async () => {
+    const { api } = show();
+    for (const all of ["*", " *.* "]) {
+      await fireEvent.click(screen.getByLabelText("Only these"));
+      await fireEvent.input(typeInput(), { target: { value: all } });
+      await fireEvent.keyDown(typeInput(), { key: "Enter" });
+      expect(screen.getByLabelText("All types")).toHaveProperty("checked", true);
+      expect(screen.queryByText(".*")).toBeNull();
+    }
+    await fireEvent.click(save());
+    await waitFor(() => expect(api.editProfile).toHaveBeenLastCalledWith("fx3", expect.objectContaining({ extensions: null })));
+    await fireEvent.click(screen.getByLabelText("Only these"));
+    expect(screen.getAllByRole("button", { name: /^Remove / }).map((b) => b.getAttribute("aria-label"))).toEqual(["Remove .mp4"]);
+  });
+
   test("only these, with no types, can't be saved", async () => {
     show();
     await fireEvent.click(screen.getByRole("button", { name: "Remove .mp4" }));
