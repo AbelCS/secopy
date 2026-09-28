@@ -12,6 +12,7 @@
   import Button from "../lib/ui/Button.svelte";
   import Checkbox from "../lib/ui/Checkbox.svelte";
   import Dialog from "../lib/ui/Dialog.svelte";
+  import Hint from "../lib/ui/Hint.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import ProgressBar from "../lib/ui/ProgressBar.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
@@ -131,9 +132,13 @@
 
 <svelte:window onkeydown={onKey} />
 
-{#snippet activeRow(name: string, path: string, doing: string, done: number, size: number, of: string)}
+{#snippet activeRow(name: string, path: string, doing: string, done: number, size: number, of: string, hint = "")}
   <tr>
-    <td class="name" title={path}>{name}</td>
+    {#if hint}
+      <td class="name explained"><Hint text={hint}>{name}</Hint></td>
+    {:else}
+      <td class="name" title={path}>{name}</td>
+    {/if}
     <td class="doing">{doing}</td>
     <td class="meter">
       <div
@@ -224,6 +229,7 @@
               small.done,
               small.total,
               `${formatCount(small.done)} of ${formatCount(small.total)}`,
+              "Files under 8 MB. Many are copied at once, so they're counted together instead of getting a bar each.",
             )}
           {/if}
         </tbody>
@@ -287,6 +293,11 @@
     max-width: 320px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Room for the explanation to open outside the cell. */
+  td.name.explained {
+    overflow: visible;
   }
 
   td.doing {

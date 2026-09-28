@@ -54,12 +54,18 @@
     </FormRow>
   {/if}
   {#if destination.identical > 0}
-    <FormRow label="Identical">
+    <FormRow
+      label="Identical"
+      hint="Files with the same name, size and date (within 2 seconds) as one already in the destination. They aren't copied or read."
+    >
       <p>{plural(destination.identical, "identical file")} will be skipped (not checked).</p>
     </FormRow>
   {/if}
   {#if destination.differs > 0}
-    <FormRow label="Existing files">
+    <FormRow
+      label="Existing files"
+      hint="Files with the same name as one already in the destination, but a different size or date. Keep both: the new one is copied with a number added to its name. Overwrite: the one there is replaced. Skip: the one there is left as it is."
+    >
       <RadioGroup
         legend="{plural(destination.differs, 'file')} {destination.differs === 1 ? 'differs' : 'differ'} from what's there"
         options={choices}

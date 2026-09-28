@@ -4,6 +4,7 @@ import { apiContext } from "../lib/api";
 import type { FinishedRow, SummaryView } from "../lib/bindings";
 import { fakeApi, summaryView } from "../test/fake-api";
 import Summary from "./Summary.svelte";
+import { hintOf } from "../test/hint";
 
 function show(summary: SummaryView) {
   const { api } = fakeApi();
@@ -60,6 +61,11 @@ describe("Summary", () => {
     );
     screen.getByRole("heading", { name: /Cancelled: the destination is back as it was/ });
     expect(screen.queryByText(/left in the destination/)).toBeNull();
+  });
+
+  test("not started explains itself", () => {
+    show(summaryView({ outcome: "cancelled", notStarted: 150 }));
+    expect(hintOf(screen.getByText("150 not started"))).toMatch(/cancelled or stopped/);
   });
 
   test("a mirror that removed nothing says why", () => {

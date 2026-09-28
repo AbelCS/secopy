@@ -29,6 +29,9 @@
   import { fakeApi, mirrorPreview, mirrorSummary, mirrors, profiles, progress, queue, queueSummary, settings, summary } from "./fake";
 
   const page = location.hash.slice(1) || "components";
+  // ?tips shows every Hint's explanation at once, for screenshots.
+  if (location.search.includes("tips"))
+    document.head.insertAdjacentHTML("beforeend", "<style>.tip{opacity:1!important;visibility:visible!important}</style>");
   const api = fakeApi(page === "profiles-empty" ? { profiles: [] } : {});
   provideApi(api);
 

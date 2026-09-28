@@ -7,6 +7,8 @@ import Button from "./Button.svelte";
 import Checkbox from "./Checkbox.svelte";
 import Chip from "./Chip.svelte";
 import FormRow from "./FormRow.svelte";
+import Hint from "./Hint.svelte";
+import { hintOf } from "../../test/hint";
 import Notice from "./Notice.svelte";
 import RadioGroup from "./RadioGroup.svelte";
 import ScreenHeader from "./ScreenHeader.svelte";
@@ -163,5 +165,25 @@ describe("design system", () => {
     expect(within(nav).getByRole("button", { name: "Copy" }).getAttribute("aria-current")).toBe("page");
     await fireEvent.click(within(nav).getByRole("button", { name: "Queue, 3 jobs" }));
     expect(onSelect).toHaveBeenCalledWith("queue");
+  });
+
+  test("Hint: a term or an ⓘ mark explains itself on hover and keyboard focus", () => {
+    render(Hint, { props: { text: "Files under 8 MB.", children: text("Small files") } });
+    const term = screen.getByText("Small files");
+    expect(term.closest("[tabindex='0']")).not.toBeNull();
+    expect(hintOf(term)).toBe("Files under 8 MB.");
+    render(Hint, { props: { text: "Reads every copy back.", label: "About verifying" } });
+    const mark = screen.getByRole("button", { name: "About verifying" });
+    expect(hintOf(mark)).toBe("Reads every copy back.");
+  });
+
+  test("Stats: a figure can explain itself", () => {
+    render(Stats, { props: { items: ["3 files", { text: "2 not started", hint: "The job stopped first." }] } });
+    expect(hintOf(screen.getByText("2 not started"))).toBe("The job stopped first.");
+  });
+
+  test("FormRow: a label can explain itself", () => {
+    render(FormRow, { props: { label: "Existing files", hint: "Same name, different file.", children: text("x") } });
+    expect(hintOf(screen.getByText("Existing files"))).toBe("Same name, different file.");
   });
 });

@@ -14,6 +14,7 @@
   import Section from "../lib/ui/Section.svelte";
   import SegmentedControl from "../lib/ui/SegmentedControl.svelte";
   import FormRow from "../lib/ui/FormRow.svelte";
+  import Hint from "../lib/ui/Hint.svelte";
   import ExtensionChips from "./ExtensionChips.svelte";
   import PreflightPanel from "./PreflightPanel.svelte";
   import ProfileBar from "./ProfileBar.svelte";
@@ -63,13 +64,19 @@
 
   const source = $derived(view.source);
   /** "1,284 files · 212.4 GB · 37 system files skipped" (FR-3, FR-13, FR-24) */
-  const sourceSummary = $derived.by(() => {
-    if (!source) return "";
-    const parts = [plural(source.files, "file"), formatBytes(source.bytes)];
+  const sourceSummary = $derived.by((): { text: string; hint?: string }[] => {
+    if (!source) return [];
+    const parts: { text: string; hint?: string }[] = [
+      { text: plural(source.files, "file") },
+      { text: formatBytes(source.bytes) },
+    ];
     if (settings.showSystemCount && source.skippedSystem > 0)
-      parts.push(`${plural(source.skippedSystem, "system file")} skipped`);
-    if (source.skippedSymlinks > 0) parts.push(`${plural(source.skippedSymlinks, "symlink")} skipped`);
-    return parts.join(" · ");
+      parts.push({
+        text: `${plural(source.skippedSystem, "system file")} skipped`,
+        hint: "Files computers leave on a card, like .DS_Store, ._ files and Thumbs.db. They're never copied.",
+      });
+    if (source.skippedSymlinks > 0) parts.push({ text: `${plural(source.skippedSymlinks, "symlink")} skipped` });
+    return parts;
   });
   const destination = $derived(view.destination);
   const canStart = $derived(
@@ -222,7 +229,11 @@
       {#if source}
         <div>
           <p class="path mono">{source.label}</p>
-          <p class="muted">{sourceSummary}</p>
+          <p class="muted">
+            {#each sourceSummary as part, i (i)}{#if i > 0}{" · "}{/if}{#if part.hint}<Hint text={part.hint}
+                  >{part.text}</Hint
+                >{:else}{part.text}{/if}{/each}
+          </p>
         </div>
         {#if source.problemCount > 0}
           <details class="unreadable">
@@ -314,6 +325,11 @@
           ]}
           value={verify ? "verify" : "copy"}
           onChange={setMode}
+        />
+        <Hint
+          above
+          label="About verifying"
+          text="Copy & Verify reads every copy back from the destination and checks it against the source's checksum; a copy that doesn't match is copied again. Copy only copies: faster, but nothing is checked."
         />
       {/snippet}
       {#snippet end()}

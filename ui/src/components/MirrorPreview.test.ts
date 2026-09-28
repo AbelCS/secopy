@@ -4,6 +4,7 @@ import { apiContext } from "../lib/api";
 import type { MirrorPreviewView, QueueView } from "../lib/bindings";
 import { fakeApi, mirrorPreview } from "../test/fake-api";
 import MirrorPreview from "./MirrorPreview.svelte";
+import { hintOf } from "../test/hint";
 
 function show(preview: MirrorPreviewView) {
   const { api } = fakeApi();
@@ -48,6 +49,11 @@ describe("MirrorPreview", () => {
     });
     await screen.findByText("A/new.mov");
     screen.getByText("Deleted in the origin");
+  });
+
+  test("where archived files go is explained", () => {
+    show(mirrorPreview({ removedFiles: 5, archiveDays: 30 }));
+    expect(hintOf(screen.getByText("archived, kept 30 days"))).toMatch(/\.secopy-archive/);
   });
 
   test("nothing to do: Already in sync, Run off", () => {
