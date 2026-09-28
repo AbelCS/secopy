@@ -5,6 +5,7 @@ pub mod dto;
 pub mod jobs;
 mod migrate;
 mod picker;
+pub mod queue;
 pub mod session;
 pub mod store;
 
