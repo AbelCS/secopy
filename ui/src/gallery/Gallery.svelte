@@ -5,6 +5,7 @@
   import App from "../App.svelte";
   import JobProgress from "../components/JobProgress.svelte";
   import ProfilesScreen from "../components/ProfilesScreen.svelte";
+  import QueueScreen from "../components/QueueScreen.svelte";
   import SettingsScreen from "../components/SettingsScreen.svelte";
   import Summary from "../components/Summary.svelte";
   import { provideApi } from "../lib/api";
@@ -21,7 +22,7 @@
   import Select from "../lib/ui/Select.svelte";
   import Stats from "../lib/ui/Stats.svelte";
   import TextField from "../lib/ui/TextField.svelte";
-  import { fakeApi, profiles, progress, settings, summary } from "./fake";
+  import { fakeApi, profiles, progress, queue, settings, summary } from "./fake";
 
   const page = location.hash.slice(1) || "components";
   const api = fakeApi(page === "profiles-empty" ? { profiles: [] } : {});
@@ -42,6 +43,8 @@
   <Summary {summary} onRetry={() => {}} onNewCopy={() => {}} onSettings={() => {}} />
 {:else if page === "settings"}
   <SettingsScreen {settings} onSettings={() => {}} onDone={() => {}} />
+{:else if page === "queue"}
+  <QueueScreen {queue} onQueue={() => {}} onRun={() => {}} onSettings={() => {}} />
 {:else if page === "profiles" || page === "profiles-empty"}
   <ProfilesScreen profiles={page === "profiles" ? profiles : []} onProfiles={() => {}} onView={() => {}} onDone={() => {}} />
 {:else}

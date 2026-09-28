@@ -4,10 +4,11 @@ import { describe, expect, test } from "vitest";
 import App from "./App.svelte";
 import JobProgress from "./components/JobProgress.svelte";
 import ProfilesScreen from "./components/ProfilesScreen.svelte";
+import QueueScreen from "./components/QueueScreen.svelte";
 import SettingsScreen from "./components/SettingsScreen.svelte";
 import Summary from "./components/Summary.svelte";
 import { apiContext } from "./lib/api";
-import { fakeApi, profile, progressView, readyView, settingsView, summaryView } from "./test/fake-api";
+import { fakeApi, profile, progressView, readyView, settingsView, summaryView, queuedJob, queueView } from "./test/fake-api";
 
 async function violations(container: HTMLElement): Promise<string[]> {
   // Colours are checked by tokens.test.ts; the test DOM can't compute them.
@@ -52,5 +53,14 @@ describe("accessibility (axe-core)", () => {
       expect(await violations(container)).toEqual([]);
       unmount();
     }
+  });
+
+  test("Queue", async () => {
+    const { api } = fakeApi();
+    const { container } = render(QueueScreen, {
+      props: { queue: queueView({ jobs: [queuedJob(), queuedJob({ lastError: "CARD isn't connected." })] }), onQueue: () => {}, onRun: () => {} },
+      context: apiContext(api),
+    });
+    expect(await violations(container)).toEqual([]);
   });
 });

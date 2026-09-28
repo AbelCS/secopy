@@ -1,6 +1,6 @@
 // Fake data and a fake Api for the gallery: every screen without Tauri. Dev only.
 import type { Api } from "../lib/api";
-import type { FinishedRow, Profile, ProgressView, SessionView, Settings, SummaryView } from "../lib/bindings";
+import type { FinishedRow, Profile, ProgressView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
 
 export const profiles: Profile[] = [
   { id: "fx3", name: "Sony FX3", source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
@@ -109,6 +109,16 @@ export const summary: SummaryView = {
   reportError: null,
 };
 
+export const queue: QueueView = {
+  onFailure: "continue",
+  running: false,
+  jobs: [
+    { kind: "copy", verify: true, source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", destination: "/Volumes/V001/Day01", lastError: null, supported: true },
+    { kind: "copy", verify: true, source: "/Volumes/CARD_B/PRIVATE/M4ROOT/CLIP", destination: "/Volumes/V001/Day01", lastError: "CARD_B isn't connected.", supported: true },
+    { kind: "copy", verify: false, source: "/Users/me/Desktop/Stills", destination: "/Volumes/Media/Stills", lastError: null, supported: true },
+  ],
+};
+
 const ok =
   <T>(value: T) =>
   () =>
@@ -134,6 +144,7 @@ export function fakeApi(start: Partial<{ profiles: Profile[] }> = {}): Api {
     jobRunning: ok(false),
     recentDestinations: ok([]),
     confirm: ok(true),
+    queue: ok(queue),
   };
   return new Proxy({} as Api, { get: (_target, key: string) => table[key] ?? ok(session) });
 }

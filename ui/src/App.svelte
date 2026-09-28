@@ -8,11 +8,10 @@
   import type { Profile, ProgressView, QueueView, SessionView, Settings, SummaryView } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
   import ProfilesScreen from "./components/ProfilesScreen.svelte";
+  import QueueScreen from "./components/QueueScreen.svelte";
   import SettingsScreen from "./components/SettingsScreen.svelte";
   import Button from "./lib/ui/Button.svelte";
   import Notice from "./lib/ui/Notice.svelte";
-  import AppShell from "./lib/ui/AppShell.svelte";
-  import ScreenHeader from "./lib/ui/ScreenHeader.svelte";
   import Sidebar from "./lib/ui/Sidebar.svelte";
   import Setup from "./components/Setup.svelte";
   import Summary from "./components/Summary.svelte";
@@ -146,6 +145,9 @@
     }
   }
 
+  /** Run queue: the run itself is wired in with the queue's progress (plan 6, Task 9). */
+  function runQueue() {}
+
   async function retry() {
     const next = await run(() => api.retryFailed());
     if (next) {
@@ -253,10 +255,7 @@
         onDone={() => (screen = back)}
       />
     {:else if screen === "queue"}
-      <AppShell>
-        {#snippet header()}<ScreenHeader title="Queue" />{/snippet}
-        {@render banner()}
-      </AppShell>
+      <QueueScreen {queue} {banner} onQueue={(q) => (queue = q)} onRun={runQueue} onSettings={openSettings} />
     {/if}
   </div>
 </div>
