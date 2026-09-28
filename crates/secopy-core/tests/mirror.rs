@@ -284,3 +284,68 @@ fn archives_older_than_the_limit_are_cleaned_up() {
     assert_eq!(mirror::clean_archives(&d, 30, now), 1);
     assert!(!old.exists() && recent.exists());
 }
+
+/// Final review 1: a directory the scan couldn't read isn't "deleted in the origin".
+#[cfg(unix)]
+#[test]
+fn an_origin_directory_that_cant_be_read_removes_nothing() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), ("sub/s.mov", b"s")]);
+    write(&d, &[("a.mov", b"a"), ("sub/s.mov", b"s")]);
+    same_time(&o.join("a.mov"), &d.join("a.mov"));
+    same_time(&o.join("sub/s.mov"), &d.join("sub/s.mov"));
+    fs::set_permissions(o.join("sub"), fs::Permissions::from_mode(0o000)).unwrap();
+    let p = mirror::plan(&o, &d, &opts());
+    fs::set_permissions(o.join("sub"), fs::Permissions::from_mode(0o755)).unwrap();
+    let p = p.unwrap();
+    assert!(p.removals.is_empty(), "{:?}", p.removals);
+    assert!(p.remove_dirs.is_empty(), "{:?}", p.remove_dirs);
+    let guard = p.guard.expect("the preview says why nothing is removed");
+    assert!(guard.contains("couldn't be read"), "{guard}");
+    assert!(guard.contains("Nothing is removed"), "{guard}");
+}
+
+/// Final review 2: a rename never lands on another file (a case-sensitive destination).
+#[test]
+fn a_rename_never_replaces_another_file() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("keep.mov", b"k")]);
+    write(
+        &d,
+        &[("keep.mov", b"k"), ("a.mp4", b"old"), ("A2.mp4", b"new")],
+    );
+    same_time(&o.join("keep.mov"), &d.join("keep.mov"));
+    let mut p = mirror::plan(&o, &d, &opts()).unwrap();
+    p.removals.clear();
+    p.renames = vec![("a.mp4".into(), "A2.mp4".into())];
+    let (_, removed) = run(&p, None);
+    removed.unwrap();
+    assert_eq!(fs::read(d.join("A2.mp4")).unwrap(), b"new");
+}
+
+/// Final review 4: what a NAS keeps in a share is not the origin's.
+#[test]
+fn nas_bookkeeping_in_the_destination_is_never_removed() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("sub/x.jpg", b"x")]);
+    write(&d, &[("sub/x.jpg", b"x")]);
+    same_time(&o.join("sub/x.jpg"), &d.join("sub/x.jpg"));
+    write(
+        &d,
+        &[
+            ("@eaDir/x.jpg/SYNOPHOTO_THUMB_M.jpg", b"t"),
+            ("sub/@eaDir/x.jpg/SYNOPHOTO_THUMB_S.jpg", b"t"),
+            ("#recycle/old.jpg", b"r"),
+            ("#snapshot/x", b"s"),
+            (".@__thumb/x.jpg", b"t"),
+            (".AppleDouble/x.jpg", b"a"),
+            ("Network Trash Folder/x", b"n"),
+        ],
+    );
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    assert!(p.removals.is_empty(), "{:?}", p.removals);
+    assert!(p.remove_dirs.is_empty(), "{:?}", p.remove_dirs);
+    assert_eq!(p.destination_files, 1);
+    assert_eq!(p.guard, None);
+}
