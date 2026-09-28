@@ -2,6 +2,7 @@
 //! wrappers: the work is in `session` and `jobs`, run off the main thread so the window
 //! never freezes (NFR-5).
 
+use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -379,6 +380,8 @@ fn job_view(entry: &Entry, mirrors: &MirrorPresets) -> QueuedJobView {
 }
 
 const PRESET_GONE: &str = "The mirror preset no longer exists.";
+/// Why the jobs left in a queue whose thread panicked didn't run (#69).
+const QUEUE_STOPPED: &str = "Secopy hit an internal error; the queue stopped.";
 
 impl AppState {
     pub fn queue_view(&self) -> QueueView {
@@ -480,6 +483,38 @@ impl AppState {
         run.cancelled = false;
         run.handles.clear();
         Ok(())
+    }
+
+    /// The queue's thread: runs the claimed queue, and however that ends, a panic included,
+    /// the window gets its `Done` (#69).
+    pub fn run_claimed_to_done(&self, sink: impl QueueSink) {
+        let clock = std::time::Instant::now();
+        let count = lock(&self.queue).jobs.len() as u32;
+        let ran = std::panic::catch_unwind(AssertUnwindSafe(|| self.run_claimed(sink.clone())));
+        if ran.is_ok() {
+            return;
+        }
+        // Complete jobs leave the queue as they end: the ones still in it didn't complete.
+        let results: Vec<QueueResultView> = {
+            let (q, mirrors) = (lock(&self.queue), lock(&self.mirrors));
+            q.jobs
+                .iter()
+                .map(|entry| QueueResultView {
+                    job: job_view(entry, &mirrors),
+                    result: QueueResult::Failed,
+                    reason: Some(QUEUE_STOPPED.into()),
+                    summary: None,
+                })
+                .collect()
+        };
+        let summary = QueueSummaryView {
+            complete: count.saturating_sub(results.len() as u32),
+            count,
+            millis: clock.elapsed().as_millis() as u64,
+            results,
+            save_error: None,
+        };
+        sink.send(QueueEvent::Done { summary });
     }
 
     /// Runs the queue claimed by `claim_queue_run`; it is released however this ends.
@@ -1203,7 +1238,7 @@ pub fn run_queue(app: AppHandle, on_event: Channel<QueueEvent>) -> Result<(), St
     state.claim_queue_run()?;
     let runner = app.clone();
     let thread = std::thread::spawn(move || {
-        runner.state::<AppState>().run_claimed(on_event);
+        runner.state::<AppState>().run_claimed_to_done(on_event);
     });
     // Only one run is claimed at a time, so this is the previous (finished) run's thread.
     let old = lock(&state.queue_run).thread.replace(thread);
@@ -1814,6 +1849,48 @@ mod tests {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| state.run_queue(Panics)));
         assert!(ran.is_err());
         assert!(!state.busy());
+    }
+
+    /// #69: a panic in the queue's thread still ends the run with a `Done`, so the window
+    /// doesn't stay on the Copying screen; the jobs not done stay queued.
+    #[test]
+    fn a_panic_in_the_queue_thread_still_sends_done() {
+        /// Panics when the second job is checked, like a bug in the run would.
+        #[derive(Clone, Default)]
+        struct PanicsOnSecond(Events);
+        impl QueueSink for PanicsOnSecond {
+            fn send(&self, e: QueueEvent) {
+                if matches!(e, QueueEvent::JobChecking { index: 1, .. }) {
+                    panic!("a bug");
+                }
+                self.0.send(e);
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1), ("B", 1), ("C", 1)]);
+        let sink = PanicsOnSecond::default();
+        state.claim_queue_run().unwrap();
+        state.run_claimed_to_done(sink.clone());
+        assert!(!state.busy());
+        let events = sink.0.0.lock().unwrap();
+        let Some(QueueEvent::Done { summary }) = events.last() else {
+            panic!("no Done: {events:?}");
+        };
+        assert_eq!((summary.complete, summary.count), (1, 3), "A was copied");
+        let reasons: Vec<_> = summary
+            .results
+            .iter()
+            .map(|r| (r.result, r.reason.as_deref()))
+            .collect();
+        assert_eq!(
+            reasons,
+            [
+                (QueueResult::Failed, Some(QUEUE_STOPPED)),
+                (QueueResult::Failed, Some(QUEUE_STOPPED)),
+            ],
+            "the two jobs left"
+        );
+        assert_eq!(state.queue_view().jobs.len(), 2, "B and C stay queued");
     }
 
     /// #57: the run is claimed before its thread starts, so two can't both start.
