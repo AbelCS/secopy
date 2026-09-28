@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.9.0](https://github.com/AbelCS/secopy/compare/v0.8.0...v0.9.0) (2026-09-28)
+
+
+### Features
+
+* **ui:** explain the terms that aren't clear on their own ([33764b3](https://github.com/AbelCS/secopy/commit/33764b3aadaff7a249c91e181eda9d6d2631a87a)), closes [#57](https://github.com/AbelCS/secopy/issues/57)
+
+
+### Bug Fixes
+
+* a cancelled mirror's summary doesn't contradict itself ([ed3c9b7](https://github.com/AbelCS/secopy/commit/ed3c9b7c1d93eea165cb53b2b66ccdfda57419b7)), closes [#57](https://github.com/AbelCS/secopy/issues/57)
+* a file stopped by Cancel is cancelled, not failed ([3997422](https://github.com/AbelCS/secopy/commit/3997422c616c820e7fbd0780a0e4c21d9bc39b97)), closes [#57](https://github.com/AbelCS/secopy/issues/57)
+* catch a source rewritten mid-copy and an unsaved destination ([fa78ec6](https://github.com/AbelCS/secopy/commit/fa78ec62332d09a5ca20c73b9294c41de47971b0)), closes [#58](https://github.com/AbelCS/secopy/issues/58)
+* findings from verifying the reliability fixes ([e4d1dad](https://github.com/AbelCS/secopy/commit/e4d1dad1cad92e0d13af566767ed659e84aeb117)), closes [#58](https://github.com/AbelCS/secopy/issues/58)
+* mirror loose ends ([388074a](https://github.com/AbelCS/secopy/commit/388074abdfa762119ce6ca58c431268d0ce66b7f)), closes [#57](https://github.com/AbelCS/secopy/issues/57)
+* **mirror:** never lose an old version or remove the wrong file ([3188dbf](https://github.com/AbelCS/secopy/commit/3188dbfd74576f09b5aa284f96e341b82f46690d)), closes [#58](https://github.com/AbelCS/secopy/issues/58)
+* never call a job complete when part of the source wasn't read ([15bb876](https://github.com/AbelCS/secopy/commit/15bb87662c5395f92c3cd482fdf94fd64b762dca)), closes [#58](https://github.com/AbelCS/secopy/issues/58)
+* queue loose ends ([3aac734](https://github.com/AbelCS/secopy/commit/3aac7341491fe61e825cfa42afde0302fc8ffca3)), closes [#57](https://github.com/AbelCS/secopy/issues/57)
+* review findings on the queue and mirror loose ends ([3c80e3b](https://github.com/AbelCS/secopy/commit/3c80e3b0ea67a2c684cc65fd83f05a1d67a1d0cf)), closes [#57](https://github.com/AbelCS/secopy/issues/57)
+* small files are one steady row ([989e6a4](https://github.com/AbelCS/secopy/commit/989e6a4ad86c1c94d86a1d381865b3442122d163)), closes [#57](https://github.com/AbelCS/secopy/issues/57)
+* **ui:** Skip never hides behind "All files copied" ([43c140e](https://github.com/AbelCS/secopy/commit/43c140eff24df2a6e67ab74d238ed2b57e2a9adc)), closes [#58](https://github.com/AbelCS/secopy/issues/58)
+* undo, empty directories and the mirror preview tell the truth ([2e3b8c8](https://github.com/AbelCS/secopy/commit/2e3b8c8c0d0f4fe60c4e14c7902f3865f7a28571)), closes [#58](https://github.com/AbelCS/secopy/issues/58)
+
 ## [0.8.0](https://github.com/AbelCS/secopy/compare/v0.7.0...v0.8.0) (2026-09-28)
 
 
