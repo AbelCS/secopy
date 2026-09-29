@@ -131,6 +131,13 @@ pub fn run() {
                 }
                 return;
             }
+            // Secopy's window is gone (closed with nothing running, or after "Stop and
+            // quit"): quit. The panel's hidden window would otherwise keep Secopy running
+            // with no window and no icon.
+            if let WindowEvent::Destroyed = event {
+                window.app_handle().exit(0);
+                return;
+            }
             if let WindowEvent::Resized(size) = event {
                 let scale = window.scale_factor().unwrap_or(1.0);
                 let size = size.to_logical::<f64>(scale);
