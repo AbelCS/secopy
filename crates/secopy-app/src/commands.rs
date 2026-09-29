@@ -1236,19 +1236,15 @@ impl AppState {
             .get(id)
             .cloned()
             .ok_or_else(preset_gone)?;
-        if self.busy() {
-            return Ok(ArchiveView::Busy);
-        }
-        Ok(
-            match secopy_core::mirror::archive_summary(Path::new(&preset.destination)) {
-                Err(_) => ArchiveView::Unavailable,
-                Ok(None) => ArchiveView::Empty,
-                Ok(Some(s)) => ArchiveView::Files {
-                    files: count(s.files),
-                    bytes: s.bytes,
-                },
-            },
-        )
+        let summary = secopy_core::mirror::archive_summary(Path::new(&preset.destination));
+        let held = summary.as_ref().ok().copied().flatten();
+        Ok(ArchiveView {
+            files: held.map_or(0, |s| count(s.files)),
+            bytes: held.map_or(0, |s| s.bytes),
+            oldest: held.and_then(|s| s.oldest).map(|t| t.to_rfc3339()),
+            connected: summary.is_ok(),
+            busy: self.busy(),
+        })
     }
 
     /// "Delete them now" (#101): the whole archive of mirror `id`'s destination; never while a
@@ -3022,17 +3018,18 @@ mod tests {
     fn a_mirrors_archive_says_what_it_holds() {
         let dir = tempfile::tempdir().unwrap();
         let (state, id, _, d) = mirror_state(dir.path());
-        assert_eq!(state.mirror_archive(&id).unwrap(), ArchiveView::Empty);
+        let a = state.mirror_archive(&id).unwrap();
+        assert_eq!((a.files, a.bytes, a.connected, a.busy), (0, 0, true, false));
         archived(&d);
-        assert_eq!(
-            state.mirror_archive(&id).unwrap(),
-            ArchiveView::Files { files: 1, bytes: 5 }
-        );
+        let a = state.mirror_archive(&id).unwrap();
+        assert_eq!((a.files, a.bytes), (1, 5));
+        assert!(a.oldest.is_some(), "when its oldest run was archived");
         lock(&state.queue_run).running = true;
-        assert_eq!(state.mirror_archive(&id).unwrap(), ArchiveView::Busy);
+        let a = state.mirror_archive(&id).unwrap();
+        assert_eq!((a.files, a.busy), (1, true), "counted while a job runs");
         lock(&state.queue_run).running = false;
         fs::rename(&d, dir.path().join("unplugged")).unwrap();
-        assert_eq!(state.mirror_archive(&id).unwrap(), ArchiveView::Unavailable);
+        assert!(!state.mirror_archive(&id).unwrap().connected);
     }
 
     /// #101: "Delete them now" deletes the archive, and never while a job runs.

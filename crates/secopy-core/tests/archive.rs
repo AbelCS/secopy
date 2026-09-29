@@ -29,6 +29,11 @@ fn an_archive_says_how_many_files_and_how_big() {
     archived(dir.path(), "2026-09-02 10.00.00", &[("d.mov", 1)]);
     let s = mirror::archive_summary(dir.path()).unwrap().unwrap();
     assert_eq!((s.files, s.bytes), (3, 16));
+    let oldest = s.oldest.expect("from the oldest run's name");
+    assert_eq!(
+        oldest.format("%Y-%m-%d %H:%M").to_string(),
+        "2026-09-01 10:00"
+    );
     fs::remove_dir_all(dir.path().join(ARCHIVE_DIR)).unwrap();
     fs::create_dir(dir.path().join(ARCHIVE_DIR)).unwrap();
     assert_eq!(

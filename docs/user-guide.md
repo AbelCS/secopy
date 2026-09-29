@@ -127,6 +127,9 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
   backup would be removed), Secopy asks first; in the queue, such a run doesn't start.
 - The destination keeps a checksum file of its own, `.secopy-checksums.xxh64`, so the backup
   can be verified.
+- **Archive** (under the editor): files, size and oldest run in the destination's
+  `.secopy-archive`. **Show in Finder** opens it; **Delete archive…** deletes it, after asking.
+  Not while a job runs.
 
 ## Verify
 

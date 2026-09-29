@@ -921,7 +921,23 @@
       "deleted": {
         "one": "Deleted {count} archived file.",
         "other": "Deleted {count} archived files."
-      }
+      },
+      "title": "Archive",
+      "files": {
+        "one": "{count} file",
+        "other": "{count} files"
+      },
+      "oldest": "oldest {date}",
+      "empty": "Empty",
+      "notConnected": "Destination not connected",
+      "show": "Show in Finder",
+      "busy": "Wait until the job finishes.",
+      "confirmTitle": "Delete archive?",
+      "confirm": {
+        "one": "{count} file ({size}) is deleted. This can't be undone.",
+        "other": "{count} files ({size}) are deleted. This can't be undone."
+      },
+      "delete": "Delete archive…"
     },
     "archiveNotDeletedAll": "The archive couldn't be deleted ({why}). What's in it is removed once it's {days} days old."
   },

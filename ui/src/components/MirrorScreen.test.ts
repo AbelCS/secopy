@@ -7,8 +7,9 @@ import { fakeApi, mirrorPreset } from "../test/fake-api";
 import MirrorScreen from "./MirrorScreen.svelte";
 import { helpOf } from "../test/hint";
 
-function show(presets: MirrorPreset[] = [mirrorPreset()]) {
+function show(presets: MirrorPreset[] = [mirrorPreset()], before?: (api: ReturnType<typeof fakeApi>["api"]) => void) {
   const { api } = fakeApi();
+  before?.(api);
   const calls = { presets: [] as MirrorPreset[][], preview: [] as MirrorPreviewView[], queue: [] as QueueView[] };
   render(MirrorScreen, {
     props: {
@@ -77,6 +78,62 @@ describe("MirrorScreen", () => {
     await screen.findByText("The origin and the destination are the same directory.");
   });
 
+  const held = (over = {}) => ({ files: 124, bytes: 38_200_000_000, oldest: "2026-09-12T10:00:00+02:00", connected: true, busy: false, ...over });
+
+  test("a saved mirror shows its archive: files, size and oldest run", async () => {
+    const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(held()));
+    const oldest = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" }).format(
+      new Date("2026-09-12T10:00:00+02:00"),
+    );
+    const archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText(`124 files · 38.2 GB · oldest ${oldest}`);
+    await fireEvent.click(archive.getByRole("button", { name: "Show in Finder" }));
+    expect(api.reveal).toHaveBeenCalledWith("/Volumes/Media/Footage/.secopy-archive");
+  });
+
+  test("an empty archive, or one whose destination isn't connected, says so; nothing to delete", async () => {
+    const presets = [
+      mirrorPreset(),
+      mirrorPreset({ id: "m2", name: "Photos → Backup", destination: "/Volumes/Backup/Photos" }),
+    ];
+    const { api } = show(presets, (api) => api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null })));
+    let archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText("Empty");
+    expect(archive.getByRole("button", { name: "Delete archive…" })).toHaveProperty("disabled", true);
+    api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null, connected: false }));
+    await fireEvent.click(screen.getByRole("button", { name: "Photos → Backup" }));
+    archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText("Destination not connected");
+    expect(archive.getByRole("button", { name: "Show in Finder" })).toHaveProperty("disabled", true);
+  });
+
+  test("Delete… asks, deletes the archive and shows what's left", async () => {
+    const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(held()));
+    api.deleteMirrorArchive.mockResolvedValue({ removed: 124, notDeleted: null });
+    const archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText(/124 files/);
+    api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null }));
+    await fireEvent.click(archive.getByRole("button", { name: "Delete archive…" }));
+    expect(api.confirm).toHaveBeenCalledWith(
+      "124 files (38.2 GB) are deleted. This can't be undone.",
+      "Delete archive?",
+      "Delete",
+      "Keep",
+    );
+    await waitFor(() => expect(api.deleteMirrorArchive).toHaveBeenCalledWith("m1"));
+    await archive.findByText("Empty");
+    await screen.findByText("Deleted 124 archived files.");
+  });
+
+  test("while a job runs, the archive can't be deleted", async () => {
+    show(undefined, (api) => api.mirrorArchive.mockResolvedValue(held({ busy: true })));
+    const archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText(/124 files/);
+    const del = archive.getByRole("button", { name: "Delete archive…" });
+    expect(del).toHaveProperty("disabled", true);
+    archive.getByText("Wait until the job finishes.");
+  });
+
   /** Switches the saved archive-mode preset to Delete and presses Save. */
   async function switchToDelete() {
     await fireEvent.click(screen.getByRole("radio", { name: "Delete them" }));
@@ -93,7 +150,7 @@ describe("MirrorScreen", () => {
 
   test("switching to Delete asks about the archive; Delete them now deletes it, then saves", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ state: "files", files: 124, bytes: 38_200_000_000 });
+    api.mirrorArchive.mockResolvedValue({ files: 124, bytes: 38_200_000_000, oldest: null, connected: true, busy: false });
     api.deleteMirrorArchive.mockResolvedValue({ removed: 124, notDeleted: null });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
@@ -107,7 +164,7 @@ describe("MirrorScreen", () => {
 
   test("Keep them for the preset's days saves and deletes nothing; Cancel doesn't save", async () => {
     const { api } = show([mirrorPreset({ deleted: { mode: "archive", days: 7 } })]);
-    api.mirrorArchive.mockResolvedValue({ state: "files", files: 1, bytes: 5 });
+    api.mirrorArchive.mockResolvedValue({ files: 1, bytes: 5, oldest: null, connected: true, busy: false });
     await switchToDelete();
     let dialog = await screen.findByRole("dialog", { name: "Files already archived" });
     await fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
@@ -121,7 +178,7 @@ describe("MirrorScreen", () => {
 
   test("Keep says the days being saved, when they changed too", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ state: "files", files: 1, bytes: 5 });
+    api.mirrorArchive.mockResolvedValue({ files: 1, bytes: 5, oldest: null, connected: true, busy: false });
     await fireEvent.input(screen.getByRole("spinbutton", { name: "Days to keep" }), { target: { value: "7" } });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
@@ -130,7 +187,7 @@ describe("MirrorScreen", () => {
 
   test("a new destination in the same save doesn't ask about the old one's archive", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ state: "files", files: 1, bytes: 5 });
+    api.mirrorArchive.mockResolvedValue({ files: 1, bytes: 5, oldest: null, connected: true, busy: false });
     await fireEvent.input(screen.getByRole("textbox", { name: "Destination" }), { target: { value: "/Volumes/Other/Footage" } });
     await switchToDelete();
     await waitFor(() => expect(api.editMirrorPreset).toHaveBeenCalled());
@@ -139,7 +196,7 @@ describe("MirrorScreen", () => {
 
   test("a destination that isn't connected can have its archive deleted at the next run", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ state: "unavailable" });
+    api.mirrorArchive.mockResolvedValue({ files: 0, bytes: 0, oldest: null, connected: false, busy: false });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
     within(dialog).getByText("The destination isn't connected, so its archive can't be checked.");
@@ -151,7 +208,7 @@ describe("MirrorScreen", () => {
 
   test("while a job runs, the archive is deleted at the next run or kept", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ state: "busy" });
+    api.mirrorArchive.mockResolvedValue({ files: 3, bytes: 5, oldest: null, connected: true, busy: true });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
     within(dialog).getByText("A job is running, so the archive can't be deleted now.");
