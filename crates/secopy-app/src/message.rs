@@ -40,18 +40,26 @@ impl Message {
         crate::msg!("format.raw", text = text.into())
     }
 
-    /// The message in English, from the same catalog the UI reads: for what Rust shows
-    /// itself (menus, the menu bar icon) and for tests. Numbers and sizes read as the UI
-    /// shows them in English; a key the catalog lacks shows as itself.
+    /// The message in English, from the catalog the UI reads: for tests, which pin
+    /// today's words. Numbers and sizes read as the UI shows them in English; a key the
+    /// catalog lacks shows as itself.
     pub fn english(&self) -> String {
-        static CATALOG: std::sync::LazyLock<serde_json::Value> = std::sync::LazyLock::new(|| {
-            serde_json::from_str(include_str!("../../../ui/src/locales/en.json"))
-                .expect("en.json is JSON")
+        self.render(&[catalog("en")])
+    }
+
+    /// The message in the app's language (the Mac's, when Secopy has its words): for what
+    /// Rust shows itself, the menus and the menu bar icon. What that catalog lacks is said
+    /// in English.
+    pub fn text(&self) -> String {
+        self.render(&[catalog(app_language()), catalog("en")])
+    }
+
+    fn render(&self, catalogs: &[&serde_json::Value]) -> String {
+        let entry = catalogs.iter().find_map(|c| {
+            self.key
+                .split('.')
+                .try_fold(*c, |node, part| node.get(part))
         });
-        let entry = self
-            .key
-            .split('.')
-            .try_fold(&*CATALOG, |node, part| node.get(part));
         let text = match entry {
             Some(serde_json::Value::String(text)) => text.as_str(),
             Some(serde_json::Value::Object(forms)) => {
@@ -71,7 +79,7 @@ impl Message {
             let after = &rest[open + 1..];
             match after.find('}').map(|close| (&after[..close], close)) {
                 Some((name, close)) if self.args.contains_key(name) => {
-                    out.push_str(&self.args[name].english());
+                    out.push_str(&self.args[name].render(catalogs));
                     rest = &after[close + 1..];
                 }
                 _ => {
@@ -85,14 +93,59 @@ impl Message {
     }
 }
 
+/// The catalogs Secopy has words in, as the UI's `ui/src/locales/<tag>.json` (a test keeps
+/// the two lists the same). Adding a language adds its line here.
+pub const CATALOGS: &[(&str, &str)] = &[("en", include_str!("../../../ui/src/locales/en.json"))];
+
+/// The catalog for `tag` (one of [`CATALOGS`]).
+fn catalog(tag: &str) -> &'static serde_json::Value {
+    static PARSED: std::sync::LazyLock<Vec<(&str, serde_json::Value)>> =
+        std::sync::LazyLock::new(|| {
+            CATALOGS
+                .iter()
+                .map(|(tag, json)| (*tag, serde_json::from_str(json).expect("a catalog is JSON")))
+                .collect()
+        });
+    PARSED
+        .iter()
+        .find(|(t, _)| *t == tag)
+        .or_else(|| PARSED.first())
+        .map(|(_, c)| c)
+        .expect("English is built in")
+}
+
+/// The first of `preferred` (BCP 47 tags, the Mac's order) Secopy has words in, by the whole
+/// tag or its language ("de-AT" → "de"); English otherwise.
+pub fn language_for(preferred: &[String]) -> &'static str {
+    for tag in preferred {
+        let base = tag.split('-').next().unwrap_or(tag);
+        if let Some((found, _)) = CATALOGS.iter().find(|(t, _)| *t == tag || *t == base) {
+            return found;
+        }
+    }
+    "en"
+}
+
+/// The Mac's language for Secopy, chosen once, as the UI chooses its own.
+fn app_language() -> &'static str {
+    static LANGUAGE: std::sync::LazyLock<&str> = std::sync::LazyLock::new(|| {
+        let preferred: Vec<String> = objc2_foundation::NSLocale::preferredLanguages()
+            .iter()
+            .map(|tag| tag.to_string())
+            .collect();
+        language_for(&preferred)
+    });
+    &LANGUAGE
+}
+
 impl Arg {
-    fn english(&self) -> String {
+    fn render(&self, catalogs: &[&serde_json::Value]) -> String {
         match self {
             Arg::Number(n) => grouped(*n),
             Arg::Text(t) => t.clone(),
             Arg::List(items) => items
                 .iter()
-                .map(Message::english)
+                .map(|m| m.render(catalogs))
                 .collect::<Vec<_>>()
                 .join(", "),
             Arg::Size { bytes } => {
@@ -108,7 +161,7 @@ impl Arg {
                     format!("{value:.1} {}", UNITS[unit])
                 }
             }
-            Arg::Message(m) => m.english(),
+            Arg::Message(m) => m.render(catalogs),
         }
     }
 }
@@ -372,6 +425,37 @@ pub use english_in_tests::En;
 
 #[cfg(test)]
 mod tests {
+    /// D4: the Mac's first language with a catalog; English otherwise (as the UI picks).
+    #[test]
+    fn the_language_is_the_macs_first_with_a_catalog() {
+        let tags = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(language_for(&tags(&["de-DE", "en-US"])), "en");
+        assert_eq!(language_for(&tags(&["en-GB"])), "en");
+        assert_eq!(language_for(&tags(&["xx"])), "en");
+        assert_eq!(language_for(&[]), "en");
+    }
+
+    /// Rust shows the words of the same catalogs the UI has: every one is built in.
+    #[test]
+    fn every_catalog_is_built_in() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ui/src/locales");
+        let mut files: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".json") && n != "rust-keys.json")
+            .map(|n| n.trim_end_matches(".json").to_string())
+            .collect();
+        files.sort();
+        let mut built_in: Vec<String> = CATALOGS.iter().map(|(tag, _)| tag.to_string()).collect();
+        built_in.sort();
+        assert_eq!(built_in, files);
+    }
+
+    #[test]
+    fn in_english_text_is_english() {
+        assert_eq!(crate::msg!("menu.file.start").text(), "Start Copy");
+    }
+
     /// #84: what the app does never depends on its English words.
     #[test]
     fn no_decision_is_made_on_english_text() {

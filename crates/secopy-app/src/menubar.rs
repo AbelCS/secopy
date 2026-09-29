@@ -101,25 +101,27 @@ fn percent(r: &Running) -> Option<u64> {
     (total > 0).then(|| (done * 100 / total).min(100))
 }
 
-/// The text next to the icon.
+/// The text next to the icon, in the app's language.
 pub fn title(s: &Status) -> String {
-    match s {
-        Status::Finished { outcome, .. } => if *outcome == JobOutcome::Complete {
-            "✓"
-        } else {
-            "✗"
+    let title = match s {
+        Status::Finished { outcome, .. } if *outcome == JobOutcome::Complete => {
+            msg!("menubar.title.complete")
         }
-        .to_string(),
-        Status::Running(r) if r.view.paused => "Paused".into(),
-        Status::Running(r) if r.view.phase == JobPhase::Removing => "Removing".into(),
+        Status::Finished { .. } => msg!("menubar.title.notComplete"),
+        Status::Running(r) if r.view.paused => msg!("menubar.title.paused"),
+        Status::Running(r) if r.view.phase == JobPhase::Removing => msg!("menubar.title.removing"),
         Status::Running(r) => {
-            let p = percent(r).map_or_else(|| "…".to_string(), |p| format!("{p}%"));
+            let p = match percent(r) {
+                Some(p) => msg!("menubar.percent", value = p),
+                None => msg!("menubar.title.starting"),
+            };
             match r.queue {
-                Some((n, m)) => format!("{n}/{m} · {p}"),
+                Some((n, m)) => msg!("menubar.title.inQueue", index = n, count = m, progress = p),
                 None => p,
             }
         }
-    }
+    };
+    title.text()
 }
 
 /// How a job ended, in words.

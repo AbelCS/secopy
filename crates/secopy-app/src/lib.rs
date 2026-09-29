@@ -364,58 +364,73 @@ fn asks_before_quitting(state: &AppState) -> bool {
 }
 
 /// The standard macOS menu, except Quit: the standard one ends the app at once, without
-/// the chance to ask.
+/// the chance to ask. Every label in the app's language (#84), the standard items too (the
+/// menu library would give them fixed English words).
 fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let say = |m: message::Message| m.text();
+    let text = |m: message::Message| Some(m.text());
     let app_menu = Submenu::with_items(
         app,
         "Secopy",
         true,
         &[
-            &PredefinedMenuItem::about(app, None, None)?,
+            &PredefinedMenuItem::about(app, text(msg!("menu.app.about")).as_deref(), None)?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, SETTINGS_MENU, "Settings…", true, Some("CmdOrCtrl+,"))?,
+            &MenuItem::with_id(
+                app,
+                SETTINGS_MENU,
+                say(msg!("menu.app.settings")),
+                true,
+                Some("CmdOrCtrl+,"),
+            )?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::services(app, None)?,
+            &PredefinedMenuItem::services(app, text(msg!("menu.app.services")).as_deref())?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::hide(app, None)?,
-            &PredefinedMenuItem::hide_others(app, None)?,
-            &PredefinedMenuItem::show_all(app, None)?,
+            &PredefinedMenuItem::hide(app, text(msg!("menu.app.hide")).as_deref())?,
+            &PredefinedMenuItem::hide_others(app, text(msg!("menu.app.hideOthers")).as_deref())?,
+            &PredefinedMenuItem::show_all(app, text(msg!("menu.app.showAll")).as_deref())?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, QUIT, "Quit Secopy", true, Some("CmdOrCtrl+Q"))?,
+            &MenuItem::with_id(
+                app,
+                QUIT,
+                say(msg!("menu.app.quit")),
+                true,
+                Some("CmdOrCtrl+Q"),
+            )?,
         ],
     )?;
     let source = MenuItem::with_id(
         app,
         CHOOSE_SOURCE,
-        "Choose Source…",
+        say(msg!("menu.file.chooseSource")),
         true,
         Some("CmdOrCtrl+O"),
     )?;
     let destination = MenuItem::with_id(
         app,
         CHOOSE_DESTINATION,
-        "Choose Destination…",
+        say(msg!("menu.file.chooseDestination")),
         true,
         Some("CmdOrCtrl+D"),
     )?;
     let start = MenuItem::with_id(
         app,
         START_COPY,
-        "Start Copy",
+        say(msg!("menu.file.start")),
         false,
         Some("CmdOrCtrl+Enter"),
     )?;
     let cancel = MenuItem::with_id(
         app,
         CANCEL_COPY,
-        "Cancel Copy",
+        say(msg!("menu.file.cancel")),
         false,
         Some("CmdOrCtrl+Period"),
     )?;
     let file = Submenu::with_id_and_items(
         app,
         FILE_MENU,
-        "File",
+        say(msg!("menu.file.title")),
         true,
         &[
             &source,
@@ -424,44 +439,80 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &start,
             &cancel,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, IMPORT_FILE, "Import…", true, None::<&str>)?,
-            &MenuItem::with_id(app, EXPORT_FILE, "Export…", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                IMPORT_FILE,
+                say(msg!("menu.file.import")),
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                EXPORT_FILE,
+                say(msg!("menu.file.export")),
+                true,
+                None::<&str>,
+            )?,
         ],
     )?;
     let edit = Submenu::with_items(
         app,
-        "Edit",
+        say(msg!("menu.edit.title")),
         true,
         &[
-            &PredefinedMenuItem::undo(app, None)?,
-            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::undo(app, text(msg!("menu.edit.undo")).as_deref())?,
+            &PredefinedMenuItem::redo(app, text(msg!("menu.edit.redo")).as_deref())?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::cut(app, None)?,
-            &PredefinedMenuItem::copy(app, None)?,
-            &PredefinedMenuItem::paste(app, None)?,
-            &PredefinedMenuItem::select_all(app, None)?,
+            &PredefinedMenuItem::cut(app, text(msg!("menu.edit.cut")).as_deref())?,
+            &PredefinedMenuItem::copy(app, text(msg!("menu.edit.copy")).as_deref())?,
+            &PredefinedMenuItem::paste(app, text(msg!("menu.edit.paste")).as_deref())?,
+            &PredefinedMenuItem::select_all(app, text(msg!("menu.edit.selectAll")).as_deref())?,
         ],
     )?;
     let window = Submenu::with_items(
         app,
-        "Window",
+        say(msg!("menu.window.title")),
         true,
         &[
-            &PredefinedMenuItem::minimize(app, None)?,
-            &PredefinedMenuItem::maximize(app, None)?,
+            &PredefinedMenuItem::minimize(app, text(msg!("menu.window.minimize")).as_deref())?,
+            &PredefinedMenuItem::maximize(app, text(msg!("menu.window.zoom")).as_deref())?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::close_window(app, None)?,
+            &PredefinedMenuItem::close_window(app, text(msg!("menu.window.close")).as_deref())?,
         ],
     )?;
     let view = Submenu::with_items(
         app,
-        "View",
+        say(msg!("menu.view.title")),
         true,
         &[
-            &MenuItem::with_id(app, SHOW_COPY, "Copy", true, Some("CmdOrCtrl+1"))?,
-            &MenuItem::with_id(app, SHOW_MIRROR, "Mirror", true, Some("CmdOrCtrl+2"))?,
-            &MenuItem::with_id(app, SHOW_VERIFY, "Verify", true, Some("CmdOrCtrl+3"))?,
-            &MenuItem::with_id(app, SHOW_QUEUE, "Queue", true, Some("CmdOrCtrl+4"))?,
+            &MenuItem::with_id(
+                app,
+                SHOW_COPY,
+                say(msg!("menu.view.copy")),
+                true,
+                Some("CmdOrCtrl+1"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                SHOW_MIRROR,
+                say(msg!("menu.view.mirror")),
+                true,
+                Some("CmdOrCtrl+2"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                SHOW_VERIFY,
+                say(msg!("menu.view.verify")),
+                true,
+                Some("CmdOrCtrl+3"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                SHOW_QUEUE,
+                say(msg!("menu.view.queue")),
+                true,
+                Some("CmdOrCtrl+4"),
+            )?,
         ],
     )?;
     Menu::with_items(app, &[&app_menu, &file, &view, &edit, &window])

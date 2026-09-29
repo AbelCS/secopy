@@ -918,13 +918,23 @@
       "other": "{done} of {count} files"
     },
     "left": "{time} left",
-    "percent": "{value}%"
+    "percent": "{value}%",
+    "title": {
+      "complete": "✓",
+      "notComplete": "✗",
+      "paused": "Paused",
+      "removing": "Removing",
+      "starting": "…",
+      "inQueue": "{index}/{count} · {progress}"
+    }
   },
   "dialog": {
     "chooseDirectory": "Choose a directory",
     "copyTo": "Copy to",
     "secopyFiles": "Secopy settings",
-    "textFiles": "Text"
+    "textFiles": "Text",
+    "chooseSource": "Choose a directory, or one or more files",
+    "choosePrompt": "Choose"
   },
   "errors": {
     "os": {
@@ -1100,6 +1110,48 @@
       "chooseAgain": "Choose the directory again.",
       "notADirectory": "Choose a directory.",
       "nothing": "No checksum files here: there's nothing to verify."
+    }
+  },
+  "menu": {
+    "app": {
+      "about": "About Secopy",
+      "settings": "Settings…",
+      "services": "Services",
+      "hide": "Hide Secopy",
+      "hideOthers": "Hide Others",
+      "showAll": "Show All",
+      "quit": "Quit Secopy"
+    },
+    "file": {
+      "title": "File",
+      "chooseSource": "Choose Source…",
+      "chooseDestination": "Choose Destination…",
+      "start": "Start Copy",
+      "cancel": "Cancel Copy",
+      "import": "Import…",
+      "export": "Export…"
+    },
+    "edit": {
+      "title": "Edit",
+      "undo": "Undo",
+      "redo": "Redo",
+      "cut": "Cut",
+      "copy": "Copy",
+      "paste": "Paste",
+      "selectAll": "Select All"
+    },
+    "window": {
+      "title": "Window",
+      "minimize": "Minimize",
+      "zoom": "Zoom",
+      "close": "Close Window"
+    },
+    "view": {
+      "title": "View",
+      "copy": "Copy",
+      "mirror": "Mirror",
+      "verify": "Verify",
+      "queue": "Queue"
     }
   }
 }
