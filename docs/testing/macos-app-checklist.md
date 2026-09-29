@@ -104,8 +104,10 @@ section says, which also checks those first-launch steps), then:
     Import screen changes nothing.
 33. **Menu bar.** Start a copy that lasts a few minutes and close the window: an icon with a
     percentage appears in the menu bar and Secopy leaves the Dock and ⌘Tab; the percentage
-    moves. Its menu shows the job, files, speed and time left. Pause pauses (the title says
-    Paused), Resume carries on. Open Secopy shows the progress screen and the icon goes. Close
+    moves. Clicking it opens a panel under it (the job, From/To, a bar, files, speed, time
+    left) that stays open while the figures update; clicking elsewhere closes it. Pause pauses
+    (the title says Paused), Resume carries on. Open Secopy shows the progress screen and the
+    icon goes. Close
     again and let it finish: ✓ and the notification; Open Secopy shows the summary. Check light
     and dark menu bars.
 34. **Menu bar, the rest.** A copy with a failed file finishes hidden: ✗, "Finished with

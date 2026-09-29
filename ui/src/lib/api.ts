@@ -23,6 +23,7 @@ import {
   type ImportChoices,
   type ImportDone,
   type ImportView,
+  type PanelView,
   type MirrorPreset,
   type MirrorPresetInput,
   type MirrorPreviewView,
@@ -70,6 +71,12 @@ export const tauriApi = {
     return unwrap(commands.startJob(verify, channel));
   },
   pauseJob: (): Promise<void> => commands.pauseJob(),
+  /** The menu bar panel (#80): what it shows now, its updates, and its buttons. */
+  menubarView: (): Promise<PanelView | null> => commands.menubarView(),
+  onPanelView: (cb: (view: PanelView) => void): Promise<() => void> =>
+    listen<PanelView>("menubar-view", (event) => cb(event.payload)),
+  openMainWindow: (): Promise<void> => commands.openMainWindow(),
+  quitApp: (): Promise<void> => commands.quitApp(),
   resumeJob: (): Promise<void> => commands.resumeJob(),
   /** Stops the job; `removeCopied` also removes the files it already copied (#54). */
   cancelJob: (removeCopied: boolean): Promise<void> => commands.cancelJob(removeCopied),

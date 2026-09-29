@@ -15,6 +15,7 @@
   import SettingsScreen from "../components/SettingsScreen.svelte";
   import ImportScreen from "../components/ImportScreen.svelte";
   import ExportDialog from "../components/ExportDialog.svelte";
+  import Panel from "../menubar/Panel.svelte";
   import Summary from "../components/Summary.svelte";
   import { provideApi } from "../lib/api";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -67,6 +68,22 @@
   <Summary {summary} onRetry={() => {}} onNewCopy={() => {}} />
 {:else if page === "settings"}
   <SettingsScreen {settings} onSettings={() => {}} onExport={() => {}} onImport={() => {}} onDone={() => {}} />
+{:else if page === "panel" || page === "panel-done"}
+  <!-- The menu bar panel at its real size (340 × 190). -->
+  <div style="width:340px;height:190px;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin:24px">
+    <Panel
+      api={{
+        ...api,
+        menubarView: () =>
+          Promise.resolve(
+            page === "panel"
+              ? { heading: "Copying & verifying", from: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", to: "/Volumes/V001/Day01/CLIP", fraction: 0.42, percent: "42%", files: "44 of 106 files", speed: "850.0 MB/s", left: "3:12 left", paused: false, removing: false, ended: null }
+              : { heading: "Secopy", from: null, to: null, fraction: null, percent: "", files: "", speed: null, left: null, paused: false, removing: false, ended: { ok: true, text: "Finished: every file done" } },
+          ),
+        onPanelView: () => Promise.resolve(() => {}),
+      }}
+    />
+  </div>
 {:else if page === "import"}
   <ImportScreen view={importView} onImport={() => {}} onBack={() => {}} />
 {:else if page === "export"}

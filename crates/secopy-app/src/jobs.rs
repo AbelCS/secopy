@@ -281,6 +281,25 @@ impl Jobs {
         })
     }
 
+    /// For the menu bar panel: what the current (or last) job does, from where, and to where.
+    pub fn describe(&self) -> Option<(String, String, Option<String>)> {
+        self.job().map(|job| match &job.work {
+            Work::Check(plan) => ("Verifying".to_string(), show(&plan.dir), None),
+            Work::Copy { ready, verify, .. } => {
+                let heading = match ready.label.strip_prefix("Mirror · ") {
+                    Some(name) => format!("Mirroring {name}"),
+                    None if *verify => "Copying & verifying".to_string(),
+                    None => "Copying".to_string(),
+                };
+                let from = match &ready.source {
+                    Source::Directory { path, .. } => show(path),
+                    Source::Files(_) => ready.label.clone(),
+                };
+                (heading, from, Some(show(&ready.copy_root)))
+            }
+        })
+    }
+
     /// The current job is paused.
     pub fn is_paused(&self) -> bool {
         self.job().is_some_and(|job| job.control.is_paused())
@@ -1839,5 +1858,22 @@ mod tests {
         let view = f.jobs.progress_view().expect("the last job's figures");
         assert_eq!(view.total_files, 3);
         assert_eq!(view.files_done, 3);
+    }
+
+    /// #80: the menu bar panel names the job, and where it copies from and to.
+    #[test]
+    fn a_job_describes_itself_for_the_menu_bar() {
+        let f = fixture(3, 10);
+        assert!(f.jobs.describe().is_none(), "no job yet");
+        let ready = f.session.ready().unwrap();
+        let root = show(&ready.copy_root);
+        f.jobs
+            .start(ready, true, JobSettings::default(), Collect::default())
+            .unwrap();
+        f.jobs.wait();
+        let (heading, from, to) = f.jobs.describe().unwrap();
+        assert_eq!(heading, "Copying & verifying");
+        assert!(!from.is_empty());
+        assert_eq!(to, Some(root));
     }
 }
