@@ -1,4 +1,6 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { setLocale } from "./i18n";
+import en from "../locales/en.json";
 import { formatBytes, formatCount, formatDuration, formatPercent, formatSpeed, plural } from "./format";
 
 describe("format", () => {
@@ -30,5 +32,24 @@ describe("format", () => {
   test("plural", () => {
     expect(plural(1, "file")).toBe("1 file");
     expect(plural(1284, "file")).toBe("1,284 files");
+  });
+});
+
+describe("formatting follows the locale", () => {
+  afterEach(() => setLocale("en"));
+
+  test("English is exactly as before", () => {
+    expect(formatCount(1284)).toBe("1,284");
+    expect(formatBytes(212_400_000_000)).toBe("212.4 GB");
+    expect(formatBytes(999)).toBe("999 B");
+    expect(formatSpeed(1_200_000_000)).toBe("1.2 GB/s");
+    expect(formatSpeed(null)).toBe("—");
+    expect(formatPercent(698, 1000)).toBe("69.8 %");
+  });
+
+  test("another locale changes the separators", () => {
+    setLocale("de", en);
+    expect(formatCount(1284)).toBe("1.284");
+    expect(formatBytes(212_400_000_000)).toBe("212,4 GB");
   });
 });
