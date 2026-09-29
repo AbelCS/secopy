@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
+import { raw } from "../test/fake-api";
 import en from "../locales/en.json";
 import { setLocale } from "../lib/i18n";
 import { apiContext } from "../lib/api";
@@ -208,7 +209,7 @@ describe("JobProgress", () => {
   });
 
   test("a fatal error shows a banner", () => {
-    show(progressView({ phase: "done", fatal: "The source is no longer available; was it disconnected?" }));
+    show(progressView({ phase: "done", fatal: raw("The source is no longer available; was it disconnected?") }));
     expect(screen.getByRole("alert").textContent).toContain("Stopped: The source is no longer available");
   });
 
@@ -228,7 +229,7 @@ describe("JobProgress", () => {
   test("the Status column holds a short word; a failure's reason is on hover", async () => {
     const { api } = fakeApi();
     api.finishedPage.mockResolvedValue([
-      row(0, { status: "failed", hash: null, reason: "The source file changed while it was copied" }),
+      row(0, { status: "failed", hash: null, reason: raw("The source file changed while it was copied") }),
       row(1, { status: "cancelled", hash: null, reason: null }),
     ]);
     render(JobProgress, { props: { progress: progressView({ filesDone: 2, filesFailed: 1 }) }, context: apiContext(api) });

@@ -16,7 +16,7 @@ use chrono::Local;
 use crate::awake::KeepAwake;
 use crate::checksum_file;
 use crate::copy::CopyConfig;
-use crate::error::{FatalError, FileError};
+use crate::error::{FatalError, FileError, IoFailure};
 use crate::plan::Plan;
 use crate::scan::{DirEntry, ScanProblem};
 use crate::verify::CacheBypass;
@@ -129,7 +129,7 @@ pub struct JobReport {
     /// Files never started because the job was cancelled or hit a fatal error.
     pub not_started: u64,
     pub checksum_file: Option<PathBuf>,
-    pub checksum_error: Option<String>,
+    pub checksum_error: Option<IoFailure>,
     /// The checksum file was turned off (`JobOptions::write_checksum_file`).
     pub checksum_off: bool,
     /// `None` when not verifying.
@@ -144,9 +144,9 @@ pub struct JobReport {
     /// What the scan couldn't read, from the plan: not copied (#58).
     pub unread: Vec<ScanProblem>,
     /// The device reported an error while the copy was made durable (#58).
-    pub durability_error: Option<String>,
+    pub durability_error: Option<IoFailure>,
     /// Empty directories that couldn't be created, with why (#58).
-    pub dir_errors: Vec<(PathBuf, String)>,
+    pub dir_errors: Vec<(PathBuf, IoFailure)>,
 }
 
 impl JobReport {
@@ -299,7 +299,7 @@ fn remove_leftover_partials(plan: &Plan) -> u64 {
 
 /// Source folders with no files in the plan are created at the end (FR-6). Folders with
 /// files were created when their first file started. Returns the ones that couldn't be.
-fn create_empty_dirs(plan: &Plan) -> Vec<(PathBuf, String)> {
+fn create_empty_dirs(plan: &Plan) -> Vec<(PathBuf, IoFailure)> {
     let mut with_files = HashSet::new();
     for file in &plan.files {
         for dir in file.entry.rel.ancestors().skip(1) {
@@ -314,7 +314,7 @@ fn create_empty_dirs(plan: &Plan) -> Vec<(PathBuf, String)> {
         .filter_map(|dir| {
             fs::create_dir_all(plan.dest.join(&dir.rel))
                 .err()
-                .map(|e| (dir.rel.clone(), e.to_string()))
+                .map(|e| (dir.rel.clone(), e.into()))
         })
         .collect()
 }
@@ -330,7 +330,7 @@ fn restore_dir_mtimes(plan: &Plan) {
     }
 }
 
-fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Option<String>) {
+fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Option<IoFailure>) {
     let entries: Vec<(PathBuf, u64)> = outcomes
         .iter()
         .filter(|o| o.in_checksum_file)
@@ -341,7 +341,7 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
     }
     match checksum_file::write(dest, &entries, Local::now()) {
         Ok(path) => (Some(path), None),
-        Err(e) => (None, Some(e.to_string())),
+        Err(e) => (None, Some(e.into())),
     }
 }
 
@@ -349,10 +349,10 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
 /// drive-cache flush for the whole volume (RFD §7.4).
 /// Makes the new names and the drive's cache durable. `Some` when the device reported an
 /// error doing so: the destination can't confirm the files are on disk.
-fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<String> {
+fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<IoFailure> {
     // Every directory, then the drive's cache, whatever happened before: the first device
     // error is kept. Folders that were never created don't exist, which is no error.
-    let problems: Vec<Option<String>> = dirs
+    let problems: Vec<Option<IoFailure>> = dirs
         .iter()
         .map(|d| dest.join(&d.rel))
         .chain([dest.to_path_buf()])
@@ -367,9 +367,9 @@ fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<String> {
 }
 
 /// A device error (not a file system that can't sync a directory or flush its cache).
-fn durability_problem(result: std::io::Result<()>) -> Option<String> {
+fn durability_problem(result: std::io::Result<()>) -> Option<IoFailure> {
     let e = result.err()?;
-    os::is_device_error(&e).then(|| e.to_string())
+    os::is_device_error(&e).then(|| e.into())
 }
 
 #[cfg(test)]

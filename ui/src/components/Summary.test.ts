@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within, waitFor } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
+import { raw } from "../test/fake-api";
 import { apiContext } from "../lib/api";
 import type { FinishedRow, SummaryView } from "../lib/bindings";
 import { fakeApi, summaryView } from "../test/fake-api";
@@ -20,7 +21,7 @@ describe("Summary", () => {
   test("a mirror: its headline, why nothing was removed, what couldn't be, and Done", async () => {
     const { api } = fakeApi();
     const calls = { done: 0 };
-    const row = { id: 0, path: "B/old.mov", finalPath: "B/old.mov", size: 0, millis: 0, hash: null, status: "failed" as const, reason: "Permission denied" };
+    const row = { id: 0, path: "B/old.mov", finalPath: "B/old.mov", size: 0, millis: 0, hash: null, status: "failed" as const, reason: raw("Permission denied") };
     render(Summary, {
       props: {
         summary: summaryView({
@@ -55,7 +56,7 @@ describe("Summary", () => {
         undone: { removed: 3, notRestored: 0, failed: 0 },
         mirror: {
           new: 0, updated: 0, removed: 0, archived: true, removalFailures: [],
-          nothingRemoved: "Files deleted in the origin were left in the destination: the mirror was cancelled.",
+          nothingRemoved: raw("Files deleted in the origin were left in the destination: the mirror was cancelled."),
         },
       }),
     );
@@ -72,9 +73,9 @@ describe("Summary", () => {
         unread: 1,
         dirErrors: 1,
         failures: [
-          { ...row, path: "DCIM/locked", reason: "Couldn't be read: permission denied" },
-          { ...row, path: "EMPTY", reason: "Empty directory not created: file exists" },
-          { ...row, path: "A001.mov", reason: "Hash mismatch" },
+          { ...row, path: "DCIM/locked", reason: raw("Couldn't be read: permission denied") },
+          { ...row, path: "EMPTY", reason: raw("Empty directory not created: file exists") },
+          { ...row, path: "A001.mov", reason: raw("Hash mismatch") },
         ],
       }),
     );
@@ -87,7 +88,7 @@ describe("Summary", () => {
         outcome: "failures",
         failed: 1,
         checksumOff: true,
-        check: { intact: 5, changed: 1, missing: 0, failed: 0, notChecked: 12, checksumFiles: 2, problems: ["a.xxh64:3: bad line"] },
+        check: { intact: 5, changed: 1, missing: 0, failed: 0, notChecked: 12, checksumFiles: 2, problems: [raw("a.xxh64:3: bad line")] },
       }),
     );
     screen.getByRole("heading", { name: /1 file changed/ });
@@ -102,7 +103,7 @@ describe("Summary", () => {
       summaryView({
         outcome: "failures",
         failed: 0,
-        check: { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: ["a.xxh64:3: bad line"], moreProblems: 1_233 },
+        check: { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: [raw("a.xxh64:3: bad line")], moreProblems: 1_233 },
       }),
     );
     screen.getByRole("heading", { name: /1,234 checksum file problems/ });
@@ -119,7 +120,7 @@ describe("Summary", () => {
       summaryView({
         outcome: "failures",
         failed: 2,
-        mirror: { new: 0, updated: 0, removed: 0, archived: true, removalFailures: [], nothingRemoved: "Files deleted in the origin were left in the destination: 2 files failed." },
+        mirror: { new: 0, updated: 0, removed: 0, archived: true, removalFailures: [], nothingRemoved: raw("Files deleted in the origin were left in the destination: 2 files failed.") },
       }),
     );
     screen.getByText("Files deleted in the origin were left in the destination: 2 files failed.");
@@ -149,7 +150,7 @@ describe("Summary", () => {
   });
 
   test("a report that couldn't be saved says why", () => {
-    show(summaryView({ reportFile: null, reportError: "/Users/me/reports: Permission denied" }));
+    show(summaryView({ reportFile: null, reportErrors: [raw("/Users/me/reports: Permission denied")] }));
     screen.getByText("The report could not be saved: /Users/me/reports: Permission denied");
   });
 
@@ -177,7 +178,7 @@ describe("Summary", () => {
             millis: 1,
             hash: null,
             status: "failed",
-            reason: "Hash mismatch (source 0000000000000001, copy 0000000000000002)",
+            reason: raw("Hash mismatch (source 0000000000000001, copy 0000000000000002)"),
           },
         ],
       }),
@@ -199,13 +200,13 @@ describe("Summary", () => {
   });
 
   test("a stopped job says why", () => {
-    show(summaryView({ outcome: "stopped", stoppedBecause: "The destination drive is full", notStarted: 40 }));
+    show(summaryView({ outcome: "stopped", stoppedBecause: raw("The destination drive is full"), notStarted: 40 }));
     expect(screen.getByRole("status").textContent).toContain("Stopped: The destination drive is full");
     screen.getByText("40 not started");
   });
 
   test("a checksum file that couldn't be written is shown", () => {
-    show(summaryView({ checksumFile: null, checksumError: "Permission denied" }));
+    show(summaryView({ checksumFile: null, checksumError: raw("Permission denied") }));
     screen.getByText(/checksum file could not be written: Permission denied/);
     expect(screen.queryByRole("button", { name: "Open checksum file" })).toBeNull();
   });

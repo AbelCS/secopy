@@ -6,6 +6,7 @@
   import { provideApi, tauriApi, type Api } from "./lib/api";
   import { finishingMessage, notStarted, quitQuestion, stopMessage, type JobKind } from "./lib/stopping";
   import { t } from "./lib/i18n";
+  import { say } from "./lib/message";
   import { notificationFor, queueNotification } from "./lib/summaryText";
   import type {
     CopyPreset,
@@ -264,8 +265,8 @@
     mirrorPresets = done.mirrorPresets;
     importing = null;
     screen = importBack;
-    if (done.failed) error = done.message;
-    else info = { text: done.message, on: screen };
+    if (done.failed) error = say(done.message);
+    else info = { text: say(done.message), on: screen };
   }
 
   /** A .secopy file opened from Finder, also at launch. */
@@ -448,7 +449,7 @@
       copyPresets = start.copyPresets;
       verify = start.verify;
       recent = start.recentDestinations;
-      warnings = start.warnings;
+      warnings = start.warnings.map(say);
       // The copy preset last used is loaded again when its source is there (FR-36).
       if (start.lastPreset) {
         const id = start.lastPreset;

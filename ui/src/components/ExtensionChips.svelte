@@ -1,6 +1,7 @@
 <script lang="ts">
   // The file-type filter (FR-7..FR-9): one chip per extension, largest first. All / None are
   // the row's actions (Setup).
+  import { t } from "../lib/i18n";
   import type { ExtensionView } from "../lib/bindings";
   import { formatBytes, formatCount } from "../lib/format";
   import Chip from "../lib/ui/Chip.svelte";
@@ -29,7 +30,7 @@
 <div class="chips">
   {#each extensions as ext (ext.key)}
     <Chip
-      label={ext.label}
+      label={ext.key === null ? t("copy.noExtension") : `.${ext.key}`}
       meta="{formatCount(ext.files)} · {formatBytes(ext.bytes)}"
       selected={isOn(ext.key)}
       onToggle={() => toggle(ext.key)}

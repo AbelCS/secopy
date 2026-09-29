@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
+import { raw } from "../test/fake-api";
 import { apiContext } from "../lib/api";
 import type { MirrorPreviewView, QueueView } from "../lib/bindings";
 import { fakeApi, mirrorPreview } from "../test/fake-api";
@@ -40,8 +41,8 @@ describe("MirrorPreview", () => {
   test("the rows show path, size and why", async () => {
     const { api } = fakeApi();
     api.mirrorPreviewPage.mockResolvedValue([
-      { path: "A/new.mov", size: 2_000_000, kind: "new", reason: "New" },
-      { path: "B/old.mov", size: 1_000, kind: "removed", reason: "Deleted in the origin" },
+      { path: "A/new.mov", size: 2_000_000, kind: "new", reason: raw("New") },
+      { path: "B/old.mov", size: 1_000, kind: "removed", reason: raw("Deleted in the origin") },
     ]);
     render(MirrorPreview, {
       props: { preview: mirrorPreview(), onRun: () => {}, onQueue: () => {}, onCancel: () => {} },
@@ -70,7 +71,7 @@ describe("MirrorPreview", () => {
 
   test("a tripped guard is shown and Run asks first", async () => {
     const { api, calls } = show(
-      mirrorPreview({ removedFiles: 3, guard: "3 of the destination's 3 files would be removed." }),
+      mirrorPreview({ removedFiles: 3, guard: raw("3 of the destination's 3 files would be removed.") }),
     );
     screen.getByText("3 of the destination's 3 files would be removed.");
     api.confirm.mockResolvedValueOnce(false);

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
+import { raw } from "../test/fake-api";
 import { apiContext } from "../lib/api";
 import type { QueueView } from "../lib/bindings";
 import { checkView, fakeApi } from "../test/fake-api";
@@ -38,7 +39,7 @@ describe("VerifyScreen", () => {
 
   test("problems in checksum files are shown before starting", async () => {
     const { api } = show();
-    api.checkDirectory.mockResolvedValueOnce(checkView({ problems: ["a.xxh64:2: not a \"<checksum>  <path>\" line"] }));
+    api.checkDirectory.mockResolvedValueOnce(checkView({ problems: [raw("a.xxh64:2: not a \"<checksum>  <path>\" line")] }));
     api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
     await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
     await screen.findByText(/a\.xxh64:2/);

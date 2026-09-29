@@ -1,15 +1,16 @@
 import { fireEvent, render, screen } from "@testing-library/svelte";
 import { describe, expect, test, vi } from "vitest";
+import { raw } from "../test/fake-api";
 import type { ImportView } from "../lib/bindings";
 import ImportScreen from "./ImportScreen.svelte";
 
 const view = (over: Partial<ImportView> = {}): ImportView => ({
   fileName: "Team presets.secopy",
-  settings: { changes: ["Write the checksum file: on → off"], problem: null },
+  settings: { changes: [raw("Write the checksum file: on → off")], problem: null },
   copyPresets: [
     { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null },
     { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null },
-    { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: "Its details can't be read (…)." },
+    { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can't be read (…).") },
   ],
   mirrorPresets: [],
   ...over,

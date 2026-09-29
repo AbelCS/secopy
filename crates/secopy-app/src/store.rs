@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::dto::ExtensionKey;
+use crate::message::Message;
+use crate::msg;
 
 const VERSION: u32 = 1;
 pub const SETTINGS: &str = "settings.json";
@@ -196,7 +198,7 @@ impl CopyPresets {
         self.presets.iter().find(|p| p.id == id)
     }
 
-    pub fn add(&mut self, input: CopyPresetInput) -> Result<CopyPreset, String> {
+    pub fn add(&mut self, input: CopyPresetInput) -> Result<CopyPreset, Message> {
         let input = self.check(input, None)?;
         let preset = CopyPreset {
             id: self.new_id(),
@@ -209,13 +211,13 @@ impl CopyPresets {
         Ok(preset)
     }
 
-    pub fn edit(&mut self, id: &str, input: CopyPresetInput) -> Result<CopyPreset, String> {
+    pub fn edit(&mut self, id: &str, input: CopyPresetInput) -> Result<CopyPreset, Message> {
         let input = self.check(input, Some(id))?;
         let preset = self
             .presets
             .iter_mut()
             .find(|p| p.id == id)
-            .ok_or("That preset no longer exists.")?;
+            .ok_or_else(|| msg!("errors.preset.gone"))?;
         preset.name = input.name;
         preset.source = input.source;
         preset.include_folder = input.include_folder;
@@ -238,10 +240,10 @@ impl CopyPresets {
 
     /// `input` checked and put right like a preset typed by hand, except for its name being
     /// taken: trimmed name, full-path source, file types in lowercase without dots.
-    pub fn normalized(input: CopyPresetInput) -> Result<CopyPresetInput, String> {
+    pub fn normalized(input: CopyPresetInput) -> Result<CopyPresetInput, Message> {
         let name = input.name.trim().to_string();
         if name.is_empty() {
-            return Err("The preset needs a name.".into());
+            return Err(msg!("errors.field.name.presetEmpty"));
         }
         long_name(&name)?;
         Ok(CopyPresetInput {
@@ -263,16 +265,13 @@ impl CopyPresets {
         &self,
         input: CopyPresetInput,
         editing: Option<&str>,
-    ) -> Result<CopyPresetInput, String> {
+    ) -> Result<CopyPresetInput, Message> {
         let input = Self::normalized(input)?;
         if self
             .named(&input.name)
             .is_some_and(|p| Some(p.id.as_str()) != editing)
         {
-            return Err(format!(
-                "There is already a preset called “{}”.",
-                input.name
-            ));
+            return Err(msg!("errors.field.name.presetTaken", name = &input.name));
         }
         Ok(input)
     }
@@ -285,7 +284,7 @@ impl CopyPresets {
     /// trimmed, file types in lowercase without dots, sources as full paths. One with no name,
     /// or whose name or id another has, gets a free one instead of being dropped; the changes
     /// the user would notice come back as messages.
-    pub fn repaired(self) -> (Self, Vec<String>) {
+    pub fn repaired(self) -> (Self, Vec<Message>) {
         let loaded_ids: Vec<String> = self.presets.iter().map(|p| p.id.clone()).collect();
         let mut out = Self::default();
         let mut notes = Vec::new();
@@ -298,18 +297,24 @@ impl CopyPresets {
             };
             let name = out.free_name(wanted);
             if trimmed.is_empty() {
-                notes.push(format!(
-                    "A copy preset in {COPY_PRESETS} had no name; it is now “{name}”."
+                notes.push(msg!(
+                    "presets.repaired.noName",
+                    file = COPY_PRESETS,
+                    name = &name
                 ));
             } else if name != wanted {
-                notes.push(format!(
-                    "Two copy presets in {COPY_PRESETS} were called “{wanted}”; the second is now “{name}”."
+                notes.push(msg!(
+                    "presets.repaired.sameName",
+                    file = COPY_PRESETS,
+                    wanted = wanted,
+                    name = &name,
                 ));
             }
             let source = source(&p.source).unwrap_or_else(|_| {
-                notes.push(format!(
-                    "The copy preset “{name}” had a source that isn't a full path ({}); choose its directory again.",
-                    p.source.trim()
+                notes.push(msg!(
+                    "presets.repaired.notFullPath",
+                    name = &name,
+                    source = p.source.trim(),
                 ));
                 String::new()
             });
@@ -352,11 +357,9 @@ const MAX_NAME: usize = 200;
 /// A hundred years: longer can't be counted back from today.
 const MAX_ARCHIVE_DAYS: u32 = 36_500;
 
-fn long_name(name: &str) -> Result<(), String> {
+fn long_name(name: &str) -> Result<(), Message> {
     if name.chars().count() > MAX_NAME {
-        return Err(format!(
-            "The name is too long: {MAX_NAME} characters at most."
-        ));
+        return Err(msg!("errors.field.name.tooLong", max = MAX_NAME));
     }
     Ok(())
 }
@@ -465,7 +468,7 @@ impl MirrorPresets {
         self.presets.iter().find(|p| p.id == id)
     }
 
-    pub fn add(&mut self, input: MirrorPresetInput) -> Result<MirrorPreset, String> {
+    pub fn add(&mut self, input: MirrorPresetInput) -> Result<MirrorPreset, Message> {
         let input = self.check(input, None)?;
         let preset = MirrorPreset {
             id: new_id(|id| self.get(id).is_some()),
@@ -479,13 +482,13 @@ impl MirrorPresets {
         Ok(preset)
     }
 
-    pub fn edit(&mut self, id: &str, input: MirrorPresetInput) -> Result<MirrorPreset, String> {
+    pub fn edit(&mut self, id: &str, input: MirrorPresetInput) -> Result<MirrorPreset, Message> {
         let input = self.check(input, Some(id))?;
         let preset = self
             .presets
             .iter_mut()
             .find(|p| p.id == id)
-            .ok_or("That mirror no longer exists.")?;
+            .ok_or_else(|| msg!("errors.mirror.gone"))?;
         preset.name = input.name;
         preset.origin = input.origin;
         preset.destination = input.destination;
@@ -516,45 +519,43 @@ impl MirrorPresets {
         &self,
         input: MirrorPresetInput,
         editing: Option<&str>,
-    ) -> Result<MirrorPresetInput, String> {
+    ) -> Result<MirrorPresetInput, Message> {
         let input = Self::normalized(input)?;
         if self
             .named(&input.name)
             .is_some_and(|p| Some(p.id.as_str()) != editing)
         {
-            return Err(format!(
-                "There is already a mirror called “{}”.",
-                input.name
-            ));
+            return Err(msg!("errors.field.name.mirrorTaken", name = &input.name));
         }
         Ok(input)
     }
 
     /// `input` checked and put right like a mirror typed by hand, except for its name being
     /// taken.
-    pub fn normalized(input: MirrorPresetInput) -> Result<MirrorPresetInput, String> {
+    pub fn normalized(input: MirrorPresetInput) -> Result<MirrorPresetInput, Message> {
         let name = input.name.trim().to_string();
         if name.is_empty() {
-            return Err("The mirror needs a name.".into());
+            return Err(msg!("errors.field.name.mirrorEmpty"));
         }
         long_name(&name)?;
-        let origin = full_path(&input.origin, "origin", "/Volumes/SSD/Footage")?;
-        let destination = full_path(&input.destination, "destination", "/Volumes/NAS/Footage")?;
+        let origin = full_path(&input.origin).ok_or_else(|| msg!("errors.field.origin.notFull"))?;
+        let destination = full_path(&input.destination)
+            .ok_or_else(|| msg!("errors.field.destination.notFull"))?;
         let (o, d) = (Path::new(&origin), Path::new(&destination));
         if o == d {
-            return Err("The origin and the destination are the same directory.".into());
+            return Err(msg!("errors.field.origin.same"));
         }
         if d.starts_with(o) {
-            return Err("The destination can't be inside the origin.".into());
+            return Err(msg!("errors.field.destination.inOrigin"));
         }
         if o.starts_with(d) {
-            return Err("The origin can't be inside the destination.".into());
+            return Err(msg!("errors.field.origin.inDestination"));
         }
         if input.deleted.mode == DeletedMode::Archive && input.deleted.days == 0 {
-            return Err("Keep archived files for at least 1 day.".into());
+            return Err(msg!("errors.field.days.tooFew"));
         }
         if input.deleted.days > MAX_ARCHIVE_DAYS {
-            return Err("Keep archived files for at most 36,500 days.".into());
+            return Err(msg!("errors.field.days.tooMany", max = MAX_ARCHIVE_DAYS));
         }
         Ok(MirrorPresetInput {
             name,
@@ -578,24 +579,24 @@ impl MirrorPreset {
     }
 }
 
-/// A preset's origin or destination: a full path without a trailing `/`.
-fn full_path(text: &str, what: &str, example: &str) -> Result<String, String> {
+/// A preset's origin or destination: a full path without a trailing `/`; `None` if it isn't one.
+fn full_path(text: &str) -> Option<String> {
     let text = text.trim();
     if !text.starts_with('/') {
-        return Err(format!("The {what} must be a full path, like {example}."));
+        return None;
     }
     let trimmed = text.trim_end_matches('/');
-    Ok(if trimmed.is_empty() { "/" } else { trimmed }.to_string())
+    Some(if trimmed.is_empty() { "/" } else { trimmed }.to_string())
 }
 
 /// A copy preset's source, normalized: a full path without a trailing `/`, or empty.
-fn source(text: &str) -> Result<String, String> {
+fn source(text: &str) -> Result<String, Message> {
     let text = text.trim();
     if text.is_empty() {
         return Ok(String::new());
     }
     if !text.starts_with('/') {
-        return Err("The source must be a full path, like /Volumes/CARD_A/DCIM.".into());
+        return Err(msg!("errors.field.source.notFull"));
     }
     let trimmed = text.trim_end_matches('/');
     Ok(if trimmed.is_empty() { "/" } else { trimmed }.to_string())
@@ -632,47 +633,62 @@ impl Store {
 
     /// Reads `name`: a missing file gives the defaults; a file that can't be read is set
     /// aside and the defaults are used, with a message saying so.
-    pub fn load<T: Default + DeserializeOwned>(&self, name: &str) -> (T, Option<String>) {
+    pub fn load<T: Default + DeserializeOwned>(&self, name: &str) -> (T, Option<Message>) {
         let text = match fs::read_to_string(self.dir.join(name)) {
             Ok(text) => text,
             Err(e) if e.kind() == io::ErrorKind::NotFound => return (T::default(), None),
-            Err(e) => return (T::default(), Some(self.set_aside(name, &e.to_string()))),
+            Err(e) => {
+                return (
+                    T::default(),
+                    Some(self.set_aside(name, crate::say::io_error(&e))),
+                );
+            }
         };
         let why = match serde_json::from_str::<VersionOnly>(&text) {
-            Ok(v) if v.version > VERSION => {
-                format!("it is from a newer Secopy, version {}", v.version)
-            }
+            Ok(v) if v.version > VERSION => msg!("app.warning.newer", version = v.version),
             _ => match serde_json::from_str::<Versioned<T>>(&text) {
                 Ok(v) => return (v.data, None),
-                Err(e) => e.to_string(),
+                Err(e) => msg!("app.warning.damaged", detail = e.to_string()),
             },
         };
-        (T::default(), Some(self.set_aside(name, &why)))
+        (T::default(), Some(self.set_aside(name, why)))
     }
 
     /// Renames a file that can't be read to `<name>.damaged-<time>`; the message for the UI.
-    fn set_aside(&self, name: &str, why: &str) -> String {
+    fn set_aside(&self, name: &str, why: Message) -> Message {
         let aside = format!(
             "{name}.damaged-{}",
             chrono::Local::now().format("%Y%m%d-%H%M%S")
         );
         match fs::rename(self.dir.join(name), self.dir.join(&aside)) {
-            Ok(()) => format!(
-                "{name} couldn't be read ({why}). It was set aside as {aside} in {}, and the defaults are used.",
-                self.dir.display()
+            Ok(()) => msg!(
+                "app.warning.setAside",
+                file = name,
+                why = why,
+                aside = aside,
+                dir = &self.dir,
             ),
-            Err(e) => format!(
-                "{name} couldn't be read ({why}) or set aside ({e}). The defaults are used."
+            Err(e) => msg!(
+                "app.warning.notSetAside",
+                file = name,
+                why = why,
+                error = crate::say::io_error(&e),
             ),
         }
     }
 
     /// Writes `name` through a temp file and a rename, so a failed save never leaves half a
     /// file.
-    pub fn save<T: Serialize>(&self, name: &str, data: &T) -> Result<(), String> {
+    pub fn save<T: Serialize>(&self, name: &str, data: &T) -> Result<(), Message> {
         let _one_at_a_time = crate::lock(&self.saving);
         let path = self.dir.join(name);
-        let failed = |e: io::Error| format!("{}: {e}", path.display());
+        let failed = |e: io::Error| {
+            msg!(
+                "errors.save.file",
+                path = &path,
+                why = crate::say::io_error(&e)
+            )
+        };
         fs::create_dir_all(&self.dir).map_err(failed)?;
         let text = serde_json::to_string_pretty(&Versioned {
             version: VERSION,
@@ -827,7 +843,7 @@ mod tests {
             Some(vec![None, Some("mp4".into()), Some("xml".into())])
         );
         assert!(!p.id.is_empty());
-        let err = |r: Result<CopyPreset, String>| r.unwrap_err();
+        let err = |r: Result<CopyPreset, Message>| r.unwrap_err();
         assert_eq!(err(presets.add(input(" ", ""))), "The preset needs a name.");
         assert_eq!(
             err(presets.add(input("sony fx3", ""))),
@@ -958,7 +974,7 @@ mod tests {
             (p.name.as_str(), p.origin.as_str()),
             ("Footage → NAS", "/Volumes/SSD/Footage")
         );
-        let err = |r: Result<MirrorPreset, String>| r.unwrap_err();
+        let err = |r: Result<MirrorPreset, Message>| r.unwrap_err();
         assert_eq!(
             err(m.add(mirror_input("footage → nas", "/a", "/b"))),
             "There is already a mirror called “footage → nas”."

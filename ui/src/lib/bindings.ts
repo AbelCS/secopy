@@ -7,7 +7,7 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	/**  FROM's Choose…: a folder or files, in one panel (FR-1, FR-2). `None` when cancelled. */
-	pickSource: () => typedError<string[] | null, string>(__TAURI_INVOKE("pick_source")),
+	pickSource: () => typedError<string[] | null, Message>(__TAURI_INVOKE("pick_source")),
 	/**
 	 *  The window is closing: hides it behind the menu bar icon when that applies (#80); `false`
 	 *  and nothing changed otherwise, and the window asks or quits as before.
@@ -15,19 +15,19 @@ export const commands = {
 	hideToMenuBar: () => __TAURI_INVOKE<boolean>("hide_to_menu_bar"),
 	/**  The menu bar panel's content now (#80); it asks when it opens. */
 	menubarView: () => __TAURI_INVOKE<{
-	heading: string,
-	from: string | null,
+	heading: Message,
+	from: Message | null,
 	to: string | null,
 	/**  Work done, 0–1; `None` before there is anything to count. */
 	fraction: number | null,
-	/**  "42%", or "…". */
-	percent: string,
-	/**  "44 of 106 files". */
-	files: string,
-	/**  "850.0 MB/s"; `None` until there is a speed. */
-	speed: string | null,
-	/**  "3:12 left". */
-	left: string | null,
+	/**  Whole percent done; `None` before there is anything to count ("…"). */
+	percent: number | null,
+	filesDone: number,
+	totalFiles: number,
+	/**  Bytes a second; `None` until there is a speed. */
+	speed: number | null,
+	/**  Milliseconds left; `None` until there is a speed. */
+	leftMs: number | null,
 	paused: boolean,
 	/**  A mirror archiving or deleting, or Cancel putting the destination back. */
 	removing: boolean,
@@ -38,50 +38,50 @@ export const commands = {
 	openMainWindow: () => __TAURI_INVOKE<void>("open_main_window"),
 	/**  The panel's Quit Secopy: asks first while a job runs, as ⌘Q does (#80). */
 	quitApp: () => __TAURI_INVOKE<void>("quit_app"),
-	exportAll: (path: string, what: ExportWhat) => typedError<string, string>(__TAURI_INVOKE("export_all", { path, what })),
-	exportCopyPreset: (id: string, path: string) => typedError<string, string>(__TAURI_INVOKE("export_copy_preset", { id, path })),
-	exportMirrorPreset: (id: string, path: string) => typedError<string, string>(__TAURI_INVOKE("export_mirror_preset", { id, path })),
+	exportAll: (path: string, what: ExportWhat) => typedError<Message, Message>(__TAURI_INVOKE("export_all", { path, what })),
+	exportCopyPreset: (id: string, path: string) => typedError<Message, Message>(__TAURI_INVOKE("export_copy_preset", { id, path })),
+	exportMirrorPreset: (id: string, path: string) => typedError<Message, Message>(__TAURI_INVOKE("export_mirror_preset", { id, path })),
 	/**  Reads a `.secopy` file for the Import screen; changes nothing. */
-	openImport: (path: string) => typedError<ImportView, string>(__TAURI_INVOKE("open_import", { path })),
-	applyImport: (choices: ImportChoices) => typedError<ImportDone, string>(__TAURI_INVOKE("apply_import", { choices })),
+	openImport: (path: string) => typedError<ImportView, Message>(__TAURI_INVOKE("open_import", { path })),
+	applyImport: (choices: ImportChoices) => typedError<ImportDone, Message>(__TAURI_INVOKE("apply_import", { choices })),
 	/**  A `.secopy` file opened from Finder, once. */
 	takeOpenedFile: () => __TAURI_INVOKE<string | null>("take_opened_file"),
 	/**
 	 *  Scans a picked, dropped or chosen source (FR-1..FR-3). A newer scan replaces
 	 *  an older one.
 	 */
-	scanSource: (paths: string[]) => typedError<SessionView, string>(__TAURI_INVOKE("scan_source", { paths })),
+	scanSource: (paths: string[]) => typedError<SessionView, Message>(__TAURI_INVOKE("scan_source", { paths })),
 	/**  The "Include the folder" checkbox (FR-4); this run's file types stay. */
-	setIncludeFolder: (include: boolean) => typedError<SessionView, string>(__TAURI_INVOKE("set_include_folder", { include })),
+	setIncludeFolder: (include: boolean) => typedError<SessionView, Message>(__TAURI_INVOKE("set_include_folder", { include })),
 	/**  Everything the window needs at start; load problems are handed out once. */
-	appStart: () => typedError<StartView, string>(__TAURI_INVOKE("app_start")),
-	recentDestinations: () => typedError<string[], string>(__TAURI_INVOKE("recent_destinations")),
-	selectCopyPreset: (id: string | null) => typedError<SessionView, string>(__TAURI_INVOKE("select_copy_preset", { id })),
-	updateCopyPreset: () => typedError<CopyPresetsView, string>(__TAURI_INVOKE("update_copy_preset")),
-	saveCopyPresetAs: (name: string) => typedError<CopyPresetsView, string>(__TAURI_INVOKE("save_copy_preset_as", { name })),
-	createCopyPreset: (input: CopyPresetInput) => typedError<CopyPreset[], string>(__TAURI_INVOKE("create_copy_preset", { input })),
-	editCopyPreset: (id: string, input: CopyPresetInput) => typedError<CopyPresetsView, string>(__TAURI_INVOKE("edit_copy_preset", { id, input })),
-	deleteCopyPreset: (id: string) => typedError<CopyPresetsView, string>(__TAURI_INVOKE("delete_copy_preset", { id })),
-	setSettings: (settings: Settings) => typedError<Settings, string>(__TAURI_INVOKE("set_settings", { settings })),
+	appStart: () => typedError<StartView, Message>(__TAURI_INVOKE("app_start")),
+	recentDestinations: () => typedError<string[], Message>(__TAURI_INVOKE("recent_destinations")),
+	selectCopyPreset: (id: string | null) => typedError<SessionView, Message>(__TAURI_INVOKE("select_copy_preset", { id })),
+	updateCopyPreset: () => typedError<CopyPresetsView, Message>(__TAURI_INVOKE("update_copy_preset")),
+	saveCopyPresetAs: (name: string) => typedError<CopyPresetsView, Message>(__TAURI_INVOKE("save_copy_preset_as", { name })),
+	createCopyPreset: (input: CopyPresetInput) => typedError<CopyPreset[], Message>(__TAURI_INVOKE("create_copy_preset", { input })),
+	editCopyPreset: (id: string, input: CopyPresetInput) => typedError<CopyPresetsView, Message>(__TAURI_INVOKE("edit_copy_preset", { id, input })),
+	deleteCopyPreset: (id: string) => typedError<CopyPresetsView, Message>(__TAURI_INVOKE("delete_copy_preset", { id })),
+	setSettings: (settings: Settings) => typedError<Settings, Message>(__TAURI_INVOKE("set_settings", { settings })),
 	/**  Copy or Copy & Verify, remembered for the next launch (FR-36). */
-	setMode: (verify: boolean) => typedError<null, string>(__TAURI_INVOKE("set_mode", { verify })),
+	setMode: (verify: boolean) => typedError<null, Message>(__TAURI_INVOKE("set_mode", { verify })),
 	/**  Clears the source; the destination stays ("New copy", RFD §5.4). */
-	clearSource: () => typedError<SessionView, string>(__TAURI_INVOKE("clear_source")),
+	clearSource: () => typedError<SessionView, Message>(__TAURI_INVOKE("clear_source")),
 	/**  `None` selects every extension (FR-8, FR-10). */
-	setFilter: (selected: (string | null)[] | null) => typedError<SessionView, string>(__TAURI_INVOKE("set_filter", { selected })),
-	setDestination: (path: string | null) => typedError<SessionView, string>(__TAURI_INVOKE("set_destination", { path })),
-	setConflicts: (policy: ConflictPolicy) => typedError<SessionView, string>(__TAURI_INVOKE("set_conflicts", { policy })),
+	setFilter: (selected: (string | null)[] | null) => typedError<SessionView, Message>(__TAURI_INVOKE("set_filter", { selected })),
+	setDestination: (path: string | null) => typedError<SessionView, Message>(__TAURI_INVOKE("set_destination", { path })),
+	setConflicts: (policy: ConflictPolicy) => typedError<SessionView, Message>(__TAURI_INVOKE("set_conflicts", { policy })),
 	/**  Starts copying what the main window shows; progress arrives on `on_progress`. */
-	startJob: (verify: boolean, onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("start_job", { verify, onProgress })),
+	startJob: (verify: boolean, onProgress: Channel<ProgressView>) => typedError<null, Message>(__TAURI_INVOKE("start_job", { verify, onProgress })),
 	pauseJob: () => __TAURI_INVOKE<void>("pause_job"),
 	resumeJob: () => __TAURI_INVOKE<void>("resume_job"),
 	cancelJob: (removeCopied: boolean) => __TAURI_INVOKE<void>("cancel_job", { removeCopied }),
 	jobRunning: () => __TAURI_INVOKE<boolean>("job_running"),
-	finishedPage: (offset: number, limit: number, failedOnly: boolean) => typedError<FinishedRow[], string>(__TAURI_INVOKE("finished_page", { offset, limit, failedOnly })),
+	finishedPage: (offset: number, limit: number, failedOnly: boolean) => typedError<FinishedRow[], Message>(__TAURI_INVOKE("finished_page", { offset, limit, failedOnly })),
 	jobSummary: () => typedError<{
 	outcome: JobOutcome,
 	/**  Why the job stopped, for `JobOutcome::Stopped`. */
-	stoppedBecause: string | null,
+	stoppedBecause: Message | null,
 	verify: boolean,
 	files: number,
 	copied: number,
@@ -92,7 +92,7 @@ export const commands = {
 	/**  Items the scan couldn't read, so they weren't copied (#58). */
 	unread: number,
 	/**  The destination reported an error while the copy was made durable (#58). */
-	durabilityError: string | null,
+	durabilityError: Message | null,
 	/**  Empty directories that couldn't be created (#58); listed with the failures. */
 	dirErrors: number,
 	notStarted: number,
@@ -104,52 +104,52 @@ export const commands = {
 	finished: number,
 	copyRoot: string,
 	checksumFile: string | null,
-	checksumError: string | null,
+	checksumError: Message | null,
 	/**  The checksum file is off in Settings (RFD §5.5). */
 	checksumOff: boolean,
 	/**  The text report saved in the app's data folder (FR-35). */
 	reportFile: string | null,
-	/**  Why the report couldn't be saved there. */
-	reportError: string | null,
+	/**  Why the report couldn't be saved there (each place it was written). */
+	reportErrors: Message[],
 	/**  A mirror's own figures (plan 7); `None` for a copy. */
 	mirror: MirrorSummaryView | null,
 	/**  What Cancel's "Also remove the files already copied" did (#54). */
 	undone: UndoneView | null,
 	/**  A check's own figures (plan 8); `None` for a copy or a mirror. */
 	check: CheckSummaryView | null,
-} | null, string>(__TAURI_INVOKE("job_summary")),
-	saveReport: (path: string) => typedError<null, string>(__TAURI_INVOKE("save_report", { path })),
+} | null, Message>(__TAURI_INVOKE("job_summary")),
+	saveReport: (path: string) => typedError<null, Message>(__TAURI_INVOKE("save_report", { path })),
 	/**  "Retry": only the failed files, checked again (RFD §5.4). */
-	retryFailed: () => typedError<SessionView, string>(__TAURI_INVOKE("retry_failed")),
+	retryFailed: () => typedError<SessionView, Message>(__TAURI_INVOKE("retry_failed")),
 	/**  The UI says which File menu items apply. */
 	setMenuState: (setup: boolean, canStart: boolean, copying: boolean, busy: boolean) => __TAURI_INVOKE<void>("set_menu_state", { setup, canStart, copying, busy }),
-	queue: () => typedError<QueueView, string>(__TAURI_INVOKE("queue")),
-	addToQueue: (verify: boolean) => typedError<QueueView, string>(__TAURI_INVOKE("add_to_queue", { verify })),
-	removeFromQueue: (index: number) => typedError<QueueView, string>(__TAURI_INVOKE("remove_from_queue", { index })),
-	moveInQueue: (from: number, to: number) => typedError<QueueView, string>(__TAURI_INVOKE("move_in_queue", { from, to })),
-	clearQueue: () => typedError<QueueView, string>(__TAURI_INVOKE("clear_queue")),
-	setQueueOnFailure: (onFailure: OnFailure) => typedError<QueueView, string>(__TAURI_INVOKE("set_queue_on_failure", { onFailure })),
+	queue: () => typedError<QueueView, Message>(__TAURI_INVOKE("queue")),
+	addToQueue: (verify: boolean) => typedError<QueueView, Message>(__TAURI_INVOKE("add_to_queue", { verify })),
+	removeFromQueue: (index: number) => typedError<QueueView, Message>(__TAURI_INVOKE("remove_from_queue", { index })),
+	moveInQueue: (from: number, to: number) => typedError<QueueView, Message>(__TAURI_INVOKE("move_in_queue", { from, to })),
+	clearQueue: () => typedError<QueueView, Message>(__TAURI_INVOKE("clear_queue")),
+	setQueueOnFailure: (onFailure: OnFailure) => typedError<QueueView, Message>(__TAURI_INVOKE("set_queue_on_failure", { onFailure })),
 	/**  Starts the queue on its own thread; events arrive on `on_event`. */
-	runQueue: (onEvent: Channel<QueueEvent>) => typedError<null, string>(__TAURI_INVOKE("run_queue", { onEvent })),
-	queueFinishedPage: (index: number, offset: number, limit: number, failedOnly: boolean) => typedError<FinishedRow[], string>(__TAURI_INVOKE("queue_finished_page", { index, offset, limit, failedOnly })),
-	queueSaveReport: (index: number, path: string) => typedError<null, string>(__TAURI_INVOKE("queue_save_report", { index, path })),
-	mirrorPresets: () => typedError<MirrorPreset[], string>(__TAURI_INVOKE("mirror_presets")),
-	createMirrorPreset: (input: MirrorPresetInput) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("create_mirror_preset", { input })),
-	editMirrorPreset: (id: string, input: MirrorPresetInput) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("edit_mirror_preset", { id, input })),
-	deleteMirrorPreset: (id: string) => typedError<MirrorPreset[], string>(__TAURI_INVOKE("delete_mirror_preset", { id })),
+	runQueue: (onEvent: Channel<QueueEvent>) => typedError<null, Message>(__TAURI_INVOKE("run_queue", { onEvent })),
+	queueFinishedPage: (index: number, offset: number, limit: number, failedOnly: boolean) => typedError<FinishedRow[], Message>(__TAURI_INVOKE("queue_finished_page", { index, offset, limit, failedOnly })),
+	queueSaveReport: (index: number, path: string) => typedError<null, Message>(__TAURI_INVOKE("queue_save_report", { index, path })),
+	mirrorPresets: () => typedError<MirrorPreset[], Message>(__TAURI_INVOKE("mirror_presets")),
+	createMirrorPreset: (input: MirrorPresetInput) => typedError<MirrorPreset[], Message>(__TAURI_INVOKE("create_mirror_preset", { input })),
+	editMirrorPreset: (id: string, input: MirrorPresetInput) => typedError<MirrorPreset[], Message>(__TAURI_INVOKE("edit_mirror_preset", { id, input })),
+	deleteMirrorPreset: (id: string) => typedError<MirrorPreset[], Message>(__TAURI_INVOKE("delete_mirror_preset", { id })),
 	/**  A mirror's preview (FR-47); the preview's Start then runs it. */
-	previewMirror: (id: string, onCompared: Channel<ComparedView>) => typedError<MirrorPreviewView, string>(__TAURI_INVOKE("preview_mirror", { id, onCompared })),
-	mirrorPreviewPage: (kind: "new" | "changed" | "removed" | null, offset: number, limit: number) => typedError<PreviewRow[], string>(__TAURI_INVOKE("mirror_preview_page", { kind, offset, limit })),
+	previewMirror: (id: string, onCompared: Channel<ComparedView>) => typedError<MirrorPreviewView, Message>(__TAURI_INVOKE("preview_mirror", { id, onCompared })),
+	mirrorPreviewPage: (kind: "new" | "changed" | "removed" | null, offset: number, limit: number) => typedError<PreviewRow[], Message>(__TAURI_INVOKE("mirror_preview_page", { kind, offset, limit })),
 	/**  Runs the previewed mirror; progress arrives on `on_progress`. */
-	runMirror: (id: string, onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("run_mirror", { id, onProgress })),
+	runMirror: (id: string, onProgress: Channel<ProgressView>) => typedError<null, Message>(__TAURI_INVOKE("run_mirror", { id, onProgress })),
 	/**  Stops a preview's deep check. */
 	cancelMirrorPreview: () => __TAURI_INVOKE<void>("cancel_mirror_preview"),
-	addMirrorToQueue: (id: string) => typedError<QueueView, string>(__TAURI_INVOKE("add_mirror_to_queue", { id })),
+	addMirrorToQueue: (id: string) => typedError<QueueView, Message>(__TAURI_INVOKE("add_mirror_to_queue", { id })),
 	/**  Verify's Choose…: what `path`'s checksum files list (plan 8). */
-	checkDirectory: (path: string) => typedError<CheckView, string>(__TAURI_INVOKE("check_directory", { path })),
+	checkDirectory: (path: string) => typedError<CheckView, Message>(__TAURI_INVOKE("check_directory", { path })),
 	/**  Verify's Start: checks the directory chosen last; progress arrives on `on_progress`. */
-	startCheck: (path: string, onProgress: Channel<ProgressView>) => typedError<null, string>(__TAURI_INVOKE("start_check", { path, onProgress })),
-	addCheckToQueue: (path: string) => typedError<QueueView, string>(__TAURI_INVOKE("add_check_to_queue", { path })),
+	startCheck: (path: string, onProgress: Channel<ProgressView>) => typedError<null, Message>(__TAURI_INVOKE("start_check", { path, onProgress })),
+	addCheckToQueue: (path: string) => typedError<QueueView, Message>(__TAURI_INVOKE("add_check_to_queue", { path })),
 };
 
 /* Types */
@@ -181,7 +181,7 @@ export type CheckSummaryView = {
 	notChecked: number,
 	checksumFiles: number,
 	/**  Problems in the checksum files: "file:line: why", the first 1,000. */
-	problems: string[],
+	problems: Message[],
 	/**  Problems past the ones listed; `None` when every one is (#69). */
 	moreProblems?: number | null,
 };
@@ -195,7 +195,7 @@ export type CheckView = {
 	bytes: number,
 	notChecked: number,
 	/**  Problems in the checksum files: "file:line: why". */
-	problems: string[],
+	problems: Message[],
 };
 
 /**  How far a preview's deep check is: files compared, of how many (#57). */
@@ -249,9 +249,14 @@ export type DestinationView = {
 	/**  Where the files will land ("Files will go to", FR-4). */
 	copyRoot: string,
 	/**  Stops the job (FR-16); Start stays disabled. */
-	blocker: string | null,
+	blocker: Message | null,
 	freeBytes: number,
+	/**
+	 *  The destination's file system as a code: `apfs`, `hfs`, `exfat`, `fat32`, `ntfs`,
+	 *  `smb`, `nfs`, or `other` (then `fs_name` says which).
+	 */
 	fsKind: string,
+	fsName: string | null,
 	/**
 	 *  Items already in the copy root, hidden ones not counted; `None` if it doesn't exist.
 	 *  More than zero shows the non-empty warning.
@@ -271,7 +276,7 @@ export type DestinationView = {
 export type Ended = {
 	/**  Complete: every file done. Anything else is not. */
 	ok: boolean,
-	text: string,
+	text: Message,
 };
 
 /**  What goes in an export (#77). */
@@ -283,15 +288,13 @@ export type ExportWhat = {
 
 export type ExtensionView = {
 	key: string | null,
-	/**  ".mov", or "(no extension)". */
-	label: string,
 	files: number,
 	bytes: number,
 };
 
 export type FileProblemView = {
 	path: string,
-	reason: string,
+	reason: Message,
 };
 
 /**  One row of the finished list (RFD §5.3). */
@@ -305,7 +308,7 @@ export type FinishedRow = {
 	hash: string | null,
 	status: RowStatus,
 	/**  Why it failed or was skipped. */
-	reason: string | null,
+	reason: Message | null,
 };
 
 /**  What the user ticked: presets by their index in the file. */
@@ -317,7 +320,7 @@ export type ImportChoices = {
 
 /**  After Import: what to say, and everything the window shows, as saved (#77). */
 export type ImportDone = {
-	message: string,
+	message: Message,
 	/**  Part of it couldn't be saved; `message` says what. */
 	failed: boolean,
 	settings: Settings,
@@ -386,7 +389,7 @@ export type MirrorPreviewView = {
 	failing: number,
 	unchanged: number,
 	/**  Why the run looks wrong (FR-50): the preview's Start asks first. */
-	guard: string | null,
+	guard: Message | null,
 };
 
 /**  What a mirror did besides copying (FR-52). */
@@ -402,26 +405,26 @@ export type MirrorSummaryView = {
 	/**  Files that couldn't be archived or deleted, with why. */
 	removalFailures: FinishedRow[],
 	/**  Why nothing was removed: the copy phase failed or was cancelled. */
-	nothingRemoved: string | null,
+	nothingRemoved: Message | null,
 };
 
 export type OnFailure = "continue" | "stop";
 
-/**  What the panel under the icon shows. */
+/**  What the panel under the icon shows: figures and messages, in the UI's words. */
 export type PanelView = {
-	heading: string,
-	from: string | null,
+	heading: Message,
+	from: Message | null,
 	to: string | null,
 	/**  Work done, 0–1; `None` before there is anything to count. */
 	fraction: number | null,
-	/**  "42%", or "…". */
-	percent: string,
-	/**  "44 of 106 files". */
-	files: string,
-	/**  "850.0 MB/s"; `None` until there is a speed. */
-	speed: string | null,
-	/**  "3:12 left". */
-	left: string | null,
+	/**  Whole percent done; `None` before there is anything to count ("…"). */
+	percent: number | null,
+	filesDone: number,
+	totalFiles: number,
+	/**  Bytes a second; `None` until there is a speed. */
+	speed: number | null,
+	/**  Milliseconds left; `None` until there is a speed. */
+	leftMs: number | null,
 	paused: boolean,
 	/**  A mirror archiving or deleting, or Cancel putting the destination back. */
 	removing: boolean,
@@ -433,7 +436,7 @@ export type PlanView = {
 	filesToWrite: number,
 	bytesToWrite: number,
 	/**  Not enough free space (FR-16). */
-	blocker: string | null,
+	blocker: Message | null,
 };
 
 export type PresetChoice = {
@@ -443,6 +446,7 @@ export type PresetChoice = {
 };
 
 export type PresetImport = {
+	/**  Empty when the preset in the file has none. */
 	name: string,
 	/**  A copy preset's source, or a mirror's origin and destination. */
 	paths: string[],
@@ -453,7 +457,7 @@ export type PresetImport = {
 	/**  Paths that aren't on this Mac now: a note, not an error. */
 	missing: string[],
 	/**  Why it can't be imported. */
-	problem: string | null,
+	problem: Message | null,
 };
 
 export type PreviewKind = "new" | "changed" | "removed";
@@ -463,7 +467,7 @@ export type PreviewRow = {
 	path: string,
 	size: number,
 	kind: PreviewKind,
-	reason: string,
+	reason: Message,
 };
 
 /**  Sent twice a second while a job runs (RFD §5.3, NFR-5). */
@@ -494,7 +498,7 @@ export type ProgressView = {
 	 */
 	undoing: boolean,
 	/**  Set once, when the job has stopped for good. */
-	fatal: string | null,
+	fatal: Message | null,
 };
 
 /**  What a queue run sends to the window. */
@@ -513,7 +517,7 @@ export type QueueResultView = {
 	job: QueuedJobView,
 	result: QueueResult,
 	/**  Why it failed, was cancelled or didn't run. */
-	reason: string | null,
+	reason: Message | null,
 	/**  The job's summary, when it ran. */
 	summary: SummaryView | null,
 };
@@ -524,7 +528,7 @@ export type QueueSummaryView = {
 	count: number,
 	millis: number,
 	/**  Why the queue couldn't be saved after a job; the run itself went on. */
-	saveError: string | null,
+	saveError: Message | null,
 };
 
 export type QueueView = {
@@ -538,9 +542,9 @@ export type QueuedJobView = {
 	kind: string,
 	verify: boolean,
 	/**  The source as shown ("3 files" for several). */
-	source: string,
+	source: Message,
 	destination: string,
-	lastError: string | null,
+	lastError: Message | null,
 	supported: boolean,
 	/**  A mirror's preset name; `None` for a copy. */
 	name: string | null,
@@ -572,8 +576,8 @@ export type SessionView = {
 	presetId: string | null,
 	/**  This run's choices differ from the preset's: offer Update / Save as…. */
 	presetChanged: boolean,
-	/**  Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP". */
-	pickProblem: string | null,
+	/**  Why there is no source, e.g. "CARD_A isn't connected." */
+	pickProblem: Message | null,
 	/**  A newer scan replaced this one while it ran (FR-3); the UI keeps its current view. */
 	stale: boolean,
 };
@@ -591,8 +595,8 @@ export type Settings = {
 
 export type SettingsImport = {
 	/**  "Write the checksum file: on → off"; empty when they're the same as yours. */
-	changes: string[],
-	problem: string | null,
+	changes: Message[],
+	problem: Message | null,
 };
 
 export type SmallFilesView = {
@@ -602,8 +606,8 @@ export type SmallFilesView = {
 };
 
 export type SourceView = {
-	/**  What the user picked: the folder, or "3 files". */
-	label: string,
+	/**  What the user picked: the directory, or "3 files". */
+	label: Message,
 	isFolder: boolean,
 	/**  Copy only what's inside the folder (FR-4b) instead of the folder itself. */
 	contentsOnly: boolean,
@@ -626,7 +630,7 @@ export type SourceView = {
 	skippedSystem: number,
 	skippedSymlinks: number,
 	/**  Things that couldn't be read while scanning, first 20. */
-	problems: string[],
+	problems: Message[],
 	problemCount: number,
 };
 
@@ -640,7 +644,7 @@ export type StartView = {
 	/**  Recent destinations that still exist, most recent first. */
 	recentDestinations: string[],
 	/**  Saved files that couldn't be read; shown once. */
-	warnings: string[],
+	warnings: Message[],
 	/**  The copy preset last used, when its source is there: the window loads it again (FR-36). */
 	lastPreset: string | null,
 };
@@ -649,7 +653,7 @@ export type StartView = {
 export type SummaryView = {
 	outcome: JobOutcome,
 	/**  Why the job stopped, for `JobOutcome::Stopped`. */
-	stoppedBecause: string | null,
+	stoppedBecause: Message | null,
 	verify: boolean,
 	files: number,
 	copied: number,
@@ -660,7 +664,7 @@ export type SummaryView = {
 	/**  Items the scan couldn't read, so they weren't copied (#58). */
 	unread: number,
 	/**  The destination reported an error while the copy was made durable (#58). */
-	durabilityError: string | null,
+	durabilityError: Message | null,
 	/**  Empty directories that couldn't be created (#58); listed with the failures. */
 	dirErrors: number,
 	notStarted: number,
@@ -672,13 +676,13 @@ export type SummaryView = {
 	finished: number,
 	copyRoot: string,
 	checksumFile: string | null,
-	checksumError: string | null,
+	checksumError: Message | null,
 	/**  The checksum file is off in Settings (RFD §5.5). */
 	checksumOff: boolean,
 	/**  The text report saved in the app's data folder (FR-35). */
 	reportFile: string | null,
-	/**  Why the report couldn't be saved there. */
-	reportError: string | null,
+	/**  Why the report couldn't be saved there (each place it was written). */
+	reportErrors: Message[],
 	/**  A mirror's own figures (plan 7); `None` for a copy. */
 	mirror: MirrorSummaryView | null,
 	/**  What Cancel's "Also remove the files already copied" did (#54). */

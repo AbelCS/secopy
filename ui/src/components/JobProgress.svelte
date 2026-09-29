@@ -3,6 +3,7 @@
   // files, Pause / Resume and Cancel.
   import { notStarted, stopMessage, stopQuestion, type JobKind } from "../lib/stopping";
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import { useApi } from "../lib/api";
   import type { ProgressView } from "../lib/bindings";
   import { formatBytes, formatDuration, formatPercent } from "../lib/format";
@@ -179,7 +180,7 @@
 
   {@render banner?.()}
   <p class="visually-hidden" aria-live="polite">{phase}</p>
-  {#if progress.fatal}<Notice tone="danger">{t("progress.stopped", { why: progress.fatal })}</Notice>{/if}
+  {#if progress.fatal}<Notice tone="danger">{t("progress.stopped", { why: say(progress.fatal) })}</Notice>{/if}
 
   {#if checking}
     <Section title={t("progress.title")}>

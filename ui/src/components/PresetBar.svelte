@@ -2,6 +2,7 @@
   // FROM's copy preset (FR-38): pick one, see when this run differs from it, and save
   // the difference with Update or Save as….
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import { messageOf } from "../lib/format";
   import { tick } from "svelte";
   import { useApi } from "../lib/api";
@@ -43,7 +44,7 @@
   );
 
   /** The preset and the source; a new scan of the same source (filters) doesn't change it. */
-  const context = $derived(`${view.presetId ?? ""}\n${view.source?.label ?? ""}`);
+  const context = $derived(`${view.presetId ?? ""}\n${view.source ? say(view.source.label) : ""}`);
   // Another preset or source: an old error or an open Save as… no longer applies.
   $effect(() => {
     void context;

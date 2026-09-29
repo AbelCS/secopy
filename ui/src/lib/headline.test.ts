@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { summaryView } from "../test/fake-api";
+import { raw } from "../test/fake-api";
 import { headline } from "./headline";
 
 test("each outcome has a clear status line", () => {
@@ -8,7 +9,7 @@ test("each outcome has a clear status line", () => {
   expect(headline(summaryView({ outcome: "failures", failed: 3 }))).toBe("3 files failed");
   expect(headline(summaryView({ outcome: "cancelled" }))).toBe("Cancelled");
   expect(
-    headline(summaryView({ outcome: "stopped", stoppedBecause: "The destination drive is full" })),
+    headline(summaryView({ outcome: "stopped", stoppedBecause: raw("The destination drive is full") })),
   ).toBe("Stopped: The destination drive is full");
   expect(headline(summaryView({ verified: 0, skippedIdentical: 12 }))).toBe(
     "Nothing to copy: everything was already there",
@@ -42,13 +43,13 @@ test("a cancel that removed the copied files says so", () => {
 test("what couldn't be read, and a checksum file that wasn't written, aren't a success", () => {
   expect(headline(summaryView({ outcome: "failures", failed: 0, unread: 2 }))).toBe("2 items couldn't be read");
   expect(headline(summaryView({ outcome: "failures", failed: 0, unread: 1 }))).toBe("1 item couldn't be read");
-  expect(headline(summaryView({ outcome: "failures", failed: 0, checksumError: "Permission denied" }))).toBe(
+  expect(headline(summaryView({ outcome: "failures", failed: 0, checksumError: raw("Permission denied") }))).toBe(
     "The checksum file couldn't be written",
   );
 });
 
 test("a destination that couldn't confirm the copy is saved isn't a success", () => {
-  expect(headline(summaryView({ outcome: "failures", failed: 0, durabilityError: "Input/output error" }))).toBe(
+  expect(headline(summaryView({ outcome: "failures", failed: 0, durabilityError: raw("Input/output error") }))).toBe(
     "The destination couldn't confirm the files are saved",
   );
 });
@@ -78,7 +79,7 @@ test("a check says intact, or what it found", () => {
 
 test("a check that stopped says so, not what it read so far", () => {
   const check = { intact: 3, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: [] };
-  expect(headline(summaryView({ outcome: "stopped", stoppedBecause: "Secopy hit an internal error", check }))).toBe(
+  expect(headline(summaryView({ outcome: "stopped", stoppedBecause: raw("Secopy hit an internal error"), check }))).toBe(
     "Stopped: Secopy hit an internal error",
   );
   expect(headline(summaryView({ outcome: "stopped", stoppedBecause: null, check }))).toBe(
@@ -87,7 +88,7 @@ test("a check that stopped says so, not what it read so far", () => {
 });
 
 test("a check counts every checksum file problem, also past the ones listed", () => {
-  const check = { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: Array<string>(1000).fill("a.xxh64:1: bad line") };
+  const check = { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: Array(1000).fill(raw("a.xxh64:1: bad line")) };
   expect(headline(summaryView({ outcome: "failures", check: { ...check, moreProblems: 234 } }))).toBe(
     "1,234 checksum file problems",
   );

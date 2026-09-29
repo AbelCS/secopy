@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test, vi } from "vitest";
+import { raw } from "../test/fake-api";
 import { apiContext } from "../lib/api";
 import type { CopyPreset, QueueView, SessionView, Settings } from "../lib/bindings";
 import {
@@ -81,7 +82,7 @@ describe("Setup", () => {
   });
 
   test("files have no folder to include", () => {
-    setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: "2 files" }) }));
+    setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: raw("2 files") }) }));
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
@@ -105,7 +106,7 @@ describe("Setup", () => {
   test("a blocker is shown and Start stays disabled", () => {
     setup(
       readyView({
-        destination: destinationView({ blocker: "The destination is the source directory or inside it" }),
+        destination: destinationView({ blocker: raw("The destination is the source directory or inside it") }),
         plan: null,
       }),
     );
@@ -116,7 +117,7 @@ describe("Setup", () => {
   test("not enough space blocks Start", () => {
     setup(
       readyView({
-        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: "Not enough free space" },
+        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: raw("Not enough free space") },
       }),
     );
     expect(screen.getByRole("alert").textContent).toBe("Not enough free space");
@@ -133,7 +134,7 @@ describe("Setup", () => {
     setup(
       readyView({
         destination: destinationView({
-          problems: [{ path: "DCIM/a:b.mov", reason: "the name contains \":\", which this drive doesn't allow" }],
+          problems: [{ path: "DCIM/a:b.mov", reason: raw("the name contains \":\", which this drive doesn't allow") }],
           problemCount: 3,
         }),
       }),
@@ -198,14 +199,14 @@ describe("Setup", () => {
   });
 
   test("a retry has no folder choice or filter to change", () => {
-    setup(readyView({ source: sourceView({ isRetry: true, label: "Retry: 3 failed files" }) }));
+    setup(readyView({ source: sourceView({ isRetry: true, label: raw("Retry: 3 failed files") }) }));
     screen.getByText("Retry: 3 failed files");
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /\.xml/ })).toBeNull();
   });
 
   test("a pick problem is shown in FROM", () => {
-    setup(sessionView({ pickProblem: "CARD_A has no PRIVATE/M4ROOT/CLIP" }));
+    setup(sessionView({ pickProblem: raw("CARD_A has no PRIVATE/M4ROOT/CLIP") }));
     expect(from().getByRole("alert").textContent).toBe("CARD_A has no PRIVATE/M4ROOT/CLIP");
   });
 
@@ -270,7 +271,7 @@ describe("Setup", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("There is already a preset called “FX3”.");
     const other = "/Volumes/CARD_B/DCIM";
-    await rerender({ view: readyView({ source: sourceView({ label: other, folder: other }) }) });
+    await rerender({ view: readyView({ source: sourceView({ label: raw(other), folder: other }) }) });
     expect(screen.queryByText("There is already a preset called “FX3”.")).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
   });
@@ -284,7 +285,7 @@ describe("Setup", () => {
   });
 
   test("presets don't apply to files", () => {
-    setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: "2 files" }) }), undefined, {
+    setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: raw("2 files") }) }), undefined, {
       presets: [copyPreset()],
     });
     expect(screen.getByRole("combobox", { name: "Preset" })).toHaveProperty("disabled", true);
@@ -338,7 +339,7 @@ describe("Setup", () => {
   test("Source shows the chosen source, like Destination; no drives, no Selected row", () => {
     setup(readyView());
     const source = within(screen.getByRole("group", { name: "Source" }));
-    source.getByText(readyView().source!.label);
+    source.getByText("/Volumes/CARD/DCIM");
     source.getByText(showing("1,284 files · 212.4 GB · 37 system files skipped"));
     source.getByRole("button", { name: "Choose…" });
     expect(screen.queryByRole("group", { name: "Selected" })).toBeNull();

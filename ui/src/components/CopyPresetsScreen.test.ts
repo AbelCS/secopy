@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
+import { AppError } from "../lib/message";
 import { describe, expect, test } from "vitest";
 import { apiContext } from "../lib/api";
 import type { CopyPreset } from "../lib/bindings";
@@ -116,15 +117,27 @@ describe("CopyPresetsScreen", () => {
 
   test("a problem is shown next to its field", async () => {
     const { api } = show();
-    api.editCopyPreset.mockRejectedValueOnce(new Error("There is already a preset called “DJI Mini 4”."));
+    api.editCopyPreset.mockRejectedValueOnce(
+      new AppError({ key: "errors.field.name.presetTaken", args: { name: "DJI Mini 4" } }),
+    );
     await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "DJI Mini 4" } });
     await fireEvent.click(save());
     const nameError = await screen.findByText("There is already a preset called “DJI Mini 4”.");
     expect(screen.getByRole("textbox", { name: "Name" }).getAttribute("aria-describedby")).toBe(nameError.id);
-    api.editCopyPreset.mockRejectedValueOnce(new Error("The source must be a full path, like /Volumes/CARD_A/DCIM."));
+    api.editCopyPreset.mockRejectedValueOnce(new AppError({ key: "errors.field.source.notFull", args: {} }));
     await fireEvent.click(save());
     const sourceError = await screen.findByText("The source must be a full path, like /Volumes/CARD_A/DCIM.");
     expect(screen.getByRole("textbox", { name: "Source" }).getAttribute("aria-describedby")).toBe(sourceError.id);
+  });
+
+  test("an error that isn't about a field is shown for the form, whatever its words", async () => {
+    const { api } = show();
+    const why = { key: "errors.os.unknown", args: { text: "File name too long" } };
+    api.editCopyPreset.mockRejectedValueOnce(new AppError({ key: "errors.save.preset", args: { why } }));
+    await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
+    await fireEvent.click(save());
+    await screen.findByText("Couldn't save the preset: File name too long");
+    expect(screen.getByRole("textbox", { name: "Name" }).getAttribute("aria-describedby")).toBeNull();
   });
 
   test("Revert undoes unsaved changes", async () => {

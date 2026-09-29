@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 
+use crate::message::Message;
+use crate::msg;
 use crate::store::{
     CopyPreset, CopyPresetInput, CopyPresets, MirrorPreset, MirrorPresetInput, MirrorPresets,
     Settings,
@@ -20,22 +22,27 @@ pub const FORMAT: u32 = 1;
 pub const MAX_BYTES: u64 = 10 << 20;
 /// Presets of each kind a file may hold: more is no real setup, and isn't worked through.
 pub const MAX_PRESETS: usize = 1000;
-pub const NOT_SECOPY: &str = "This isn't a Secopy file.";
-pub const NOTHING: &str = "There is nothing in this file to import.";
+pub fn not_secopy() -> Message {
+    msg!("errors.import.notSecopy")
+}
+
+pub fn nothing() -> Message {
+    msg!("errors.import.nothing")
+}
 
 /// A file's contents: each preset read on its own, so one bad preset doesn't block the rest.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Contents {
-    pub settings: Option<Result<Settings, String>>,
+    pub settings: Option<Result<Settings, Message>>,
     pub copy_presets: Vec<Result<CopyPresetInput, Unreadable>>,
     pub mirror_presets: Vec<Result<MirrorPresetInput, Unreadable>>,
 }
 
-/// A preset in the file that can't be read: its name if it has one, and why.
+/// A preset in the file that can't be read: its name if it has one (else empty), and why.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Unreadable {
     pub name: String,
-    pub why: String,
+    pub why: Message,
 }
 
 #[derive(Serialize)]
@@ -73,10 +80,10 @@ pub fn export_text(
 
 /// Writes `text` to `path`: a temporary name next to it, synced, then renamed into place, so
 /// a failure never leaves half a file under the final name.
-pub fn write_file(path: &Path, text: &str) -> Result<(), String> {
+pub fn write_file(path: &Path, text: &str) -> Result<(), Message> {
     let name = path
         .file_name()
-        .ok_or("That isn't a file name.")?
+        .ok_or_else(|| msg!("errors.export.notAFileName"))?
         .to_string_lossy();
     // A name nobody can have put a link at, created only if nothing is there (never through
     // a link: a file the save panel didn't name is never written).
@@ -99,26 +106,27 @@ pub fn write_file(path: &Path, text: &str) -> Result<(), String> {
     if written.is_err() {
         let _ = fs::remove_file(&tmp);
     }
-    written.map_err(|e| format!("The file couldn't be saved: {e}"))
+    written.map_err(|e| msg!("errors.export.notSaved", why = crate::say::io_error(&e)))
 }
 
 /// Reads the file at `path`: only a plain file, and never more than [`MAX_BYTES`] of it.
-pub fn read_file(path: &Path) -> Result<Contents, String> {
+pub fn read_file(path: &Path) -> Result<Contents, Message> {
     use std::io::Read;
     // A device or a pipe could be read forever (or never open): not a Secopy file.
-    let meta = fs::metadata(path).map_err(|e| format!("The file can't be opened: {e}"))?;
+    let meta = fs::metadata(path)
+        .map_err(|e| msg!("errors.import.cantOpen", why = crate::say::io_error(&e)))?;
     if !meta.is_file() {
-        return Err(NOT_SECOPY.into());
+        return Err(not_secopy());
     }
     if meta.len() > MAX_BYTES {
-        return Err("This file is too big to be a Secopy file.".into());
+        return Err(msg!("errors.import.tooBig"));
     }
     let mut bytes = Vec::new();
     fs::File::open(path)
         .and_then(|f| f.take(MAX_BYTES + 1).read_to_end(&mut bytes))
-        .map_err(|e| format!("The file can't be read: {e}"))?;
+        .map_err(|e| msg!("errors.import.cantRead", why = crate::say::io_error(&e)))?;
     if bytes.len() as u64 > MAX_BYTES {
-        return Err("This file is too big to be a Secopy file.".into());
+        return Err(msg!("errors.import.tooBig"));
     }
     read(&bytes)
 }
@@ -126,40 +134,31 @@ pub fn read_file(path: &Path) -> Result<Contents, String> {
 /// Reads a file's bytes. Strict about what it is (a Secopy file of a format this Secopy
 /// knows), lenient inside: unknown fields are ignored, and a preset that can't be read is
 /// kept as [`Unreadable`] next to the others.
-pub fn read(bytes: &[u8]) -> Result<Contents, String> {
+pub fn read(bytes: &[u8]) -> Result<Contents, Message> {
     // serde_json stops at 128 levels of nesting: a hostile file is an error, not a crash.
-    let value: Value = serde_json::from_slice(bytes).map_err(|_| NOT_SECOPY.to_string())?;
+    let value: Value = serde_json::from_slice(bytes).map_err(|_| not_secopy())?;
     let Value::Object(mut file) = value else {
-        return Err(NOT_SECOPY.into());
+        return Err(not_secopy());
     };
     let format = file
         .get("secopy")
         .and_then(Value::as_u64)
-        .ok_or(NOT_SECOPY)?;
+        .ok_or_else(not_secopy)?;
     if format > u64::from(FORMAT) {
-        return Err(format!(
-            "This file was made by a newer Secopy (format {format}). Update Secopy to import it."
-        ));
+        return Err(msg!("errors.import.newer", format = format.to_string()));
     }
     let settings = file.remove("settings").map(|v| {
-        serde_json::from_value::<Settings>(v)
-            .map_err(|_| "The settings in this file can't be read.".to_string())
+        serde_json::from_value::<Settings>(v).map_err(|_| msg!("import.problem.settings"))
     });
     let (copies, mirrors) = (file.remove("copyPresets"), file.remove("mirrorPresets"));
     let count = |list: &Option<Value>| list.as_ref().and_then(Value::as_array).map_or(0, Vec::len);
     if count(&copies) > MAX_PRESETS || count(&mirrors) > MAX_PRESETS {
-        return Err(format!(
-            "This file has too many presets. Secopy imports up to {MAX_PRESETS} of each kind."
-        ));
+        return Err(msg!("errors.import.tooMany", max = MAX_PRESETS));
     }
-    let copy_presets = presets(copies, "The copy presets", "A copy preset with no name");
-    let mirror_presets = presets(
-        mirrors,
-        "The mirror presets",
-        "A mirror preset with no name",
-    );
+    let copy_presets = presets(copies);
+    let mirror_presets = presets(mirrors);
     if settings.is_none() && copy_presets.is_empty() && mirror_presets.is_empty() {
-        return Err(NOTHING.into());
+        return Err(nothing());
     }
     Ok(Contents {
         settings,
@@ -168,20 +167,17 @@ pub fn read(bytes: &[u8]) -> Result<Contents, String> {
     })
 }
 
-/// Each entry of a preset list, read on its own.
-fn presets<T: serde::de::DeserializeOwned>(
-    list: Option<Value>,
-    section: &str,
-    unnamed: &str,
-) -> Vec<Result<T, Unreadable>> {
+/// Each entry of a preset list, read on its own. One with no name gets an empty one (the UI
+/// says "no name").
+fn presets<T: serde::de::DeserializeOwned>(list: Option<Value>) -> Vec<Result<T, Unreadable>> {
     let items = match list {
         None => return Vec::new(),
         Some(Value::Array(items)) => items,
         // Shown, not dropped: the file meant to hold some.
         Some(_) => {
             return vec![Err(Unreadable {
-                name: section.to_string(),
-                why: "This part of the file can't be read.".into(),
+                name: String::new(),
+                why: msg!("import.problem.section"),
             })];
         }
     };
@@ -192,11 +188,10 @@ fn presets<T: serde::de::DeserializeOwned>(
                 .get("name")
                 .and_then(Value::as_str)
                 .map(|n| n.trim().chars().take(200).collect::<String>())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| unnamed.to_string());
+                .unwrap_or_default();
             serde_json::from_value::<T>(item).map_err(|e| Unreadable {
                 name,
-                why: format!("Its details can't be read ({e})."),
+                why: msg!("import.problem.details", detail = e.to_string()),
             })
         })
         .collect()
@@ -217,13 +212,14 @@ pub struct ImportView {
 #[serde(rename_all = "camelCase")]
 pub struct SettingsImport {
     /// "Write the checksum file: on → off"; empty when they're the same as yours.
-    pub changes: Vec<String>,
-    pub problem: Option<String>,
+    pub changes: Vec<Message>,
+    pub problem: Option<Message>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PresetImport {
+    /// Empty when the preset in the file has none.
     pub name: String,
     /// A copy preset's source, or a mirror's origin and destination.
     pub paths: Vec<String>,
@@ -234,7 +230,7 @@ pub struct PresetImport {
     /// Paths that aren't on this Mac now: a note, not an error.
     pub missing: Vec<String>,
     /// Why it can't be imported.
-    pub problem: Option<String>,
+    pub problem: Option<Message>,
 }
 
 /// What the user ticked: presets by their index in the file.
@@ -380,8 +376,8 @@ fn mirror_rows(
         .collect()
 }
 
-fn two_replace(name: &str) -> String {
-    format!("Two presets in the file would replace “{name}”; choose Keep both for one of them.")
+fn two_replace(name: &str) -> Message {
+    msg!("errors.import.twoReplace", name = name)
 }
 
 /// The copy presets after importing the chosen ones, in the file's order, and how many.
@@ -391,7 +387,7 @@ pub fn apply_copy(
     c: &Contents,
     chosen: &[PresetChoice],
     copy: &CopyPresets,
-) -> Result<(CopyPresets, usize), String> {
+) -> Result<(CopyPresets, usize), Message> {
     let rows = copy_rows(c, copy);
     let mut next = copy.clone();
     let mut replaced = std::collections::HashSet::new();
@@ -401,7 +397,7 @@ pub fn apply_copy(
             .get(choice.index as usize)
             .and_then(|r| r.as_ref().ok())
             .cloned()
-            .ok_or("That preset can't be imported.")?;
+            .ok_or_else(|| msg!("errors.import.cantImport"))?;
         match copy.named(&input.name) {
             Some(yours) if choice.replace => {
                 if !replaced.insert(yours.id.clone()) {
@@ -425,7 +421,7 @@ pub fn apply_mirrors(
     c: &Contents,
     chosen: &[PresetChoice],
     mirrors: &MirrorPresets,
-) -> Result<(MirrorPresets, usize), String> {
+) -> Result<(MirrorPresets, usize), Message> {
     let rows = mirror_rows(c, mirrors);
     let mut next = mirrors.clone();
     let mut replaced = std::collections::HashSet::new();
@@ -435,7 +431,7 @@ pub fn apply_mirrors(
             .get(choice.index as usize)
             .and_then(|r| r.as_ref().ok())
             .cloned()
-            .ok_or("That preset can't be imported.")?;
+            .ok_or_else(|| msg!("errors.import.cantImport"))?;
         match mirrors.named(&input.name) {
             Some(yours) if choice.replace => {
                 if !replaced.insert(yours.id.clone()) {
@@ -463,44 +459,51 @@ fn sorted(chosen: &[PresetChoice]) -> Vec<PresetChoice> {
 }
 
 /// Each setting that differs, in the words of the Settings screen.
-pub fn settings_changes(from: &Settings, to: &Settings) -> Vec<String> {
-    let on = |b: bool| if b { "on" } else { "off" };
+pub fn settings_changes(from: &Settings, to: &Settings) -> Vec<Message> {
+    let on = |b: bool| {
+        if b {
+            msg!("import.on")
+        } else {
+            msg!("import.off")
+        }
+    };
     [
         (
-            "Write the checksum file",
+            msg!("import.setting.checksumFile"),
             from.write_checksum_file,
             to.write_checksum_file,
         ),
         (
-            "Show the count of skipped system files",
+            msg!("import.setting.systemCount"),
             from.show_system_count,
             to.show_system_count,
         ),
         (
-            "Save the report next to the checksum file",
+            msg!("import.setting.report"),
             from.report_next_to_checksum,
             to.report_next_to_checksum,
         ),
         (
-            "Notify when a copy finishes",
+            msg!("import.setting.notify"),
             from.notify_when_done,
             to.notify_when_done,
         ),
         (
-            "Keep copying in the menu bar",
+            msg!("import.setting.menuBar"),
             from.keep_in_menu_bar,
             to.keep_in_menu_bar,
         ),
     ]
     .into_iter()
     .filter(|(_, a, b)| a != b)
-    .map(|(what, a, b)| format!("{what}: {} → {}", on(a), on(b)))
+    .map(|(what, a, b)| msg!("import.change", setting = what, from = on(a), to = on(b)))
     .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::message::En;
     use crate::store::{CopyPresets, DeletedFiles, DeletedMode, MirrorPresetInput, MirrorPresets};
 
     fn copy_presets() -> CopyPresets {
@@ -603,15 +606,15 @@ mod tests {
             r#"{"version":1}"#,
             r#"{"secopy":"one"}"#,
         ] {
-            assert_eq!(read(text.as_bytes()).unwrap_err(), NOT_SECOPY, "{text:?}");
+            assert_eq!(read(text.as_bytes()).unwrap_err(), not_secopy(), "{text:?}");
         }
-        assert_eq!(read(br#"{"secopy":1}"#).unwrap_err(), NOTHING);
+        assert_eq!(read(br#"{"secopy":1}"#).unwrap_err(), nothing());
     }
 
     #[test]
     fn nested_json_is_refused_not_a_crash() {
         let deep = format!("{}{}", "[".repeat(100_000), "]".repeat(100_000));
-        assert_eq!(read(deep.as_bytes()).unwrap_err(), NOT_SECOPY);
+        assert_eq!(read(deep.as_bytes()).unwrap_err(), not_secopy());
     }
 
     #[test]
@@ -632,7 +635,8 @@ mod tests {
         );
         assert_eq!(
             read.copy_presets[2].clone().unwrap_err().name,
-            "A copy preset with no name"
+            "",
+            "no name in the file: the UI says so"
         );
     }
 
@@ -799,7 +803,7 @@ mod tests {
             &|_| true,
         );
         assert_eq!(
-            view.mirror_presets[0].problem.as_deref(),
+            view.mirror_presets[0].problem.en().as_deref(),
             Some("The destination can't be inside the origin.")
         );
         assert!(
@@ -830,6 +834,7 @@ mod tests {
         assert!(
             view.copy_presets[0]
                 .problem
+                .en()
                 .as_deref()
                 .unwrap()
                 .starts_with("Its details can't be read")
@@ -883,7 +888,7 @@ mod tests {
     /// Review: a device or a pipe is refused, not read forever.
     #[test]
     fn a_device_is_not_a_secopy_file() {
-        assert_eq!(read_file(Path::new("/dev/zero")).unwrap_err(), NOT_SECOPY);
+        assert_eq!(read_file(Path::new("/dev/zero")).unwrap_err(), not_secopy());
     }
 
     /// Review: a section that isn't a list is listed as unreadable, not left out.
@@ -892,7 +897,7 @@ mod tests {
         let text = r#"{"secopy":1,"settings":{"writeChecksumFile":false},"mirrorPresets":{"a":1}}"#;
         let read = read(text.as_bytes()).unwrap();
         let bad = read.mirror_presets[0].clone().unwrap_err();
-        assert_eq!(bad.name, "The mirror presets");
+        assert_eq!(bad.name, "", "a section has no name; the UI names it");
         assert_eq!(bad.why, "This part of the file can't be read.");
     }
 
@@ -906,9 +911,7 @@ mod tests {
         );
         assert_eq!(
             read(text.as_bytes()).unwrap_err(),
-            format!(
-                "This file has too many presets. Secopy imports up to {MAX_PRESETS} of each kind."
-            )
+            "This file has too many presets. Secopy imports up to 1,000 of each kind."
         );
     }
 

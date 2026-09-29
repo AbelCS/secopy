@@ -21,7 +21,10 @@
     },
     "dot": " · ",
     "comma": ", ",
-    "raw": "{text}"
+    "raw": "{text}",
+    "list2": "{a} and {b}",
+    "list3": "{a}, {b} and {c}",
+    "semicolon": "; "
   },
   "summary": {
     "headline": {
@@ -141,7 +144,14 @@
     "openChecksumFile": "Open checksum file",
     "saveReport": "Save report…",
     "done": "Done",
-    "newCopy": "New copy"
+    "newCopy": "New copy",
+    "reason": {
+      "differs": "A different file with this name was kept",
+      "dirNotCreated": "Empty directory not created: {why}",
+      "identical": "Already at the destination (not checked)",
+      "notRemoved": "Not removed: {why}",
+      "unread": "Couldn't be read: {why}"
+    }
   },
   "progress": {
     "stop": {
@@ -288,7 +298,13 @@
       "mirror": "Mirror",
       "verify": "Verify"
     },
-    "exportName": "Secopy settings {date}.secopy"
+    "exportName": "Secopy settings {date}.secopy",
+    "warning": {
+      "damaged": "its contents are damaged ({detail})",
+      "newer": "it is from a newer Secopy, version {version}",
+      "setAside": "{file} couldn't be read ({why}). It was set aside as {aside} in {dir}, and the defaults are used.",
+      "notSetAside": "{file} couldn't be read ({why}) or set aside ({error}). The defaults are used."
+    }
   },
   "ui": {
     "actions": "Actions",
@@ -417,7 +433,31 @@
         "one": "{count} unfinished file from an interrupted copy will be replaced.",
         "other": "{count} unfinished files from an interrupted copy will be replaced."
       }
-    }
+    },
+    "pick": {
+      "nothing": "Nothing was picked.",
+      "mixed": "Pick one directory, or only files — not both."
+    },
+    "picked": {
+      "files": {
+        "one": "{count} file",
+        "other": "{count} files"
+      },
+      "retry": {
+        "one": "Retry: {count} failed file",
+        "other": "Retry: {count} failed files"
+      }
+    },
+    "fs": {
+      "apfs": "APFS",
+      "hfs": "Mac OS Extended",
+      "exfat": "exFAT",
+      "fat32": "FAT32",
+      "ntfs": "NTFS",
+      "smb": "network (SMB)",
+      "nfs": "network (NFS)"
+    },
+    "noExtension": "(no extension)"
   },
   "presets": {
     "none": "None",
@@ -466,7 +506,12 @@
       "noExtension": "(no extension)"
     },
     "manage": "Manage presets…",
-    "noSource": "(no source yet)"
+    "noSource": "(no source yet)",
+    "repaired": {
+      "noName": "A copy preset in {file} had no name; it is now “{name}”.",
+      "sameName": "Two copy presets in {file} were called “{wanted}”; the second is now “{name}”.",
+      "notFullPath": "The copy preset “{name}” had a source that isn't a full path ({source}); choose its directory again."
+    }
   },
   "finished": {
     "title": "Finished",
@@ -498,7 +543,21 @@
     "copyPresets": "Copy presets {count}",
     "mirrorPresets": "Mirror presets {count}",
     "count": "({count})",
-    "none": "(none)"
+    "none": "(none)",
+    "done": "Exported {what}.",
+    "doneNamed": "Exported “{name}”.",
+    "what": {
+      "copyPresets": {
+        "one": "{count} copy preset",
+        "other": "{count} copy presets"
+      },
+      "mirrorPresets": {
+        "one": "{count} mirror preset",
+        "other": "{count} mirror presets"
+      },
+      "nothing": "nothing",
+      "settings": "the settings"
+    }
   },
   "import": {
     "title": "Import",
@@ -512,7 +571,35 @@
     "importSettings": "Import the settings",
     "copyPresets": "Copy presets",
     "mirrorPresets": "Mirror presets",
-    "import": "Import"
+    "import": "Import",
+    "andNot": {
+      "both": "{message} The mirror presets and the settings weren't imported.",
+      "mirrors": "{message} The mirror presets weren't imported.",
+      "settings": "{message} The settings weren't imported."
+    },
+    "change": "{setting}: {from} → {to}",
+    "done": "Imported {what}.",
+    "failed": "{what} couldn't be saved: {why}",
+    "partly": "Imported {done}. {what} couldn't be saved: {why}",
+    "kind": {
+      "copyPresets": "The copy presets",
+      "mirrorPresets": "The mirror presets",
+      "settings": "The settings"
+    },
+    "on": "on",
+    "off": "off",
+    "problem": {
+      "details": "Its details can't be read ({detail}).",
+      "section": "This part of the file can't be read.",
+      "settings": "The settings in this file can't be read."
+    },
+    "setting": {
+      "checksumFile": "Write the checksum file",
+      "systemCount": "Show the count of skipped system files",
+      "report": "Save the report next to the checksum file",
+      "notify": "Notify when a copy finishes",
+      "menuBar": "Keep copying in the menu bar"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -630,6 +717,44 @@
       "summaryOf": "Summary of job {number}, {name}",
       "summary": "Summary",
       "done": "Done"
+    },
+    "reason": {
+      "cancelled": "Cancelled.",
+      "check": "{parts}.",
+      "checksum": "The checksum file couldn't be written: {why}.",
+      "dirs": {
+        "one": "{count} empty directory couldn't be created.",
+        "other": "{count} empty directories couldn't be created."
+      },
+      "durability": "The destination couldn't confirm the files are saved: {why}.",
+      "filesFailed": {
+        "one": "{count} file failed.",
+        "other": "{count} files failed."
+      },
+      "incomplete": "It didn't complete.",
+      "internal": "Secopy hit an internal error; the queue stopped.",
+      "newer": "Needs a newer Secopy.",
+      "nothingToCopy": "Nothing to copy.",
+      "notRemoved": {
+        "one": "{count} file couldn't be removed.",
+        "other": "{count} files couldn't be removed."
+      },
+      "notRun": "Not run: the queue stopped.",
+      "part": {
+        "changed": "{count} changed",
+        "missing": "{count} missing",
+        "unreadable": "{count} couldn't be read",
+        "problems": {
+          "one": "{count} checksum file problem",
+          "other": "{count} checksum file problems"
+        }
+      },
+      "stopped": "Stopped.",
+      "stoppedBecause": "{why}.",
+      "unread": {
+        "one": "{count} item couldn't be read.",
+        "other": "{count} items couldn't be read."
+      }
     }
   },
   "mirror": {
@@ -709,7 +834,13 @@
         "removed": "Deleted"
       },
       "more": "and {count} more",
-      "start": "Start"
+      "start": "Start",
+      "reason": {
+        "new": "New in the origin",
+        "changed": "Changed in the origin",
+        "contentsDiffer": "Contents differ",
+        "deleted": "Deleted in the origin"
+      }
     },
     "editor": {
       "name": "Name",
@@ -761,7 +892,29 @@
     "from": "From",
     "to": "To",
     "pause": "Pause",
-    "resume": "Resume"
+    "resume": "Resume",
+    "ended": {
+      "complete": "Finished: every file done",
+      "failures": "Finished with problems",
+      "cancelled": "Cancelled",
+      "stopped": "Stopped",
+      "stoppedBecause": "Stopped: {why}"
+    },
+    "heading": {
+      "secopy": "Secopy",
+      "verifying": "Verifying",
+      "mirroring": "Mirroring {name}",
+      "copyingVerifying": "Copying & verifying",
+      "copying": "Copying",
+      "checkingJob": "Checking job {index} of {count}",
+      "inQueue": "Job {index} of {count} · {heading}"
+    },
+    "files": {
+      "one": "{done} of {count} file",
+      "other": "{done} of {count} files"
+    },
+    "left": "{time} left",
+    "percent": "{value}%"
   },
   "dialog": {
     "chooseDirectory": "Choose a directory",
@@ -840,7 +993,9 @@
       "unreadable": "Couldn't be read: {why}",
       "outside": "{path} points outside the checked directory",
       "atLine": "{file}:{line}: {why}",
-      "inFile": "{file}: {why}"
+      "inFile": "{file}: {why}",
+      "listedIn": "{why} Listed in {file}.",
+      "listedInOnly": "Listed in {file}."
     },
     "mirror": {
       "originMissing": "The origin isn't there: {path}",
@@ -848,7 +1003,99 @@
       "destinationInOrigin": "The destination can't be inside the origin.",
       "originInDestination": "The origin can't be inside the destination.",
       "archiveNotDir": "The destination's .secopy-archive isn't a directory (it's a link or a file). Move it away, or choose to delete removed files.",
-      "previewCancelled": "Cancelled."
+      "previewCancelled": "Cancelled.",
+      "changedSincePreview": "The mirror changed since its preview. Preview it again.",
+      "gone": "That mirror no longer exists.",
+      "presetGone": "The mirror preset no longer exists.",
+      "previewFirst": "Preview the mirror first."
+    },
+    "export": {
+      "notAFileName": "That isn't a file name.",
+      "nothing": "Choose something to export.",
+      "notSaved": "The file couldn't be saved: {why}"
+    },
+    "field": {
+      "days": {
+        "tooFew": "Keep archived files for at least 1 day.",
+        "tooMany": "Keep archived files for at most {max} days."
+      },
+      "destination": {
+        "inOrigin": "The destination can't be inside the origin.",
+        "notFull": "The destination must be a full path, like /Volumes/NAS/Footage."
+      },
+      "name": {
+        "mirrorEmpty": "The mirror needs a name.",
+        "mirrorTaken": "There is already a mirror called “{name}”.",
+        "presetEmpty": "The preset needs a name.",
+        "presetTaken": "There is already a preset called “{name}”.",
+        "tooLong": "The name is too long: {max} characters at most."
+      },
+      "origin": {
+        "inDestination": "The origin can't be inside the destination.",
+        "notFull": "The origin must be a full path, like /Volumes/SSD/Footage.",
+        "same": "The origin and the destination are the same directory."
+      },
+      "source": {
+        "notFull": "The source must be a full path, like /Volumes/CARD_A/DCIM."
+      }
+    },
+    "import": {
+      "cantImport": "That preset can't be imported.",
+      "cantOpen": "The file can't be opened: {why}",
+      "cantRead": "The file can't be read: {why}",
+      "changed": "Your presets or settings changed since this file was opened. Open it again to see what it would change.",
+      "newer": "This file was made by a newer Secopy (format {format}). Update Secopy to import it.",
+      "noFile": "There is no file to import.",
+      "nothing": "There is nothing in this file to import.",
+      "notSecopy": "This isn't a Secopy file.",
+      "tooBig": "This file is too big to be a Secopy file.",
+      "tooMany": "This file has too many presets. Secopy imports up to {max} of each kind.",
+      "twoReplace": "Two presets in the file would replace “{name}”; choose Keep both for one of them.",
+      "waits": "Import it when the current job has finished."
+    },
+    "job": {
+      "alreadyRunning": "A copy is already running.",
+      "cantStart": "Nothing to copy, or something blocks the copy.",
+      "noneFailed": "No files failed.",
+      "retrySourceGone": "The source isn't there any more ({path}). Connect the source again to retry."
+    },
+    "legacy": "{text}",
+    "preset": {
+      "gone": "That preset no longer exists.",
+      "needsDirectory": "A preset saves a directory as its source; pick a directory first.",
+      "noneSelected": "No preset is selected.",
+      "scanning": "Wait until the scan finishes."
+    },
+    "queue": {
+      "busy": "A copy or the queue is already running.",
+      "jobGone": "That job is no longer in the queue.",
+      "running": "The queue is running.",
+      "setUpFirst": "Set up a copy first: a source, a destination and something to copy."
+    },
+    "report": {
+      "dir": "{path}: {why}",
+      "nextToChecksum": "Next to the checksum file: {why}",
+      "noJob": "That job has no report.",
+      "none": "Secopy hit an internal error before the job ended, so there is no report.",
+      "noneYet": "There is no report yet.",
+      "running": "The copy is still running."
+    },
+    "save": {
+      "file": "{path}: {why}",
+      "mirror": "Couldn't save the mirror: {why}",
+      "preset": "Couldn't save the preset: {why}",
+      "queue": "Couldn't save the queue: {why}",
+      "settings": "Couldn't save the settings: {why}"
+    },
+    "source": {
+      "gone": "{path} isn't there any more.",
+      "notConnected": "{drive} isn't connected."
+    },
+    "verify": {
+      "cantRead": "{path}: {why}",
+      "chooseAgain": "Choose the directory again.",
+      "notADirectory": "Choose a directory.",
+      "nothing": "No checksum files here: there's nothing to verify."
     }
   }
 }

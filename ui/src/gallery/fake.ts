@@ -1,5 +1,6 @@
 // Fake data and a fake Api for the gallery: every screen without Tauri. Dev only.
 import type { Api } from "../lib/api";
+import { raw } from "../test/fake-api";
 import type { CopyPreset, FinishedRow, ImportView, MirrorPreset, MirrorPreviewView, PreviewRow, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
 
 export const copyPresets: CopyPreset[] = [
@@ -11,7 +12,7 @@ export const settings: Settings = { writeChecksumFile: true, showSystemCount: tr
 
 export const session: SessionView = {
   source: {
-    label: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
+    label: raw("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"),
     isFolder: true,
     contentsOnly: false,
     folder: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
@@ -20,8 +21,8 @@ export const session: SessionView = {
     files: 212,
     bytes: 180_400_000_000,
     extensions: [
-      { key: "mp4", label: ".mp4", files: 106, bytes: 180_000_000_000 },
-      { key: "xml", label: ".xml", files: 106, bytes: 400_000 },
+      { key: "mp4", files: 106, bytes: 180_000_000_000 },
+      { key: "xml", files: 106, bytes: 400_000 },
     ],
     selectedExtensions: ["mp4"],
     skippedSystem: 4,
@@ -36,7 +37,8 @@ export const session: SessionView = {
     copyRoot: "/Volumes/V001/Day01/CLIP",
     blocker: null,
     freeBytes: 1_800_000_000_000,
-    fsKind: "APFS",
+    fsKind: "apfs",
+    fsName: null,
     existingItems: 12,
     problems: [],
     problemCount: 0,
@@ -85,7 +87,10 @@ function row(i: number, status: FinishedRow["status"] = "verified"): FinishedRow
     millis: 2_100,
     hash: `d78a9dd8afc9649${i % 10}`,
     status,
-    reason: status === "failed" ? "Cannot read source: permission denied" : null,
+    reason:
+      status === "failed"
+        ? { key: "errors.file.readSource", args: { why: { key: "errors.os.permissionDenied", args: {} } } }
+        : null,
   };
 }
 
@@ -112,7 +117,7 @@ export const summary: SummaryView = {
   checksumError: null,
   checksumOff: false,
   reportFile: "/x/r.txt",
-  reportError: null,
+  reportErrors: [],
   mirror: null,
   undone: null,
   check: null,
@@ -140,10 +145,10 @@ export const mirrorPreview: MirrorPreviewView = {
 };
 
 const previewRows: PreviewRow[] = [
-  { path: "2026/09/A001_C001.mov", size: 4_100_000_000, kind: "new", reason: "New" },
-  { path: "2026/09/A001_C002.mov", size: 3_900_000_000, kind: "new", reason: "New" },
-  { path: "2026/08/Edit_v3.prproj", size: 48_000_000, kind: "changed", reason: "Newer in the origin" },
-  { path: "2026/07/B002_C010.mov", size: 2_200_000_000, kind: "removed", reason: "Deleted in the origin" },
+  { path: "2026/09/A001_C001.mov", size: 4_100_000_000, kind: "new", reason: { key: "mirror.preview.reason.new", args: {} } },
+  { path: "2026/09/A001_C002.mov", size: 3_900_000_000, kind: "new", reason: { key: "mirror.preview.reason.new", args: {} } },
+  { path: "2026/08/Edit_v3.prproj", size: 48_000_000, kind: "changed", reason: { key: "mirror.preview.reason.changed", args: {} } },
+  { path: "2026/07/B002_C010.mov", size: 2_200_000_000, kind: "removed", reason: { key: "mirror.preview.reason.deleted", args: {} } },
 ];
 
 export const mirrorSummary: SummaryView = {
@@ -174,9 +179,9 @@ export const verifySummary: SummaryView = {
 export const queue: QueueView = {
   onFailure: "continue",
   jobs: [
-    { kind: "copy", verify: true, source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", destination: "/Volumes/V001/Day01", lastError: null, supported: true, name: null },
-    { kind: "copy", verify: true, source: "/Volumes/CARD_B/PRIVATE/M4ROOT/CLIP", destination: "/Volumes/V001/Day01", lastError: "CARD_B isn't connected.", supported: true, name: null },
-    { kind: "copy", verify: false, source: "/Users/me/Desktop/Stills", destination: "/Volumes/Media/Stills", lastError: null, supported: true, name: null },
+    { kind: "copy", verify: true, source: raw("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"), destination: "/Volumes/V001/Day01", lastError: null, supported: true, name: null },
+    { kind: "copy", verify: true, source: raw("/Volumes/CARD_B/PRIVATE/M4ROOT/CLIP"), destination: "/Volumes/V001/Day01", lastError: { key: "errors.source.notConnected", args: { drive: "CARD_B" } }, supported: true, name: null },
+    { kind: "copy", verify: false, source: raw("/Users/me/Desktop/Stills"), destination: "/Volumes/Media/Stills", lastError: null, supported: true, name: null },
   ],
 };
 
@@ -187,8 +192,8 @@ export const queueSummary: QueueSummaryView = {
   saveError: null,
   results: [
     { job: queue.jobs[0], result: "complete", reason: null, summary: { ...summary, outcome: "complete", failed: 0, failures: [] } },
-    { job: queue.jobs[1], result: "failed", reason: "CARD_B isn't connected.", summary: null },
-    { job: queue.jobs[2], result: "notRun", reason: "Not run: the queue stopped.", summary: null },
+    { job: queue.jobs[1], result: "failed", reason: { key: "errors.source.notConnected", args: { drive: "CARD_B" } }, summary: null },
+    { job: queue.jobs[2], result: "notRun", reason: { key: "queue.reason.notRun", args: {} }, summary: null },
   ],
 };
 
@@ -202,11 +207,14 @@ const ok =
  *  connected, and a preset that can't come in. */
 export const importView: ImportView = {
   fileName: "Team presets.secopy",
-  settings: { changes: ["Write the checksum file: on → off", "Notify when a copy finishes: on → off"], problem: null },
+  settings: { changes: [
+      { key: "import.change", args: { setting: { key: "import.setting.checksumFile", args: {} }, from: { key: "import.on", args: {} }, to: { key: "import.off", args: {} } } },
+      { key: "import.change", args: { setting: { key: "import.setting.notify", args: {} }, from: { key: "import.on", args: {} }, to: { key: "import.off", args: {} } } },
+    ], problem: null },
   copyPresets: [
     { name: "Sony FX3", paths: ["/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null },
     { name: "DJI Mini 4", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI Mini 4", missing: ["/Volumes/DJI/DCIM"], problem: null },
-    { name: "Old camera", paths: [], clash: null, newName: "Old camera", missing: [], problem: "Its details can't be read (invalid type: number, expected a string)." },
+    { name: "Old camera", paths: [], clash: null, newName: "Old camera", missing: [], problem: raw("Its details can't be read (invalid type: number, expected a string).") },
   ],
   mirrorPresets: [
     { name: "Footage", paths: ["/Volumes/SSD/Footage", "/Volumes/NAS/Footage"], clash: null, newName: "Footage", missing: ["/Volumes/NAS/Footage"], problem: null },
