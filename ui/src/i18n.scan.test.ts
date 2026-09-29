@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import en from "./locales/en.json";
+import rustKeys from "./locales/rust-keys.json";
 
 /** Visible text a component writes itself: text between tags, the values of attributes that
  *  show words when they hold letters outside their {expressions}, and string literals in
@@ -94,6 +95,8 @@ function sources(dir = ROOT): string[] {
 
 test("every word in the catalog is used", () => {
   const code = sources().join("\n");
-  const unused = leaves(en).filter((key) => !key.startsWith("test.") && !code.includes(`"${key}"`));
+  // Keys Rust sends (listed by its registry test) are used too.
+  const sent = new Set<string>(rustKeys);
+  const unused = leaves(en).filter((key) => !key.startsWith("test.") && !sent.has(key) && !code.includes(`"${key}"`));
   expect(unused).toEqual([]);
 });
