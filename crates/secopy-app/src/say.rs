@@ -21,7 +21,8 @@ pub fn io_failure(e: &IoFailure) -> Message {
         K::NotFound => msg!("errors.os.notFound"),
         K::PermissionDenied => msg!("errors.os.permissionDenied"),
         K::ReadOnlyFilesystem => msg!("errors.os.readOnly"),
-        K::StorageFull | K::QuotaExceeded => msg!("errors.os.full"),
+        K::StorageFull => msg!("errors.os.full"),
+        K::QuotaExceeded => msg!("errors.os.quota"),
         K::FileTooLarge => msg!("errors.os.tooLarge"),
         K::InvalidFilename => msg!("errors.os.badName"),
         K::NotADirectory => msg!("errors.os.notADirectory"),
@@ -238,6 +239,12 @@ mod tests {
     use secopy_core::scan::{ScanProblem, ScanProblemKind};
 
     use crate::message::{Arg, Message};
+
+
+    #[test]
+    fn a_quota_isnt_a_full_drive() {
+        assert_eq!(io_failure(&failure(io::ErrorKind::QuotaExceeded, "x")).key, "errors.os.quota");
+    }
 
     fn failure(kind: io::ErrorKind, message: &str) -> IoFailure {
         IoFailure {

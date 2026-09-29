@@ -151,7 +151,8 @@
       "identical": "Already at the destination (not checked)",
       "notRemoved": "Not removed: {why}",
       "unread": "Couldn't be read: {why}"
-    }
+    },
+    "mirrorChecksum": "the mirror's checksum file: {why}"
   },
   "progress": {
     "stop": {
@@ -300,7 +301,7 @@
     },
     "exportName": "Secopy settings {date}.secopy",
     "warning": {
-      "damaged": "its contents are damaged ({detail})",
+      "damaged": "{detail}",
       "newer": "it is from a newer Secopy, version {version}",
       "setAside": "{file} couldn't be read ({why}). It was set aside as {aside} in {dir}, and the defaults are used.",
       "notSetAside": "{file} couldn't be read ({why}) or set aside ({error}). The defaults are used."
@@ -954,7 +955,8 @@
       "network": "The network drive can't be reached",
       "stale": "The network drive's file is no longer valid",
       "unsupported": "The drive doesn't support this",
-      "unknown": "{text}"
+      "unknown": "{text}",
+      "quota": "The drive's quota is used up"
     },
     "file": {
       "readSource": "Cannot read source: {why}",
@@ -1088,7 +1090,7 @@
     },
     "report": {
       "dir": "{path}: {why}",
-      "nextToChecksum": "Next to the checksum file: {why}",
+      "nextToChecksum": "next to the checksum file: {why}",
       "noJob": "That job has no report.",
       "none": "Secopy hit an internal error before the job ended, so there is no report.",
       "noneYet": "There is no report yet.",

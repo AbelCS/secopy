@@ -8,17 +8,26 @@ const view = (over: Partial<ImportView> = {}): ImportView => ({
   fileName: "Team presets.secopy",
   settings: { changes: [raw("Write the checksum file: on → off")], problem: null },
   copyPresets: [
-    { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null },
-    { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null },
-    { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can't be read (…).") },
+    { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, section: false },
+    { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null, section: false },
+    { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can't be read (…)."), section: false },
   ],
   mirrorPresets: [],
   ...over,
 });
 
 describe("ImportScreen", () => {
+  test("a list of presets that can't be read is named as the list", () => {
+    const section = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("This part of the file can't be read."), section: true };
+    render(ImportScreen, {
+      props: { view: view({ copyPresets: [section], mirrorPresets: [section] }), onImport: vi.fn(), onBack: () => {} },
+    });
+    screen.getByRole("checkbox", { name: "The copy presets" });
+    screen.getByRole("checkbox", { name: "The mirror presets" });
+  });
+
   test("a preset with no name in the file says so", () => {
-    const unnamed = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("This part of the file can't be read.") };
+    const unnamed = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("Its details can't be read."), section: false };
     render(ImportScreen, {
       props: { view: view({ copyPresets: [unnamed], mirrorPresets: [unnamed] }), onImport: vi.fn(), onBack: () => {} },
     });
@@ -81,8 +90,8 @@ describe("ImportScreen", () => {
   test("a preset renamed only because the file has its name twice says its new name", () => {
     const v = view({
       copyPresets: [
-        { name: "A", paths: [], clash: null, newName: "A", missing: [], problem: null },
-        { name: "a", paths: [], clash: null, newName: "a (2)", missing: [], problem: null },
+        { name: "A", paths: [], clash: null, newName: "A", missing: [], problem: null, section: false },
+        { name: "a", paths: [], clash: null, newName: "a (2)", missing: [], problem: null, section: false },
       ],
     });
     render(ImportScreen, { props: { view: v, onImport: vi.fn(), onBack: () => {} } });

@@ -174,7 +174,14 @@ impl<'de> Deserialize<'de> for Entry {
             Some(serde_json::Value::String(text)) => {
                 Some(crate::msg!("errors.legacy", text = text.as_str()))
             }
-            Some(m @ serde_json::Value::Object(_)) => serde_json::from_value(m.clone()).ok(),
+            // A newer Secopy's message this one can't read whole keeps its key (its words
+            // show with their placeholders), rather than being dropped and erased on save.
+            Some(m @ serde_json::Value::Object(_)) => serde_json::from_value(m.clone()).ok().or_else(|| {
+                m.get("key").and_then(|k| k.as_str()).map(|key| crate::message::Message {
+                    key: key.to_string(),
+                    args: Default::default(),
+                })
+            }),
             _ => None,
         };
         let job = match value.get("kind").and_then(|k| k.as_str()) {
@@ -201,6 +208,32 @@ impl<'de> Deserialize<'de> for Entry {
 
 #[cfg(test)]
 mod tests {
+
+    /// Review: a last error from a newer Secopy keeps at least its key; a job a newer
+    /// Secopy wrote keeps its last error through a save.
+    #[test]
+    fn newer_last_errors_are_kept() {
+        let e: Entry = serde_json::from_value(serde_json::json!({
+            "kind": "check", "directory": "/A", "lastError": { "key": "errors.future" }
+        }))
+        .unwrap();
+        assert_eq!(e.last_error.map(|m| m.key), Some("errors.future".to_string()));
+        let e: Entry = serde_json::from_value(serde_json::json!({
+            "kind": "check", "directory": "/A",
+            "lastError": { "key": "errors.future", "args": { "x": { "unknown": true } } }
+        }))
+        .unwrap();
+        assert_eq!(e.last_error.map(|m| m.key), Some("errors.future".to_string()));
+        let newer = serde_json::json!({
+            "kind": "teleport", "where": "Mars",
+            "lastError": { "key": "queue.reason.stopped", "args": {} }
+        });
+        let e: Entry = serde_json::from_value(newer).unwrap();
+        let saved = serde_json::to_value(&e).unwrap();
+        assert_eq!(saved["where"], "Mars");
+        assert_eq!(saved["lastError"]["key"], "queue.reason.stopped");
+    }
+
     /// #84: a job's last error is saved as a message; an older queue's English sentence
     /// still loads, shown as it was.
     #[test]

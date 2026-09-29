@@ -844,13 +844,27 @@ impl AppState {
             }
             Some(JobOutcome::Stopped) | None => (
                 QueueResult::Failed,
-                summary
-                    .and_then(|s| s.stopped_because)
-                    .map(|why| msg!("queue.reason.stoppedBecause", why = why))
-                    .or(Some(msg!("queue.reason.stopped"))),
+                Some(stopped_reason(summary.and_then(|s| s.stopped_because))),
             ),
         };
         (result, reason, handle)
+    }
+}
+
+/// Why a queued job stopped, as one sentence: a reason that is already a question keeps its
+/// own ending (chosen by its key, not its words).
+fn stopped_reason(why: Option<Message>) -> Message {
+    match why {
+        Some(why)
+            if matches!(
+                why.key.as_str(),
+                "errors.fatal.destinationGone" | "errors.fatal.sourceGone"
+            ) =>
+        {
+            why
+        }
+        Some(why) => msg!("queue.reason.stoppedBecause", why = why),
+        None => msg!("queue.reason.stopped"),
     }
 }
 
@@ -1992,6 +2006,18 @@ mod tests {
     use super::*;
     use crate::message::En;
     use crate::store::{COPY_PRESETS, REMEMBERED, SETTINGS};
+
+
+    /// Review: a stop's reason is one sentence, whatever it ends with.
+    #[test]
+    fn a_stopped_jobs_reason_ends_once() {
+        use secopy_core::error::FatalError;
+        let gone = stopped_reason(Some(say::fatal(&FatalError::DestinationGone)));
+        assert_eq!(gone, "The destination is no longer available; was it disconnected?");
+        assert_eq!(stopped_reason(Some(say::fatal(&FatalError::DiskFull))), "The destination drive is full.");
+        assert_eq!(stopped_reason(Some(say::internal())), "Secopy hit an internal error.");
+        assert_eq!(stopped_reason(None), "Stopped.");
+    }
 
     #[derive(Clone, Default)]
     struct Sink(Arc<StdMutex<Vec<ProgressView>>>);

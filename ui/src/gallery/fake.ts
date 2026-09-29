@@ -212,12 +212,12 @@ export const importView: ImportView = {
       { key: "import.change", args: { setting: { key: "import.setting.notify", args: {} }, from: { key: "import.on", args: {} }, to: { key: "import.off", args: {} } } },
     ], problem: null },
   copyPresets: [
-    { name: "Sony FX3", paths: ["/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null },
-    { name: "DJI Mini 4", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI Mini 4", missing: ["/Volumes/DJI/DCIM"], problem: null },
-    { name: "Old camera", paths: [], clash: null, newName: "Old camera", missing: [], problem: raw("Its details can't be read (invalid type: number, expected a string).") },
+    { name: "Sony FX3", paths: ["/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, section: false },
+    { name: "DJI Mini 4", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI Mini 4", missing: ["/Volumes/DJI/DCIM"], problem: null, section: false },
+    { name: "Old camera", paths: [], clash: null, newName: "Old camera", missing: [], problem: raw("Its details can't be read (invalid type: number, expected a string)."), section: false },
   ],
   mirrorPresets: [
-    { name: "Footage", paths: ["/Volumes/SSD/Footage", "/Volumes/NAS/Footage"], clash: null, newName: "Footage", missing: ["/Volumes/NAS/Footage"], problem: null },
+    { name: "Footage", paths: ["/Volumes/SSD/Footage", "/Volumes/NAS/Footage"], clash: null, newName: "Footage", missing: ["/Volumes/NAS/Footage"], problem: null, section: false },
   ],
 };
 
