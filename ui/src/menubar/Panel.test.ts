@@ -72,4 +72,18 @@ describe("Panel", () => {
     show(null);
     await waitFor(() => screen.getByText("Nothing is running."));
   });
+
+  test("an update from before Pause was pressed doesn't flip the button back", async () => {
+    const { state } = show(running());
+    await fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    state.panelView!(running({ paused: false, percent: "43%" }));
+    await screen.findByText("43%");
+    screen.getByRole("button", { name: "Resume" });
+    state.panelView!(running({ paused: true, percent: "44%" }));
+    await screen.findByText("44%");
+    screen.getByRole("button", { name: "Resume" });
+    state.panelView!(running({ paused: false, percent: "45%" }));
+    await screen.findByText("45%");
+    screen.getByRole("button", { name: "Pause" });
+  });
 });

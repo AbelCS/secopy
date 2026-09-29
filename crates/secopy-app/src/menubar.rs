@@ -435,6 +435,7 @@ fn make_icon(app: &AppHandle, status: &Status) -> tauri::Result<()> {
                     .get_webview_window(PANEL)
                     .and_then(|p| p.scale_factor().ok())
                     .unwrap_or(1.0);
+                // The tray reports screen pixels already; `scale` only matters if it didn't.
                 let pos = rect.position.to_physical::<f64>(scale);
                 let size = rect.size.to_physical::<f64>(scale);
                 toggle_panel(

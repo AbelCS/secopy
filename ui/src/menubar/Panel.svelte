@@ -12,13 +12,14 @@
 
   let view = $state<PanelView | null>(null);
   let loaded = $state(false);
-  /** Pressed Pause or Resume: shown at once, until the next update says what's true. */
+  /** Pressed Pause or Resume: shown at once, until an update confirms it (one from before the
+   *  press doesn't flip it back). */
   let pausedNow = $state<boolean | null>(null);
   const paused = $derived(pausedNow ?? view?.paused ?? false);
 
   function show(next: PanelView | null) {
     view = next;
-    pausedNow = null;
+    if (next === null || next.ended || next.paused === pausedNow) pausedNow = null;
   }
 
   onMount(() => {
