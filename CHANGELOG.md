@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.0](https://github.com/AbelCS/secopy/compare/v0.14.0...v0.15.0) (2026-09-29)
+
+
+### Features
+
+* **app:** switching a mirror to Delete asks what to do with its archive ([83fbe87](https://github.com/AbelCS/secopy/commit/83fbe87892884f64f5f63dd179a40b6530bfdfea)), closes [#101](https://github.com/AbelCS/secopy/issues/101)
+* **core:** say what a mirror's archive holds, and delete it ([073b990](https://github.com/AbelCS/secopy/commit/073b990d5972d7a21ffa57c307245617e82d798c)), closes [#101](https://github.com/AbelCS/secopy/issues/101)
+
+
+### Bug Fixes
+
+* **app:** the archive deletion waits for the cancel check, and an unreadable archive fails the run ([45b60a9](https://github.com/AbelCS/secopy/commit/45b60a9959c75b634dbb93f1344aee6a103e5b67)), closes [#101](https://github.com/AbelCS/secopy/issues/101)
+* **app:** the archive is deleted only where, when and as often as asked ([e5e9813](https://github.com/AbelCS/secopy/commit/e5e981338c22e68a9a768fce3ecb04d7623863cf)), closes [#101](https://github.com/AbelCS/secopy/issues/101)
+
 ## [0.14.0](https://github.com/AbelCS/secopy/compare/v0.13.1...v0.14.0) (2026-09-29)
 
 
