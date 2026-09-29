@@ -1,10 +1,17 @@
 # Secopy
 
 macOS desktop app for fast, verified copies of directories (a camera card, a volume, any
-directory): Copy & Verify with xxHash64 and a checksum file, copy presets, a job queue and one-way
-mirrors. Secopy is macOS only (Apple Silicon) by design, engine included; building for another
+directory): Copy & Verify with xxHash64 and a checksum file, copy presets, a job queue, one-way
+mirrors, Verify of an existing copy, export/import of settings and presets, and a menu bar
+panel while the window is closed. Secopy is macOS only (Apple Silicon) by design, engine included; building for another
 OS is a compile error (RFD §14).
 
+- **Where things stand:** the "Next" section of
+  [the roadmap](docs/superpowers/plans/2026-09-26-v1-roadmap.md) lists what comes next, in
+  order, with its issues. Start there when asked "what's next?".
+- **English only, translation-ready:** the app is developed in English. Translation support
+  is planned (#84); once it lands, every user-facing string goes through the message
+  catalogs, never hard-coded.
 - **Reliability first:** users copy irreplaceable footage. Secopy must never lose, corrupt or
   silently skip data, and never report success when something wasn't copied, read, verified,
   saved or removed as planned. Every change to the engine or to how a result is reported is
