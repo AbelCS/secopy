@@ -11,8 +11,10 @@ OS is a compile error (RFD §14).
   order, with its issues. Start there when asked "what's next?".
 - **English only, translation-ready:** the app is developed in English, and its words live in
   the message catalog `ui/src/locales/en.json`: the UI uses `t("key")`, never hard-coded text
-  (tests check that no component writes text itself and that every key is used). Words Rust
-  sends still arrive in English until they become codes (#84, PR 2).
+  (tests check that no component writes text itself and that every key is used). Rust never
+  sends English to the UI: it sends `Message { key, args }` built with `msg!` (a test checks
+  every key against the catalog), and no Rust code decides anything by English text. Reports
+  and the CLI stay English.
 - **Reliability first:** users copy irreplaceable footage. Secopy must never lose, corrupt or
   silently skip data, and never report success when something wasn't copied, read, verified,
   saved or removed as planned. Every change to the engine or to how a result is reported is
