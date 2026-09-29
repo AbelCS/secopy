@@ -59,6 +59,8 @@ pub struct AppState {
     importing: Mutex<Option<Pending>>,
     /// A `.secopy` file opened from Finder that the window hasn't shown yet.
     opened: Mutex<Option<PathBuf>>,
+    /// ⌘Q or the menu bar's Quit: the next close asks instead of hiding (#80).
+    pub quitting: std::sync::atomic::AtomicBool,
 }
 
 /// The queue run in progress, and the jobs of the last one.
@@ -113,6 +115,7 @@ impl AppState {
             queue_run: Mutex::new(QueueRun::default()),
             importing: Mutex::new(None),
             opened: Mutex::new(None),
+            quitting: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -461,6 +464,16 @@ impl AppState {
     /// A copy or the queue is running.
     pub fn busy(&self) -> bool {
         self.jobs.is_running() || lock(&self.queue_run).running
+    }
+
+    /// Whether closing the window should hide it behind the menu bar icon (#80). Takes the
+    /// quit flag: a quit asks once.
+    pub fn wants_hide(&self) -> bool {
+        let quitting = self
+            .quitting
+            .swap(false, std::sync::atomic::Ordering::SeqCst);
+        let keep = lock(&self.settings).keep_in_menu_bar;
+        crate::menubar::should_hide(keep, self.busy(), quitting)
     }
 
     /// Cancel: the current job, and the queue if it runs (spec Q5). `remove_copied` removes
@@ -903,6 +916,35 @@ fn count_of(results: &[QueueResultView], kind: QueueResult) -> u32 {
     results.iter().filter(|r| r.result == kind).count() as u32
 }
 
+/// A progress or queue channel that also keeps the menu bar icon up to date (#80).
+#[derive(Clone)]
+pub struct Watched<C> {
+    pub to: C,
+    pub app: AppHandle,
+}
+
+impl ProgressSink for Watched<Channel<ProgressView>> {
+    fn send(&self, view: ProgressView) {
+        crate::menubar::progress(&self.app, &view);
+        let _ = Channel::send(&self.to, view);
+    }
+}
+
+impl QueueSink for Watched<Channel<QueueEvent>> {
+    fn send(&self, event: QueueEvent) {
+        crate::menubar::queue_event(&self.app, &event);
+        let _ = Channel::send(&self.to, event);
+    }
+}
+
+/// The window is closing: hides it behind the menu bar icon when that applies (#80); `false`
+/// and nothing changed otherwise, and the window asks or quits as before.
+#[tauri::command]
+#[specta::specta]
+pub fn hide_to_menu_bar(app: AppHandle) -> bool {
+    app.state::<AppState>().wants_hide() && crate::menubar::hide(&app)
+}
+
 impl ProgressSink for Channel<ProgressView> {
     fn send(&self, view: ProgressView) {
         // The window may be gone (the app is quitting); the job carries on regardless.
@@ -1004,7 +1046,11 @@ pub async fn start_job(
     verify: bool,
     on_progress: Channel<ProgressView>,
 ) -> Result<(), String> {
-    blocking(app, move |state| state.start(verify, on_progress)).await?
+    let sink = Watched {
+        to: on_progress,
+        app: app.clone(),
+    };
+    blocking(app, move |state| state.start(verify, sink)).await?
 }
 
 #[tauri::command]
@@ -1346,8 +1392,12 @@ pub fn run_queue(app: AppHandle, on_event: Channel<QueueEvent>) -> Result<(), St
     let state = app.state::<AppState>();
     state.claim_queue_run()?;
     let runner = app.clone();
+    let sink = Watched {
+        to: on_event,
+        app: app.clone(),
+    };
     let thread = std::thread::spawn(move || {
-        runner.state::<AppState>().run_claimed_to_done(on_event);
+        runner.state::<AppState>().run_claimed_to_done(sink);
     });
     // Only one run is claimed at a time, so this is the previous (finished) run's thread.
     let old = lock(&state.queue_run).thread.replace(thread);
@@ -1467,7 +1517,11 @@ pub async fn run_mirror(
     id: String,
     on_progress: Channel<ProgressView>,
 ) -> Result<(), String> {
-    blocking(app, move |state| state.run_mirror(&id, on_progress)).await?
+    let sink = Watched {
+        to: on_progress,
+        app: app.clone(),
+    };
+    blocking(app, move |state| state.run_mirror(&id, sink)).await?
 }
 
 #[tauri::command]
@@ -1491,7 +1545,11 @@ pub async fn start_check(
     path: String,
     on_progress: Channel<ProgressView>,
 ) -> Result<(), String> {
-    blocking(app, move |state| state.start_check(&path, on_progress)).await?
+    let sink = Watched {
+        to: on_progress,
+        app: app.clone(),
+    };
+    blocking(app, move |state| state.start_check(&path, sink)).await?
 }
 
 #[tauri::command]
@@ -3255,5 +3313,22 @@ mod tests {
             "There is no file to import."
         );
         assert_eq!(lock(&a.copy_presets).presets.len(), 2);
+    }
+
+    /// #80: closing hides only with the setting on and something running, never on a quit.
+    #[test]
+    fn a_quit_is_never_a_hide() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = queued(dir.path(), &[("A", 1)]);
+        assert!(!state.wants_hide(), "nothing runs");
+        lock(&state.queue_run).running = true;
+        assert!(state.wants_hide());
+        state
+            .quitting
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        assert!(!state.wants_hide(), "⌘Q asks instead");
+        assert!(state.wants_hide(), "the quit flag is taken once");
+        lock(&state.settings).keep_in_menu_bar = false;
+        assert!(!state.wants_hide(), "setting off");
     }
 }

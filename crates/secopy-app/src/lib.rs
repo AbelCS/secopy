@@ -33,6 +33,7 @@ pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
         commands::pick_source,
+        commands::hide_to_menu_bar,
         commands::export_all,
         commands::export_copy_preset,
         commands::export_mirror_preset,
@@ -146,6 +147,7 @@ pub fn run() {
                 }
             }
             app.manage(AppState::new(data));
+            app.manage(menubar::MenuBar::default());
             // Its items, to grey out what doesn't apply (`set_menu_state`).
             if let Some(file) = app.menu().as_ref().and_then(FileMenu::find) {
                 app.manage(file);
@@ -166,6 +168,12 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("failed to start Secopy")
         .run(|app, event| {
+            // Secopy opened again (Finder, Spotlight) while its window hides in the menu bar.
+            if let RunEvent::Reopen { .. } = &event
+                && menubar::is_hidden(app)
+            {
+                menubar::show(app);
+            }
             // A `.secopy` double-clicked in Finder, also at launch: the window imports it.
             if let RunEvent::Opened { urls } = &event
                 && let Some(path) = opened_file(urls)
@@ -296,10 +304,17 @@ fn quit_action(copying: bool) -> Quit {
 }
 
 /// Quit Secopy (⌘Q): during a copy it asks first, like closing the window.
-fn quit<R: Runtime>(app: &AppHandle<R>) {
+pub(crate) fn quit(app: &AppHandle) {
     let copying = asks_before_quitting(&app.state::<AppState>());
     match (quit_action(copying), app.get_webview_window("main")) {
         (Quit::AskFirst, Some(window)) => {
+            // Asked with the window in front, never hidden again by this close (#80).
+            app.state::<AppState>()
+                .quitting
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            if menubar::is_hidden(app) {
+                menubar::show(app);
+            }
             let _ = window.close();
         }
         _ => app.exit(0),
