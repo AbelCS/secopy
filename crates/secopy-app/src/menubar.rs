@@ -12,7 +12,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{ActivationPolicy, AppHandle, Manager};
 
 use crate::commands::AppState;
-use crate::dto::{JobOutcome, JobPhase, ProgressView, QueueEvent};
+use crate::dto::{JobOutcome, JobPhase, ProgressView, QueueEvent, QueueResult};
 use crate::lock;
 
 /// A job the icon follows: what it is, its place in a queue, and its last progress.
@@ -134,14 +134,31 @@ pub fn should_hide(keep: bool, busy: bool, quitting: bool) -> bool {
     keep && busy && !quitting
 }
 
+/// What the icon shows first, when the window hides: between a queue's jobs, that it checks
+/// the next one; otherwise the job's last real figures (`…` only before there are any).
+pub fn opening(queue: Option<(u32, u32)>, checking_next: bool, job: Option<Running>) -> Status {
+    match queue {
+        Some(place) if checking_next => checking(place),
+        _ => Status::Running(job.unwrap_or(Running {
+            label: "Secopy".into(),
+            queue,
+            check: false,
+            view: ProgressView::default(),
+        })),
+    }
+}
+
 /// Whether to update the icon now: at most once a second, and always at the end.
 pub fn due(last: Option<Instant>, now: Instant, end: bool) -> bool {
     end || last.is_none_or(|t| now.duration_since(t) >= Duration::from_secs(1))
 }
 
-/// A queue ended: complete only when every job was, and there was one.
-pub fn queue_outcome(complete: u32, count: u32) -> JobOutcome {
-    if count > 0 && complete == count {
+/// A queue ended: cancelled when the user stopped it; complete only when every job was, and
+/// there was one.
+pub fn queue_outcome(complete: u32, count: u32, cancelled: bool) -> JobOutcome {
+    if cancelled {
+        JobOutcome::Cancelled
+    } else if count > 0 && complete == count {
         JobOutcome::Complete
     } else {
         JobOutcome::Failures
@@ -173,6 +190,8 @@ struct Inner {
     last: Option<Instant>,
     lines: Vec<String>,
     queue: Option<(u32, u32)>,
+    /// The queue checks its next job: no job's figures are current.
+    checking_next: bool,
     paused: bool,
     finished: bool,
 }
@@ -195,7 +214,7 @@ pub fn is_hidden(app: &AppHandle) -> bool {
 
 /// Hides the window behind a menu bar icon; `false` (and nothing changed) if the icon can't be made.
 pub fn hide(app: &AppHandle) -> bool {
-    let status = running_status(app, None);
+    let status = opening_status(app);
     let hid = hide_with(
         || make_icon(app, &status).map_err(|e| e.to_string()),
         || {
@@ -244,6 +263,23 @@ pub fn show(app: &AppHandle) {
         let _ = w.show();
         let _ = w.set_focus();
     }
+}
+
+/// [`opening`] with what the app knows now.
+fn opening_status(app: &AppHandle) -> Status {
+    let state = app.state::<AppState>();
+    let bar = app.state::<MenuBar>();
+    let (queue, checking_next) = {
+        let inner = lock(&bar.inner);
+        (inner.queue, inner.checking_next)
+    };
+    let job = state.jobs.progress_view().map(|view| Running {
+        label: state.jobs.label().unwrap_or_else(|| "Secopy".into()),
+        queue,
+        check: state.jobs.is_check(),
+        view,
+    });
+    opening(queue, checking_next, job)
 }
 
 fn running_status(app: &AppHandle, view: Option<&ProgressView>) -> Status {
@@ -416,13 +452,19 @@ pub fn queue_event(app: &AppHandle, e: &QueueEvent) {
     match e {
         QueueEvent::JobChecking { index, count } => {
             let place = (index + 1, *count);
-            lock(&bar.inner).queue = Some(place);
+            {
+                let mut inner = lock(&bar.inner);
+                inner.queue = Some(place);
+                inner.checking_next = true;
+            }
             if bar.hidden.load(SeqCst) {
                 update(app, &checking(place));
             }
         }
         QueueEvent::JobStarted { index, count, .. } => {
-            lock(&bar.inner).queue = Some((index + 1, *count));
+            let mut inner = lock(&bar.inner);
+            inner.queue = Some((index + 1, *count));
+            inner.checking_next = false;
         }
         QueueEvent::Progress { view } => progress(app, view),
         QueueEvent::Done { summary } => {
@@ -431,12 +473,21 @@ pub fn queue_event(app: &AppHandle, e: &QueueEvent) {
                 update(
                     app,
                     &Status::Finished {
-                        outcome: queue_outcome(summary.complete, summary.count),
+                        outcome: queue_outcome(
+                            summary.complete,
+                            summary.count,
+                            summary
+                                .results
+                                .iter()
+                                .any(|r| r.result == QueueResult::Cancelled),
+                        ),
                         why: None,
                     },
                 );
             }
-            lock(&bar.inner).queue = None;
+            let mut inner = lock(&bar.inner);
+            inner.queue = None;
+            inner.checking_next = false;
         }
         QueueEvent::Compared { .. } => {}
     }
@@ -554,9 +605,9 @@ mod tests {
 
     #[test]
     fn a_queue_is_complete_only_when_every_job_is() {
-        assert_eq!(queue_outcome(3, 3), JobOutcome::Complete);
-        assert_eq!(queue_outcome(2, 3), JobOutcome::Failures);
-        assert_eq!(queue_outcome(0, 0), JobOutcome::Failures);
+        assert_eq!(queue_outcome(3, 3, false), JobOutcome::Complete);
+        assert_eq!(queue_outcome(2, 3, false), JobOutcome::Failures);
+        assert_eq!(queue_outcome(0, 0, false), JobOutcome::Failures);
     }
 
     #[test]
@@ -613,5 +664,32 @@ mod tests {
         let mut sent = false;
         deliver(|| sent = true, || panic!("a menu bar bug"));
         assert!(sent);
+    }
+
+    /// #80: a queue the user cancelled says so; ✗ all the same.
+    #[test]
+    fn a_cancelled_queue_says_cancelled() {
+        assert_eq!(queue_outcome(1, 3, true), JobOutcome::Cancelled);
+        let s = Status::Finished {
+            outcome: queue_outcome(1, 3, true),
+            why: None,
+        };
+        assert_eq!(
+            (title(&s).as_str(), lines(&s)[0].as_str()),
+            ("✗", "Cancelled")
+        );
+    }
+
+    /// #80: the icon starts from the job's real figures, and between queue jobs says it's
+    /// checking the next one.
+    #[test]
+    fn the_icon_starts_from_what_is_true_now() {
+        let Status::Running(job) = copying(600_000_000, 240_000_000) else {
+            unreachable!()
+        };
+        assert_eq!(title(&opening(None, false, Some(job.clone()))), "42%");
+        let between = opening(Some((2, 3)), true, Some(job));
+        assert_eq!(lines(&between)[0], "Checking job 2 of 3");
+        assert_eq!(title(&opening(None, false, None)), "…");
     }
 }
