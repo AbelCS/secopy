@@ -144,7 +144,7 @@ struct Done {
     /// Why the report couldn't also be written next to the checksum file.
     next_to_error: Option<String>,
     /// A mirror's removals, or why nothing was removed (plan 7).
-    removals: Option<Result<mirror::Finished, String>>,
+    removals: Option<Result<mirror::Finished, mirror::NotRemoved>>,
     /// What a cancel with "Also remove the files already copied" removed (#54).
     undone: Option<Undone>,
     /// A check's report beyond the files: what nothing lists, checksum file problems.
@@ -938,7 +938,7 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
                 .collect(),
             None,
         ),
-        Some(Err(why)) => (0, Vec::new(), Some(why.clone())),
+        Some(Err(why)) => (0, Vec::new(), Some(why.to_string())),
         None => (0, Vec::new(), None),
     };
     MirrorSummaryView {
