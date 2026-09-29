@@ -143,7 +143,7 @@
           >
             <span>{p.name}</span>
             <!-- The left-to-right mark keeps the slashes in place inside the right-aligned cut. -->
-            <span class="muted mono path" title={p.source}>{p.source ? `\u200E${p.source}` : "(no source yet)"}</span>
+            <span class="muted mono path" title={p.source}>{p.source ? `\u200E${p.source}` : t("presets.noSource")}</span>
           </button>
         {/each}
         <Button variant="link" onclick={() => select(NEW)}>{t("presets.addNew")}</Button>

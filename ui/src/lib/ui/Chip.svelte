@@ -1,5 +1,6 @@
 <script lang="ts">
   // A small pill: a toggle (a file type to copy, with ✓ when on) or a removable value.
+  import { t } from "../i18n";
   import Icon from "./Icon.svelte";
 
   let {
@@ -22,7 +23,7 @@
 {#if onRemove}
   <span class="chip removable">
     {label}
-    <button type="button" class="remove" aria-label="Remove {label}" onclick={onRemove}><Icon name="x" size={12} /></button>
+    <button type="button" class="remove" aria-label={t("ui.remove", { name: label })} onclick={onRemove}><Icon name="x" size={12} /></button>
   </span>
 {:else}
   <button type="button" class="chip" class:selected aria-pressed={selected} onclick={onToggle}>

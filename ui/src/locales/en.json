@@ -318,7 +318,8 @@
     "save": "Save",
     "choose": "Choose…",
     "cancel": "Cancel",
-    "importFile": "Import…"
+    "importFile": "Import…",
+    "remove": "Remove {name}"
   },
   "copy": {
     "files": {
@@ -462,7 +463,8 @@
       "pickSource": "Source",
       "noExtension": "(no extension)"
     },
-    "manage": "Manage presets…"
+    "manage": "Manage presets…",
+    "noSource": "(no source yet)"
   },
   "finished": {
     "title": "Finished",
