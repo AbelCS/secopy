@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/AbelCS/secopy/compare/v0.13.0...v0.13.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* Import… waits for any job, and the refusal says "job" ([4c7fd5f](https://github.com/AbelCS/secopy/commit/4c7fd5f34c4e23e76ab2da5318a881de62d800d8)), closes [#83](https://github.com/AbelCS/secopy/issues/83)
+
 ## [0.13.0](https://github.com/AbelCS/secopy/compare/v0.12.0...v0.13.0) (2026-09-29)
 
 
