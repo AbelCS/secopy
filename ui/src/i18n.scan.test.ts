@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
+import en from "./locales/en.json";
 
 /** Visible text a component writes itself: text between tags, and the values of attributes
  *  that show words, when they hold letters. Symbols alone ("→", "·", "…", "✓", "✗") are fine. */
@@ -51,4 +52,24 @@ describe("no text written directly in components", () => {
       expect(found, `${file} writes text itself; use t()`).toEqual([]);
     });
   }
+});
+
+function leaves(node: unknown, prefix = ""): string[] {
+  if (typeof node === "string") return [prefix];
+  if (node && typeof node === "object" && "other" in node) return [prefix];
+  return Object.entries(node as Record<string, unknown>).flatMap(([k, v]) => leaves(v, prefix ? `${prefix}.${k}` : k));
+}
+
+function sources(dir = ROOT): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return name === "test" ? [] : sources(path);
+    return /\.(svelte|ts)$/.test(name) && !/\.test\.ts$/.test(name) ? [readFileSync(path, "utf8")] : [];
+  });
+}
+
+test("every word in the catalog is used", () => {
+  const code = sources().join("\n");
+  const unused = leaves(en).filter((key) => !key.startsWith("test.") && !code.includes(`"${key}"`));
+  expect(unused).toEqual([]);
 });

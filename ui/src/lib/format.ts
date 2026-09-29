@@ -55,11 +55,6 @@ export function formatPercent(done: number, total: number): string {
   return t("format.percent", { value: numbers(1, 1).format(p) });
 }
 
-/** "1 file", "2 files" */
-export function plural(n: number, one: string, many = `${one}s`): string {
-  return `${formatCount(n)} ${n === 1 ? one : many}`;
-}
-
 /** The message of something thrown: the app's commands throw Errors with its words. */
 export function messageOf(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
