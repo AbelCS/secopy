@@ -273,6 +273,14 @@ impl Jobs {
         self.job().map(|job| job.label())
     }
 
+    /// The current (or last) job's latest figures, as the progress screen shows them.
+    pub fn progress_view(&self) -> Option<ProgressView> {
+        self.job().map(|job| {
+            let last = lock(&job.last).clone();
+            job.progress(&last, false, None)
+        })
+    }
+
     /// The current job is paused.
     pub fn is_paused(&self) -> bool {
         self.job().is_some_and(|job| job.control.is_paused())
@@ -1812,5 +1820,24 @@ mod tests {
         let (entries, bad) = secopy_core::check::parse(&text);
         assert!(bad.is_empty(), "{bad:?}");
         assert_eq!(entries.len(), 2);
+    }
+
+    /// #80: the menu bar icon starts from the job's real figures.
+    #[test]
+    fn the_last_progress_can_be_read() {
+        let f = fixture(3, 10);
+        assert!(f.jobs.progress_view().is_none(), "no job yet");
+        f.jobs
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                Collect::default(),
+            )
+            .unwrap();
+        f.jobs.wait();
+        let view = f.jobs.progress_view().expect("the last job's figures");
+        assert_eq!(view.total_files, 3);
+        assert_eq!(view.files_done, 3);
     }
 }
