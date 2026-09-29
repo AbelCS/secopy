@@ -122,7 +122,7 @@ export const commands = {
 	/**  "Retry": only the failed files, checked again (RFD §5.4). */
 	retryFailed: () => typedError<SessionView, string>(__TAURI_INVOKE("retry_failed")),
 	/**  The UI says which File menu items apply. */
-	setMenuState: (setup: boolean, canStart: boolean, copying: boolean) => __TAURI_INVOKE<void>("set_menu_state", { setup, canStart, copying }),
+	setMenuState: (setup: boolean, canStart: boolean, copying: boolean, busy: boolean) => __TAURI_INVOKE<void>("set_menu_state", { setup, canStart, copying, busy }),
 	queue: () => typedError<QueueView, string>(__TAURI_INVOKE("queue")),
 	addToQueue: (verify: boolean) => typedError<QueueView, string>(__TAURI_INVOKE("add_to_queue", { verify })),
 	removeFromQueue: (index: number) => typedError<QueueView, string>(__TAURI_INVOKE("remove_from_queue", { index })),

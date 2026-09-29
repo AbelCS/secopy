@@ -313,9 +313,26 @@ describe("App", () => {
   test("the menu is told what applies", async () => {
     const { api } = app();
     await startButton();
-    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(true, true, false));
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(true, true, false, false));
     await fireEvent.click(await startButton());
-    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true));
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true, true));
+  });
+
+  test("#83: Import… stays off while the queue runs, between its jobs too", async () => {
+    const { api, state } = fakeApi(readyView());
+    state.queue = queueView({ jobs: [queuedJob(), queuedJob()] });
+    render(App, { props: { api } });
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-queue");
+    await screen.findByRole("heading", { level: 1, name: "Queue" });
+    const start = screen.getByRole("button", { name: "Start" });
+    await waitFor(() => expect(start).toHaveProperty("disabled", false));
+    await fireEvent.click(start);
+    await waitFor(() => expect(api.setMenuState.mock.lastCall?.[3]).toBe(true));
+    state.queueEvent!({ type: "jobChecking", index: 1, count: 2 });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(api.setMenuState.mock.lastCall?.[3]).toBe(true);
   });
 
   test("⌘. is off while a mirror archives or deletes, as Cancel is", async () => {
@@ -325,15 +342,16 @@ describe("App", () => {
     state.menu!("show-mirror");
     await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
     await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
-    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true));
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true, true));
     state.progress!(progressView({ phase: "removing", removing: 3, archiving: true }));
-    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, false));
+    // Cancel is off; Import… stays off too: the mirror still runs (#83).
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, false, true));
   });
 
   test("progress updates don't send the menu state again", async () => {
     const { api, state } = app();
     await fireEvent.click(await startButton());
-    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true));
+    await waitFor(() => expect(api.setMenuState).toHaveBeenLastCalledWith(false, false, true, true));
     state.progress!(progressView({ copiedBytes: 1000, elapsedMs: 500 }));
     await screen.findByText(/^0 \/ 1,284 files/);
     const sent = api.setMenuState.mock.calls.length;
@@ -572,9 +590,9 @@ describe("App", () => {
     const { api, state } = app();
     await startButton();
     api.takeOpenedFile.mockResolvedValue("/Users/me/Team.secopy");
-    api.openImport.mockRejectedValue(new Error("Import it when the copy has finished."));
+    api.openImport.mockRejectedValue(new Error("Import it when the current job has finished."));
     state.openFile!();
-    await screen.findByText("Import it when the copy has finished.");
+    await screen.findByText("Import it when the current job has finished.");
   });
 
   test("the Finder listener is ready before the opened file is taken", async () => {

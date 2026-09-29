@@ -366,7 +366,7 @@ export function fakeApi(session: SessionView = sessionView()) {
     applyImport: vi.fn((_c: ImportChoices) =>
       Promise.resolve({ message: "Imported.", failed: false, settings: settingsView(), copyPresets: [], mirrorPresets: [] } as ImportDone),
     ),
-    setMenuState: vi.fn((_setup: boolean, _canStart: boolean, _copying: boolean) => Promise.resolve()),
+    setMenuState: vi.fn((_setup: boolean, _canStart: boolean, _copying: boolean, _busy: boolean) => Promise.resolve()),
     pickSource: vi.fn(() => Promise.resolve(["/Volumes/CARD/DCIM"] as string[] | null)),
     pickDirectory: vi.fn(() => Promise.resolve("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP" as string | null)),
     pickDestination: vi.fn(() => Promise.resolve("/Volumes/RAID/Day01" as string | null)),

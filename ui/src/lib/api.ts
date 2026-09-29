@@ -149,8 +149,8 @@ export const tauriApi = {
    * "cancel-copy" (File), "show-copy", "show-mirror", "show-queue" (View). */
   onMenu: (handler: (item: string) => void): Promise<() => void> => listen<string>("menu", (e) => handler(e.payload)),
   /** Which File menu items apply. */
-  setMenuState: (setup: boolean, canStart: boolean, copying: boolean): Promise<void> =>
-    commands.setMenuState(setup, canStart, copying),
+  setMenuState: (setup: boolean, canStart: boolean, copying: boolean, busy: boolean): Promise<void> =>
+    commands.setMenuState(setup, canStart, copying, busy),
 
   /** FROM's Choose…: a folder or files, in one panel. */
   pickSource: (): Promise<string[] | null> => unwrap(commands.pickSource()),
