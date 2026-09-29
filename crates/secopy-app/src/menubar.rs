@@ -93,10 +93,13 @@ pub fn lines(s: &Status) -> Vec<String> {
             let p = percent(r).map_or_else(|| "…".to_string(), |p| format!("{p}%"));
             out.push(format!("{p} · {} of {} files", v.files_done, v.total_files));
             let (done, total) = work(r);
+            // Always three lines: the menu keeps its shape while the job runs.
             if done > 0 && v.elapsed_ms > 0 {
                 let speed = done * 1000 / v.elapsed_ms;
                 let left_ms = (total - done.min(total)) * 1000 / speed.max(1);
                 out.push(format!("{}/s · {} left", bytes(speed), duration(left_ms)));
+            } else {
+                out.push("Working out the speed…".to_string());
             }
             out
         }
@@ -148,6 +151,28 @@ pub fn opening(queue: Option<(u32, u32)>, checking_next: bool, job: Option<Runni
     }
 }
 
+/// A menu's shape: what can change in place without replacing it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Shape {
+    finished: bool,
+    lines: usize,
+}
+
+impl Shape {
+    pub fn of(status: &Status) -> Self {
+        Self {
+            finished: matches!(status, Status::Finished { .. }),
+            lines: lines(status).len(),
+        }
+    }
+}
+
+/// Whether the menu must be replaced: an open menu closes when it is, so only when its shape
+/// changes (the first menu, and the job's end); otherwise its text changes in place.
+pub fn rebuilds(before: Option<&Shape>, after: &Shape) -> bool {
+    before != Some(after)
+}
+
 /// Whether to update the icon now: at most once a second, and always at the end.
 pub fn due(last: Option<Instant>, now: Instant, end: bool) -> bool {
     end || last.is_none_or(|t| now.duration_since(t) >= Duration::from_secs(1))
@@ -188,12 +213,19 @@ pub struct MenuBar {
 #[derive(Default)]
 struct Inner {
     last: Option<Instant>,
-    lines: Vec<String>,
+    /// The menu's items that change, and its shape.
+    items: Option<Items>,
     queue: Option<(u32, u32)>,
     /// The queue checks its next job: no job's figures are current.
     checking_next: bool,
-    paused: bool,
     finished: bool,
+}
+
+/// The menu's lines and its Pause item, to change their text in place.
+struct Items {
+    shape: Shape,
+    lines: Vec<MenuItem<tauri::Wry>>,
+    pause: Option<MenuItem<tauri::Wry>>,
 }
 
 /// Makes the icon, then hides the window: never the window without the icon.
@@ -215,8 +247,13 @@ pub fn is_hidden(app: &AppHandle) -> bool {
 /// Hides the window behind a menu bar icon; `false` (and nothing changed) if the icon can't be made.
 pub fn hide(app: &AppHandle) -> bool {
     let status = opening_status(app);
+    let mut made = None;
     let hid = hide_with(
-        || make_icon(app, &status).map_err(|e| e.to_string()),
+        || {
+            make_icon(app, &status)
+                .map(|items| made = Some(items))
+                .map_err(|e| e.to_string())
+        },
         || {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.hide();
@@ -230,8 +267,9 @@ pub fn hide(app: &AppHandle) -> bool {
         // The queue's place carries over: it was set while the window showed.
         *inner = Inner {
             last: Some(Instant::now()),
-            lines: lines(&status),
+            items: made,
             queue: inner.queue,
+            checking_next: inner.checking_next,
             ..Inner::default()
         };
         drop(inner);
@@ -254,6 +292,7 @@ pub fn show(app: &AppHandle) {
     // A queue still running keeps its place for the next time the window hides.
     *inner = Inner {
         queue: inner.queue,
+        checking_next: inner.checking_next,
         ..Inner::default()
     };
     drop(inner);
@@ -293,58 +332,46 @@ fn running_status(app: &AppHandle, view: Option<&ProgressView>) -> Status {
     })
 }
 
-fn menu(app: &AppHandle, status: &Status) -> tauri::Result<Menu<tauri::Wry>> {
+fn menu(app: &AppHandle, status: &Status) -> tauri::Result<(Menu<tauri::Wry>, Items)> {
     let menu = Menu::new(app)?;
+    let mut line_items = Vec::new();
     for line in lines(status) {
-        menu.append(&MenuItem::new(app, line, false, None::<&str>)?)?;
+        let item = MenuItem::new(app, line, false, None::<&str>)?;
+        menu.append(&item)?;
+        line_items.push(item);
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
-    match status {
+    let item = |id: &str, text: &str| MenuItem::with_id(app, id, text, true, None::<&str>);
+    let pause = match status {
         Status::Running(r) => {
-            let pause = if r.view.paused { "Resume" } else { "Pause" };
-            menu.append(&MenuItem::with_id(app, PAUSE, pause, true, None::<&str>)?)?;
-            menu.append(&MenuItem::with_id(
-                app,
-                OPEN,
-                "Open Secopy",
-                true,
-                None::<&str>,
-            )?)?;
+            let pause = item(PAUSE, if r.view.paused { "Resume" } else { "Pause" })?;
+            menu.append(&pause)?;
+            menu.append(&item(OPEN, "Open Secopy")?)?;
             menu.append(&PredefinedMenuItem::separator(app)?)?;
-            menu.append(&MenuItem::with_id(
-                app,
-                QUIT,
-                "Quit Secopy…",
-                true,
-                None::<&str>,
-            )?)?;
+            menu.append(&item(QUIT, "Quit Secopy…")?)?;
+            Some(pause)
         }
         Status::Finished { .. } => {
-            menu.append(&MenuItem::with_id(
-                app,
-                OPEN,
-                "Open Secopy",
-                true,
-                None::<&str>,
-            )?)?;
-            menu.append(&MenuItem::with_id(
-                app,
-                QUIT,
-                "Quit Secopy",
-                true,
-                None::<&str>,
-            )?)?;
+            menu.append(&item(OPEN, "Open Secopy")?)?;
+            menu.append(&item(QUIT, "Quit Secopy")?)?;
+            None
         }
-    }
-    Ok(menu)
+    };
+    let items = Items {
+        shape: Shape::of(status),
+        lines: line_items,
+        pause,
+    };
+    Ok((menu, items))
 }
 
-fn make_icon(app: &AppHandle, status: &Status) -> tauri::Result<()> {
+fn make_icon(app: &AppHandle, status: &Status) -> tauri::Result<Items> {
+    let (menu, items) = menu(app, status)?;
     TrayIconBuilder::with_id(TRAY)
         .icon(Image::from_bytes(ICON)?)
         .icon_as_template(true)
         .title(title(status))
-        .menu(&menu(app, status)?)
+        .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
             PAUSE => {
@@ -363,33 +390,42 @@ fn make_icon(app: &AppHandle, status: &Status) -> tauri::Result<()> {
             _ => {}
         })
         .build(app)?;
-    Ok(())
+    Ok(items)
 }
 
 /// Shows `status` on the icon: the title always, the menu only when its lines changed.
 /// Never waits: the tray is changed on the main thread, which may itself be waiting for this
 /// job (quitting stops the job and waits for it).
 fn update(app: &AppHandle, status: &Status) {
-    let bar = app.state::<MenuBar>();
-    let new_lines = lines(status);
-    let paused = matches!(status, Status::Running(r) if r.view.paused);
-    let rebuild = {
-        let mut inner = lock(&bar.inner);
-        let changed = inner.lines != new_lines || inner.paused != paused;
-        inner.lines = new_lines;
-        inner.paused = paused;
-        changed
-    };
     let (handle, status) = (app.clone(), status.clone());
-    let _ = app.run_on_main_thread(move || {
-        let Some(tray) = handle.tray_by_id(TRAY) else {
-            return;
-        };
-        let _ = tray.set_title(Some(title(&status)));
-        if rebuild && let Ok(menu) = menu(&handle, &status) {
-            let _ = tray.set_menu(Some(menu));
+    let _ = app.run_on_main_thread(move || show_status(&handle, &status));
+}
+
+/// On the main thread: the title, and the menu's text in place. An open menu closes when it's
+/// replaced, so it is replaced only when its shape changes (the job's end).
+fn show_status(app: &AppHandle, status: &Status) {
+    let Some(tray) = app.tray_by_id(TRAY) else {
+        return;
+    };
+    let _ = tray.set_title(Some(title(status)));
+    let bar = app.state::<MenuBar>();
+    let mut inner = lock(&bar.inner);
+    let shape = Shape::of(status);
+    if let Some(items) = &inner.items
+        && !rebuilds(Some(&items.shape), &shape)
+    {
+        for (item, text) in items.lines.iter().zip(lines(status)) {
+            let _ = item.set_text(text);
         }
-    });
+        if let (Some(pause), Status::Running(r)) = (&items.pause, status) {
+            let _ = pause.set_text(if r.view.paused { "Resume" } else { "Pause" });
+        }
+        return;
+    }
+    if let Ok((menu, items)) = menu(app, status) {
+        let _ = tray.set_menu(Some(menu));
+        inner.items = Some(items);
+    }
 }
 
 /// While a queue checks its next job: its place, nothing else yet.
@@ -568,7 +604,7 @@ mod tests {
             ]
         );
         let early = copying(0, 0);
-        assert_eq!(lines(&early).len(), 2, "no speed until there is one");
+        assert_eq!(lines(&early)[2], "Working out the speed…");
     }
 
     #[test]
@@ -691,5 +727,24 @@ mod tests {
         let between = opening(Some((2, 3)), true, Some(job));
         assert_eq!(lines(&between)[0], "Checking job 2 of 3");
         assert_eq!(title(&opening(None, false, None)), "…");
+    }
+
+    /// #80: an open menu closes when it's replaced, so while a job runs it keeps its shape
+    /// and only its text changes; it's rebuilt when the job ends.
+    #[test]
+    fn the_menu_keeps_its_shape_while_the_job_runs() {
+        let early = Shape::of(&copying(0, 0));
+        let later = Shape::of(&copying(600_000_000, 240_000_000));
+        assert!(!rebuilds(Some(&early), &later));
+        let end = Shape::of(&Status::Finished {
+            outcome: JobOutcome::Complete,
+            why: None,
+        });
+        assert!(rebuilds(Some(&later), &end));
+        assert!(rebuilds(None, &early), "the first menu");
+        assert!(
+            !rebuilds(Some(&Shape::of(&checking((2, 3)))), &later),
+            "checking → the next job"
+        );
     }
 }
