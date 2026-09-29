@@ -1,6 +1,7 @@
 <script lang="ts">
   // FROM's copy preset (FR-38): pick one, see when this run differs from it, and save
   // the difference with Update or Save as….
+  import { t } from "../lib/i18n";
   import { messageOf } from "../lib/format";
   import { tick } from "svelte";
   import { useApi } from "../lib/api";
@@ -61,7 +62,7 @@
   }
 
   const options = $derived([
-    { value: "", label: "None" },
+    { value: "", label: t("presets.none") },
     ...presets.map((p) => ({ value: p.id, label: p.name })),
     { value: MANAGE, label: "Manage presets…" },
   ]);
@@ -98,25 +99,25 @@
 
 <div class="preset" bind:this={bar}>
   {#if presets.length > 0}
-    <Select label="Preset" hideLabel value={view.presetId ?? ""} {options} disabled={forFiles} onChange={choose} />
+    <Select label={t("presets.label")} hideLabel value={view.presetId ?? ""} {options} disabled={forFiles} onChange={choose} />
   {:else if !canSaveAs}
     <!-- Nothing to choose yet: a menu with only None would be noise. -->
-    <Button onclick={onManage}>New preset…</Button>
+    <Button onclick={onManage}>{t("presets.new")}</Button>
   {/if}
   {#if selected && view.presetChanged}
-    <span class="muted">Changed for this run</span>
+    <span class="muted">{t("presets.changed")}</span>
     <Button
       disabled={busy}
-      help="Saves this source and these choices into the preset “{selected.name}”."
-      onclick={() => act(() => api.updateCopyPreset())}>Update</Button
+      help={t("presets.updateHelp", { name: selected.name })}
+      onclick={() => act(() => api.updateCopyPreset())}>{t("presets.update")}</Button
     >
   {/if}
   {#if canSaveAs}
     <Button
       disabled={busy}
-      help="Saves this source and these choices as a new preset."
+      help={t("presets.saveAsHelp")}
       onclick={openSaveAs}
-      data-save-as>Save as…</Button
+      data-save-as>{t("presets.saveAs")}</Button
     >
   {/if}
 </div>
@@ -133,10 +134,10 @@
       }
     }}
   >
-    <TextField label="Name" bind:value={name} placeholder="e.g. Sony FX3" />
+    <TextField label={t("presets.name")} bind:value={name} placeholder={t("presets.namePlaceholder")} />
     <div class="buttons">
-      <Button onclick={closeSaveAs}>Cancel</Button>
-      <Button variant="primary" type="submit" disabled={busy}>Save</Button>
+      <Button onclick={closeSaveAs}>{t("presets.cancel")}</Button>
+      <Button variant="primary" type="submit" disabled={busy}>{t("presets.save")}</Button>
     </div>
   </form>
 {/if}

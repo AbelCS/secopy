@@ -1,8 +1,8 @@
 <script lang="ts">
   // What pre-flight found (FR-16..FR-18, RFD §5.2): what blocks Start, what will fail, what's
   // already there, and the choice for files that differ.
+  import { t } from "../lib/i18n";
   import type { ConflictPolicy, DestinationView, PlanView } from "../lib/bindings";
-  import { formatCount, plural } from "../lib/format";
   import FormRow from "../lib/ui/FormRow.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import RadioGroup from "../lib/ui/RadioGroup.svelte";
@@ -21,33 +21,33 @@
 
   const blocker = $derived(destination.blocker ?? plan?.blocker ?? null);
   const choices: { value: ConflictPolicy; label: string }[] = [
-    { value: "keepBoth", label: "Keep both" },
-    { value: "overwrite", label: "Overwrite" },
-    { value: "skip", label: "Skip" },
+    { value: "keepBoth", label: t("copy.preflight.keepBoth") },
+    { value: "overwrite", label: t("copy.preflight.overwrite") },
+    { value: "skip", label: t("copy.preflight.skip") },
   ];
 </script>
 
 {#if blocker}
   <Notice tone="danger">{blocker}</Notice>
 {:else}
-  <FormRow label="Files go to">
+  <FormRow label={t("copy.preflight.filesGoTo")}>
     <p class="mono">{destination.copyRoot}</p>
     {#if destination.existingItems}
       <Notice tone="warning">
-        Already contains {plural(destination.existingItems, "item")}. Identical files will be skipped.
+        {t("copy.preflight.notEmpty", { count: destination.existingItems })}
       </Notice>
     {/if}
   </FormRow>
   {#if destination.problemCount > 0}
-    <FormRow label="Problems">
+    <FormRow label={t("copy.preflight.problems")}>
       <details class="failing">
-        <summary>{plural(destination.problemCount, "file")} will fail</summary>
+        <summary>{t("copy.preflight.willFail", { count: destination.problemCount })}</summary>
         <ul>
           {#each destination.problems as p (p.path)}
             <li><span class="mono">{p.path}</span>: {p.reason}</li>
           {/each}
           {#if destination.problemCount > destination.problems.length}
-            <li class="muted">and {formatCount(destination.problemCount - destination.problems.length)} more</li>
+            <li class="muted">{t("copy.preflight.more", { count: destination.problemCount - destination.problems.length })}</li>
           {/if}
         </ul>
       </details>
@@ -55,19 +55,19 @@
   {/if}
   {#if destination.identical > 0}
     <FormRow
-      label="Identical"
-      hint="Files with the same name, size and date (within 2 seconds) as one already in the destination. They aren't copied or read."
+      label={t("copy.preflight.identical")}
+      hint={t("copy.preflight.identicalHint")}
     >
-      <p>{plural(destination.identical, "identical file")} will be skipped (not checked).</p>
+      <p>{t("copy.preflight.identicalSkipped", { count: destination.identical })}</p>
     </FormRow>
   {/if}
   {#if destination.differs > 0}
     <FormRow
-      label="Existing files"
-      hint="Files with the same name as one already in the destination, but a different size or date. Keep both: the new one is copied with a number added to its name. Overwrite: the one there is replaced. Skip: the one there is left as it is."
+      label={t("copy.preflight.existing")}
+      hint={t("copy.preflight.existingHint")}
     >
       <RadioGroup
-        legend="{plural(destination.differs, 'file')} {destination.differs === 1 ? 'differs' : 'differ'} from what's there"
+        legend={t("copy.preflight.differ", { count: destination.differs })}
         options={choices}
         value={conflicts}
         onChange={onConflicts}
@@ -75,9 +75,9 @@
     </FormRow>
   {/if}
   {#if destination.stalePartials > 0}
-    <FormRow label="Leftovers">
+    <FormRow label={t("copy.preflight.leftovers")}>
       <p class="muted">
-        {plural(destination.stalePartials, "unfinished file")} from an interrupted copy will be replaced.
+        {t("copy.preflight.stale", { count: destination.stalePartials })}
       </p>
     </FormRow>
   {/if}

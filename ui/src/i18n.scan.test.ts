@@ -40,22 +40,14 @@ function components(dir = ROOT): string[] {
 
 /** Components that still write their words themselves; Tasks 4–6 empty it. */
 const PENDING = new Set<string>([
-  "components/CopyPresetEditor.svelte",
-  "components/CopyPresetsScreen.svelte",
   "components/ExportDialog.svelte",
-  "components/FinishedList.svelte",
   "components/ImportScreen.svelte",
-  "components/JobProgress.svelte",
   "components/MirrorEditor.svelte",
   "components/MirrorPreview.svelte",
   "components/MirrorScreen.svelte",
-  "components/PreflightPanel.svelte",
-  "components/PresetBar.svelte",
   "components/QueueScreen.svelte",
   "components/QueueSummary.svelte",
   "components/SettingsScreen.svelte",
-  "components/Setup.svelte",
-  "components/Summary.svelte",
   "components/VerifyScreen.svelte",
   "menubar/Panel.svelte",
 ]);

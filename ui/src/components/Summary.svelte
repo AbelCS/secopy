@@ -1,8 +1,9 @@
 <script lang="ts">
   // The summary (RFD §5.4): what happened, the figures, what failed and why, and what to do next.
+  import { t } from "../lib/i18n";
   import { useApi } from "../lib/api";
   import type { SummaryView } from "../lib/bindings";
-  import { formatCount, messageOf, plural } from "../lib/format";
+  import { messageOf } from "../lib/format";
   import { headline } from "../lib/headline";
   import { summaryStats } from "../lib/summaryText";
   import type { Snippet } from "svelte";
@@ -60,7 +61,7 @@
 
 <AppShell>
   {#snippet header()}
-    <ScreenHeader title="Summary" />
+    <ScreenHeader title={t("summary.title")} />
   {/snippet}
 
   {@render banner?.()}
@@ -71,30 +72,27 @@
     <Stats items={stats} />
     {#if summary.undone && summary.undone.notRestored > 0}
       <Notice tone="warning">
-        {plural(summary.undone.notRestored, "file")} this job replaced couldn't be brought back: their new versions stay.
+        {t("summary.notRestored", { count: summary.undone.notRestored })}
       </Notice>
     {/if}
     {#if summary.undone && summary.undone.failed > 0}
-      <Notice tone="danger">{plural(summary.undone.failed, "file")} couldn't be removed (see the report).</Notice>
+      <Notice tone="danger">{t("summary.notRemovedUndo", { count: summary.undone.failed })}</Notice>
     {/if}
     <!-- After removing the copies, "left in the destination" would only confuse. -->
     {#if summary.mirror?.nothingRemoved && !summary.undone}<Notice tone="danger">{summary.mirror.nothingRemoved}</Notice>{/if}
-    {#if summary.checksumOff && !summary.mirror && !summary.check}<p class="muted">No checksum file (off in Settings)</p>{/if}
+    {#if summary.checksumOff && !summary.mirror && !summary.check}<p class="muted">{t("summary.noChecksumFile")}</p>{/if}
     {#if summary.checksumError}
-      <Notice tone="danger">The checksum file could not be written: {summary.checksumError}</Notice>
+      <Notice tone="danger">{t("summary.checksumError", { why: summary.checksumError })}</Notice>
     {/if}
     {#if summary.durabilityError}
-      <Notice tone="danger">
-        The destination reported an error while the files were saved to disk: {summary.durabilityError}. Check
-        the drive and run the copy again.
-      </Notice>
+      <Notice tone="danger">{t("summary.durabilityError", { why: summary.durabilityError })}</Notice>
     {/if}
-    {#if summary.reportError}<Notice tone="danger">The report could not be saved: {summary.reportError}</Notice>{/if}
+    {#if summary.reportError}<Notice tone="danger">{t("summary.reportError", { why: summary.reportError })}</Notice>{/if}
     {#if actionError}<Notice tone="danger">{actionError}</Notice>{/if}
   </div>
 
   {#if summary.failures.length > 0}
-    <Section title="Failed">
+    <Section title={t("summary.failed")}>
       <ul class="failures">
         <!-- By place: unread items, directories and files each count their own ids. -->
         {#each summary.failures as f, i (i)}
@@ -102,8 +100,7 @@
         {/each}
         {#if summary.failed + summary.unread + summary.dirErrors > summary.failures.length}
           <li class="muted">
-            and {formatCount(summary.failed + summary.unread + summary.dirErrors - summary.failures.length)} more (see
-            the report)
+            {t("summary.more", { count: summary.failed + summary.unread + summary.dirErrors - summary.failures.length })}
           </li>
         {/if}
       </ul>
@@ -111,18 +108,18 @@
   {/if}
 
   {#if summary.check && summary.check.problems.length > 0}
-    <Section title="Problems">
+    <Section title={t("summary.problems")}>
       <ul class="failures">
         {#each summary.check.problems as p, i (i)}<li class="mono">{p}</li>{/each}
         {#if summary.check.moreProblems}
-          <li class="muted">and {formatCount(summary.check.moreProblems)} more (see the report)</li>
+          <li class="muted">{t("summary.more", { count: summary.check.moreProblems })}</li>
         {/if}
       </ul>
     </Section>
   {/if}
 
   {#if summary.mirror && summary.mirror.removalFailures.length > 0}
-    <Section title="Not removed">
+    <Section title={t("summary.notRemoved")}>
       <ul class="failures">
         {#each summary.mirror.removalFailures as f, i (i)}
           <li><span class="mono">{f.path}</span>: {f.reason}</li>
@@ -133,7 +130,7 @@
 
   <!-- Every file with its status and checksum, as during the copy (RFD §5.4). -->
   <FinishedList
-    title="Files"
+    title={t("summary.files")}
     total={summary.finished}
     failedTotal={summary.failed}
     updated={0}
@@ -148,22 +145,22 @@
         <!-- What you'd do next comes first. -->
         <!-- Not after a cancel that removed the copied files: a retry would copy only a few. -->
         {#if summary.failed > 0 && onRetry && !summary.undone && !summary.check}<Button
-            help="Sets up a new copy of just the {plural(summary.failed, 'failed file')}; press Start to run it."
-            onclick={onRetry}>Retry</Button
+            help={t("summary.retryHelp", { count: summary.failed })}
+            onclick={onRetry}>{t("summary.retry")}</Button
           >{/if}
-        <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>Show in Finder</Button>
+        <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>{t("summary.showInFinder")}</Button>
         {#if summary.checksumFile}
-          <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>Open checksum file</Button>
+          <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>{t("summary.openChecksumFile")}</Button>
         {/if}
-        <Button onclick={saveReport}>Save report…</Button>
+        <Button onclick={saveReport}>{t("summary.saveReport")}</Button>
       {/snippet}
       {#snippet end()}
         {#if onBack}
-          <Button variant="primary" onclick={onBack}>Back</Button>
+          <Button variant="primary" onclick={onBack}>{t("ui.back")}</Button>
         {:else if onDone}
-          <Button variant="primary" onclick={onDone}>Done</Button>
+          <Button variant="primary" onclick={onDone}>{t("summary.done")}</Button>
         {:else}
-          <Button variant="primary" onclick={onNewCopy}>New copy</Button>
+          <Button variant="primary" onclick={onNewCopy}>{t("summary.newCopy")}</Button>
         {/if}
       {/snippet}
     </ActionBar>

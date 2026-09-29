@@ -1,9 +1,10 @@
 <script lang="ts">
   // The main window (RFD §5.2): FROM, TO, what pre-flight found, mode, Start.
+  import { t } from "../lib/i18n";
   import { onMount } from "svelte";
   import { useApi } from "../lib/api";
   import type { ConflictPolicy, CopyPreset, CopyPresetsView, QueueView, SessionView, Settings } from "../lib/bindings";
-  import { baseName, formatBytes, messageOf, plural } from "../lib/format";
+  import { baseName, formatBytes, messageOf } from "../lib/format";
   import type { Snippet } from "svelte";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
@@ -65,15 +66,15 @@
   const sourceSummary = $derived.by((): { text: string; hint?: string }[] => {
     if (!source) return [];
     const parts: { text: string; hint?: string }[] = [
-      { text: plural(source.files, "file") },
+      { text: t("copy.files", { count: source.files }) },
       { text: formatBytes(source.bytes) },
     ];
     if (settings.showSystemCount && source.skippedSystem > 0)
       parts.push({
-        text: `${plural(source.skippedSystem, "system file")} skipped`,
-        hint: "Files computers leave behind, like .DS_Store, ._ files and Thumbs.db. They're never copied.",
+        text: t("copy.systemSkipped", { count: source.skippedSystem }),
+        hint: t("copy.systemHint"),
       });
-    if (source.skippedSymlinks > 0) parts.push({ text: `${plural(source.skippedSymlinks, "symlink")} skipped` });
+    if (source.skippedSymlinks > 0) parts.push({ text: t("copy.symlinksSkipped", { count: source.skippedSymlinks }) });
     return parts;
   });
   const destination = $derived(view.destination);
@@ -94,7 +95,7 @@
     try {
       const queue = await api.addToQueue(verify);
       onQueued?.(queue);
-      queuedNote = `Added to the queue (${plural(queue.jobs.length, "job")}).`;
+      queuedNote = t("copy.queued", { count: queue.jobs.length });
       setTimeout(() => (queuedNote = null), 3000);
       await update(() => api.clearSource(), (e) => (sourceError = e));
     } catch (e) {
@@ -104,20 +105,27 @@
 
   const startStatus = $derived.by(() => {
     if (queuedNote) return queuedNote;
-    if (scanning > 0) return "Waiting for the scan…";
-    if (checking > 0) return "Waiting for the destination check…";
-    if (!source) return "Pick what to copy.";
-    if (!destination) return "Choose where to copy to.";
-    if (destination.blocker || view.plan?.blocker) return "Something above blocks the copy.";
-    if (!view.plan || view.plan.filesToWrite === 0) return "Nothing to copy.";
+    if (scanning > 0) return t("copy.status.scanning");
+    if (checking > 0) return t("copy.status.checking");
+    if (!source) return t("copy.status.noSource");
+    if (!destination) return t("copy.status.noDestination");
+    if (destination.blocker || view.plan?.blocker) return t("copy.status.blocked");
+    if (!view.plan || view.plan.filesToWrite === 0) return t("copy.status.nothing");
     // Ready: what Start will copy.
-    return `${plural(view.plan.filesToWrite, "file")} · ${formatBytes(view.plan.bytesToWrite)}`;
+    return t("copy.status.ready", {
+      files: t("copy.files", { count: view.plan.filesToWrite }),
+      size: formatBytes(view.plan.bytesToWrite),
+    });
   });
 
   /** Start's help: the figures and the path the screen shows, and the File menu's shortcut. */
   const startHelp = $derived(
     view.plan && destination
-      ? `Copies ${plural(view.plan.filesToWrite, "file")} (${formatBytes(view.plan.bytesToWrite)}) to ${destination.copyRoot}${verify ? " and verifies them" : ""} (⌘↩).`
+      ? t(verify ? "copy.start.helpVerify" : "copy.start.help", {
+          files: t("copy.files", { count: view.plan.filesToWrite }),
+          size: formatBytes(view.plan.bytesToWrite),
+          path: destination.copyRoot,
+        })
       : "",
   );
 
@@ -217,14 +225,14 @@
 
 <AppShell>
   {#snippet header()}
-    <ScreenHeader title="New copy" />
+    <ScreenHeader title={t("copy.title")} />
   {/snippet}
 
   {@render banner?.()}
 
-  <Section title="From" data-drop="from">
-    <FormRow label="Source">
-      {#if scanning > 0}<p class="muted" role="status">Scanning…</p>{/if}
+  <Section title={t("copy.from")} data-drop="from">
+    <FormRow label={t("copy.source")}>
+      {#if scanning > 0}<p class="muted" role="status">{t("copy.scanning")}</p>{/if}
       {#if view.pickProblem}<Notice tone="danger">{view.pickProblem}</Notice>{/if}
       {#if source}
         <div>
@@ -237,19 +245,19 @@
         </div>
         {#if source.problemCount > 0}
           <details class="unreadable">
-            <summary>{plural(source.problemCount, "item")} couldn't be read</summary>
+            <summary>{t("copy.unreadable", { count: source.problemCount })}</summary>
             <ul>
               {#each source.problems as p (p)}<li class="mono">{p}</li>{/each}
             </ul>
           </details>
         {/if}
       {:else}
-        <p class="muted">Drop a directory or files here, or choose them.</p>
+        <p class="muted">{t("copy.dropSource")}</p>
       {/if}
       {#if sourceError}<Notice tone="danger">{sourceError}</Notice>{/if}
-      {#snippet aside()}<Button onclick={chooseSource}>Choose…</Button>{/snippet}
+      {#snippet aside()}<Button onclick={chooseSource}>{t("copy.choose")}</Button>{/snippet}
     </FormRow>
-    <FormRow label="Preset">
+    <FormRow label={t("copy.preset")}>
       <PresetBar
         {view}
         {presets}
@@ -263,50 +271,50 @@
     <!-- A retry copies exactly the files that failed: nothing to choose there. -->
     {#if source?.folder && !source.isRetry}
       {@const folder = source.folder}
-      <FormRow label="Options">
+      <FormRow label={t("copy.options")}>
         <!-- On: DEST/DCIM/…; off: only what's inside, straight into DEST (FR-4). -->
         <Checkbox
-          label="Include the “{baseName(folder)}” directory"
+          label={t("copy.includeFolder", { name: baseName(folder) })}
           checked={!source.contentsOnly}
           disabled={scanning > 0}
           onChange={setIncludeFolder}
         />
       </FormRow>
       {#if source.extensions.length > 0}
-        <FormRow label="File types">
+        <FormRow label={t("copy.fileTypes")}>
           <ExtensionChips extensions={source.extensions} selected={source.selectedExtensions} onChange={setFilter} />
           {#snippet aside()}
-            <Button variant="link" onclick={() => setFilter(null)}>All</Button>
-            <Button variant="link" onclick={() => setFilter([])}>None</Button>
+            <Button variant="link" onclick={() => setFilter(null)}>{t("copy.all")}</Button>
+            <Button variant="link" onclick={() => setFilter([])}>{t("copy.none")}</Button>
           {/snippet}
         </FormRow>
       {/if}
     {/if}
   </Section>
 
-  <Section title="To" data-drop="to">
-    <FormRow label="Destination">
-      {#if checking > 0}<p class="muted" role="status">Checking…</p>{/if}
+  <Section title={t("copy.to")} data-drop="to">
+    <FormRow label={t("copy.destination")}>
+      {#if checking > 0}<p class="muted" role="status">{t("copy.checking")}</p>{/if}
       {#if destination}
         <div>
           <p class="path mono">{destination.path}</p>
           {#if !destination.blocker}
-            <p class="muted">{formatBytes(destination.freeBytes)} free · {destination.fsKind}</p>
+            <p class="muted">{t("copy.free", { size: formatBytes(destination.freeBytes), kind: destination.fsKind })}</p>
           {/if}
         </div>
       {:else}
-        <p class="muted">Drop the destination directory here, or choose it.</p>
+        <p class="muted">{t("copy.dropDestination")}</p>
       {/if}
       {#if destError}<Notice tone="danger">{destError}</Notice>{/if}
       {#if destination?.blocker && !source}<Notice tone="danger">{destination.blocker}</Notice>{/if}
       {#snippet aside()}
         {#if recent.length > 0}
-          <select aria-label="Recent destinations" value="" onchange={(e) => chooseRecent(e.currentTarget)}>
-            <option value="" disabled>Recent…</option>
+          <select aria-label={t("copy.recent")} value="" onchange={(e) => chooseRecent(e.currentTarget)}>
+            <option value="" disabled>{t("copy.recentPlaceholder")}</option>
             {#each recent as r (r)}<option value={r}>{r}</option>{/each}
           </select>
         {/if}
-        <Button onclick={chooseDestination}>Choose…</Button>
+        <Button onclick={chooseDestination}>{t("copy.choose")}</Button>
       {/snippet}
     </FormRow>
     {#if destination && source}
@@ -318,28 +326,28 @@
     <ActionBar status={startStatus}>
       {#snippet start()}
         <SegmentedControl
-          label="Mode"
+          label={t("copy.mode")}
           options={[
-            { value: "copy", label: "Copy" },
-            { value: "verify", label: "Copy & Verify" },
+            { value: "copy", label: t("copy.modeCopy") },
+            { value: "verify", label: t("copy.modeVerify") },
           ]}
           value={verify ? "verify" : "copy"}
           onChange={setMode}
         />
         <Hint
           above
-          label="About verifying"
-          text="Copy & Verify reads every copy back from the destination and checks it against the source's checksum; a copy that doesn't match is copied again. Copy only copies: faster, but nothing is checked."
+          label={t("copy.aboutVerifying")}
+          text={t("copy.aboutVerifyingText")}
         />
       {/snippet}
       {#snippet end()}
         <!-- The mode is chosen next to it; the figures are in the status. -->
         <Button
           disabled={!canStart || !!source?.isRetry}
-          help="Adds this copy, as set up now, to the Queue; it runs when you start the queue."
-          onclick={addToQueue}>Add to queue</Button
+          help={t("copy.addToQueueHelp")}
+          onclick={addToQueue}>{t("copy.addToQueue")}</Button
         >
-        <Button variant="primary" disabled={!canStart} help={startHelp} onclick={onStart}>Start</Button>
+        <Button variant="primary" disabled={!canStart} help={startHelp} onclick={onStart}>{t("copy.start.label")}</Button>
       {/snippet}
     </ActionBar>
   {/snippet}
