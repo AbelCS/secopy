@@ -26,6 +26,10 @@ OS is a compile error (RFD §14).
   decision log (§14) and update the affected sections in the same change.
 - **Stack:** Tauri 2 · Rust engine (`secopy-core`, UI-independent library) · Svelte + TypeScript UI.
 - **Language:** code, comments, docs and commit messages in English.
+- **User docs:** [README.md](README.md), [docs/user-guide.md](docs/user-guide.md) and
+  [CONTRIBUTING.md](CONTRIBUTING.md). A change users see updates the guide in the same PR;
+  screenshots in `docs/images/` come from the gallery (headless Chrome).
+- **License:** GPL-3.0-or-later ([LICENSE](LICENSE)).
 - **Conventions:** [Semantic Versioning 2.0](#versioning-semver-20),
   [Conventional Commits 1.0](#commit-messages-conventional-commits-10),
   [release-please](#releases-release-please) for releases, and a
