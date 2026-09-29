@@ -115,7 +115,7 @@
 {:else if page === "mirror-summary"}
   <Summary summary={mirrorSummary} onDone={() => {}} />
 {:else if page === "mirroring"}
-  <JobProgress progress={{ ...progress, phase: "removing", removing: 5, archiving: true }} title="Mirroring" checksumFile={false} />
+  <JobProgress progress={{ ...progress, phase: "removing", removing: 5, archiving: true }} mirror checksumFile={false} />
 {:else if page === "queue-summary"}
   <QueueSummary summary={queueSummary} onOpen={() => {}} onDone={() => {}} />
 {:else if page === "queue"}

@@ -561,7 +561,7 @@
           queue={queueRun ?? undefined}
           checking={queueRun?.checking ?? false}
           compared={queueRun?.compared}
-          title={runningKind === "mirror" ? "Mirroring" : undefined}
+          mirror={runningKind === "mirror"}
           check={runningKind === "check"}
         />
       {/key}

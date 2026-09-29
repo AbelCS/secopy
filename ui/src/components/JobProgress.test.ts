@@ -30,11 +30,11 @@ describe("JobProgress", () => {
   test("a mirror: its title, then what it archives", () => {
     const { api } = fakeApi();
     const { rerender } = render(JobProgress, {
-      props: { progress: progressView(), title: "Mirroring" },
+      props: { progress: progressView(), mirror: true },
       context: apiContext(api),
     });
     screen.getByRole("heading", { name: "Mirroring" });
-    void rerender({ progress: progressView({ phase: "removing", removing: 5, archiving: true }), title: "Mirroring" });
+    void rerender({ progress: progressView({ phase: "removing", removing: 5, archiving: true }), mirror: true });
     return waitFor(() => screen.getByText("Archiving 5 files"));
   });
 
@@ -123,7 +123,7 @@ describe("JobProgress", () => {
   test("while a cancelled job removes what it copied, it says so, with Pause and Cancel off", () => {
     const { api } = fakeApi();
     render(JobProgress, {
-      props: { progress: progressView({ phase: "removing", undoing: true }), title: "Copying & verifying" },
+      props: { progress: progressView({ phase: "removing", undoing: true }) },
       context: apiContext(api),
     });
     screen.getByText("Putting the destination back as it was…");
@@ -135,7 +135,7 @@ describe("JobProgress", () => {
   test("while a mirror archives, Pause and Cancel are off", async () => {
     const { api } = fakeApi();
     const { component } = render(JobProgress, {
-      props: { progress: progressView({ phase: "removing", removing: 3, archiving: true }), title: "Mirroring" },
+      props: { progress: progressView({ phase: "removing", removing: 3, archiving: true }), mirror: true },
       context: apiContext(api),
     });
     expect(screen.getByRole("button", { name: "Pause" })).toHaveProperty("disabled", true);
@@ -183,7 +183,7 @@ describe("JobProgress", () => {
 
   test("a mirror asks Stop mirroring?", async () => {
     const { api } = fakeApi();
-    render(JobProgress, { props: { progress: progressView(), title: "Mirroring" }, context: apiContext(api) });
+    render(JobProgress, { props: { progress: progressView(), mirror: true }, context: apiContext(api) });
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     screen.getByRole("dialog", { name: "Stop mirroring?" });
   });
@@ -325,7 +325,7 @@ describe("JobProgress", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     screen.getByRole("dialog", { name: "Stop verifying and stop the queue?" });
     await fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await rerender({ check: false, title: "Mirroring" });
+    await rerender({ check: false, mirror: true });
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     screen.getByRole("dialog", { name: "Stop mirroring and stop the queue?" });
   });
@@ -343,7 +343,7 @@ describe("JobProgress", () => {
 
   test("a mirror's Cancel says files deleted in the origin stay, and no checksum file", async () => {
     const { api } = fakeApi();
-    render(JobProgress, { props: { progress: progressView(), title: "Mirroring" }, context: apiContext(api) });
+    render(JobProgress, { props: { progress: progressView(), mirror: true }, context: apiContext(api) });
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     const dialog = screen.getByRole("dialog", { name: "Stop mirroring?" });
     within(dialog).getByText(

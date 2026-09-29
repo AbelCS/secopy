@@ -1,5 +1,6 @@
 <script lang="ts">
   // Copy presets (FR-38): the list on the left, the selected one's editor on the right.
+  import { t } from "../lib/i18n";
   import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { CopyPreset, CopyPresetInput, SessionView } from "../lib/bindings";
@@ -49,10 +50,11 @@
   export async function mayLeave(): Promise<boolean> {
     if (!changed) return true;
     if (asking) return false;
-    const which = selectedId === NEW ? "the new preset" : `“${selected?.name ?? ""}”`;
+    const message =
+      selectedId === NEW ? t("presets.discardNew") : t("ui.discard.named", { name: selected?.name ?? "" });
     asking = true;
     try {
-      return await api.confirm(`Your changes to ${which} aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+      return await api.confirm(message, t("ui.discard.title"), t("ui.discard.discard"), t("ui.discard.keep"));
     } finally {
       asking = false;
     }
@@ -103,10 +105,10 @@
 
   async function remove(p: CopyPreset) {
     const sure = await api.confirm(
-      `The preset “${p.name}” is deleted. Its source and the copies are not touched.`,
-      "Delete preset?",
-      "Delete",
-      "Keep",
+      t("presets.delete.message", { name: p.name }),
+      t("presets.delete.title"),
+      t("presets.delete.ok"),
+      t("presets.delete.keep"),
     );
     if (!sure) return;
     try {
@@ -125,11 +127,11 @@
 <svelte:window onkeydown={(e) => e.key === "Escape" && !e.repeat && void back()} />
 
 <AppShell>
-  {#snippet header()}<ScreenHeader title="Copy presets" />{/snippet}
+  {#snippet header()}<ScreenHeader title={t("presets.title")} />{/snippet}
 
   <div class="panes">
-    <Section title="All presets">
-      <nav class="list" aria-label="Copy presets">
+    <Section title={t("presets.all")}>
+      <nav class="list" aria-label={t("presets.title")}>
         {#each presets as p (p.id)}
           <button
             type="button"
@@ -144,11 +146,11 @@
             <span class="muted mono path" title={p.source}>{p.source ? `\u200E${p.source}` : "(no source yet)"}</span>
           </button>
         {/each}
-        <Button variant="link" onclick={() => select(NEW)}>+ New preset</Button>
+        <Button variant="link" onclick={() => select(NEW)}>{t("presets.addNew")}</Button>
       </nav>
     </Section>
 
-    <Section title={selectedId === NEW ? "New preset" : (selected?.name ?? "About copy presets")}>
+    <Section title={selectedId === NEW ? t("presets.newTitle") : (selected?.name ?? t("presets.about"))}>
       {#if selectedId === NEW || selected}
         {#key editorKey}
           <CopyPresetEditor
@@ -162,11 +164,8 @@
         {/key}
       {:else}
         <EmptyState>
-          <p>
-            A copy preset saves a source and its settings (whether that directory itself is copied, and which
-            file types), so a copy you do often is set up in one step: choose the preset in the main window.
-          </p>
-          <p>Create one with “+ New preset”, or with “Save as…” in the main window.</p>
+          <p>{t("presets.empty.what")}</p>
+          <p>{t("presets.empty.how")}</p>
         </EmptyState>
       {/if}
       {#if said}<Notice tone="success">{said}</Notice>{/if}
@@ -175,18 +174,18 @@
   </div>
 
   {#snippet actions()}
-    <ActionBar status={changed ? "Unsaved changes" : ""}>
+    <ActionBar status={changed ? t("presets.unsaved") : ""}>
       {#snippet start()}
-        <Button icon="chevron-left" onclick={back}>Back</Button>
+        <Button icon="chevron-left" onclick={back}>{t("ui.back")}</Button>
         {#if selected && selectedId !== NEW}
-          <Button onclick={exportSelected}>Export…</Button>
-          <Button variant="danger" onclick={() => remove(selected)}>Delete…</Button>
+          <Button onclick={exportSelected}>{t("ui.export")}</Button>
+          <Button variant="danger" onclick={() => remove(selected)}>{t("ui.delete")}</Button>
         {/if}
       {/snippet}
       {#snippet end()}
         {#if selectedId === NEW || selected}
-          <Button disabled={!changed} onclick={() => editor?.revert()}>Revert</Button>
-          <Button variant="primary" type="submit" form={FORM} disabled={!canSave}>Save</Button>
+          <Button disabled={!changed} onclick={() => editor?.revert()}>{t("ui.revert")}</Button>
+          <Button variant="primary" type="submit" form={FORM} disabled={!canSave}>{t("ui.save")}</Button>
         {/if}
       {/snippet}
     </ActionBar>

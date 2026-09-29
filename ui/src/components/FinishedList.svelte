@@ -1,13 +1,14 @@
 <script lang="ts">
   // Finished files (RFD §5.3). Virtualized: only the visible rows exist, and rows are fetched
   // from the app a page at a time, so it stays smooth with a million files.
+  import { t } from "../lib/i18n";
   import { useApi } from "../lib/api";
   import type { FinishedRow } from "../lib/bindings";
   import { formatBytes, formatDuration, formatSpeed } from "../lib/format";
   import Section from "../lib/ui/Section.svelte";
 
   let {
-    title = "Finished",
+    title = t("finished.title"),
     total,
     failedTotal,
     updated,
@@ -81,14 +82,14 @@
 
   const statusText = (r: FinishedRow) =>
     ({
-      verified: "✓ Verified",
-      copied: "✓ Copied",
-      skipped: "Skipped",
-      failed: "✗ Failed",
-      cancelled: "Cancelled",
-      intact: "✓ Intact",
-      changed: "✗ Changed",
-      missing: "✗ Missing",
+      verified: t("finished.status.verified"),
+      copied: t("finished.status.copied"),
+      skipped: t("finished.status.skipped"),
+      failed: t("finished.status.failed"),
+      cancelled: t("finished.status.cancelled"),
+      intact: t("finished.status.intact"),
+      changed: t("finished.status.changed"),
+      missing: t("finished.status.missing"),
     })[r.status];
 </script>
 
@@ -100,12 +101,14 @@
         checked={failedOnly}
         onchange={(e) => showFailedOnly(e.currentTarget.checked)}
       />
-      Failed only
+      {t("finished.failedOnly")}
     </label>
   {/snippet}
 <!-- Column names for the eye; each row's cells are read in order. -->
 <div class="row head" aria-hidden="true">
-  <span>File</span><span>Size</span><span>Time</span><span>Speed</span><span>Checksum</span><span>Status</span>
+  <span>{t("finished.column.file")}</span><span>{t("finished.column.size")}</span><span>{t("finished.column.time")}</span><span
+    >{t("finished.column.speed")}</span
+  ><span>{t("finished.column.checksum")}</span><span>{t("finished.column.status")}</span>
 </div>
 <!-- Focusable so the arrow keys scroll it (a scrollable region, WCAG 2.1.1). -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -115,7 +118,7 @@
   style:height="{height}px"
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
   role="list"
-  aria-label="Finished files"
+  aria-label={t("finished.label")}
   tabindex="0"
 >
   <div style:height="{count * ROW}px" class="spacer">
@@ -126,7 +129,7 @@
           <span>{formatBytes(row.size)}</span>
           <span>{formatDuration(row.millis)}</span>
           <span>{formatSpeed(row.millis > 0 ? (row.size * 1000) / row.millis : null)}</span>
-          <span class="mono">{row.hash ?? "—"}</span>
+          <span class="mono">{row.hash ?? t("format.unknown")}</span>
           <!-- A short word; why is on hover, and in the summary's Failed list. -->
           <span class={row.status} title={row.reason ?? ""}>{statusText(row)}</span>
         {:else}

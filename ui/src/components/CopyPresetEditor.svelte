@@ -1,6 +1,7 @@
 <script lang="ts">
   // One copy preset's fields (FR-38): its name, the source it loads, whether that directory itself
   // is copied, and which file types. Problems show next to their field.
+  import { t } from "../lib/i18n";
   import { baseName, messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { CopyPreset, CopyPresetInput } from "../lib/bindings";
@@ -31,7 +32,6 @@
   } = $props();
 
   const api = useApi();
-  const NO_EXTENSION = "(no extension)";
 
   // The editor is recreated for each preset, so these start from it once.
   // svelte-ignore state_referenced_locally
@@ -80,7 +80,7 @@
     nameProblem = sourceProblem = otherProblem = null;
   }
 
-  const label = (key: string | null) => (key === null ? NO_EXTENSION : `.${key}`);
+  const label = (key: string | null) => (key === null ? t("presets.editor.noExtension") : `.${key}`);
 
   /**
    * Adds what was typed: several types split by commas or spaces ("mp4, mov"), each without
@@ -98,7 +98,7 @@
   }
 
   async function chooseSource() {
-    const path = await api.pickDirectory("Source");
+    const path = await api.pickDirectory(t("presets.editor.pickSource"));
     if (path === null) return;
     source = path;
     sourceProblem = null;
@@ -122,37 +122,45 @@
 </script>
 
 <form id={formId} class="editor" onsubmit={save}>
-  <FormRow label="Name">
-    <TextField label="Name" hideLabel bind:value={name} error={nameProblem} placeholder="e.g. Sony FX3" />
+  <FormRow label={t("presets.editor.name")}>
+    <TextField
+      label={t("presets.editor.name")}
+      hideLabel
+      bind:value={name}
+      error={nameProblem}
+      placeholder={t("presets.namePlaceholder")}
+    />
   </FormRow>
 
-  <FormRow label="Source">
+  <FormRow label={t("presets.editor.source")}>
     <TextField
-      label="Source"
+      label={t("presets.editor.source")}
       hideLabel
       bind:value={source}
       error={sourceProblem}
       mono
-      placeholder="e.g. /Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"
+      placeholder={t("presets.editor.sourcePlaceholder")}
     />
-    {#snippet aside()}<Button onclick={chooseSource}>Choose…</Button>{/snippet}
+    {#snippet aside()}<Button onclick={chooseSource}>{t("ui.choose")}</Button>{/snippet}
   </FormRow>
 
-  <FormRow label="Options">
+  <FormRow label={t("presets.editor.options")}>
     <Checkbox
-      label={folderName ? `Include the “${folderName}” directory` : "Include the picked directory itself"}
+      label={folderName
+        ? t("presets.editor.includeNamed", { name: folderName })
+        : t("presets.editor.includePicked")}
       checked={includeFolder}
       onChange={(on) => (includeFolder = on)}
     />
   </FormRow>
 
-  <FormRow label="File types">
+  <FormRow label={t("presets.editor.fileTypes")}>
     <RadioGroup
-      legend="File types"
+      legend={t("presets.editor.fileTypes")}
       hideLegend
       options={[
-        { value: true, label: "All types" },
-        { value: false, label: "Only these" },
+        { value: true, label: t("presets.editor.allTypes") },
+        { value: false, label: t("presets.editor.onlyThese") },
       ]}
       value={all}
       onChange={(v) => (all = v)}
@@ -164,8 +172,8 @@
         {/each}
         <input
           class="add"
-          aria-label="Add a file type"
-          placeholder="+ add type"
+          aria-label={t("presets.editor.addType")}
+          placeholder={t("presets.editor.addTypePlaceholder")}
           bind:value={newType}
           onkeydown={(e) => {
             if (e.key === "Enter") {
@@ -176,7 +184,7 @@
           onblur={addType}
         />
       </div>
-      {#if noTypes}<p class="muted">Add at least one file type.</p>{/if}
+      {#if noTypes}<p class="muted">{t("presets.editor.atLeastOne")}</p>{/if}
     {/if}
   </FormRow>
 

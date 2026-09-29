@@ -112,7 +112,35 @@
       },
       "notStarted": "{count} not started",
       "notStartedHint": "Files the job didn't reach because it was cancelled or stopped."
-    }
+    },
+    "title": "Summary",
+    "notRestored": {
+      "one": "{count} file this job replaced couldn't be brought back: their new versions stay.",
+      "other": "{count} files this job replaced couldn't be brought back: their new versions stay."
+    },
+    "notRemovedUndo": {
+      "one": "{count} file couldn't be removed (see the report).",
+      "other": "{count} files couldn't be removed (see the report)."
+    },
+    "noChecksumFile": "No checksum file (off in Settings)",
+    "checksumError": "The checksum file could not be written: {why}",
+    "durabilityError": "The destination reported an error while the files were saved to disk: {why}. Check the drive and run the copy again.",
+    "reportError": "The report could not be saved: {why}",
+    "failed": "Failed",
+    "more": "and {count} more (see the report)",
+    "problems": "Problems",
+    "notRemoved": "Not removed",
+    "files": "Files",
+    "retry": "Retry",
+    "retryHelp": {
+      "one": "Sets up a new copy of just the {count} failed file; press Start to run it.",
+      "other": "Sets up a new copy of just the {count} failed files; press Start to run it."
+    },
+    "showInFinder": "Show in Finder",
+    "openChecksumFile": "Open checksum file",
+    "saveReport": "Save report…",
+    "done": "Done",
+    "newCopy": "New copy"
   },
   "progress": {
     "stop": {
@@ -133,7 +161,13 @@
         "mirror": "Files already copied stay; the file in progress is removed. Files deleted in the origin are left in the destination.",
         "copyListed": "Files already copied stay and are listed in the checksum file; the file in progress is removed.",
         "copy": "Files already copied stay; the file in progress is removed."
-      }
+      },
+      "checkedSoFar": "Nothing was changed: the files checked so far are in the summary.",
+      "removeCopied": "The file in progress and the files already copied are removed.",
+      "alsoRemove": "Also remove the files already copied",
+      "alsoRemoveHelp": "The destination goes back to how it was. Files this job replaced come back only from a mirror's archive.",
+      "continue": "Continue",
+      "stop": "Stop"
     },
     "quit": {
       "question": {
@@ -162,6 +196,71 @@
       "whenDone": "Quit when it's done?",
       "quit": "Quit",
       "keepOpen": "Keep open"
+    },
+    "phase": {
+      "done": "Done",
+      "paused": "Paused",
+      "checking": "Checking…",
+      "verifying": "Verifying",
+      "mirroring": "Mirroring",
+      "copyingVerifying": "Copying & verifying",
+      "copying": "Copying"
+    },
+    "status": {
+      "job": "Job {index} of {count}",
+      "files": "{done} / {files}",
+      "skipped": "{count} skipped",
+      "failed": "{count} failed"
+    },
+    "files": {
+      "one": "{count} file",
+      "other": "{count} files"
+    },
+    "elapsed": "{time} elapsed",
+    "stopped": "Stopped: {why}",
+    "title": "Progress",
+    "comparing": "Comparing contents: {done} of {files}",
+    "lookingAtSource": "Looking at the source and the destination before this job starts…",
+    "estimating": "Estimating…",
+    "timeLeft": "Time left",
+    "timeLeftLabel": "Time left:",
+    "bar": {
+      "checked": "Checked",
+      "copied": "Copied",
+      "verified": "Verified"
+    },
+    "undoing": "Putting the destination back as it was…",
+    "archiving": {
+      "one": "Archiving {count} file",
+      "other": "Archiving {count} files"
+    },
+    "deleting": {
+      "one": "Deleting {count} file",
+      "other": "Deleting {count} files"
+    },
+    "active": "Active",
+    "starting": "Starting…",
+    "file": {
+      "verifying": "Verifying",
+      "copying": "Copying",
+      "of": "{done} of {size}"
+    },
+    "smallFiles": {
+      "name": "Small files",
+      "of": "{done} of {total}",
+      "help": "Files under 8 MB. Many are copied at once, so they're counted together instead of getting a bar each."
+    },
+    "resume": "Resume",
+    "resumeHelp": "Carries on from where it paused (Space).",
+    "pause": "Pause",
+    "pauseHelp": {
+      "check": "Stops reading until you resume (Space).",
+      "copy": "Stops reading and writing until you resume (Space)."
+    },
+    "cancel": "Cancel",
+    "cancelHelp": {
+      "queue": "Asks first, then stops this job and the queue (⌘.).",
+      "job": "Asks first, then stops the job (⌘.)."
     }
   },
   "notify": {
@@ -205,6 +304,184 @@
     },
     "hint": {
       "more": "More about this"
+    },
+    "discard": {
+      "title": "Discard changes?",
+      "discard": "Discard",
+      "keep": "Keep editing",
+      "named": "Your changes to “{name}” aren't saved."
+    },
+    "back": "Back",
+    "export": "Export…",
+    "delete": "Delete…",
+    "revert": "Revert",
+    "save": "Save",
+    "choose": "Choose…"
+  },
+  "copy": {
+    "files": {
+      "one": "{count} file",
+      "other": "{count} files"
+    },
+    "systemSkipped": {
+      "one": "{count} system file skipped",
+      "other": "{count} system files skipped"
+    },
+    "systemHint": "Files computers leave behind, like .DS_Store, ._ files and Thumbs.db. They're never copied.",
+    "symlinksSkipped": {
+      "one": "{count} symlink skipped",
+      "other": "{count} symlinks skipped"
+    },
+    "queued": {
+      "one": "Added to the queue ({count} job).",
+      "other": "Added to the queue ({count} jobs)."
+    },
+    "status": {
+      "scanning": "Waiting for the scan…",
+      "checking": "Waiting for the destination check…",
+      "noSource": "Pick what to copy.",
+      "noDestination": "Choose where to copy to.",
+      "blocked": "Something above blocks the copy.",
+      "nothing": "Nothing to copy.",
+      "ready": "{files} · {size}"
+    },
+    "start": {
+      "help": "Copies {files} ({size}) to {path} (⌘↩).",
+      "helpVerify": "Copies {files} ({size}) to {path} and verifies them (⌘↩).",
+      "label": "Start"
+    },
+    "title": "New copy",
+    "from": "From",
+    "source": "Source",
+    "scanning": "Scanning…",
+    "unreadable": {
+      "one": "{count} item couldn't be read",
+      "other": "{count} items couldn't be read"
+    },
+    "dropSource": "Drop a directory or files here, or choose them.",
+    "choose": "Choose…",
+    "preset": "Preset",
+    "options": "Options",
+    "includeFolder": "Include the “{name}” directory",
+    "fileTypes": "File types",
+    "all": "All",
+    "none": "None",
+    "to": "To",
+    "destination": "Destination",
+    "checking": "Checking…",
+    "free": "{size} free · {kind}",
+    "dropDestination": "Drop the destination directory here, or choose it.",
+    "recent": "Recent destinations",
+    "recentPlaceholder": "Recent…",
+    "mode": "Mode",
+    "modeCopy": "Copy",
+    "modeVerify": "Copy & Verify",
+    "aboutVerifying": "About verifying",
+    "aboutVerifyingText": "Copy & Verify reads every copy back from the destination and checks it against the source's checksum; a copy that doesn't match is copied again. Copy only copies: faster, but nothing is checked.",
+    "addToQueue": "Add to queue",
+    "addToQueueHelp": "Adds this copy, as set up now, to the Queue; it runs when you start the queue.",
+    "preflight": {
+      "keepBoth": "Keep both",
+      "overwrite": "Overwrite",
+      "skip": "Skip",
+      "filesGoTo": "Files go to",
+      "notEmpty": {
+        "one": "Already contains {count} item. Identical files will be skipped.",
+        "other": "Already contains {count} items. Identical files will be skipped."
+      },
+      "problems": "Problems",
+      "willFail": {
+        "one": "{count} file will fail",
+        "other": "{count} files will fail"
+      },
+      "more": "and {count} more",
+      "identical": "Identical",
+      "identicalHint": "Files with the same name, size and date (within 2 seconds) as one already in the destination. They aren't copied or read.",
+      "identicalSkipped": {
+        "one": "{count} identical file will be skipped (not checked).",
+        "other": "{count} identical files will be skipped (not checked)."
+      },
+      "existing": "Existing files",
+      "existingHint": "Files with the same name as one already in the destination, but a different size or date. Keep both: the new one is copied with a number added to its name. Overwrite: the one there is replaced. Skip: the one there is left as it is.",
+      "differ": {
+        "one": "{count} file differs from what's there",
+        "other": "{count} files differ from what's there"
+      },
+      "leftovers": "Leftovers",
+      "stale": {
+        "one": "{count} unfinished file from an interrupted copy will be replaced.",
+        "other": "{count} unfinished files from an interrupted copy will be replaced."
+      }
     }
+  },
+  "presets": {
+    "none": "None",
+    "label": "Preset",
+    "new": "New preset…",
+    "changed": "Changed for this run",
+    "update": "Update",
+    "updateHelp": "Saves this source and these choices into the preset “{name}”.",
+    "saveAs": "Save as…",
+    "saveAsHelp": "Saves this source and these choices as a new preset.",
+    "name": "Name",
+    "namePlaceholder": "e.g. Sony FX3",
+    "cancel": "Cancel",
+    "save": "Save",
+    "discardNew": "Your changes to the new preset aren't saved.",
+    "delete": {
+      "message": "The preset “{name}” is deleted. Its source and the copies are not touched.",
+      "title": "Delete preset?",
+      "ok": "Delete",
+      "keep": "Keep"
+    },
+    "title": "Copy presets",
+    "all": "All presets",
+    "addNew": "+ New preset",
+    "newTitle": "New preset",
+    "about": "About copy presets",
+    "empty": {
+      "what": "A copy preset saves a source and its settings (whether that directory itself is copied, and which file types), so a copy you do often is set up in one step: choose the preset in the main window.",
+      "how": "Create one with “+ New preset”, or with “Save as…” in the main window."
+    },
+    "unsaved": "Unsaved changes",
+    "editor": {
+      "name": "Name",
+      "source": "Source",
+      "sourcePlaceholder": "e.g. /Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
+      "options": "Options",
+      "includeNamed": "Include the “{name}” directory",
+      "includePicked": "Include the picked directory itself",
+      "fileTypes": "File types",
+      "allTypes": "All types",
+      "onlyThese": "Only these",
+      "addType": "Add a file type",
+      "addTypePlaceholder": "+ add type",
+      "atLeastOne": "Add at least one file type.",
+      "pickSource": "Source",
+      "noExtension": "(no extension)"
+    }
+  },
+  "finished": {
+    "title": "Finished",
+    "status": {
+      "verified": "✓ Verified",
+      "copied": "✓ Copied",
+      "skipped": "Skipped",
+      "failed": "✗ Failed",
+      "cancelled": "Cancelled",
+      "intact": "✓ Intact",
+      "changed": "✗ Changed",
+      "missing": "✗ Missing"
+    },
+    "failedOnly": "Failed only",
+    "column": {
+      "file": "File",
+      "size": "Size",
+      "time": "Time",
+      "speed": "Speed",
+      "checksum": "Checksum",
+      "status": "Status"
+    },
+    "label": "Finished files"
   }
 }
