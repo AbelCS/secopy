@@ -1,12 +1,13 @@
 <script lang="ts">
   // Mirror presets (RFD §5.8, FR-44): the list on the left, the selected one on the right.
   // A saved preset is previewed (then run) or added to the queue; an edited one is saved first.
+  import { t } from "../lib/i18n";
   import type { Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { MirrorPreset, MirrorPresetInput, MirrorPreviewView, QueueView } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
-  import { formatCount, messageOf, plural } from "../lib/format";
+  import { messageOf } from "../lib/format";
   import Button from "../lib/ui/Button.svelte";
   import EmptyState from "../lib/ui/EmptyState.svelte";
   import Notice from "../lib/ui/Notice.svelte";
@@ -55,14 +56,20 @@
   /** "Discard changes?" is open: another click doesn't ask a second time. */
   let asking = false;
 
+  /** "Discard changes?" for the mirror being edited. */
+  function askDiscard(): Promise<boolean> {
+    const message =
+      selectedId === NEW ? t("mirror.discardNew") : t("ui.discard.named", { name: selected?.name ?? "" });
+    return api.confirm(message, t("ui.discard.title"), t("ui.discard.discard"), t("ui.discard.keep"));
+  }
+
   /** Whether it's fine to leave: asks when the mirror being edited has unsaved changes. */
   export async function mayLeave(): Promise<boolean> {
     if (!changed) return true;
     if (asking) return false;
-    const which = selectedId === NEW ? "the new mirror" : `“${selected?.name ?? ""}”`;
     asking = true;
     try {
-      return await api.confirm(`Your changes to ${which} aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+      return await askDiscard();
     } finally {
       asking = false;
     }
@@ -71,11 +78,10 @@
   async function select(id: string) {
     if (id === selectedId || asking) return;
     if (changed) {
-      const which = selectedId === NEW ? "the new mirror" : `“${selected?.name ?? ""}”`;
       asking = true;
       let discard: boolean;
       try {
-        discard = await api.confirm(`Your changes to ${which} aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+        discard = await askDiscard();
       } finally {
         asking = false;
       }
@@ -132,7 +138,7 @@
       asking = true;
       let discard: boolean;
       try {
-        discard = await api.confirm(`Your changes to “${preset.name}” aren't saved.`, "Discard changes?", "Discard", "Keep editing");
+        discard = await askDiscard();
       } finally {
         asking = false;
       }
@@ -153,10 +159,10 @@
 
   async function remove(p: MirrorPreset) {
     const sure = await api.confirm(
-      `The mirror “${p.name}” is deleted. Its origin, destination and archive are not touched.`,
-      "Delete mirror?",
-      "Delete",
-      "Keep",
+      t("mirror.delete.message", { name: p.name }),
+      t("mirror.delete.title"),
+      t("mirror.delete.ok"),
+      t("mirror.delete.keep"),
     );
     if (!sure) return;
     await act(async () => {
@@ -169,13 +175,13 @@
 
 <AppShell>
   {#snippet header()}
-    <ScreenHeader title="Mirror" />
+    <ScreenHeader title={t("mirror.title")} />
   {/snippet}
 
   {@render banner?.()}
   <div class="panes">
-    <Section title="All mirrors">
-      <nav class="list" aria-label="Mirrors">
+    <Section title={t("mirror.all")}>
+      <nav class="list" aria-label={t("mirror.list")}>
         {#each presets as p (p.id)}
           <button
             type="button"
@@ -189,11 +195,11 @@
             <span class="muted mono path" title={p.destination}><bdi>{p.destination}</bdi></span>
           </button>
         {/each}
-        <Button variant="link" onclick={() => select(NEW)}>+ New mirror</Button>
+        <Button variant="link" onclick={() => select(NEW)}>{t("mirror.addNew")}</Button>
       </nav>
     </Section>
 
-    <Section title={selectedId === NEW ? "New mirror" : (selected?.name ?? "About mirrors")}>
+    <Section title={selectedId === NEW ? t("mirror.newTitle") : (selected?.name ?? t("mirror.about"))}>
       {#if selectedId === NEW || selected}
         {#key editorKey}
           <MirrorEditor
@@ -207,12 +213,8 @@
         {/key}
       {:else}
         <EmptyState>
-          <p>
-            A mirror keeps a copy of a directory identical to it: new and changed files are copied and verified,
-            and files deleted in the origin are archived (or deleted) in the destination. Nothing is ever written
-            to the origin, and every run shows a preview first.
-          </p>
-          <p>Create one with “+ New mirror”.</p>
+          <p>{t("mirror.empty.what")}</p>
+          <p>{t("mirror.empty.how")}</p>
         </EmptyState>
       {/if}
       {#if said}<Notice tone="success">{said}</Notice>{/if}
@@ -223,37 +225,37 @@
   {#snippet actions()}
     <ActionBar
       status={changed
-        ? "Unsaved changes"
+        ? t("mirror.unsaved")
         : compared
-          ? `Comparing contents: ${formatCount(compared.done)} of ${plural(compared.total, "file")}`
+          ? t("mirror.comparing", { done: compared.done, files: t("mirror.files", { count: compared.total }) })
           : previewing
-            ? "Working out the preview…"
+            ? t("mirror.previewing")
             : ""}
     >
       {#snippet start()}
         {#if selected && selectedId !== NEW}
-          <Button onclick={exportSelected}>Export…</Button>
-          <Button variant="danger" onclick={() => remove(selected)}>Delete…</Button>
+          <Button onclick={exportSelected}>{t("ui.export")}</Button>
+          <Button variant="danger" onclick={() => remove(selected)}>{t("ui.delete")}</Button>
         {/if}
       {/snippet}
       {#snippet end()}
         {#if editing}
-          <Button disabled={!changed} onclick={() => editor?.revert()}>Revert</Button>
-          <Button variant="primary" type="submit" form={FORM} disabled={!canSave}>Save</Button>
+          <Button disabled={!changed} onclick={() => editor?.revert()}>{t("ui.revert")}</Button>
+          <Button variant="primary" type="submit" form={FORM} disabled={!canSave}>{t("ui.save")}</Button>
         {:else if selected}
           {#if previewing}
-            <Button onclick={() => api.cancelMirrorPreview()}>Cancel</Button>
+            <Button onclick={() => api.cancelMirrorPreview()}>{t("ui.cancel")}</Button>
           {:else}
             <!-- A queued mirror is only its preset: it's previewed again at its turn. -->
             <Button
               disabled={busy}
-              help="Adds this mirror to the Queue; what to copy and remove is worked out again when it runs."
+              help={t("mirror.addToQueueHelp")}
               onclick={() => act(async () => onQueue(await api.addMirrorToQueue(selected.id)))}
             >
-              Add to queue
+              {t("mirror.addToQueue")}
             </Button>
           {/if}
-          <Button variant="primary" disabled={busy || previewing} onclick={() => preview(selected)}>Preview…</Button>
+          <Button variant="primary" disabled={busy || previewing} onclick={() => preview(selected)}>{t("mirror.preview.open")}</Button>
         {/if}
       {/snippet}
     </ActionBar>

@@ -1,10 +1,11 @@
 <script lang="ts">
   // The queue (RFD §5.7): the jobs saved with Add to queue, in the order they run, what to do
   // when one fails, and Start.
+  import { t } from "../lib/i18n";
   import { tick, type Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { OnFailure, QueueView } from "../lib/bindings";
-  import { messageOf, plural } from "../lib/format";
+  import { messageOf } from "../lib/format";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
@@ -55,49 +56,53 @@
   }
 
   async function clear() {
-    const sure = await api.confirm("Every job in the queue is removed.", "Clear the queue?", "Clear", "Keep");
+    const sure = await api.confirm(t("queue.clear.message"), t("queue.clear.title"), t("queue.clear.clear"), t("queue.clear.keep"));
     if (sure) await change(() => api.clearQueue());
   }
 </script>
 
 <AppShell>
   {#snippet header()}
-    <ScreenHeader title="Queue" />
+    <ScreenHeader title={t("queue.title")} />
   {/snippet}
 
   {@render banner?.()}
   {#if error}<Notice tone="danger">{error}</Notice>{/if}
 
-  <Section title="Queue">
+  <Section title={t("queue.title")}>
     {#if count === 0}
       <EmptyState>
-        <p>Nothing queued. Set up a copy, a mirror or a verify and press Add to queue: it runs here, one after another with the others.</p>
+        <p>{t("queue.empty")}</p>
       </EmptyState>
     {:else}
       <!-- role="list": Safari drops list semantics when the bullets are hidden. -->
-      <ol class="jobs" role="list" aria-label="Queued jobs">
+      <ol class="jobs" role="list" aria-label={t("queue.jobs")}>
         {#each queue.jobs as job, i (i)}
           <li class="job">
             <span class="number">{i + 1}</span>
             <div class="what">
               {#if job.supported && job.kind === "check"}
-                <span class="mode">Verify</span>
+                <span class="mode">{t("queue.mode.verify")}</span>
                 <span class="path mono" title={job.source}><bdi>{job.source}</bdi></span>
               {:else if job.supported}
-                <span class="mode">{job.kind === "mirror" ? `Mirror · ${job.name ?? ""}` : job.verify ? "Copy & Verify" : "Copy"}</span>
+                <span class="mode"
+                  >{job.kind === "mirror"
+                    ? t("queue.mode.mirror", { name: job.name ?? "" })
+                    : t(job.verify ? "queue.mode.copyVerify" : "queue.mode.copy")}</span
+                >
                 <!-- A long path keeps its end visible; <bdi> keeps its slashes in place. -->
                 <span class="path mono" title={job.source}><bdi>{job.source}</bdi></span>
                 <span class="arrow" aria-hidden="true">→</span>
                 <span class="path mono" title={job.destination}><bdi>{job.destination}</bdi></span>
               {:else}
-                <span class="mode">{job.kind === "mirror" ? "A mirror that was deleted" : "A job for a newer Secopy"}</span>
+                <span class="mode">{t(job.kind === "mirror" ? "queue.unsupported.mirror" : "queue.unsupported.newer")}</span>
               {/if}
               {#if job.lastError}<Notice tone="danger">{job.lastError}</Notice>{/if}
             </div>
             <div class="buttons">
-              <Button aria-label="Move job {i + 1} up" disabled={i === 0} onclick={() => move(i, i - 1)}>↑</Button>
-              <Button aria-label="Move job {i + 1} down" disabled={i === count - 1} onclick={() => move(i, i + 1)}>↓</Button>
-              <Button aria-label="Remove job {i + 1}" onclick={() => change(() => api.removeFromQueue(i))}>✕</Button>
+              <Button aria-label={t("queue.moveUp", { number: i + 1 })} disabled={i === 0} onclick={() => move(i, i - 1)}>↑</Button>
+              <Button aria-label={t("queue.moveDown", { number: i + 1 })} disabled={i === count - 1} onclick={() => move(i, i + 1)}>↓</Button>
+              <Button aria-label={t("queue.remove", { number: i + 1 })} onclick={() => change(() => api.removeFromQueue(i))}>✕</Button>
             </div>
           </li>
         {/each}
@@ -106,13 +111,13 @@
   </Section>
 
   {#if count > 0}
-    <Section title="If a job fails">
+    <Section title={t("queue.onFailure.title")}>
       <RadioGroup
-        legend="If a job fails"
+        legend={t("queue.onFailure.title")}
         hideLegend
         options={[
-          { value: "continue" as OnFailure, label: "Continue with the next job" },
-          { value: "stop" as OnFailure, label: "Stop the queue" },
+          { value: "continue" as OnFailure, label: t("queue.onFailure.continue") },
+          { value: "stop" as OnFailure, label: t("queue.onFailure.stop") },
         ]}
         value={queue.onFailure}
         onChange={(v) => change(() => api.setQueueOnFailure(v))}
@@ -121,21 +126,21 @@
   {/if}
 
   {#snippet actions()}
-    <ActionBar status={count > 0 ? plural(count, "job") : ""}>
+    <ActionBar status={count > 0 ? t("queue.count", { count }) : ""}>
       {#snippet start()}
         <Button
           variant="danger"
           disabled={count === 0}
-          help="Removes every job from the queue, after asking."
-          onclick={clear}>Clear…</Button
+          help={t("queue.clearHelp")}
+          onclick={clear}>{t("queue.clearButton")}</Button
         >
       {/snippet}
       {#snippet end()}
         <Button
           variant="primary"
           disabled={count === 0}
-          help={count === 1 ? "Runs the one job in the queue." : `Runs the ${plural(count, "job")} one after another.`}
-          onclick={onRun}>Start</Button
+          help={t("queue.startHelp", { count })}
+          onclick={onRun}>{t("queue.start")}</Button
         >
       {/snippet}
     </ActionBar>

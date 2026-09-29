@@ -1,6 +1,7 @@
 <script lang="ts">
   // One mirror preset's fields (FR-44): its name, origin and destination, what happens to
   // files deleted in the origin, and the deep check. Problems show next to their field.
+  import { t } from "../lib/i18n";
   import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { DeletedMode, MirrorPreset, MirrorPresetInput } from "../lib/bindings";
@@ -80,7 +81,7 @@
   }
 
   async function choose(which: "origin" | "destination") {
-    const path = await api.pickDirectory(which === "origin" ? "Origin" : "Destination");
+    const path = await api.pickDirectory(t(which === "origin" ? "mirror.editor.origin" : "mirror.editor.destination"));
     if (path === null) return;
     if (which === "origin") origin = path;
     else destination = path;
@@ -111,41 +112,47 @@
 </script>
 
 <form id={formId} class="editor" onsubmit={save}>
-  <FormRow label="Name">
-    <TextField label="Name" hideLabel bind:value={name} error={nameProblem} placeholder="e.g. Footage → NAS" />
+  <FormRow label={t("mirror.editor.name")}>
+    <TextField
+      label={t("mirror.editor.name")}
+      hideLabel
+      bind:value={name}
+      error={nameProblem}
+      placeholder={t("mirror.editor.namePlaceholder")}
+    />
   </FormRow>
 
-  <FormRow label="Origin">
+  <FormRow label={t("mirror.editor.origin")}>
     <TextField
-      label="Origin"
+      label={t("mirror.editor.origin")}
       hideLabel
       bind:value={origin}
       error={originProblem}
       mono
-      placeholder="e.g. /Volumes/SSD/Footage"
+      placeholder={t("mirror.editor.originPlaceholder")}
     />
-    {#snippet aside()}<Button onclick={() => choose("origin")}>Choose…</Button>{/snippet}
+    {#snippet aside()}<Button onclick={() => choose("origin")}>{t("ui.choose")}</Button>{/snippet}
   </FormRow>
 
-  <FormRow label="Destination">
+  <FormRow label={t("mirror.editor.destination")}>
     <TextField
-      label="Destination"
+      label={t("mirror.editor.destination")}
       hideLabel
       bind:value={destination}
       error={destinationProblem}
       mono
-      placeholder="e.g. /Volumes/Media/Footage"
+      placeholder={t("mirror.editor.destinationPlaceholder")}
     />
-    {#snippet aside()}<Button onclick={() => choose("destination")}>Choose…</Button>{/snippet}
+    {#snippet aside()}<Button onclick={() => choose("destination")}>{t("ui.choose")}</Button>{/snippet}
   </FormRow>
 
-  <FormRow label="Deleted files">
+  <FormRow label={t("mirror.editor.deleted")}>
     <RadioGroup
-      legend="Files deleted in the origin"
+      legend={t("mirror.editor.deletedLegend")}
       hideLegend
       options={[
-        { value: "archive" as DeletedMode, label: "Archive them" },
-        { value: "delete" as DeletedMode, label: "Delete them" },
+        { value: "archive" as DeletedMode, label: t("mirror.editor.archive") },
+        { value: "delete" as DeletedMode, label: t("mirror.editor.delete") },
       ]}
       value={mode}
       onChange={(v) => (mode = v)}
@@ -153,31 +160,27 @@
     {#if mode === "archive"}
       <div class="days">
         <TextField
-          label="Days to keep"
+          label={t("mirror.editor.days")}
           type="number"
           min="1"
           bind:value={days}
-          help="In a hidden .secopy-archive directory on the destination, then removed."
+          help={t("mirror.editor.daysHelp")}
         />
       </div>
     {:else}
-      <p class="muted">Files deleted in the origin are deleted in the destination too. This can't be undone.</p>
+      <p class="muted">{t("mirror.editor.deleteNote")}</p>
     {/if}
   </FormRow>
 
-  <FormRow label="Checking">
-    <p class="note">
-      New and changed files are always verified after copying: read back from the destination and compared by
-      checksum.
-    </p>
+  <FormRow label={t("mirror.editor.checking")}>
+    <p class="note">{t("mirror.editor.verifyNote")}</p>
     <Checkbox
-      label="Also compare unchanged files byte for byte"
+      label={t("mirror.editor.deepCheck")}
       checked={deepCheck}
       onChange={(on) => (deepCheck = on)}
     >
       {#snippet help()}
-        Files with the same size and date are normally left alone. This reads both copies in full to catch a
-        damaged or silently changed file in the backup. Slow on big libraries.
+        {t("mirror.editor.deepCheckHelp")}
       {/snippet}
     </Checkbox>
   </FormRow>

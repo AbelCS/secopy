@@ -1,10 +1,11 @@
 <script lang="ts">
   // Verify (plan 8, FR-34): choose the directory of a copy, or a whole drive; every file its
   // checksum files list is read again and compared. Nothing is written to it.
+  import { t } from "../lib/i18n";
   import { onMount, type Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { CheckView, QueueView } from "../lib/bindings";
-  import { formatBytes, messageOf, plural } from "../lib/format";
+  import { formatBytes, messageOf } from "../lib/format";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
@@ -68,36 +69,39 @@
 </script>
 
 <AppShell>
-  {#snippet header()}<ScreenHeader title="Verify" />{/snippet}
+  {#snippet header()}<ScreenHeader title={t("verify.title")} />{/snippet}
 
   {@render banner?.()}
-  <Section title="Directory">
+  <Section title={t("verify.directory")}>
     <div data-drop="verify">
-      <FormRow label="Directory">
+      <FormRow label={t("verify.directory")}>
         {#if view}
           <p class="mono path">{view.directory}</p>
           {#if view.files > 0}
             <p class="muted">
-              {plural(view.checksumFiles, "checksum file")} · {plural(view.files, "file")} listed · {formatBytes(view.bytes)}
-              · {plural(view.notChecked, "file")} not listed
+              {[
+                t("verify.found.checksumFiles", { count: view.checksumFiles }),
+                t("verify.found.listed", { count: view.files }),
+                formatBytes(view.bytes),
+                t("verify.found.notListed", { count: view.notChecked }),
+              ].join(t("format.dot"))}
             </p>
           {/if}
         {:else}
           <p class="muted">
-            Choose the directory of a copy, or a whole drive: Secopy reads every file its checksum files list and
-            compares it. Nothing is written to it.
+            {t("verify.about")}
           </p>
         {/if}
         {#snippet aside()}
-          <Button disabled={checking} onclick={async () => choose(await api.pickDirectory("Directory to verify"))}>
-            Choose…
+          <Button disabled={checking} onclick={async () => choose(await api.pickDirectory(t("verify.pick")))}>
+            {t("ui.choose")}
           </Button>
         {/snippet}
       </FormRow>
     </div>
     {#if view && view.files === 0}
       <Notice tone="warning">
-        No checksum files here: there's nothing to verify. Secopy writes one with every copy and every mirror.
+        {t("verify.nothing")}
       </Notice>
     {/if}
     {#if view && view.problems.length > 0}
@@ -113,16 +117,16 @@
       {#snippet end()}
         <Button
           disabled={!ready}
-          help="Adds this directory to the Queue; it's verified when the queue gets to it."
-          onclick={queue}>Add to queue</Button
+          help={t("verify.addToQueueHelp")}
+          onclick={queue}>{t("verify.addToQueue")}</Button
         >
         <Button
           variant="primary"
           disabled={!ready}
           help={view
-            ? `Reads the ${plural(view.files, "listed file")} (${formatBytes(view.bytes)}) and compares each with its checksum; nothing is written.`
+            ? t("verify.startHelp", { count: view.files, size: formatBytes(view.bytes) })
             : ""}
-          onclick={() => view && onStart(view.directory)}>Start</Button
+          onclick={() => view && onStart(view.directory)}>{t("verify.start")}</Button
         >
       {/snippet}
     </ActionBar>

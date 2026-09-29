@@ -1,6 +1,7 @@
 <script lang="ts">
   // Settings (RFD §5.5): what every job does. Changes apply when saved; Cancel (or Esc) drops
   // them. Copy presets have their own screen.
+  import { t, tParts } from "../lib/i18n";
   import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { Snippet } from "svelte";
@@ -42,7 +43,7 @@
   /** Whether it's fine to leave: asks when there are unsaved changes (Import opens over it). */
   export async function mayLeave(): Promise<boolean> {
     if (!changed) return true;
-    return await api.confirm("Your changes to the settings aren't saved.", "Discard changes?", "Discard", "Keep editing");
+    return await api.confirm(t("settings.discard"), t("ui.discard.title"), t("ui.discard.discard"), t("ui.discard.keep"));
   }
 
   async function save() {
@@ -58,60 +59,60 @@
   }
 </script>
 
+{#snippet withCode(parts: { text: string; value: boolean }[])}
+  {#each parts as p, i (i)}{#if p.value}<span class="mono">{p.text}</span>{:else}{p.text}{/if}{/each}
+{/snippet}
+
 <!-- A held Esc repeats: only the first press counts. -->
 <svelte:window onkeydown={(e) => e.key === "Escape" && !e.repeat && onDone()} />
 
 <AppShell>
-  {#snippet header()}<ScreenHeader title="Settings" />{/snippet}
+  {#snippet header()}<ScreenHeader title={t("settings.title")} />{/snippet}
 
   {#if banner}{@render banner()}{/if}
 
-  <Section title="Every copy">
+  <Section title={t("settings.everyCopy")}>
     <div class="options">
       <Checkbox
-        label="Write the checksum file to the destination"
+        label={t("settings.checksumFile.label")}
         checked={draft.writeChecksumFile}
         onChange={(on) => (draft.writeChecksumFile = on)}
       >
         {#snippet help()}
-          A <span class="mono">secopy_….xxh64</span> file lists every copied file with its checksum, so the copy
-          can be checked again later, for example with <span class="mono">xxhsum -c</span>.
+          {@render withCode(tParts("settings.checksumFile.help", { file: "secopy_….xxh64", command: "xxhsum -c" }))}
         {/snippet}
       </Checkbox>
       <Checkbox
-        label="Show the count of skipped system files"
+        label={t("settings.systemCount.label")}
         checked={draft.showSystemCount}
         onChange={(on) => (draft.showSystemCount = on)}
       >
         {#snippet help()}
-          Files computers leave behind (<span class="mono">.DS_Store</span>, <span class="mono">._*</span>,
-          <span class="mono">Thumbs.db</span>…) are never copied; this only shows how many were skipped. Every
-          other file is copied, hidden or not.
+          {@render withCode(tParts("settings.systemCount.help", { a: ".DS_Store", b: "._*", c: "Thumbs.db" }))}
         {/snippet}
       </Checkbox>
       <Checkbox
-        label="Also save the job report next to the checksum file"
+        label={t("settings.report.label")}
         checked={draft.reportNextToChecksum}
         disabled={!draft.writeChecksumFile}
         onChange={(on) => (draft.reportNextToChecksum = on)}
       >
-        {#snippet help()}Every job's report is also kept in the app; this adds a copy next to the checksum file.{/snippet}
+        {#snippet help()}{t("settings.report.help")}{/snippet}
       </Checkbox>
       <Checkbox
-        label="Notify when a copy finishes"
+        label={t("settings.notify.label")}
         checked={draft.notifyWhenDone}
         onChange={(on) => (draft.notifyWhenDone = on)}
       >
-        {#snippet help()}Only when Secopy's window isn't in front. macOS asks for permission the first time.{/snippet}
+        {#snippet help()}{t("settings.notify.help")}{/snippet}
       </Checkbox>
       <Checkbox
-        label="Keep copying in the menu bar when the window is closed"
+        label={t("settings.menuBar.label")}
         checked={draft.keepInMenuBar}
         onChange={(on) => (draft.keepInMenuBar = on)}
       >
         {#snippet help()}
-          Closing the window during a job hides it; a menu bar icon shows the progress and brings it back. When off,
-          closing asks to stop the job.
+          {t("settings.menuBar.help")}
         {/snippet}
       </Checkbox>
     </div>
@@ -119,25 +120,25 @@
   </Section>
 
   {#if onExport || onImport}
-    <Section title="Settings and presets">
-      <p class="muted">Move your settings and presets to a new Mac, or share presets, in a .secopy file.</p>
+    <Section title={t("settings.transfer.title")}>
+      <p class="muted">{t("settings.transfer.about")}</p>
       <div class="transfer">
         {#if onExport}
           <Button
-            help={changed ? "Exports your saved settings; save first to include these changes." : ""}
-            onclick={onExport}>Export…</Button
+            help={changed ? t("settings.transfer.exportHelp") : ""}
+            onclick={onExport}>{t("ui.export")}</Button
           >
         {/if}
-        {#if onImport}<Button onclick={onImport}>Import…</Button>{/if}
+        {#if onImport}<Button onclick={onImport}>{t("ui.importFile")}</Button>{/if}
       </div>
     </Section>
   {/if}
 
   {#snippet actions()}
     <ActionBar>
-      {#snippet start()}<Button onclick={onDone}>Cancel</Button>{/snippet}
+      {#snippet start()}<Button onclick={onDone}>{t("ui.cancel")}</Button>{/snippet}
       {#snippet end()}
-        <Button variant="primary" disabled={!changed || saving} onclick={save}>Save</Button>
+        <Button variant="primary" disabled={!changed || saving} onclick={save}>{t("ui.save")}</Button>
       {/snippet}
     </ActionBar>
   {/snippet}

@@ -1,6 +1,7 @@
 <script lang="ts">
   // Import (#77): what a .secopy file holds, against what this Mac has. Nothing changes
   // until Import; Back leaves everything as it was.
+  import { t } from "../lib/i18n";
   import type { Snippet } from "svelte";
   import type { ImportChoices, ImportView, PresetImport } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -67,17 +68,17 @@
             <Checkbox label={p.name} checked={state[i].on} disabled={!!p.problem} onChange={(on) => (state[i].on = on)} />
             {#each p.paths as path (path)}<p class="note mono">{path}</p>{/each}
             {#if p.problem}<p class="note problem">{p.problem}</p>{/if}
-            {#each p.missing as path (path)}<p class="note">{path} isn't connected now.</p>{/each}
+            {#each p.missing as path (path)}<p class="note">{t("import.notConnected", { path })}</p>{/each}
             {#if !p.clash && !p.problem && p.newName !== p.name}
-              <p class="note">Imported as “{p.newName}”: the file has this name twice.</p>
+              <p class="note">{t("import.renamed", { name: p.newName })}</p>
             {/if}
             {#if p.clash && !p.problem}
               <div class="choice">
               <RadioGroup
-                legend="You already have “{p.clash}”"
+                legend={t("import.clash", { name: p.clash })}
                 options={[
-                  { value: false, label: `Keep both, as “${p.newName}”` },
-                  { value: true, label: "Replace yours" },
+                  { value: false, label: t("import.keepBoth", { name: p.newName }) },
+                  { value: true, label: t("import.replace") },
                 ]}
                 value={state[i].replace}
                 onChange={(v) => (state[i].replace = v)}
@@ -92,30 +93,30 @@
 {/snippet}
 
 <AppShell>
-  {#snippet header()}<ScreenHeader title="Import" />{/snippet}
+  {#snippet header()}<ScreenHeader title={t("import.title")} />{/snippet}
 
   {#if banner}{@render banner()}{/if}
   <p class="file mono">{view.fileName}</p>
 
   {#if view.settings}
-    <Section title="Settings">
+    <Section title={t("import.settings")}>
       {#if view.settings.problem}
         <p class="problem">{view.settings.problem}</p>
       {:else if view.settings.changes.length === 0}
-        <p class="note">Same as yours</p>
+        <p class="note">{t("import.sameSettings")}</p>
       {:else}
-        <Checkbox label="Import the settings" checked={settingsOn} onChange={(on) => (settingsOn = on)} />
+        <Checkbox label={t("import.importSettings")} checked={settingsOn} onChange={(on) => (settingsOn = on)} />
         <ul class="changes">{#each view.settings.changes as c (c)}<li>{c}</li>{/each}</ul>
       {/if}
     </Section>
   {/if}
-  {@render presets("Copy presets", view.copyPresets, copy)}
-  {@render presets("Mirror presets", view.mirrorPresets, mirrors)}
+  {@render presets(t("import.copyPresets"), view.copyPresets, copy)}
+  {@render presets(t("import.mirrorPresets"), view.mirrorPresets, mirrors)}
 
   {#snippet actions()}
     <ActionBar>
-      {#snippet start()}<Button icon="chevron-left" onclick={onBack}>Back</Button>{/snippet}
-      {#snippet end()}<Button variant="primary" disabled={!any || importing} onclick={importChosen}>Import</Button>{/snippet}
+      {#snippet start()}<Button icon="chevron-left" onclick={onBack}>{t("ui.back")}</Button>{/snippet}
+      {#snippet end()}<Button variant="primary" disabled={!any || importing} onclick={importChosen}>{t("import.import")}</Button>{/snippet}
     </ActionBar>
   {/snippet}
 </AppShell>

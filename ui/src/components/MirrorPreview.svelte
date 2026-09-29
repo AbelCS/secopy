@@ -1,9 +1,10 @@
 <script lang="ts">
   // What a mirror would do (FR-47): the counts, every file by kind, and what looks wrong
   // (FR-50). Start runs exactly this.
+  import { t } from "../lib/i18n";
   import { useApi } from "../lib/api";
   import type { MirrorPreviewView, PreviewKind, PreviewRow, QueueView } from "../lib/bindings";
-  import { formatBytes, formatCount, messageOf, plural } from "../lib/format";
+  import { formatBytes, messageOf } from "../lib/format";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
@@ -26,8 +27,6 @@
   } = $props();
 
   const api = useApi();
-  /** A queued mirror is only its preset: it's previewed again at its turn. */
-  const QUEUE_HELP = "Adds this mirror to the Queue; what to copy and remove is worked out again when it runs.";
   const PAGE = 500;
   type Shown = "all" | PreviewKind;
   let shown = $state<Shown>("all");
@@ -60,25 +59,26 @@
 
   /** Start's help: what it copies, then what it does with files gone from the origin (FR-48, FR-49). */
   const startHelp = $derived.by(() => {
-    const copied = [
-      preview.newFiles > 0 ? `${formatCount(preview.newFiles)} new` : "",
-      preview.changedFiles > 0 ? `${formatCount(preview.changedFiles)} changed` : "",
-    ].filter(Boolean);
-    const copies = preview.newFiles + preview.changedFiles;
-    const parts = [
-      copies > 0 ? `copies and verifies ${copied.join(" and ")} ${copies === 1 ? "file" : "files"}` : "",
-      preview.removedFiles > 0
-        ? `${preview.archiveDays === null ? "deletes" : "archives"} ${plural(preview.removedFiles, "file")} gone from the origin`
-        : "",
-    ].filter(Boolean);
-    if (parts.length === 0) return "";
-    const text = parts.join(", then ");
-    return `${text[0].toUpperCase()}${text.slice(1)}.`;
+    const { newFiles, changedFiles, removedFiles } = preview;
+    const copied =
+      newFiles > 0 && changedFiles > 0
+        ? t("mirror.preview.copied.both", { new: newFiles, changed: changedFiles, count: newFiles + changedFiles })
+        : newFiles > 0
+          ? t("mirror.preview.copied.new", { count: newFiles })
+          : t("mirror.preview.copied.changed", { count: changedFiles });
+    const removed = t("mirror.files", { count: removedFiles });
+    const archive = preview.archiveDays !== null;
+    if (newFiles + changedFiles === 0) {
+      if (removedFiles === 0) return "";
+      return t(archive ? "mirror.preview.startHelp.archive" : "mirror.preview.startHelp.delete", { removed });
+    }
+    if (removedFiles === 0) return t("mirror.preview.startHelp.copy", { copied });
+    return t(archive ? "mirror.preview.startHelp.copyArchive" : "mirror.preview.startHelp.copyDelete", { copied, removed });
   });
 
   async function run() {
     if (preview.guard) {
-      const sure = await api.confirm(preview.guard, "Run the mirror anyway?", "Run", "Cancel");
+      const sure = await api.confirm(preview.guard, t("mirror.preview.guard.title"), t("mirror.preview.guard.run"), t("mirror.preview.guard.cancel"));
       if (!sure) return;
     }
     onRun();
@@ -108,44 +108,42 @@
   {#if preview.guard}<Notice tone="warning">{preview.guard}</Notice>{/if}
   {#if error}<Notice tone="danger">{error}</Notice>{/if}
 
-  <Section title="Changes">
+  <Section title={t("mirror.preview.changes")}>
     {#if inSync}
-      <p>Already in sync.</p>
+      <p>{t("mirror.preview.inSync")}</p>
     {:else}
       <ul class="counts">
-        <li><span class="sign" aria-hidden="true">+</span><span>{formatCount(preview.newFiles)} new</span>
+        <li><span class="sign" aria-hidden="true">+</span><span>{t("mirror.preview.new", { count: preview.newFiles })}</span>
           <span class="muted">{formatBytes(preview.newBytes)}</span></li>
-        <li><span class="sign" aria-hidden="true">↻</span><span>{formatCount(preview.changedFiles)} changed</span>
+        <li><span class="sign" aria-hidden="true">↻</span><span>{t("mirror.preview.changed", { count: preview.changedFiles })}</span>
           <span class="muted">{formatBytes(preview.changedBytes)}</span></li>
         <li><span class="sign" aria-hidden="true">−</span><span>
-          {formatCount(preview.removedFiles)} deleted in the origin →
-          {#if preview.archiveDays === null}deleted{:else}<Hint
-              text="Moved into the hidden .secopy-archive directory in the destination, and removed for good after {formatCount(
-                preview.archiveDays,
-              )} days."
-              >archived, kept {formatCount(preview.archiveDays)} days</Hint
+          {t("mirror.preview.removed", { count: preview.removedFiles })}
+          {#if preview.archiveDays === null}{t("mirror.preview.deleted")}{:else}<Hint
+              text={t("mirror.preview.archivedHelp", { days: preview.archiveDays })}
+              >{t("mirror.preview.archived", { days: preview.archiveDays })}</Hint
             >{/if}
         </span></li>
         {#if preview.failing > 0}
           <li class="failing"><span class="sign" aria-hidden="true">✗</span><span>
-            {plural(preview.failing, "file")} will fail: a name the destination can't take, or something in the way
+            {t("mirror.preview.failing", { count: preview.failing })}
           </span></li>
         {/if}
       </ul>
     {/if}
-    <p class="muted unchanged">{formatCount(preview.unchanged)} unchanged</p>
+    <p class="muted unchanged">{t("mirror.preview.unchanged", { count: preview.unchanged })}</p>
   </Section>
 
   {#if !inSync}
-    <Section title="Files">
+    <Section title={t("mirror.preview.files")}>
       {#snippet aside()}
         <SegmentedControl
-          label="Show"
+          label={t("mirror.preview.show")}
           options={[
-            { value: "all" as Shown, label: "All" },
-            { value: "new" as Shown, label: "New" },
-            { value: "changed" as Shown, label: "Changed" },
-            { value: "removed" as Shown, label: "Deleted" },
+            { value: "all" as Shown, label: t("mirror.preview.shown.all") },
+            { value: "new" as Shown, label: t("mirror.preview.shown.new") },
+            { value: "changed" as Shown, label: t("mirror.preview.shown.changed") },
+            { value: "removed" as Shown, label: t("mirror.preview.shown.removed") },
           ]}
           value={shown}
           onChange={(v) => (shown = v)}
@@ -163,17 +161,18 @@
         </tbody>
       </table>
       {#if total > rows.length && rows.length === PAGE}
-        <p class="muted">and {formatCount(total - rows.length)} more</p>
+        <p class="muted">{t("mirror.preview.more", { count: total - rows.length })}</p>
       {/if}
     </Section>
   {/if}
 
   {#snippet actions()}
     <ActionBar>
-      {#snippet start()}<Button onclick={onCancel}>Cancel</Button>{/snippet}
+      {#snippet start()}<Button onclick={onCancel}>{t("ui.cancel")}</Button>{/snippet}
       {#snippet end()}
-        <Button disabled={busy} help={QUEUE_HELP} onclick={queue}>Add to queue</Button>
-        <Button variant="primary" disabled={inSync} help={startHelp} onclick={run}>Start</Button>
+        <!-- A queued mirror is only its preset: it's previewed again at its turn. -->
+        <Button disabled={busy} help={t("mirror.addToQueueHelp")} onclick={queue}>{t("mirror.addToQueue")}</Button>
+        <Button variant="primary" disabled={inSync} help={startHelp} onclick={run}>{t("mirror.preview.start")}</Button>
       {/snippet}
     </ActionBar>
   {/snippet}
