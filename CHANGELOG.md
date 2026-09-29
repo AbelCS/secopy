@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.14.0](https://github.com/AbelCS/secopy/compare/v0.13.1...v0.14.0) (2026-09-29)
+
+
+### Features
+
+* **app:** commands, views and the saved queue speak in messages ([6050658](https://github.com/AbelCS/secopy/commit/60506582e93010850941b48641ce9cccf334f57a)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+* **app:** engine outcomes as messages ([652b9a9](https://github.com/AbelCS/secopy/commit/652b9a9738f147b33fb6904dd7ed327ac4adba68)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+* **app:** messages as codes: Message, msg! and say() ([8301a1e](https://github.com/AbelCS/secopy/commit/8301a1eca91b7d5d8fbeec7047af6dd555e11715)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+* **app:** native menus, the menu bar icon and the source panel in the app's language ([5af7248](https://github.com/AbelCS/secopy/commit/5af724887e58e430832e795e04a05f69f162e4ec)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+* **ui:** a message catalog and t() ([2e32d47](https://github.com/AbelCS/secopy/commit/2e32d47ad4b63082d016a53c5223b6ebd3af68e7)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+* **ui:** format numbers and sizes for the current locale ([1810c23](https://github.com/AbelCS/secopy/commit/1810c2368174ca254b0f54088c7a6f84084c6f74)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+
+
+### Bug Fixes
+
+* **app:** the review's findings on Rust's messages ([72aa7f7](https://github.com/AbelCS/secopy/commit/72aa7f798aeff6b224d3738a9b6cebdaa9b6d1ea)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+* **ui:** a preset with no name in an imported file says so ([9fdfab9](https://github.com/AbelCS/secopy/commit/9fdfab91bb76d7b124c378945e8d4f8daae8972d)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+* **ui:** the last written words move to the catalog; halves round as before ([a88ddb5](https://github.com/AbelCS/secopy/commit/a88ddb568287a1628df51c1e3196089a9fa8a473)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+* **ui:** the review's small issues ([0c7ec2b](https://github.com/AbelCS/secopy/commit/0c7ec2b1993d80745f95c2f4f22efd84aecdef90)), closes [#84](https://github.com/AbelCS/secopy/issues/84)
+
 ## [0.13.1](https://github.com/AbelCS/secopy/compare/v0.13.0...v0.13.1) (2026-09-29)
 
 
