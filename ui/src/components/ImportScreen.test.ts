@@ -17,6 +17,15 @@ const view = (over: Partial<ImportView> = {}): ImportView => ({
 });
 
 describe("ImportScreen", () => {
+  test("a preset with no name in the file says so", () => {
+    const unnamed = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("This part of the file can't be read.") };
+    render(ImportScreen, {
+      props: { view: view({ copyPresets: [unnamed], mirrorPresets: [unnamed] }), onImport: vi.fn(), onBack: () => {} },
+    });
+    screen.getByRole("checkbox", { name: "A copy preset with no name" });
+    screen.getByRole("checkbox", { name: "A mirror preset with no name" });
+  });
+
   test("shows what's in the file, what changes and what clashes", () => {
     render(ImportScreen, { props: { view: view(), onImport: vi.fn(), onBack: () => {} } });
     screen.getByRole("heading", { name: "Import" });

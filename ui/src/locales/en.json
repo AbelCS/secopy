@@ -599,6 +599,10 @@
       "report": "Save the report next to the checksum file",
       "notify": "Notify when a copy finishes",
       "menuBar": "Keep copying in the menu bar"
+    },
+    "noName": {
+      "copy": "A copy preset with no name",
+      "mirror": "A mirror preset with no name"
     }
   },
   "settings": {
