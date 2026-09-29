@@ -39,6 +39,94 @@ impl Message {
     pub fn raw(text: impl Into<String>) -> Message {
         crate::msg!("format.raw", text = text.into())
     }
+
+    /// The message in English, from the same catalog the UI reads: for what Rust shows
+    /// itself (menus, the menu bar icon) and for tests. Numbers and sizes read as the UI
+    /// shows them in English; a key the catalog lacks shows as itself.
+    pub fn english(&self) -> String {
+        static CATALOG: std::sync::LazyLock<serde_json::Value> = std::sync::LazyLock::new(|| {
+            serde_json::from_str(include_str!("../../../ui/src/locales/en.json"))
+                .expect("en.json is JSON")
+        });
+        let entry = self
+            .key
+            .split('.')
+            .try_fold(&*CATALOG, |node, part| node.get(part));
+        let text = match entry {
+            Some(serde_json::Value::String(text)) => text.as_str(),
+            Some(serde_json::Value::Object(forms)) => {
+                let one = matches!(self.args.get("count"), Some(Arg::Number(n)) if *n == 1.0);
+                let form = if one { "one" } else { "other" };
+                match forms.get(form).or_else(|| forms.get("other")) {
+                    Some(serde_json::Value::String(text)) => text.as_str(),
+                    _ => return self.key.clone(),
+                }
+            }
+            _ => return self.key.clone(),
+        };
+        let mut out = String::new();
+        let mut rest = text;
+        while let Some(open) = rest.find('{') {
+            out.push_str(&rest[..open]);
+            let after = &rest[open + 1..];
+            match after.find('}').map(|close| (&after[..close], close)) {
+                Some((name, close)) if self.args.contains_key(name) => {
+                    out.push_str(&self.args[name].english());
+                    rest = &after[close + 1..];
+                }
+                _ => {
+                    out.push('{');
+                    rest = after;
+                }
+            }
+        }
+        out.push_str(rest);
+        out
+    }
+}
+
+impl Arg {
+    fn english(&self) -> String {
+        match self {
+            Arg::Number(n) => grouped(*n),
+            Arg::Text(t) => t.clone(),
+            Arg::List(items) => items
+                .iter()
+                .map(Message::english)
+                .collect::<Vec<_>>()
+                .join(", "),
+            Arg::Size { bytes } => {
+                const UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
+                let (mut value, mut unit) = (*bytes, 0);
+                while value >= 1000.0 && unit < UNITS.len() - 1 {
+                    value /= 1000.0;
+                    unit += 1;
+                }
+                if unit == 0 {
+                    format!("{} B", grouped(*bytes))
+                } else {
+                    format!("{value:.1} {}", UNITS[unit])
+                }
+            }
+            Arg::Message(m) => m.english(),
+        }
+    }
+}
+
+/// 1284 → "1,284", as the UI's English number format.
+fn grouped(n: f64) -> String {
+    if n.fract() != 0.0 {
+        return n.to_string();
+    }
+    let digits = (n.abs() as u64).to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    if n < 0.0 { format!("-{out}") } else { out }
 }
 
 /// `msg!("errors.file.inTheWay", path = &p)`: a [`Message`] with a literal key, so the
@@ -128,6 +216,10 @@ fn calls(source: &str) -> Vec<(String, Vec<String>)> {
     let source = source.as_str();
     let mut found = Vec::new();
     for (start, _) in source.match_indices("msg!(") {
+        // `"msg!("` in a string is no call.
+        if source[..start].ends_with('"') {
+            continue;
+        }
         let rest = &source[start + "msg!(".len()..];
         let mut items = vec![String::new()];
         let mut depth = 0usize;
@@ -219,8 +311,135 @@ fn mismatches(calls: &[(String, Vec<String>)], catalog: &serde_json::Value) -> V
     out
 }
 
+/// Tests compare messages with the English the UI shows.
+#[cfg(test)]
+mod english_in_tests {
+    use super::Message;
+
+    impl PartialEq<&str> for Message {
+        fn eq(&self, other: &&str) -> bool {
+            self.english() == *other
+        }
+    }
+
+    impl PartialEq<str> for Message {
+        fn eq(&self, other: &str) -> bool {
+            self.english() == other
+        }
+    }
+
+    impl PartialEq<String> for Message {
+        fn eq(&self, other: &String) -> bool {
+            &self.english() == other
+        }
+    }
+
+    impl Message {
+        pub fn contains(&self, part: &str) -> bool {
+            self.english().contains(part)
+        }
+        pub fn starts_with(&self, part: &str) -> bool {
+            self.english().starts_with(part)
+        }
+        pub fn ends_with(&self, part: &str) -> bool {
+            self.english().ends_with(part)
+        }
+        pub fn is_empty(&self) -> bool {
+            self.english().is_empty()
+        }
+    }
+
+    impl std::fmt::Display for Message {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(&self.english())
+        }
+    }
+
+    /// `Some(message)` → `Some(its English)`.
+    pub trait En {
+        fn en(&self) -> Option<String>;
+    }
+
+    impl En for Option<Message> {
+        fn en(&self) -> Option<String> {
+            self.as_ref().map(Message::english)
+        }
+    }
+}
+
+#[cfg(test)]
+pub use english_in_tests::En;
+
 #[cfg(test)]
 mod tests {
+    /// #84: what the app does never depends on its English words.
+    #[test]
+    fn no_decision_is_made_on_english_text() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut found = Vec::new();
+        for entry in std::fs::read_dir(root).unwrap() {
+            let path = entry.unwrap().path();
+            let text = std::fs::read_to_string(&path).unwrap();
+            let code = text.split("\n#[cfg(test)]\nmod tests").next().unwrap();
+            for (i, line) in code.lines().enumerate() {
+                let english = [
+                    "strip_prefix(\"",
+                    "ends_with(\"",
+                    "full_stop(",
+                    "fn sentence(",
+                ]
+                .iter()
+                .any(|p| line.contains(p))
+                    || line.match_indices("starts_with(\"").any(|(at, p)| {
+                        line[at + p.len()..].starts_with(|c: char| c.is_ascii_uppercase())
+                    });
+                if english {
+                    found.push(format!("{}:{}: {}", path.display(), i + 1, line.trim()));
+                }
+            }
+        }
+        assert_eq!(found, Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_message_in_english_reads_as_the_ui_says_it() {
+        assert_eq!(
+            crate::msg!("errors.queue.running").english(),
+            "The queue is running."
+        );
+        assert_eq!(
+            crate::msg!("queue.reason.filesFailed", count = 1u32).english(),
+            "1 file failed."
+        );
+        assert_eq!(
+            crate::msg!("queue.reason.filesFailed", count = 1284u32).english(),
+            "1,284 files failed."
+        );
+        let space = crate::msg!(
+            "errors.blocker.notEnoughSpace",
+            needed = Size(212_400_000_000),
+            free = Size(999)
+        );
+        assert_eq!(
+            space.english(),
+            "Not enough free space: 212.4 GB needed, 999 B free"
+        );
+        let nested = crate::msg!(
+            "errors.file.readSource",
+            why = crate::msg!("errors.os.permissionDenied")
+        );
+        assert_eq!(nested.english(), "Cannot read source: Permission denied");
+        let parts = vec![
+            crate::msg!("queue.reason.part.changed", count = 2u32),
+            crate::msg!("queue.reason.part.missing", count = 1u32),
+        ];
+        assert_eq!(
+            crate::msg!("queue.reason.check", parts = parts).english(),
+            "2 changed, 1 missing."
+        );
+        assert_eq!(crate::msg!("no.such.key").english(), "no.such.key");
+    }
+
     use super::*;
     use std::path::Path;
 
@@ -313,7 +532,7 @@ mod tests {
             let path = entry.unwrap().path();
             if path.extension().is_some_and(|e| e == "rs") {
                 let text = std::fs::read_to_string(&path).unwrap();
-                let code = text.split("\n#[cfg(test)]").next().unwrap();
+                let code = text.split("\n#[cfg(test)]\nmod tests").next().unwrap();
                 all.extend(calls(code));
                 if path.file_name().unwrap() != "message.rs" {
                     // A struct literal, not a function returning one.

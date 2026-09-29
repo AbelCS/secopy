@@ -77,8 +77,8 @@
         menubarView: () =>
           Promise.resolve(
             page === "panel"
-              ? { heading: "Copying & verifying", from: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", to: "/Volumes/V001/Day01/CLIP", fraction: 0.42, percent: "42%", files: "44 of 106 files", speed: "850.0 MB/s", left: "3:12 left", paused: false, removing: false, ended: null }
-              : { heading: "Secopy", from: null, to: null, fraction: null, percent: "", files: "", speed: null, left: null, paused: false, removing: false, ended: { ok: true, text: "Finished: every file done" } },
+              ? { heading: { key: "menubar.heading.copyingVerifying", args: {} }, from: { key: "format.raw", args: { text: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP" } }, to: "/Volumes/V001/Day01/CLIP", fraction: 0.42, percent: 42, filesDone: 44, totalFiles: 106, speed: 850_000_000, leftMs: 192_000, paused: false, removing: false, ended: null }
+              : { heading: { key: "menubar.heading.secopy", args: {} }, from: null, to: null, fraction: null, percent: null, filesDone: 0, totalFiles: 0, speed: null, leftMs: null, paused: false, removing: false, ended: { ok: true, text: { key: "menubar.ended.complete", args: {} } } },
           ),
         onPanelView: () => Promise.resolve(() => {}),
       }}

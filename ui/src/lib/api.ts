@@ -38,14 +38,16 @@ import {
   type Settings,
   type StartView,
   type SummaryView,
+  type Message,
 } from "./bindings";
+import { AppError, say } from "./message";
 
-type Result<T> = { status: "ok"; data: T } | { status: "error"; error: string };
+type Result<T> = { status: "ok"; data: T } | { status: "error"; error: Message };
 
-/** Turns a command's error result into a thrown `Error` with the app's message. */
+/** Turns a command's error result into a thrown `AppError`: the app's message, in words. */
 export async function unwrap<T>(result: Promise<Result<T>>): Promise<T> {
   const r = await result;
-  if (r.status === "error") throw new Error(r.error);
+  if (r.status === "error") throw new AppError(r.error);
   return r.data;
 }
 
@@ -113,7 +115,7 @@ export const tauriApi = {
     channel.onmessage = onCompared;
     return unwrap(commands.previewMirror(id, channel));
   },
-  /** Stops a preview's deep check; the preview then fails with "Cancelled.". */
+  /** Stops a preview's deep check; the preview then fails with `errors.mirror.previewCancelled`. */
   cancelMirrorPreview: (): Promise<void> => commands.cancelMirrorPreview(),
   mirrorPreviewPage: (kind: PreviewKind | null, offset: number, limit: number): Promise<PreviewRow[]> =>
     unwrap(commands.mirrorPreviewPage(kind, offset, limit)),
@@ -160,9 +162,12 @@ export const tauriApi = {
     asList(await open({ directory: true, multiple: false, title }))?.[0] ?? null,
   pickDestination: async (): Promise<string | null> =>
     asList(await open({ directory: true, multiple: false, title: t("dialog.copyTo") }))?.[0] ?? null,
-  exportAll: (path: string, what: ExportWhat): Promise<string> => unwrap(commands.exportAll(path, what)),
-  exportCopyPreset: (id: string, path: string): Promise<string> => unwrap(commands.exportCopyPreset(id, path)),
-  exportMirrorPreset: (id: string, path: string): Promise<string> => unwrap(commands.exportMirrorPreset(id, path)),
+  /** What was exported, in words ("Exported 2 copy presets."). */
+  exportAll: (path: string, what: ExportWhat): Promise<string> => unwrap(commands.exportAll(path, what)).then(say),
+  exportCopyPreset: (id: string, path: string): Promise<string> =>
+    unwrap(commands.exportCopyPreset(id, path)).then(say),
+  exportMirrorPreset: (id: string, path: string): Promise<string> =>
+    unwrap(commands.exportMirrorPreset(id, path)).then(say),
   /** A .secopy file to import. */
   pickImportFile: async (): Promise<string | null> =>
     asList(

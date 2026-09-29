@@ -19,14 +19,18 @@ use tauri::{
 use crate::commands::AppState;
 use crate::dto::{JobOutcome, JobPhase, ProgressView, QueueEvent, QueueResult};
 use crate::lock;
+use crate::message::Message;
+use crate::msg;
 
 /// A job the icon follows: what it does, from where to where, its place in a queue, and its
 /// last progress.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Running {
     /// "Copying & verifying", "Mirroring Footage", "Verifying".
-    pub heading: String,
-    pub from: Option<String>,
+    pub heading: Message,
+    /// A queue checking its next job: the heading says so, without "Job n of m" before it.
+    pub waiting: bool,
+    pub from: Option<Message>,
     pub to: Option<String>,
     /// (job n, of m) in a queue run.
     pub queue: Option<(u32, u32)>,
@@ -35,33 +39,35 @@ pub struct Running {
     pub view: ProgressView,
 }
 
+// One at a time, for a moment: its size doesn't matter.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Status {
     Running(Running),
     /// How it ended; `why` for a stop.
     Finished {
         outcome: JobOutcome,
-        why: Option<String>,
+        why: Option<Message>,
     },
 }
 
-/// What the panel under the icon shows.
+/// What the panel under the icon shows: figures and messages, in the UI's words.
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PanelView {
-    pub heading: String,
-    pub from: Option<String>,
+    pub heading: Message,
+    pub from: Option<Message>,
     pub to: Option<String>,
     /// Work done, 0–1; `None` before there is anything to count.
     pub fraction: Option<f64>,
-    /// "42%", or "…".
-    pub percent: String,
-    /// "44 of 106 files".
-    pub files: String,
-    /// "850.0 MB/s"; `None` until there is a speed.
-    pub speed: Option<String>,
-    /// "3:12 left".
-    pub left: Option<String>,
+    /// Whole percent done; `None` before there is anything to count ("…").
+    pub percent: Option<u32>,
+    pub files_done: u32,
+    pub total_files: u32,
+    /// Bytes a second; `None` until there is a speed.
+    pub speed: Option<f64>,
+    /// Milliseconds left; `None` until there is a speed.
+    pub left_ms: Option<f64>,
     pub paused: bool,
     /// A mirror archiving or deleting, or Cancel putting the destination back.
     pub removing: bool,
@@ -74,7 +80,7 @@ pub struct PanelView {
 pub struct Ended {
     /// Complete: every file done. Anything else is not.
     pub ok: bool,
-    pub text: String,
+    pub text: Message,
 }
 
 /// Work done and to do, in bytes, as the progress screen counts it.
@@ -117,14 +123,14 @@ pub fn title(s: &Status) -> String {
 }
 
 /// How a job ended, in words.
-fn ended_text(outcome: JobOutcome, why: Option<&str>) -> String {
+fn ended_text(outcome: JobOutcome, why: Option<&Message>) -> Message {
     match outcome {
-        JobOutcome::Complete => "Finished: every file done".into(),
-        JobOutcome::Failures => "Finished with problems".into(),
-        JobOutcome::Cancelled => "Cancelled".into(),
+        JobOutcome::Complete => msg!("menubar.ended.complete"),
+        JobOutcome::Failures => msg!("menubar.ended.failures"),
+        JobOutcome::Cancelled => msg!("menubar.ended.cancelled"),
         JobOutcome::Stopped => match why {
-            Some(why) => format!("Stopped: {why}"),
-            None => "Stopped".into(),
+            Some(why) => msg!("menubar.ended.stoppedBecause", why = why),
+            None => msg!("menubar.ended.stopped"),
         },
     }
 }
@@ -133,37 +139,40 @@ fn ended_text(outcome: JobOutcome, why: Option<&str>) -> String {
 pub fn panel(s: &Status) -> PanelView {
     match s {
         Status::Finished { outcome, why } => PanelView {
-            heading: "Secopy".into(),
+            heading: msg!("menubar.heading.secopy"),
             from: None,
             to: None,
             fraction: None,
-            percent: String::new(),
-            files: String::new(),
+            percent: None,
+            files_done: 0,
+            total_files: 0,
             speed: None,
-            left: None,
+            left_ms: None,
             paused: false,
             removing: false,
             ended: Some(Ended {
                 ok: *outcome == JobOutcome::Complete,
-                text: ended_text(*outcome, why.as_deref()),
+                text: ended_text(*outcome, why.as_ref()),
             }),
         },
         Status::Running(r) => {
             let v = &r.view;
             let (done, total) = work(r);
-            let (speed, left) = if done > 0 && v.elapsed_ms > 0 {
+            let (speed, left_ms) = if done > 0 && v.elapsed_ms > 0 {
                 let speed = done * 1000 / v.elapsed_ms;
                 let left_ms = (total - done.min(total)) * 1000 / speed.max(1);
-                (
-                    Some(format!("{}/s", bytes(speed))),
-                    Some(format!("{} left", duration(left_ms))),
-                )
+                (Some(speed as f64), Some(left_ms as f64))
             } else {
                 (None, None)
             };
             let heading = match r.queue {
-                Some((n, m)) if !r.heading.starts_with("Checking") => {
-                    format!("Job {n} of {m} · {}", r.heading)
+                Some((n, m)) if !r.waiting => {
+                    msg!(
+                        "menubar.heading.inQueue",
+                        index = n,
+                        count = m,
+                        heading = &r.heading
+                    )
                 }
                 _ => r.heading.clone(),
             };
@@ -172,41 +181,16 @@ pub fn panel(s: &Status) -> PanelView {
                 from: r.from.clone(),
                 to: r.to.clone(),
                 fraction: (total > 0).then(|| (done as f64 / total as f64).min(1.0)),
-                percent: percent(r).map_or_else(|| "…".to_string(), |p| format!("{p}%")),
-                files: format!("{} of {} files", v.files_done, v.total_files),
+                percent: percent(r).map(|p| p as u32),
+                files_done: v.files_done,
+                total_files: v.total_files,
                 speed,
-                left,
+                left_ms,
                 paused: v.paused,
                 removing: v.phase == JobPhase::Removing,
                 ended: None,
             }
         }
-    }
-}
-
-/// "14.0 MB", like the window's `formatBytes`.
-fn bytes(n: u64) -> String {
-    const UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
-    let (mut value, mut unit) = (n as f64, 0);
-    while value >= 1000.0 && unit < UNITS.len() - 1 {
-        value /= 1000.0;
-        unit += 1;
-    }
-    if unit == 0 {
-        format!("{n} B")
-    } else {
-        format!("{value:.1} {}", UNITS[unit])
-    }
-}
-
-/// "1:22", "1:02:03", like the window's `formatDuration`.
-fn duration(ms: u64) -> String {
-    let total = (ms + 500) / 1000;
-    let (h, m, s) = (total / 3600, (total % 3600) / 60, total % 60);
-    if h > 0 {
-        format!("{h}:{m:02}:{s:02}")
-    } else {
-        format!("{m}:{s:02}")
     }
 }
 
@@ -218,7 +202,12 @@ pub fn should_hide(keep: bool, busy: bool, quitting: bool) -> bool {
 /// While a queue checks its next job: its place, nothing else yet.
 pub fn checking(queue: (u32, u32)) -> Status {
     Status::Running(Running {
-        heading: format!("Checking job {} of {}", queue.0, queue.1),
+        heading: msg!(
+            "menubar.heading.checkingJob",
+            index = queue.0,
+            count = queue.1
+        ),
+        waiting: true,
         from: None,
         to: None,
         queue: Some(queue),
@@ -233,7 +222,8 @@ pub fn opening(queue: Option<(u32, u32)>, checking_next: bool, job: Option<Runni
     match queue {
         Some(place) if checking_next => checking(place),
         _ => Status::Running(job.unwrap_or(Running {
-            heading: "Secopy".into(),
+            heading: msg!("menubar.heading.secopy"),
+            waiting: false,
             from: None,
             to: None,
             queue,
@@ -529,10 +519,13 @@ fn running(state: &AppState, queue: Option<(u32, u32)>, view: ProgressView) -> R
     let (heading, from, to) = state
         .jobs
         .describe()
-        .unwrap_or_else(|| ("Secopy".into(), String::new(), None));
+        .map_or((msg!("menubar.heading.secopy"), None, None), |(h, f, t)| {
+            (h, Some(f), t)
+        });
     Running {
         heading,
-        from: Some(from).filter(|f| !f.is_empty()),
+        waiting: false,
+        from,
         to,
         queue,
         check: state.jobs.is_check(),
@@ -641,12 +634,14 @@ pub fn queue_event(app: &AppHandle, e: &QueueEvent) {
 mod tests {
     use super::*;
     use crate::dto::{JobOutcome, JobPhase, ProgressView};
+    use crate::message::En;
     use std::time::{Duration, Instant};
 
     fn copying(copied: u64, verified: u64) -> Status {
         Status::Running(Running {
-            heading: "Copying & verifying".into(),
-            from: Some("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP".into()),
+            heading: msg!("menubar.heading.copyingVerifying"),
+            waiting: false,
+            from: Some(Message::raw("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP")),
             to: Some("/Volumes/V001/Day01/CLIP".into()),
             queue: None,
             check: false,
@@ -674,7 +669,7 @@ mod tests {
     fn end(outcome: JobOutcome, why: Option<&str>) -> Status {
         Status::Finished {
             outcome,
-            why: why.map(String::from),
+            why: why.map(Message::raw),
         }
     }
 
@@ -711,19 +706,20 @@ mod tests {
         let p = panel(&copying(600_000_000, 240_000_000));
         assert_eq!(p.heading, "Copying & verifying");
         assert_eq!(
-            p.from.as_deref(),
+            p.from.en().as_deref(),
             Some("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP")
         );
         assert_eq!(p.to.as_deref(), Some("/Volumes/V001/Day01/CLIP"));
-        assert_eq!((p.percent.as_str(), p.fraction), ("42%", Some(0.42)));
-        assert_eq!(p.files, "44 of 106 files");
-        assert_eq!(p.speed.as_deref(), Some("14.0 MB/s"));
-        assert_eq!(p.left.as_deref(), Some("1:23 left"));
+        assert_eq!((p.percent, p.fraction), (Some(42), Some(0.42)));
+        assert_eq!((p.files_done, p.total_files), (44, 106));
+        // 840 MB in a minute: 14 MB/s, and 1,160 MB left: 1:23.
+        assert_eq!(p.speed, Some(14_000_000.0));
+        assert_eq!(p.left_ms, Some(82_857.0));
         assert!(p.ended.is_none() && !p.paused);
         let early = panel(&copying(0, 0));
         assert_eq!(
-            (early.speed, early.left),
-            (None, None),
+            (early.speed, early.left_ms, early.percent),
+            (None, None, Some(0)),
             "no speed until there is one"
         );
     }
@@ -751,7 +747,7 @@ mod tests {
         ] {
             assert_eq!(title(&end(o, None)), "✗", "{o:?}");
         }
-        let ended = |s: &Status| panel(s).ended.map(|e| (e.ok, e.text));
+        let ended = |s: &Status| panel(s).ended.map(|e| (e.ok, e.text.english()));
         assert_eq!(
             ended(&end(JobOutcome::Complete, None)),
             Some((true, "Finished: every file done".into()))

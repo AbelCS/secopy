@@ -14,8 +14,11 @@ use secopy_core::source::{DirMode, Source};
 
 use crate::dto::{
     ConflictPolicy, DestinationView, ExtensionKey, ExtensionView, FileProblemView, PlanView,
-    SessionView, SourceView, count, sentence, show,
+    SessionView, SourceView, count, show,
 };
+use crate::message::Message;
+use crate::msg;
+use crate::say;
 use crate::store::CopyPreset;
 
 /// Where macOS mounts drives.
@@ -41,7 +44,7 @@ pub struct Session {
     /// "Include the folder" for this run (FR-4).
     include_folder: bool,
     /// Why the pick has no source.
-    pick_problem: Option<String>,
+    pick_problem: Option<Message>,
     source: Option<Picked>,
     filter: ExtensionFilter,
     selection: Option<Selection>,
@@ -93,14 +96,21 @@ pub struct PendingScan {
 pub struct Ready {
     pub source: Source,
     pub plan: Plan,
-    /// The source as shown, for the report.
+    /// The source as shown, for the report (English).
     pub label: String,
+    /// The source as the UI shows it.
+    pub shown: Message,
+    /// A mirror's preset name; `None` for a copy.
+    pub mirror: Option<String>,
     /// Where the files land, for Reveal in Finder.
     pub copy_root: PathBuf,
 }
 
 struct Picked {
+    /// In English, for the report.
     label: String,
+    /// As the UI shows it.
+    shown: Message,
     is_retry: bool,
     source: Source,
     scan: Scan,
@@ -123,9 +133,9 @@ impl Session {
         };
     }
 
-    pub fn source_for(paths: &[PathBuf], contents_only: bool) -> Result<Source, String> {
+    pub fn source_for(paths: &[PathBuf], contents_only: bool) -> Result<Source, Message> {
         match paths {
-            [] => Err("nothing was picked".into()),
+            [] => Err(msg!("copy.pick.nothing")),
             [only] if only.is_dir() => Ok(Source::Directory {
                 path: only.clone(),
                 mode: if contents_only {
@@ -134,9 +144,7 @@ impl Session {
                     DirMode::FolderItself
                 },
             }),
-            _ if paths.iter().any(|p| p.is_dir()) => {
-                Err("Pick one directory, or only files — not both.".into())
-            }
+            _ if paths.iter().any(|p| p.is_dir()) => Err(msg!("copy.pick.mixed")),
             _ => Ok(Source::Files(paths.to_vec())),
         }
     }
@@ -199,7 +207,7 @@ impl Session {
     pub fn finish_scan(
         &mut self,
         pending: PendingScan,
-        scanned: Result<Scan, String>,
+        scanned: Result<Scan, Message>,
     ) -> SessionView {
         if pending.ticket != self.generation {
             return SessionView {
@@ -213,6 +221,7 @@ impl Session {
                 self.pick_problem = None;
                 self.source = Some(Picked {
                     label: label(&pending.source),
+                    shown: shown(&pending.source),
                     is_retry: false,
                     source: pending.source,
                     scan,
@@ -225,7 +234,7 @@ impl Session {
         self.view()
     }
 
-    fn no_source(&mut self, problem: String) {
+    fn no_source(&mut self, problem: Message) {
         self.pick_problem = Some(problem);
         self.source = None;
         self.filter = ExtensionFilter::All;
@@ -234,7 +243,7 @@ impl Session {
 
     /// The source for `paths`: one folder, otherwise files. A preset's source that is
     /// gone (its card isn't inserted) says so instead.
-    fn resolve(&self, paths: &[PathBuf]) -> Result<Source, String> {
+    fn resolve(&self, paths: &[PathBuf]) -> Result<Source, Message> {
         if let [one] = paths
             && !one.exists()
         {
@@ -393,6 +402,7 @@ impl Session {
         };
         self.source = Some(Picked {
             label: format!("Retry: {} failed files", selection.files.len()),
+            shown: msg!("copy.picked.retry", count = selection.files.len()),
             is_retry: true,
             source,
             scan,
@@ -445,6 +455,8 @@ impl Session {
             source: picked.source.clone(),
             plan: plan.clone(),
             label: picked.label.clone(),
+            shown: picked.shown.clone(),
+            mirror: None,
             copy_root: self.copy_root(&plan.dest),
         })
     }
@@ -492,9 +504,6 @@ impl Session {
             .iter()
             .map(|(key, stat)| ExtensionView {
                 key: key.clone(),
-                label: key
-                    .as_ref()
-                    .map_or("(no extension)".to_string(), |k| format!(".{k}")),
                 files: count(stat.files),
                 bytes: stat.bytes,
             })
@@ -505,7 +514,7 @@ impl Session {
             Source::Files(_) => (None, false),
         };
         SourceView {
-            label: picked.label.clone(),
+            label: picked.shown.clone(),
             is_folder: folder.is_some(),
             contents_only,
             folder,
@@ -530,7 +539,7 @@ impl Session {
                 .problems
                 .iter()
                 .take(SCAN_PROBLEMS_SHOWN)
-                .map(|p| format!("{}: {}", show(&p.path), p.message))
+                .map(say::scan_problem)
                 .collect(),
             problem_count: count(scan.problems.len()),
         }
@@ -544,6 +553,7 @@ impl Session {
             blocker: None,
             free_bytes: 0,
             fs_kind: String::new(),
+            fs_name: None,
             existing_items: existing_items(&copy_root),
             problems: Vec::new(),
             problem_count: 0,
@@ -558,14 +568,14 @@ impl Session {
                     .as_ref()
                     .expect("checked implies a selection");
                 view.free_bytes = pf.fs.free_bytes;
-                view.fs_kind = fs_label(&pf.fs.kind);
+                (view.fs_kind, view.fs_name) = fs_code(&pf.fs.kind);
                 view.problems = pf
                     .file_problems
                     .iter()
                     .take(PROBLEMS_SHOWN)
                     .map(|p| FileProblemView {
                         path: show(&sel.files[p.id].rel),
-                        reason: p.kind.to_error().to_string(),
+                        reason: say::file_error(&p.kind.to_error()),
                     })
                     .collect();
                 view.problem_count = count(pf.file_problems.len());
@@ -578,19 +588,17 @@ impl Session {
                 view.differs = count(pf.conflicts.len()) - view.identical;
                 view.stale_partials = count(pf.stale_partials.len());
             }
-            Some(Err(blocker)) => view.blocker = Some(sentence(&blocker.to_string())),
+            Some(Err(blocker)) => view.blocker = Some(say::blocker(blocker)),
             // No source yet: show what the destination is, or why it can't be used.
             None => match fsinfo::fs_info(dest) {
                 Ok(info) => {
                     view.free_bytes = info.free_bytes;
-                    view.fs_kind = fs_label(&info.kind);
+                    (view.fs_kind, view.fs_name) = fs_code(&info.kind);
                 }
                 Err(_) if !dest.is_dir() => {
-                    view.blocker = Some(sentence(&Blocker::DestMissing.to_string()))
+                    view.blocker = Some(say::blocker(&Blocker::DestMissing))
                 }
-                Err(e) => {
-                    view.blocker = Some(sentence(&Blocker::DestNotWritable(e.into()).to_string()))
-                }
+                Err(e) => view.blocker = Some(say::blocker(&Blocker::DestNotWritable(e.into()))),
             },
         }
         view
@@ -618,10 +626,11 @@ fn plan_view(plan: &Plan) -> PlanView {
     PlanView {
         files_to_write: count(plan.files.iter().filter(|f| f.action.writes()).count()),
         bytes_to_write: plan.bytes_to_write(),
-        blocker: plan.blockers().first().map(|b| sentence(&b.to_string())),
+        blocker: plan.blockers().first().map(say::blocker),
     }
 }
 
+/// The source in English, for the report.
 fn label(source: &Source) -> String {
     match source {
         Source::Directory { path, .. } => show(path),
@@ -630,15 +639,27 @@ fn label(source: &Source) -> String {
     }
 }
 
+/// The source as the UI shows it: its path, or "3 files".
+pub(crate) fn shown(source: &Source) -> Message {
+    match source {
+        Source::Directory { path, .. } => Message::raw(show(path)),
+        Source::Files(files) if files.len() == 1 => Message::raw(show(&files[0])),
+        Source::Files(files) => msg!("copy.picked.files", count = files.len()),
+    }
+}
+
 /// Why `path` can't be used: its drive isn't connected, or it is gone.
-pub(crate) fn gone(path: &Path) -> String {
+pub(crate) fn gone(path: &Path) -> Message {
     if let Ok(rest) = path.strip_prefix(VOLUMES)
         && let Some(drive) = rest.components().next()
         && !Path::new(VOLUMES).join(drive).exists()
     {
-        return format!("{} isn't connected.", drive.as_os_str().to_string_lossy());
+        return msg!(
+            "errors.source.notConnected",
+            drive = drive.as_os_str().to_string_lossy().into_owned(),
+        );
     }
-    format!("{} isn't there any more.", show(path))
+    msg!("errors.source.gone", path = path)
 }
 
 /// Whether `a` and `b` are the same directory on disk: on a case-insensitive drive `DCIM`
@@ -663,28 +684,30 @@ fn existing_items(dir: &Path) -> Option<u32> {
     ))
 }
 
-fn fs_label(kind: &FsKind) -> String {
-    match kind {
-        FsKind::Apfs => "APFS".into(),
-        FsKind::HfsPlus => "Mac OS Extended".into(),
-        FsKind::ExFat => "exFAT".into(),
-        FsKind::Fat => "FAT32".into(),
-        FsKind::Ntfs => "NTFS".into(),
-        FsKind::Smb => "network (SMB)".into(),
-        FsKind::Nfs => "network (NFS)".into(),
-        other => format!("{other:?}"),
-    }
+/// The file system as a code the UI names (`copy.fs.*`), and the name of one it has none for.
+fn fs_code(kind: &FsKind) -> (String, Option<String>) {
+    let code = match kind {
+        FsKind::Apfs => "apfs",
+        FsKind::HfsPlus => "hfs",
+        FsKind::ExFat => "exfat",
+        FsKind::Fat => "fat32",
+        FsKind::Ntfs => "ntfs",
+        FsKind::Smb => "smb",
+        FsKind::Nfs => "nfs",
+        other => return ("other".into(), Some(format!("{other:?}"))),
+    };
+    (code.into(), None)
 }
 
-/// Engine messages start in lower case; the UI shows them as sentences.
 /// Scans `source` (the slow part of picking a source); called without the session lock.
-pub fn scan_source(source: &Source) -> Result<Scan, String> {
-    scan::scan(source, &ScanOptions::default()).map_err(|e| sentence(&e.to_string()))
+pub fn scan_source(source: &Source) -> Result<Scan, Message> {
+    scan::scan(source, &ScanOptions::default()).map_err(|e| say::scan_error(&e))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::message::En;
 
     fn write(root: &Path, files: &[(&str, &[u8])]) {
         for (rel, data) in files {
@@ -790,13 +813,13 @@ mod tests {
         let view = apply(&mut s, Change::CopyPreset(Some(preset(&gone, None))));
         assert!(view.source.is_none());
         assert_eq!(
-            view.pick_problem,
+            view.pick_problem.en(),
             Some(format!("{} isn't there any more.", show(&gone)))
         );
         let card = Path::new("/Volumes/SECOPY_NO_SUCH_CARD/DCIM");
         let view = apply(&mut s, Change::CopyPreset(Some(preset(card, None))));
         assert_eq!(
-            view.pick_problem.as_deref(),
+            view.pick_problem.en().as_deref(),
             Some("SECOPY_NO_SUCH_CARD isn't connected.")
         );
         s.set_destination(Some(f.dest.clone()));
@@ -1020,8 +1043,8 @@ mod tests {
         assert_eq!(src.root_dir.as_deref(), Some("CARD"));
         assert_eq!(src.folder, Some(show(&f.card)));
         assert_eq!((src.files, src.bytes), (3, 17));
-        let labels: Vec<_> = src.extensions.iter().map(|e| e.label.as_str()).collect();
-        assert_eq!(labels, [".mov", ".xml"]);
+        let keys: Vec<_> = src.extensions.iter().map(|e| e.key.as_deref()).collect();
+        assert_eq!(keys, [Some("mov"), Some("xml")]);
         assert_eq!((view.selected_files, view.selected_bytes), (3, 17));
         assert_eq!(src.selected_extensions, None);
     }
@@ -1049,7 +1072,7 @@ mod tests {
         );
         assert!(view.source.is_none());
         assert_eq!(
-            view.pick_problem.as_deref(),
+            view.pick_problem.en().as_deref(),
             Some("Pick one directory, or only files — not both.")
         );
     }
@@ -1139,7 +1162,7 @@ mod tests {
             .destination
             .unwrap();
         assert_eq!(
-            missing.blocker.as_deref(),
+            missing.blocker.en().as_deref(),
             Some("The destination is not an existing directory")
         );
     }

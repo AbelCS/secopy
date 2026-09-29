@@ -2,6 +2,7 @@
   // Mirror presets (RFD §5.8, FR-44): the list on the left, the selected one on the right.
   // A saved preset is previewed (then run) or added to the queue; an edited one is saved first.
   import { t } from "../lib/i18n";
+  import { AppError } from "../lib/message";
   import type { Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { MirrorPreset, MirrorPresetInput, MirrorPreviewView, QueueView } from "../lib/bindings";
@@ -122,8 +123,8 @@
       onPreview(await api.previewMirror(p.id, (c) => (compared = c)));
       error = null;
     } catch (e) {
-      const message = messageOf(e);
-      error = message === "Cancelled." ? null : message;
+      // Cancel stops the preview: nothing went wrong.
+      error = e instanceof AppError && e.m.key === "errors.mirror.previewCancelled" ? null : messageOf(e);
     } finally {
       previewing = false;
       compared = null;

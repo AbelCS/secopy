@@ -30,11 +30,12 @@ import type {
   ImportDone,
   ImportView,
   PanelView,
+  Message,
 } from "../lib/bindings";
 
 export function sourceView(over: Partial<SourceView> = {}): SourceView {
   return {
-    label: "/Volumes/CARD/DCIM",
+    label: raw("/Volumes/CARD/DCIM"),
     isFolder: true,
     contentsOnly: false,
     folder: "/Volumes/CARD/DCIM",
@@ -43,9 +44,9 @@ export function sourceView(over: Partial<SourceView> = {}): SourceView {
     files: 1284,
     bytes: 212_400_000_000,
     extensions: [
-      { key: "mov", label: ".mov", files: 1020, bytes: 208_000_000_000 },
-      { key: "wav", label: ".wav", files: 240, bytes: 4_100_000_000 },
-      { key: "xml", label: ".xml", files: 24, bytes: 2_000_000 },
+      { key: "mov", files: 1020, bytes: 208_000_000_000 },
+      { key: "wav", files: 240, bytes: 4_100_000_000 },
+      { key: "xml", files: 24, bytes: 2_000_000 },
     ],
     selectedExtensions: null,
     skippedSystem: 37,
@@ -62,7 +63,8 @@ export function destinationView(over: Partial<DestinationView> = {}): Destinatio
     copyRoot: "/Volumes/RAID/Day01/DCIM",
     blocker: null,
     freeBytes: 1_800_000_000_000,
-    fsKind: "APFS",
+    fsKind: "apfs",
+    fsName: null,
     existingItems: null,
     problems: [],
     problemCount: 0,
@@ -147,7 +149,7 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
     checksumError: null,
     checksumOff: false,
     reportFile: "/Users/me/Library/Application Support/com.latecommits.secopy/reports/r.txt",
-    reportError: null,
+    reportErrors: [],
     mirror: null,
     undone: null,
     check: null,
@@ -188,7 +190,7 @@ export function queuedJob(over: Partial<QueuedJobView> = {}): QueuedJobView {
   return {
     kind: "copy",
     verify: true,
-    source: "/Volumes/CARD/DCIM",
+    source: raw("/Volumes/CARD/DCIM"),
     destination: "/Volumes/RAID/Day01",
     lastError: null,
     supported: true,
@@ -249,11 +251,11 @@ export function queueView(over: Partial<QueueView> = {}): QueueView {
 export function importView(over: Partial<ImportView> = {}): ImportView {
   return {
     fileName: "Team presets.secopy",
-    settings: { changes: ["Write the checksum file: on → off"], problem: null },
+    settings: { changes: [raw("Write the checksum file: on → off")], problem: null },
     copyPresets: [
       { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null },
       { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null },
-      { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: "Its details can't be read (…)." },
+      { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can't be read (…).") },
     ],
     mirrorPresets: [],
     ...over,
@@ -364,7 +366,7 @@ export function fakeApi(session: SessionView = sessionView()) {
     pickImportFile: vi.fn(() => Promise.resolve(null as string | null)),
     openImport: vi.fn((_p: string) => Promise.resolve(importView())),
     applyImport: vi.fn((_c: ImportChoices) =>
-      Promise.resolve({ message: "Imported.", failed: false, settings: settingsView(), copyPresets: [], mirrorPresets: [] } as ImportDone),
+      Promise.resolve({ message: raw("Imported."), failed: false, settings: settingsView(), copyPresets: [], mirrorPresets: [] } as ImportDone),
     ),
     setMenuState: vi.fn((_setup: boolean, _canStart: boolean, _copying: boolean, _busy: boolean) => Promise.resolve()),
     pickSource: vi.fn(() => Promise.resolve(["/Volumes/CARD/DCIM"] as string[] | null)),
@@ -390,4 +392,9 @@ export function fakeApi(session: SessionView = sessionView()) {
     }),
   } satisfies Api;
   return { api, state };
+}
+
+/** A message the UI shows as it is, for fixtures that stand for what the app sends. */
+export function raw(text: string): Message {
+  return { key: "format.raw", args: { text } };
 }

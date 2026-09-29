@@ -4,7 +4,9 @@
   // Open Secopy and Quit. Rust sends what to show; clicking elsewhere closes it.
   import { onMount } from "svelte";
   import { tauriApi, type Api } from "../lib/api";
+  import { formatDuration, formatSpeed } from "../lib/format";
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import type { PanelView } from "../lib/bindings";
   import Button from "../lib/ui/Button.svelte";
   import Icon from "../lib/ui/Icon.svelte";
@@ -41,8 +43,15 @@
   const meta = $derived.by(() => {
     if (!view) return "";
     if (view.removing) return t("menubar.removing");
-    if (paused) return t("menubar.paused", { files: view.files });
-    return [view.files, view.speed, view.left].filter(Boolean).join(t("format.dot"));
+    const files = t("menubar.files", { done: view.filesDone, count: view.totalFiles });
+    if (paused) return t("menubar.paused", { files });
+    return [
+      files,
+      view.speed === null ? "" : formatSpeed(view.speed),
+      view.leftMs === null ? "" : t("menubar.left", { time: formatDuration(view.leftMs) }),
+    ]
+      .filter(Boolean)
+      .join(t("format.dot"));
   });
 </script>
 
@@ -52,7 +61,7 @@
   {:else if view.ended}
     <div class="ended" class:ok={view.ended.ok}>
       <Icon name={view.ended.ok ? "check" : "x"} size={20} />
-      <span>{view.ended.text}</span>
+      <span>{say(view.ended.text)}</span>
     </div>
     <div class="actions">
       <Button variant="link" onclick={() => api.quitApp()}>{t("menubar.quit")}</Button>
@@ -60,17 +69,17 @@
     </div>
   {:else}
     <div class="head">
-      <span class="heading">{view.heading}</span>
-      <span class="percent">{view.percent}</span>
+      <span class="heading">{say(view.heading)}</span>
+      <span class="percent">{view.percent === null ? "…" : t("menubar.percent", { value: view.percent })}</span>
     </div>
     <dl class="route">
-      {#if view.from}<dt>{t("menubar.from")}</dt><dd class="path mono" title={view.from}><bdi>{view.from}</bdi></dd>{/if}
+      {#if view.from}<dt>{t("menubar.from")}</dt><dd class="path mono" title={say(view.from)}><bdi>{say(view.from)}</bdi></dd>{/if}
       {#if view.to}<dt>{t("menubar.to")}</dt><dd class="path mono" title={view.to}><bdi>{view.to}</bdi></dd>{/if}
     </dl>
     <div
       class="bar"
       role="progressbar"
-      aria-label={view.heading}
+      aria-label={say(view.heading)}
       aria-valuemin="0"
       aria-valuemax="100"
       aria-valuenow={view.fraction === null ? undefined : Math.round(view.fraction * 100)}

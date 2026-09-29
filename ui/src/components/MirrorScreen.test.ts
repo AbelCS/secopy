@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import { apiContext } from "../lib/api";
+import { AppError } from "../lib/message";
 import type { MirrorPreset, MirrorPreviewView, QueueView } from "../lib/bindings";
 import { fakeApi, mirrorPreset } from "../test/fake-api";
 import MirrorScreen from "./MirrorScreen.svelte";
@@ -51,6 +52,26 @@ describe("MirrorScreen", () => {
     await screen.findByText("Comparing contents: 120 of 2,410 files");
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(api.cancelMirrorPreview).toHaveBeenCalled();
+  });
+
+  test("a cancelled preview shows no error; a failed one says why", async () => {
+    const { api } = show();
+    api.previewMirror.mockRejectedValueOnce(new AppError({ key: "errors.mirror.previewCancelled", args: {} }));
+    await fireEvent.click(screen.getByRole("button", { name: "Preview…" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Preview…" })).toHaveProperty("disabled", false));
+    expect(screen.queryByText("Cancelled.")).toBeNull();
+    api.previewMirror.mockRejectedValueOnce(new AppError({ key: "errors.mirror.same", args: {} }));
+    await fireEvent.click(screen.getByRole("button", { name: "Preview…" }));
+    await screen.findByText("The origin and the destination are the same directory.");
+  });
+
+  test("a problem with the origin is shown under Origin", async () => {
+    const { api } = show();
+    api.editMirrorPreset.mockRejectedValueOnce(new AppError({ key: "errors.field.origin.notFull", args: {} }));
+    await fireEvent.input(screen.getByRole("textbox", { name: "Origin" }), { target: { value: "Footage" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const error = await screen.findByText("The origin must be a full path, like /Volumes/SSD/Footage.");
+    expect(screen.getByRole("textbox", { name: "Origin" }).getAttribute("aria-describedby")).toBe(error.id);
   });
 
   test("Preview… previews the saved preset; edits must be saved first", async () => {

@@ -40,8 +40,9 @@ pub enum QueuedJob {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entry {
     pub job: QueuedJob,
-    /// Why it failed the last time the queue ran.
-    pub last_error: Option<String>,
+    /// Why it failed the last time the queue ran. Queues saved before #84 hold an English
+    /// sentence: it loads as `errors.legacy`, shown as it was.
+    pub last_error: Option<crate::message::Message>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -107,7 +108,7 @@ use crate::dto::SessionView;
 use crate::session::{Change, Ready, Session, scan_source};
 
 /// `job` as New copy would build it now: scanned and checked at its turn (spec Q3).
-pub fn prepare(job: &CopyJob) -> Result<Ready, String> {
+pub fn prepare(job: &CopyJob) -> Result<Ready, crate::message::Message> {
     let mut s = Session::new();
     let mut view = apply(&mut s, Change::Pick(job.sources.clone()));
     if view.pick_problem.is_none() && !job.include_folder {
@@ -133,12 +134,12 @@ fn apply(s: &mut Session, change: Change) -> SessionView {
     }
 }
 
-fn why_not(view: &SessionView) -> String {
+fn why_not(view: &SessionView) -> crate::message::Message {
     view.destination
         .as_ref()
         .and_then(|d| d.blocker.clone())
         .or_else(|| view.plan.as_ref().and_then(|p| p.blocker.clone()))
-        .unwrap_or_else(|| "Nothing to copy.".into())
+        .unwrap_or_else(|| crate::msg!("queue.reason.nothingToCopy"))
 }
 
 impl Serialize for Entry {
@@ -159,7 +160,8 @@ impl Serialize for Entry {
             QueuedJob::Unknown(v) => v.clone(),
         };
         if let Some(object) = value.as_object_mut() {
-            object.insert("lastError".into(), self.last_error.clone().into());
+            let last_error = serde_json::to_value(&self.last_error).map_err(S::Error::custom)?;
+            object.insert("lastError".into(), last_error);
         }
         value.serialize(s)
     }
@@ -168,10 +170,13 @@ impl Serialize for Entry {
 impl<'de> Deserialize<'de> for Entry {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let value = serde_json::Value::deserialize(d)?;
-        let last_error = value
-            .get("lastError")
-            .and_then(|e| e.as_str())
-            .map(str::to_string);
+        let last_error = match value.get("lastError") {
+            Some(serde_json::Value::String(text)) => {
+                Some(crate::msg!("errors.legacy", text = text.as_str()))
+            }
+            Some(m @ serde_json::Value::Object(_)) => serde_json::from_value(m.clone()).ok(),
+            _ => None,
+        };
         let job = match value.get("kind").and_then(|k| k.as_str()) {
             Some("copy") => serde_json::from_value::<CopyJob>(value.clone())
                 .map(QueuedJob::Copy)
@@ -196,6 +201,43 @@ impl<'de> Deserialize<'de> for Entry {
 
 #[cfg(test)]
 mod tests {
+    /// #84: a job's last error is saved as a message; an older queue's English sentence
+    /// still loads, shown as it was.
+    #[test]
+    fn last_errors_are_messages_and_old_sentences_still_load() {
+        let old: Entry = serde_json::from_value(serde_json::json!({
+            "kind": "check", "directory": "/Volumes/A", "lastError": "The destination drive is full."
+        }))
+        .unwrap();
+        assert_eq!(
+            old.last_error,
+            Some(crate::msg!(
+                "errors.legacy",
+                text = "The destination drive is full."
+            ))
+        );
+        let new = Entry {
+            job: QueuedJob::Check {
+                directory: PathBuf::from("/Volumes/A"),
+            },
+            last_error: Some(crate::msg!("queue.reason.filesFailed", count = 2u32)),
+        };
+        let json = serde_json::to_value(&new).unwrap();
+        assert_eq!(json["lastError"]["key"], "queue.reason.filesFailed");
+        assert_eq!(serde_json::from_value::<Entry>(json).unwrap(), new);
+        for odd in [
+            serde_json::Value::Null,
+            serde_json::json!(3),
+            serde_json::json!({ "x": 1 }),
+        ] {
+            let e: Entry = serde_json::from_value(
+                serde_json::json!({ "kind": "check", "directory": "/A", "lastError": odd }),
+            )
+            .unwrap();
+            assert_eq!(e.last_error, None);
+        }
+    }
+
     use super::*;
     use crate::store::Store;
 
@@ -351,7 +393,7 @@ mod tests {
             ..Queue::default()
         };
         q.add(job("A"));
-        q.jobs[0].last_error = Some("A isn't connected.".into());
+        q.jobs[0].last_error = Some(crate::msg!("errors.source.notConnected", drive = "A"));
         store.save(QUEUE, &q).unwrap();
         let text = std::fs::read_to_string(dir.path().join(QUEUE)).unwrap();
         assert!(

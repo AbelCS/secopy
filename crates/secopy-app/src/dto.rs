@@ -8,6 +8,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::message::Message;
 use crate::store::{CopyPreset, MirrorPreset, Settings};
 
 /// Everything the main window shows. Every session command returns the whole view, so the
@@ -27,8 +28,8 @@ pub struct SessionView {
     pub preset_id: Option<String>,
     /// This run's choices differ from the preset's: offer Update / Save as….
     pub preset_changed: bool,
-    /// Why there is no source, e.g. "CARD_A has no PRIVATE/M4ROOT/CLIP".
-    pub pick_problem: Option<String>,
+    /// Why there is no source, e.g. "CARD_A isn't connected."
+    pub pick_problem: Option<Message>,
     /// A newer scan replaced this one while it ran (FR-3); the UI keeps its current view.
     pub stale: bool,
 }
@@ -36,8 +37,8 @@ pub struct SessionView {
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceView {
-    /// What the user picked: the folder, or "3 files".
-    pub label: String,
+    /// What the user picked: the directory, or "3 files".
+    pub label: Message,
     pub is_folder: bool,
     /// Copy only what's inside the folder (FR-4b) instead of the folder itself.
     pub contents_only: bool,
@@ -59,7 +60,7 @@ pub struct SourceView {
     pub skipped_system: u32,
     pub skipped_symlinks: u32,
     /// Things that couldn't be read while scanning, first 20.
-    pub problems: Vec<String>,
+    pub problems: Vec<Message>,
     pub problem_count: u32,
 }
 
@@ -70,8 +71,6 @@ pub type ExtensionKey = Option<String>;
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionView {
     pub key: ExtensionKey,
-    /// ".mov", or "(no extension)".
-    pub label: String,
     pub files: u32,
     #[specta(type = specta_typescript::Number)]
     pub bytes: u64,
@@ -84,10 +83,13 @@ pub struct DestinationView {
     /// Where the files will land ("Files will go to", FR-4).
     pub copy_root: String,
     /// Stops the job (FR-16); Start stays disabled.
-    pub blocker: Option<String>,
+    pub blocker: Option<Message>,
     #[specta(type = specta_typescript::Number)]
     pub free_bytes: u64,
+    /// The destination's file system as a code: `apfs`, `hfs`, `exfat`, `fat32`, `ntfs`,
+    /// `smb`, `nfs`, or `other` (then `fs_name` says which).
     pub fs_kind: String,
+    pub fs_name: Option<String>,
     /// Items already in the copy root, hidden ones not counted; `None` if it doesn't exist.
     /// More than zero shows the non-empty warning.
     pub existing_items: Option<u32>,
@@ -106,7 +108,7 @@ pub struct DestinationView {
 #[serde(rename_all = "camelCase")]
 pub struct FileProblemView {
     pub path: String,
-    pub reason: String,
+    pub reason: Message,
 }
 
 /// What to do with files that exist but differ (FR-17).
@@ -126,7 +128,7 @@ pub struct PlanView {
     #[specta(type = specta_typescript::Number)]
     pub bytes_to_write: u64,
     /// Not enough free space (FR-16).
-    pub blocker: Option<String>,
+    pub blocker: Option<Message>,
 }
 
 /// Sent twice a second while a job runs (RFD §5.3, NFR-5).
@@ -161,7 +163,7 @@ pub struct ProgressView {
     /// (`JobPhase::Removing`).
     pub undoing: bool,
     /// Set once, when the job has stopped for good.
-    pub fatal: Option<String>,
+    pub fatal: Option<Message>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Type)]
@@ -211,7 +213,7 @@ pub struct FinishedRow {
     pub hash: Option<String>,
     pub status: RowStatus,
     /// Why it failed or was skipped.
-    pub reason: Option<String>,
+    pub reason: Option<Message>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
@@ -237,7 +239,7 @@ pub enum RowStatus {
 pub struct SummaryView {
     pub outcome: JobOutcome,
     /// Why the job stopped, for `JobOutcome::Stopped`.
-    pub stopped_because: Option<String>,
+    pub stopped_because: Option<Message>,
     pub verify: bool,
     pub files: u32,
     pub copied: u32,
@@ -248,7 +250,7 @@ pub struct SummaryView {
     /// Items the scan couldn't read, so they weren't copied (#58).
     pub unread: u32,
     /// The destination reported an error while the copy was made durable (#58).
-    pub durability_error: Option<String>,
+    pub durability_error: Option<Message>,
     /// Empty directories that couldn't be created (#58); listed with the failures.
     pub dir_errors: u32,
     pub not_started: u32,
@@ -262,13 +264,13 @@ pub struct SummaryView {
     pub finished: u32,
     pub copy_root: String,
     pub checksum_file: Option<String>,
-    pub checksum_error: Option<String>,
+    pub checksum_error: Option<Message>,
     /// The checksum file is off in Settings (RFD §5.5).
     pub checksum_off: bool,
     /// The text report saved in the app's data folder (FR-35).
     pub report_file: Option<String>,
-    /// Why the report couldn't be saved there.
-    pub report_error: Option<String>,
+    /// Why the report couldn't be saved there (each place it was written).
+    pub report_errors: Vec<Message>,
     /// A mirror's own figures (plan 7); `None` for a copy.
     pub mirror: Option<MirrorSummaryView>,
     /// What Cancel's "Also remove the files already copied" did (#54).
@@ -278,7 +280,7 @@ pub struct SummaryView {
 }
 
 /// A directory about to be checked (plan 8): what its checksum files list.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckView {
     pub directory: String,
@@ -289,11 +291,11 @@ pub struct CheckView {
     pub bytes: u64,
     pub not_checked: u32,
     /// Problems in the checksum files: "file:line: why".
-    pub problems: Vec<String>,
+    pub problems: Vec<Message>,
 }
 
 /// What a check found (plan 8).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckSummaryView {
     pub intact: u32,
@@ -305,7 +307,7 @@ pub struct CheckSummaryView {
     pub not_checked: u32,
     pub checksum_files: u32,
     /// Problems in the checksum files: "file:line: why", the first 1,000.
-    pub problems: Vec<String>,
+    pub problems: Vec<Message>,
     /// Problems past the ones listed; `None` when every one is (#69).
     #[specta(optional)]
     pub more_problems: Option<u32>,
@@ -340,15 +342,6 @@ pub enum JobOutcome {
 }
 
 /// Paths shown to people: lossy for names that aren't UTF-8.
-/// `text` with a capital first letter, as the UI shows messages.
-pub fn sentence(text: &str) -> String {
-    let mut chars = text.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
-    }
-}
-
 pub fn show(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
@@ -370,7 +363,7 @@ pub struct StartView {
     /// Recent destinations that still exist, most recent first.
     pub recent_destinations: Vec<String>,
     /// Saved files that couldn't be read; shown once.
-    pub warnings: Vec<String>,
+    pub warnings: Vec<Message>,
     /// The copy preset last used, when its source is there: the window loads it again (FR-36).
     pub last_preset: Option<String>,
 }
@@ -391,9 +384,9 @@ pub struct QueuedJobView {
     pub kind: String,
     pub verify: bool,
     /// The source as shown ("3 files" for several).
-    pub source: String,
+    pub source: Message,
     pub destination: String,
-    pub last_error: Option<String>,
+    pub last_error: Option<Message>,
     pub supported: bool,
     /// A mirror's preset name; `None` for a copy.
     pub name: Option<String>,
@@ -422,7 +415,7 @@ pub struct QueueResultView {
     pub job: QueuedJobView,
     pub result: QueueResult,
     /// Why it failed, was cancelled or didn't run.
-    pub reason: Option<String>,
+    pub reason: Option<Message>,
     /// The job's summary, when it ran.
     pub summary: Option<SummaryView>,
 }
@@ -436,7 +429,7 @@ pub struct QueueSummaryView {
     #[specta(type = specta_typescript::Number)]
     pub millis: u64,
     /// Why the queue couldn't be saved after a job; the run itself went on.
-    pub save_error: Option<String>,
+    pub save_error: Option<Message>,
 }
 
 /// What a queue run sends to the window.
@@ -483,7 +476,7 @@ pub struct MirrorSummaryView {
     /// Files that couldn't be archived or deleted, with why.
     pub removal_failures: Vec<FinishedRow>,
     /// Why nothing was removed: the copy phase failed or was cancelled.
-    pub nothing_removed: Option<String>,
+    pub nothing_removed: Option<Message>,
 }
 
 /// How far a preview's deep check is: files compared, of how many (#57).
@@ -515,7 +508,7 @@ pub struct MirrorPreviewView {
     pub failing: u32,
     pub unchanged: u32,
     /// Why the run looks wrong (FR-50): the preview's Start asks first.
-    pub guard: Option<String>,
+    pub guard: Option<Message>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -534,7 +527,7 @@ pub struct PreviewRow {
     #[specta(type = specta_typescript::Number)]
     pub size: u64,
     pub kind: PreviewKind,
-    pub reason: String,
+    pub reason: Message,
 }
 
 /// What goes in an export (#77).
@@ -550,7 +543,7 @@ pub struct ExportWhat {
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportDone {
-    pub message: String,
+    pub message: Message,
     /// Part of it couldn't be saved; `message` says what.
     pub failed: bool,
     pub settings: Settings,

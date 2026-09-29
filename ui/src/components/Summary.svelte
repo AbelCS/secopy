@@ -1,6 +1,7 @@
 <script lang="ts">
   // The summary (RFD §5.4): what happened, the figures, what failed and why, and what to do next.
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import { useApi } from "../lib/api";
   import type { SummaryView } from "../lib/bindings";
   import { messageOf } from "../lib/format";
@@ -79,15 +80,19 @@
       <Notice tone="danger">{t("summary.notRemovedUndo", { count: summary.undone.failed })}</Notice>
     {/if}
     <!-- After removing the copies, "left in the destination" would only confuse. -->
-    {#if summary.mirror?.nothingRemoved && !summary.undone}<Notice tone="danger">{summary.mirror.nothingRemoved}</Notice>{/if}
+    {#if summary.mirror?.nothingRemoved && !summary.undone}<Notice tone="danger">{say(summary.mirror.nothingRemoved)}</Notice>{/if}
     {#if summary.checksumOff && !summary.mirror && !summary.check}<p class="muted">{t("summary.noChecksumFile")}</p>{/if}
     {#if summary.checksumError}
-      <Notice tone="danger">{t("summary.checksumError", { why: summary.checksumError })}</Notice>
+      <Notice tone="danger">{t("summary.checksumError", { why: say(summary.checksumError) })}</Notice>
     {/if}
     {#if summary.durabilityError}
-      <Notice tone="danger">{t("summary.durabilityError", { why: summary.durabilityError })}</Notice>
+      <Notice tone="danger">{t("summary.durabilityError", { why: say(summary.durabilityError) })}</Notice>
     {/if}
-    {#if summary.reportError}<Notice tone="danger">{t("summary.reportError", { why: summary.reportError })}</Notice>{/if}
+    {#if summary.reportErrors.length > 0}
+      <Notice tone="danger">
+        {t("summary.reportError", { why: summary.reportErrors.map(say).join(t("format.semicolon")) })}
+      </Notice>
+    {/if}
     {#if actionError}<Notice tone="danger">{actionError}</Notice>{/if}
   </div>
 
@@ -96,7 +101,7 @@
       <ul class="failures">
         <!-- By place: unread items, directories and files each count their own ids. -->
         {#each summary.failures as f, i (i)}
-          <li><span class="mono">{f.path}</span>: {f.reason}</li>
+          <li><span class="mono">{f.path}</span>: {f.reason ? say(f.reason) : ""}</li>
         {/each}
         {#if summary.failed + summary.unread + summary.dirErrors > summary.failures.length}
           <li class="muted">
@@ -110,7 +115,7 @@
   {#if summary.check && summary.check.problems.length > 0}
     <Section title={t("summary.problems")}>
       <ul class="failures">
-        {#each summary.check.problems as p, i (i)}<li class="mono">{p}</li>{/each}
+        {#each summary.check.problems as p, i (i)}<li class="mono">{say(p)}</li>{/each}
         {#if summary.check.moreProblems}
           <li class="muted">{t("summary.more", { count: summary.check.moreProblems })}</li>
         {/if}
@@ -122,7 +127,7 @@
     <Section title={t("summary.notRemoved")}>
       <ul class="failures">
         {#each summary.mirror.removalFailures as f, i (i)}
-          <li><span class="mono">{f.path}</span>: {f.reason}</li>
+          <li><span class="mono">{f.path}</span>: {f.reason ? say(f.reason) : ""}</li>
         {/each}
       </ul>
     </Section>

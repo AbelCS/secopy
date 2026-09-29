@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::lock;
+use crate::message::Message;
+use crate::msg;
+use crate::say;
 
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
@@ -42,7 +45,7 @@ pub struct AppState {
     pub copy_presets: Mutex<CopyPresets>,
     pub remembered: Mutex<Remembered>,
     /// Saved files that couldn't be read, handed to the UI once.
-    warnings: Mutex<Vec<String>>,
+    warnings: Mutex<Vec<Message>>,
     /// The saved queue (plan 6).
     pub(crate) queue: Mutex<Queue>,
     /// Saved mirror presets (plan 7).
@@ -70,7 +73,7 @@ pub(crate) struct QueueRun {
     pub cancelled: bool,
     pub handles: Vec<Option<JobHandle>>,
     /// Each job's result, recorded as soon as it ends, for a run that panics (#69).
-    pub done: Vec<(QueueResult, Option<String>)>,
+    pub done: Vec<(QueueResult, Option<Message>)>,
     /// The job after the last in `done` was started.
     pub job_started: bool,
     /// The thread running the queue, joined at quit.
@@ -88,7 +91,7 @@ impl AppState {
         if copy_presets != loaded
             && let Err(e) = store.save(COPY_PRESETS, &copy_presets)
         {
-            eprintln!("Secopy: couldn't save {COPY_PRESETS}: {e}");
+            eprintln!("Secopy: couldn't save {COPY_PRESETS}: {e:?}");
         }
         let (remembered, w3) = store.load::<Remembered>(REMEMBERED);
         let (queue, w4) = store.load::<Queue>(QUEUE);
@@ -170,7 +173,7 @@ impl AppState {
         let mut remembered = lock(&self.remembered);
         change(&mut remembered);
         if let Err(e) = self.store.save(REMEMBERED, &*remembered) {
-            eprintln!("Secopy: couldn't save {REMEMBERED}: {e}");
+            eprintln!("Secopy: couldn't save {REMEMBERED}: {e:?}");
         }
     }
 
@@ -183,13 +186,13 @@ impl AppState {
         lock(&self.remembered).window
     }
 
-    pub fn select_copy_preset(&self, id: Option<String>) -> Result<SessionView, String> {
+    pub fn select_copy_preset(&self, id: Option<String>) -> Result<SessionView, Message> {
         let preset = match &id {
             Some(id) => Some(
                 lock(&self.copy_presets)
                     .get(id)
                     .cloned()
-                    .ok_or("That preset no longer exists.")?,
+                    .ok_or_else(|| msg!("errors.preset.gone"))?,
             ),
             None => None,
         };
@@ -201,14 +204,14 @@ impl AppState {
     /// same time can't undo each other; memory changes only when the file is written.
     fn change_copy_presets<T>(
         &self,
-        change: impl FnOnce(&mut CopyPresets) -> Result<T, String>,
-    ) -> Result<T, String> {
+        change: impl FnOnce(&mut CopyPresets) -> Result<T, Message>,
+    ) -> Result<T, Message> {
         let mut presets = lock(&self.copy_presets);
         let mut next = presets.clone();
         let result = change(&mut next)?;
         self.store
             .save(COPY_PRESETS, &next)
-            .map_err(|e| format!("Couldn't save the preset: {e}"))?;
+            .map_err(|e| msg!("errors.save.preset", why = e))?;
         *presets = next;
         Ok(result)
     }
@@ -221,13 +224,14 @@ impl AppState {
     }
 
     /// Update: this run's choices go into the selected copy preset.
-    pub fn update_copy_preset(&self) -> Result<CopyPresetsView, String> {
+    pub fn update_copy_preset(&self) -> Result<CopyPresetsView, Message> {
         let updated = {
             let s = session(self);
             if s.scan_pending() {
-                return Err("Wait until the scan finishes.".into());
+                return Err(msg!("errors.preset.scanning"));
             }
-            s.updated_preset().ok_or("No preset is selected.")?
+            s.updated_preset()
+                .ok_or_else(|| msg!("errors.preset.noneSelected"))?
         };
         self.change_copy_presets(|p| {
             p.replace(updated.clone());
@@ -238,13 +242,13 @@ impl AppState {
     }
 
     /// Save as…: this run's source and choices under a new name, then selected.
-    pub fn save_copy_preset_as(&self, name: String) -> Result<CopyPresetsView, String> {
+    pub fn save_copy_preset_as(&self, name: String) -> Result<CopyPresetsView, Message> {
         let (source, (include_folder, extensions)) = {
             let s = session(self);
-            let choices = s.choices().ok_or("Wait until the scan finishes.")?;
+            let choices = s.choices().ok_or_else(|| msg!("errors.preset.scanning"))?;
             let source = s
                 .picked_source()
-                .ok_or("A preset saves a directory as its source; pick a directory first.")?;
+                .ok_or_else(|| msg!("errors.preset.needsDirectory"))?;
             (source, choices)
         };
         let preset = self.change_copy_presets(|p| {
@@ -261,7 +265,7 @@ impl AppState {
     }
 
     /// Copy presets → New.
-    pub fn create_copy_preset(&self, input: CopyPresetInput) -> Result<Vec<CopyPreset>, String> {
+    pub fn create_copy_preset(&self, input: CopyPresetInput) -> Result<Vec<CopyPreset>, Message> {
         self.change_copy_presets(|p| p.add(input))?;
         Ok(lock(&self.copy_presets).presets.clone())
     }
@@ -271,7 +275,7 @@ impl AppState {
         &self,
         id: &str,
         input: CopyPresetInput,
-    ) -> Result<CopyPresetsView, String> {
+    ) -> Result<CopyPresetsView, Message> {
         let edited = self.change_copy_presets(|p| p.edit(id, input))?;
         let selected = session(self).preset().is_some_and(|p| p.id == id);
         let view = if selected {
@@ -283,7 +287,7 @@ impl AppState {
     }
 
     /// Copy presets → Delete; a selected preset becomes None.
-    pub fn delete_copy_preset(&self, id: &str) -> Result<CopyPresetsView, String> {
+    pub fn delete_copy_preset(&self, id: &str) -> Result<CopyPresetsView, Message> {
         self.change_copy_presets(|p| {
             p.delete(id);
             Ok(())
@@ -299,26 +303,24 @@ impl AppState {
     }
 
     /// Applies at once (the next job uses it) and saves.
-    pub fn set_settings(&self, settings: Settings) -> Result<Settings, String> {
+    pub fn set_settings(&self, settings: Settings) -> Result<Settings, Message> {
         // Held across the save, so the last change in memory is also the last one on disk.
         let mut current = lock(&self.settings);
         *current = settings.clone();
         self.store
             .save(SETTINGS, &*current)
-            .map_err(|e| format!("Couldn't save the settings: {e}"))?;
+            .map_err(|e| msg!("errors.save.settings", why = e))?;
         Ok(settings)
     }
 
     /// Starts the job with the current settings and remembers the destination (B7).
-    pub fn start(&self, verify: bool, sink: impl ProgressSink) -> Result<(), String> {
+    pub fn start(&self, verify: bool, sink: impl ProgressSink) -> Result<(), Message> {
         if lock(&self.queue_run).running {
-            return Err("The queue is running.".into());
+            return Err(msg!("errors.queue.running"));
         }
         let (ready, dest) = {
             let s = session(self);
-            let ready = s
-                .ready()
-                .ok_or("Nothing to copy, or something blocks the copy.")?;
+            let ready = s.ready().ok_or_else(|| msg!("errors.job.cantStart"))?;
             (ready, s.destination().map(show))
         };
         let settings = JobSettings::from(&*lock(&self.settings));
@@ -330,16 +332,16 @@ impl AppState {
     }
 
     /// "Retry": the failed files of the last job become the source.
-    pub fn retry_failed(&self) -> Result<SessionView, String> {
-        let (source, selection) = self.jobs.retry().ok_or("No files failed.")?;
-        // With the card pulled out: say so instead of failing every file.
+    pub fn retry_failed(&self) -> Result<SessionView, Message> {
+        let (source, selection) = self
+            .jobs
+            .retry()
+            .ok_or_else(|| msg!("errors.job.noneFailed"))?;
+        // With the source's drive pulled out: say so instead of failing every file.
         if let Some(path) = crate::jobs::source_path(&source)
             && !path.exists()
         {
-            return Err(format!(
-                "The source isn't there any more ({}). Connect the card again to retry.",
-                path.display()
-            ));
+            return Err(msg!("errors.job.retrySourceGone", path = &path));
         }
         Ok(session(self).install_retry(source, selection))
     }
@@ -363,8 +365,8 @@ fn job_view(entry: &Entry, mirrors: &MirrorPresets) -> QueuedJobView {
             kind: "copy".into(),
             verify: job.verify,
             source: match job.sources.as_slice() {
-                [one] => show(one),
-                many => format!("{} files", many.len()),
+                [one] => Message::raw(show(one)),
+                many => msg!("copy.picked.files", count = many.len()),
             },
             destination: show(&job.destination),
             last_error: entry.last_error.clone(),
@@ -375,7 +377,7 @@ fn job_view(entry: &Entry, mirrors: &MirrorPresets) -> QueuedJobView {
             Some(p) => QueuedJobView {
                 kind: "mirror".into(),
                 verify: true,
-                source: p.origin.clone(),
+                source: Message::raw(p.origin.clone()),
                 destination: p.destination.clone(),
                 last_error: entry.last_error.clone(),
                 supported: true,
@@ -384,9 +386,9 @@ fn job_view(entry: &Entry, mirrors: &MirrorPresets) -> QueuedJobView {
             None => QueuedJobView {
                 kind: "mirror".into(),
                 verify: true,
-                source: String::new(),
+                source: Message::raw(""),
                 destination: String::new(),
-                last_error: Some(PRESET_GONE.into()),
+                last_error: Some(preset_gone()),
                 supported: false,
                 name: None,
             },
@@ -394,7 +396,7 @@ fn job_view(entry: &Entry, mirrors: &MirrorPresets) -> QueuedJobView {
         QueuedJob::Check { directory } => QueuedJobView {
             kind: "check".into(),
             verify: true,
-            source: show(directory),
+            source: Message::raw(show(directory)),
             destination: String::new(),
             last_error: entry.last_error.clone(),
             supported: true,
@@ -403,18 +405,23 @@ fn job_view(entry: &Entry, mirrors: &MirrorPresets) -> QueuedJobView {
         QueuedJob::Unknown(_) => QueuedJobView {
             kind: "unknown".into(),
             verify: false,
-            source: String::new(),
+            source: Message::raw(""),
             destination: String::new(),
-            last_error: Some("Needs a newer Secopy.".into()),
+            last_error: Some(msg!("queue.reason.newer")),
             supported: false,
             name: None,
         },
     }
 }
 
-const PRESET_GONE: &str = "The mirror preset no longer exists.";
+fn preset_gone() -> Message {
+    msg!("errors.mirror.presetGone")
+}
+
 /// Why the jobs left in a queue whose thread panicked didn't run (#69).
-const QUEUE_STOPPED: &str = "Secopy hit an internal error; the queue stopped.";
+fn queue_stopped() -> Message {
+    msg!("queue.reason.internal")
+}
 
 impl AppState {
     pub fn queue_view(&self) -> QueueView {
@@ -432,29 +439,29 @@ impl AppState {
     pub fn change_queue(
         &self,
         change: impl FnOnce(&mut Queue) -> bool,
-    ) -> Result<QueueView, String> {
+    ) -> Result<QueueView, Message> {
         // The run saves what's left after each job; a change now would be lost or duplicated.
         if lock(&self.queue_run).running {
-            return Err("The queue is running.".into());
+            return Err(msg!("errors.queue.running"));
         }
         {
             let mut q = lock(&self.queue);
             let mut next = q.clone();
             if !change(&mut next) {
-                return Err("That job is no longer in the queue.".into());
+                return Err(msg!("errors.queue.jobGone"));
             }
             self.store
                 .save(QUEUE, &next)
-                .map_err(|e| format!("Couldn't save the queue: {e}"))?;
+                .map_err(|e| msg!("errors.save.queue", why = e))?;
             *q = next;
         }
         Ok(self.queue_view())
     }
 
-    pub fn add_to_queue(&self, verify: bool) -> Result<QueueView, String> {
+    pub fn add_to_queue(&self, verify: bool) -> Result<QueueView, Message> {
         let job = session(self)
             .copy_job(verify)
-            .ok_or("Set up a copy first: a source, a destination and something to copy.")?;
+            .ok_or_else(|| msg!("errors.queue.setUpFirst"))?;
         self.change_queue(|q| {
             q.add(job);
             true
@@ -498,7 +505,7 @@ impl AppState {
         &self,
         preset: &MirrorPreset,
         on_compared: &(dyn Fn(u64, u64) + Sync),
-    ) -> Result<MirrorJob, String> {
+    ) -> Result<MirrorJob, Message> {
         let control = Arc::new(JobControl::new());
         lock(&self.planning).push(control.clone());
         let job = crate::mirrors::prepare(preset, &control, on_compared);
@@ -511,16 +518,16 @@ impl AppState {
     }
 
     /// Runs the saved queue, one job after another (FR-40..FR-43). Blocking.
-    pub fn run_queue(&self, sink: impl QueueSink) -> Result<QueueSummaryView, String> {
+    pub fn run_queue(&self, sink: impl QueueSink) -> Result<QueueSummaryView, Message> {
         self.claim_queue_run()?;
         Ok(self.run_claimed(sink))
     }
 
     /// Marks the queue as running, so starting it again is refused before any thread starts.
-    pub fn claim_queue_run(&self) -> Result<(), String> {
+    pub fn claim_queue_run(&self) -> Result<(), Message> {
         let mut run = lock(&self.queue_run);
         if run.running || self.jobs.is_running() {
-            return Err("A copy or the queue is already running.".into());
+            return Err(msg!("errors.queue.busy"));
         }
         run.running = true;
         run.cancelled = false;
@@ -550,7 +557,7 @@ impl AppState {
                         count: entries.len() as u32,
                         millis: clock.elapsed().as_millis() as u64,
                         results: Vec::new(),
-                        save_error: Some(QUEUE_STOPPED.into()),
+                        save_error: Some(queue_stopped()),
                     }
                 });
         sink.send(QueueEvent::Done { summary });
@@ -581,12 +588,12 @@ impl AppState {
                 {
                     (QueueResult::Complete, None)
                 }
-                None => (QueueResult::Failed, Some(QUEUE_STOPPED.to_string())),
+                None => (QueueResult::Failed, Some(queue_stopped())),
             };
             if result != QueueResult::Complete {
                 let last_error = match result {
                     QueueResult::Failed => reason.clone(),
-                    QueueResult::Cancelled => Some("Stopped.".into()),
+                    QueueResult::Cancelled => Some(msg!("queue.reason.stopped")),
                     _ => None,
                 };
                 keep.push(Entry {
@@ -642,7 +649,7 @@ impl AppState {
                 results.push(QueueResultView {
                     job: job_view(entry, &lock(&self.mirrors)),
                     result: QueueResult::NotRun,
-                    reason: Some("Not run: the queue stopped.".into()),
+                    reason: Some(msg!("queue.reason.notRun")),
                     summary: None,
                 });
                 // Not run this time: an older run's reason no longer applies.
@@ -669,7 +676,7 @@ impl AppState {
                     last_error: if failed {
                         reason.clone()
                     } else {
-                        Some("Stopped.".into())
+                        Some(msg!("queue.reason.stopped"))
                     },
                     ..entry.clone()
                 });
@@ -712,12 +719,12 @@ impl AppState {
 
     /// The jobs left after one ran: kept in memory even if they can't be saved, so a
     /// completed job never runs twice.
-    fn leave_in_queue(&self, jobs: Vec<Entry>) -> Result<(), String> {
+    fn leave_in_queue(&self, jobs: Vec<Entry>) -> Result<(), Message> {
         let mut q = lock(&self.queue);
         q.jobs = jobs;
         self.store
             .save(QUEUE, &*q)
-            .map_err(|e| format!("Couldn't save the queue: {e}"))
+            .map_err(|e| msg!("errors.save.queue", why = e))
     }
 
     fn run_one(
@@ -725,7 +732,7 @@ impl AppState {
         entry: &Entry,
         (index, jobs): (u32, u32),
         sink: &impl QueueSink,
-    ) -> (QueueResult, Option<String>, Option<JobHandle>) {
+    ) -> (QueueResult, Option<Message>, Option<JobHandle>) {
         let started = QueueEvent::JobStarted {
             index,
             count: jobs,
@@ -751,7 +758,7 @@ impl AppState {
             }
             QueuedJob::Mirror { preset } => {
                 let Some(preset) = lock(&self.mirrors).get(preset).cloned() else {
-                    return (QueueResult::Failed, Some(PRESET_GONE.into()), None);
+                    return (QueueResult::Failed, Some(preset_gone()), None);
                 };
                 let compared = |done, total| {
                     sink.send(QueueEvent::Compared {
@@ -764,13 +771,17 @@ impl AppState {
                     Ok(job) => job,
                     // Cancel during the deep check: the queue was cancelled, not the job failed.
                     Err(_) if lock(&self.queue_run).cancelled => {
-                        return (QueueResult::Cancelled, Some("Cancelled.".into()), None);
+                        return (
+                            QueueResult::Cancelled,
+                            Some(msg!("queue.reason.cancelled")),
+                            None,
+                        );
                     }
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
                 // Nobody is there to confirm: a run that looks wrong doesn't start (FR-50).
                 if let Some(guard) = &job.plan.guard {
-                    return (QueueResult::Failed, Some(guard.to_string()), None);
+                    return (QueueResult::Failed, Some(say::guard(guard)), None);
                 }
                 let settings = JobSettings::for_mirror(&job, chrono::Local::now());
                 let work = Work::Copy {
@@ -786,15 +797,11 @@ impl AppState {
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
                 if plan.files.is_empty() {
-                    return (QueueResult::Failed, Some(NOTHING_TO_VERIFY.into()), None);
+                    return (QueueResult::Failed, Some(nothing_to_verify()), None);
                 }
                 self.start_and_wait(Work::Check(Arc::new(plan)), started, sink)
             }
-            QueuedJob::Unknown(_) => (
-                QueueResult::Failed,
-                Some("Needs a newer Secopy.".into()),
-                None,
-            ),
+            QueuedJob::Unknown(_) => (QueueResult::Failed, Some(msg!("queue.reason.newer")), None),
         }
     }
 
@@ -805,13 +812,17 @@ impl AppState {
         work: Work,
         started: QueueEvent,
         sink: &impl QueueSink,
-    ) -> (QueueResult, Option<String>, Option<JobHandle>) {
+    ) -> (QueueResult, Option<Message>, Option<JobHandle>) {
         {
             // A cancel during the checks stops the job before it starts: the check and the
             // start happen under the lock `cancel` takes.
             let mut run = lock(&self.queue_run);
             if run.cancelled {
-                return (QueueResult::Cancelled, Some("Cancelled.".into()), None);
+                return (
+                    QueueResult::Cancelled,
+                    Some(msg!("queue.reason.cancelled")),
+                    None,
+                );
             }
             // The checks passed: the window shows this job's Copying screen from here.
             sink.send(started);
@@ -825,7 +836,9 @@ impl AppState {
         let summary = handle.as_ref().and_then(JobHandle::summary);
         let (result, reason) = match summary.as_ref().map(|s| s.outcome) {
             Some(JobOutcome::Complete) => (QueueResult::Complete, None),
-            Some(JobOutcome::Cancelled) => (QueueResult::Cancelled, Some("Cancelled.".into())),
+            Some(JobOutcome::Cancelled) => {
+                (QueueResult::Cancelled, Some(msg!("queue.reason.cancelled")))
+            }
             Some(JobOutcome::Failures) => {
                 (QueueResult::Failed, summary.as_ref().map(failure_reason))
             }
@@ -833,83 +846,76 @@ impl AppState {
                 QueueResult::Failed,
                 summary
                     .and_then(|s| s.stopped_because)
-                    .map(|why| full_stop(&why))
-                    .or(Some("Stopped.".into())),
+                    .map(|why| msg!("queue.reason.stoppedBecause", why = why))
+                    .or(Some(msg!("queue.reason.stopped"))),
             ),
         };
         (result, reason, handle)
     }
 }
 
-/// `text` as a sentence for the queue, whose reasons all end with a full stop.
-fn full_stop(text: &str) -> String {
-    if text.ends_with(['.', '!', '?']) {
-        text.to_string()
-    } else {
-        format!("{text}.")
-    }
-}
-
 /// Why a job ended with failures: its failed files, or a mirror's files not removed.
-fn failure_reason(s: &SummaryView) -> String {
+fn failure_reason(s: &SummaryView) -> Message {
     if let Some(c) = &s.check {
-        let mut parts: Vec<String> = [
-            (c.changed, "changed"),
-            (c.missing, "missing"),
-            (c.failed, "couldn't be read"),
-        ]
-        .into_iter()
-        .filter(|(n, _)| *n > 0)
-        .map(|(n, what)| format!("{n} {what}"))
-        .collect();
-        if c.problem_count() > 0 {
-            parts.push(format!("{} checksum file problems", c.problem_count()));
+        let mut parts = Vec::new();
+        if c.changed > 0 {
+            parts.push(msg!("queue.reason.part.changed", count = c.changed));
         }
-        return format!("{}.", parts.join(", "));
+        if c.missing > 0 {
+            parts.push(msg!("queue.reason.part.missing", count = c.missing));
+        }
+        if c.failed > 0 {
+            parts.push(msg!("queue.reason.part.unreadable", count = c.failed));
+        }
+        if c.problem_count() > 0 {
+            parts.push(msg!(
+                "queue.reason.part.problems",
+                count = c.problem_count()
+            ));
+        }
+        return msg!("queue.reason.check", parts = parts);
     }
-    let files = |n: u32| if n == 1 { "file" } else { "files" };
     if s.failed > 0 {
-        return format!("{} {} failed.", s.failed, files(s.failed));
+        return msg!("queue.reason.filesFailed", count = s.failed);
     }
     if s.unread > 0 {
-        let items = if s.unread == 1 { "item" } else { "items" };
-        return format!("{} {items} couldn't be read.", s.unread);
+        return msg!("queue.reason.unread", count = s.unread);
     }
-    let n = s
-        .mirror
-        .as_ref()
-        .map_or(0, |m| m.removal_failures.len() as u32);
+    let n = s.mirror.as_ref().map_or(0, |m| m.removal_failures.len());
     if n > 0 {
-        return format!("{n} {} couldn't be removed.", files(n));
+        return msg!("queue.reason.notRemoved", count = n);
     }
     if s.dir_errors > 0 {
-        let dirs = if s.dir_errors == 1 {
-            "directory"
-        } else {
-            "directories"
-        };
-        return format!("{} empty {dirs} couldn't be created.", s.dir_errors);
+        return msg!("queue.reason.dirs", count = s.dir_errors);
     }
     if let Some(e) = &s.checksum_error {
-        return full_stop(&format!("The checksum file couldn't be written: {e}"));
+        return msg!("queue.reason.checksum", why = e);
     }
     match &s.durability_error {
-        Some(e) => format!("The destination couldn't confirm the files are saved: {e}"),
-        None => "It didn't complete.".into(),
+        Some(e) => msg!("queue.reason.durability", why = e),
+        None => msg!("queue.reason.incomplete"),
     }
 }
 
-const NOTHING_TO_VERIFY: &str = "No checksum files here: there's nothing to verify.";
+fn nothing_to_verify() -> Message {
+    msg!("errors.verify.nothing")
+}
 
 /// Plans a check of `dir`: a directory that is there.
-fn plan_check(dir: &Path) -> Result<CheckPlan, String> {
+fn plan_check(dir: &Path) -> Result<CheckPlan, Message> {
     if !dir.exists() {
         return Err(crate::session::gone(dir));
     }
     if !dir.is_dir() {
-        return Err("Choose a directory.".into());
+        return Err(msg!("errors.verify.notADirectory"));
     }
-    secopy_core::check::plan(dir).map_err(|e| format!("{}: {e}", show(dir)))
+    secopy_core::check::plan(dir).map_err(|e| {
+        msg!(
+            "errors.verify.cantRead",
+            path = dir,
+            why = say::io_error(&e)
+        )
+    })
 }
 
 fn count_of(results: &[QueueResultView], kind: QueueResult) -> u32 {
@@ -966,10 +972,13 @@ impl ProgressSink for Channel<ProgressView> {
 async fn blocking<T: Send + 'static>(
     app: AppHandle,
     f: impl FnOnce(&AppState) -> T + Send + 'static,
-) -> Result<T, String> {
+) -> Result<T, Message> {
     tauri::async_runtime::spawn_blocking(move || f(&app.state::<AppState>()))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| {
+            eprintln!("Secopy: a command's thread failed: {e}");
+            say::internal()
+        })
 }
 
 /// The session, started afresh after a panic while it was held (#69): a change may have
@@ -987,19 +996,23 @@ fn session(state: &AppState) -> MutexGuard<'_, Session> {
 /// FROM's Choose…: a folder or files, in one panel (FR-1, FR-2). `None` when cancelled.
 #[tauri::command]
 #[specta::specta]
-pub async fn pick_source(app: AppHandle) -> Result<Option<Vec<String>>, String> {
+pub async fn pick_source(app: AppHandle) -> Result<Option<Vec<String>>, Message> {
+    let failed = |e: &dyn std::fmt::Display| {
+        eprintln!("Secopy: the source panel failed: {e}");
+        say::internal()
+    };
     let (done, picked) = std::sync::mpsc::channel();
-    crate::picker::pick_source(&app, done).map_err(|e| e.to_string())?;
+    crate::picker::pick_source(&app, done).map_err(|e| failed(&e))?;
     tauri::async_runtime::spawn_blocking(move || picked.recv().ok().flatten())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| failed(&e))
 }
 
 /// Scans a picked, dropped or chosen source (FR-1..FR-3). A newer scan replaces
 /// an older one.
 #[tauri::command]
 #[specta::specta]
-pub async fn scan_source(app: AppHandle, paths: Vec<String>) -> Result<SessionView, String> {
+pub async fn scan_source(app: AppHandle, paths: Vec<String>) -> Result<SessionView, Message> {
     blocking(app, move |state| {
         state.rescan(Change::Pick(paths.into_iter().map(PathBuf::from).collect()))
     })
@@ -1009,7 +1022,7 @@ pub async fn scan_source(app: AppHandle, paths: Vec<String>) -> Result<SessionVi
 /// The "Include the folder" checkbox (FR-4); this run's file types stay.
 #[tauri::command]
 #[specta::specta]
-pub async fn set_include_folder(app: AppHandle, include: bool) -> Result<SessionView, String> {
+pub async fn set_include_folder(app: AppHandle, include: bool) -> Result<SessionView, Message> {
     blocking(app, move |state| {
         state.rescan(Change::IncludeFolder(include))
     })
@@ -1019,7 +1032,7 @@ pub async fn set_include_folder(app: AppHandle, include: bool) -> Result<Session
 /// Clears the source; the destination stays ("New copy", RFD §5.4).
 #[tauri::command]
 #[specta::specta]
-pub async fn clear_source(app: AppHandle) -> Result<SessionView, String> {
+pub async fn clear_source(app: AppHandle) -> Result<SessionView, Message> {
     blocking(app, |state| session(state).clear_source()).await
 }
 
@@ -1029,13 +1042,13 @@ pub async fn clear_source(app: AppHandle) -> Result<SessionView, String> {
 pub async fn set_filter(
     app: AppHandle,
     selected: Option<Vec<ExtensionKey>>,
-) -> Result<SessionView, String> {
+) -> Result<SessionView, Message> {
     blocking(app, move |state| session(state).set_filter(selected)).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn set_destination(app: AppHandle, path: Option<String>) -> Result<SessionView, String> {
+pub async fn set_destination(app: AppHandle, path: Option<String>) -> Result<SessionView, Message> {
     blocking(app, move |state| {
         session(state).set_destination(path.map(PathBuf::from))
     })
@@ -1044,7 +1057,7 @@ pub async fn set_destination(app: AppHandle, path: Option<String>) -> Result<Ses
 
 #[tauri::command]
 #[specta::specta]
-pub async fn set_conflicts(app: AppHandle, policy: ConflictPolicy) -> Result<SessionView, String> {
+pub async fn set_conflicts(app: AppHandle, policy: ConflictPolicy) -> Result<SessionView, Message> {
     blocking(app, move |state| session(state).set_policy(policy)).await
 }
 
@@ -1055,7 +1068,7 @@ pub async fn start_job(
     app: AppHandle,
     verify: bool,
     on_progress: Channel<ProgressView>,
-) -> Result<(), String> {
+) -> Result<(), Message> {
     let sink = Watched {
         to: on_progress,
         app: app.clone(),
@@ -1115,7 +1128,7 @@ pub async fn finished_page(
     offset: u32,
     limit: u32,
     failed_only: bool,
-) -> Result<Vec<FinishedRow>, String> {
+) -> Result<Vec<FinishedRow>, Message> {
     blocking(app, move |state| {
         state.jobs.finished_page(offset, limit, failed_only)
     })
@@ -1124,13 +1137,13 @@ pub async fn finished_page(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn job_summary(app: AppHandle) -> Result<Option<SummaryView>, String> {
+pub async fn job_summary(app: AppHandle) -> Result<Option<SummaryView>, Message> {
     blocking(app, |state| state.jobs.summary()).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_report(app: AppHandle, path: String) -> Result<(), String> {
+pub async fn save_report(app: AppHandle, path: String) -> Result<(), Message> {
     blocking(app, move |state| {
         state.jobs.save_report(&PathBuf::from(path))
     })
@@ -1154,14 +1167,14 @@ impl AppState {
     /// Changes the mirror presets and saves them; memory changes only once saved.
     fn change_mirrors<T>(
         &self,
-        change: impl FnOnce(&mut MirrorPresets) -> Result<T, String>,
-    ) -> Result<Vec<MirrorPreset>, String> {
+        change: impl FnOnce(&mut MirrorPresets) -> Result<T, Message>,
+    ) -> Result<Vec<MirrorPreset>, Message> {
         let mut presets = lock(&self.mirrors);
         let mut next = presets.clone();
         change(&mut next)?;
         self.store
             .save(MIRRORS, &next)
-            .map_err(|e| format!("Couldn't save the mirror: {e}"))?;
+            .map_err(|e| msg!("errors.save.mirror", why = e))?;
         *presets = next;
         Ok(presets.presets.clone())
     }
@@ -1169,7 +1182,7 @@ impl AppState {
     pub fn create_mirror_preset(
         &self,
         input: MirrorPresetInput,
-    ) -> Result<Vec<MirrorPreset>, String> {
+    ) -> Result<Vec<MirrorPreset>, Message> {
         self.change_mirrors(|m| m.add(input))
     }
 
@@ -1177,11 +1190,11 @@ impl AppState {
         &self,
         id: &str,
         input: MirrorPresetInput,
-    ) -> Result<Vec<MirrorPreset>, String> {
+    ) -> Result<Vec<MirrorPreset>, Message> {
         self.change_mirrors(|m| m.edit(id, input))
     }
 
-    pub fn delete_mirror_preset(&self, id: &str) -> Result<Vec<MirrorPreset>, String> {
+    pub fn delete_mirror_preset(&self, id: &str) -> Result<Vec<MirrorPreset>, Message> {
         self.change_mirrors(|m| {
             m.delete(id);
             Ok(())
@@ -1193,8 +1206,11 @@ impl AppState {
         &self,
         id: &str,
         on_compared: &(dyn Fn(u64, u64) + Sync),
-    ) -> Result<MirrorPreviewView, String> {
-        let preset = lock(&self.mirrors).get(id).cloned().ok_or(PRESET_GONE)?;
+    ) -> Result<MirrorPreviewView, Message> {
+        let preset = lock(&self.mirrors)
+            .get(id)
+            .cloned()
+            .ok_or_else(preset_gone)?;
         let job = self.plan_mirror(&preset, on_compared)?;
         let plan = &job.plan;
         let sum = |new: bool| {
@@ -1229,7 +1245,7 @@ impl AppState {
             },
             failing: count(failing),
             unchanged: count(plan.copy.files.len() - plan.changes.len() - failing),
-            guard: plan.guard.as_ref().map(ToString::to_string),
+            guard: plan.guard.as_ref().map(say::guard),
         };
         *lock(&self.preview) = Some((preset, job));
         Ok(view)
@@ -1251,22 +1267,25 @@ impl AppState {
         let changes = plan.changes.iter().map(|(i, c)| {
             let entry = &plan.copy.files[*i].entry;
             let (kind, reason) = match c {
-                Change::New => (PreviewKind::New, "New in the origin"),
-                Change::Changed => (PreviewKind::Changed, "Changed in the origin"),
-                Change::ContentsDiffer => (PreviewKind::Changed, "Contents differ"),
+                Change::New => (PreviewKind::New, msg!("mirror.preview.reason.new")),
+                Change::Changed => (PreviewKind::Changed, msg!("mirror.preview.reason.changed")),
+                Change::ContentsDiffer => (
+                    PreviewKind::Changed,
+                    msg!("mirror.preview.reason.contentsDiffer"),
+                ),
             };
             PreviewRow {
                 path: show(&entry.rel),
                 size: entry.size,
                 kind,
-                reason: reason.into(),
+                reason,
             }
         });
         let removals = plan.removals.iter().map(|rel| PreviewRow {
             path: show(rel),
             size: std::fs::metadata(plan.copy.dest.join(rel)).map_or(0, |m| m.len()),
             kind: PreviewKind::Removed,
-            reason: "Deleted in the origin".into(),
+            reason: msg!("mirror.preview.reason.deleted"),
         });
         changes
             .chain(removals)
@@ -1278,18 +1297,18 @@ impl AppState {
 
     /// Start on the preview: the previewed plan, through the job runner (FR-47).
     /// Runs the preview of preset `id`, as it was previewed; a preview runs once.
-    pub fn run_mirror(&self, id: &str, sink: impl ProgressSink) -> Result<(), String> {
+    pub fn run_mirror(&self, id: &str, sink: impl ProgressSink) -> Result<(), Message> {
         if lock(&self.queue_run).running {
-            return Err("A copy or the queue is already running.".into());
+            return Err(msg!("errors.queue.busy"));
         }
         let mut preview = lock(&self.preview);
         let (previewed, job) = match preview.as_ref() {
             Some((preset, job)) if preset.id == id => (preset.clone(), job.clone()),
-            _ => return Err("Preview the mirror first.".into()),
+            _ => return Err(msg!("errors.mirror.previewFirst")),
         };
         if lock(&self.mirrors).get(id) != Some(&previewed) {
             *preview = None;
-            return Err("The mirror changed since its preview. Preview it again.".into());
+            return Err(msg!("errors.mirror.changedSincePreview"));
         }
         let settings = JobSettings::for_mirror(&job, chrono::Local::now());
         self.jobs.start(job.ready(), true, settings, sink)?;
@@ -1298,7 +1317,7 @@ impl AppState {
     }
 
     /// Verify's Choose…: plans a check of `path` and keeps it for Verify's Start.
-    pub fn check_directory(&self, path: &Path) -> Result<CheckView, String> {
+    pub fn check_directory(&self, path: &Path) -> Result<CheckView, Message> {
         let plan = plan_check(path)?;
         let view = CheckView {
             directory: show(path),
@@ -1306,45 +1325,38 @@ impl AppState {
             files: count(plan.files.len()),
             bytes: plan.total_bytes,
             not_checked: count(plan.not_checked.len()),
-            problems: plan
-                .problems
-                .iter()
-                .map(|p| match p.line {
-                    Some(line) => format!("{}:{line}: {}", show(&p.file), p.reason),
-                    None => format!("{}: {}", show(&p.file), p.reason),
-                })
-                .collect(),
+            problems: plan.problems.iter().map(say::check_problem).collect(),
         };
         *lock(&self.checking) = Some((path.to_path_buf(), Arc::new(plan)));
         Ok(view)
     }
 
     /// Verify's Start: runs the plan made for `path`, once.
-    pub fn start_check(&self, path: &str, sink: impl ProgressSink) -> Result<(), String> {
+    pub fn start_check(&self, path: &str, sink: impl ProgressSink) -> Result<(), Message> {
         if lock(&self.queue_run).running {
-            return Err("A copy or the queue is already running.".into());
+            return Err(msg!("errors.queue.busy"));
         }
         let planned = lock(&self.checking).take();
         let Some((dir, plan)) = planned.filter(|(dir, _)| show(dir) == path) else {
-            return Err("Choose the directory again.".into());
+            return Err(msg!("errors.verify.chooseAgain"));
         };
         if plan.files.is_empty() {
             *lock(&self.checking) = Some((dir, plan));
-            return Err(NOTHING_TO_VERIFY.into());
+            return Err(nothing_to_verify());
         }
         self.jobs.start_work(Work::Check(plan), sink)
     }
 
-    pub fn add_check_to_queue(&self, path: &str) -> Result<QueueView, String> {
+    pub fn add_check_to_queue(&self, path: &str) -> Result<QueueView, Message> {
         self.change_queue(|q| {
             q.add_check(PathBuf::from(path));
             true
         })
     }
 
-    pub fn add_mirror_to_queue(&self, id: &str) -> Result<QueueView, String> {
+    pub fn add_mirror_to_queue(&self, id: &str) -> Result<QueueView, Message> {
         if lock(&self.mirrors).get(id).is_none() {
-            return Err(PRESET_GONE.into());
+            return Err(preset_gone());
         }
         self.change_queue(|q| {
             q.add_mirror(id);
@@ -1361,19 +1373,19 @@ impl QueueSink for Channel<QueueEvent> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn queue(app: AppHandle) -> Result<QueueView, String> {
+pub async fn queue(app: AppHandle) -> Result<QueueView, Message> {
     blocking(app, |state| state.queue_view()).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn add_to_queue(app: AppHandle, verify: bool) -> Result<QueueView, String> {
+pub async fn add_to_queue(app: AppHandle, verify: bool) -> Result<QueueView, Message> {
     blocking(app, move |state| state.add_to_queue(verify)).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn remove_from_queue(app: AppHandle, index: u32) -> Result<QueueView, String> {
+pub async fn remove_from_queue(app: AppHandle, index: u32) -> Result<QueueView, Message> {
     blocking(app, move |state| {
         state.change_queue(|q| q.remove(index as usize))
     })
@@ -1382,7 +1394,7 @@ pub async fn remove_from_queue(app: AppHandle, index: u32) -> Result<QueueView, 
 
 #[tauri::command]
 #[specta::specta]
-pub async fn move_in_queue(app: AppHandle, from: u32, to: u32) -> Result<QueueView, String> {
+pub async fn move_in_queue(app: AppHandle, from: u32, to: u32) -> Result<QueueView, Message> {
     blocking(app, move |state| {
         state.change_queue(|q| q.move_job(from as usize, to as usize))
     })
@@ -1391,7 +1403,7 @@ pub async fn move_in_queue(app: AppHandle, from: u32, to: u32) -> Result<QueueVi
 
 #[tauri::command]
 #[specta::specta]
-pub async fn clear_queue(app: AppHandle) -> Result<QueueView, String> {
+pub async fn clear_queue(app: AppHandle) -> Result<QueueView, Message> {
     blocking(app, |state| {
         state.change_queue(|q| {
             q.clear();
@@ -1406,7 +1418,7 @@ pub async fn clear_queue(app: AppHandle) -> Result<QueueView, String> {
 pub async fn set_queue_on_failure(
     app: AppHandle,
     on_failure: OnFailure,
-) -> Result<QueueView, String> {
+) -> Result<QueueView, Message> {
     blocking(app, move |state| {
         state.change_queue(|q| {
             q.on_failure = on_failure;
@@ -1419,7 +1431,7 @@ pub async fn set_queue_on_failure(
 /// Starts the queue on its own thread; events arrive on `on_event`.
 #[tauri::command]
 #[specta::specta]
-pub fn run_queue(app: AppHandle, on_event: Channel<QueueEvent>) -> Result<(), String> {
+pub fn run_queue(app: AppHandle, on_event: Channel<QueueEvent>) -> Result<(), Message> {
     let state = app.state::<AppState>();
     state.claim_queue_run()?;
     let runner = app.clone();
@@ -1446,7 +1458,7 @@ pub async fn queue_finished_page(
     offset: u32,
     limit: u32,
     failed_only: bool,
-) -> Result<Vec<FinishedRow>, String> {
+) -> Result<Vec<FinishedRow>, Message> {
     blocking(app, move |state| {
         state
             .queue_job(index as usize)
@@ -1459,11 +1471,11 @@ pub async fn queue_finished_page(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn queue_save_report(app: AppHandle, index: u32, path: String) -> Result<(), String> {
+pub async fn queue_save_report(app: AppHandle, index: u32, path: String) -> Result<(), Message> {
     blocking(app, move |state| {
         state
             .queue_job(index as usize)
-            .ok_or("That job has no report.")?
+            .ok_or_else(|| msg!("errors.report.noJob"))?
             .save_report(&PathBuf::from(path))
     })
     .await?
@@ -1471,7 +1483,7 @@ pub async fn queue_save_report(app: AppHandle, index: u32, path: String) -> Resu
 
 #[tauri::command]
 #[specta::specta]
-pub async fn mirror_presets(app: AppHandle) -> Result<Vec<MirrorPreset>, String> {
+pub async fn mirror_presets(app: AppHandle) -> Result<Vec<MirrorPreset>, Message> {
     blocking(app, |state| state.mirror_presets()).await
 }
 
@@ -1480,7 +1492,7 @@ pub async fn mirror_presets(app: AppHandle) -> Result<Vec<MirrorPreset>, String>
 pub async fn create_mirror_preset(
     app: AppHandle,
     input: MirrorPresetInput,
-) -> Result<Vec<MirrorPreset>, String> {
+) -> Result<Vec<MirrorPreset>, Message> {
     blocking(app, move |state| state.create_mirror_preset(input)).await?
 }
 
@@ -1490,13 +1502,16 @@ pub async fn edit_mirror_preset(
     app: AppHandle,
     id: String,
     input: MirrorPresetInput,
-) -> Result<Vec<MirrorPreset>, String> {
+) -> Result<Vec<MirrorPreset>, Message> {
     blocking(app, move |state| state.edit_mirror_preset(&id, input)).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_mirror_preset(app: AppHandle, id: String) -> Result<Vec<MirrorPreset>, String> {
+pub async fn delete_mirror_preset(
+    app: AppHandle,
+    id: String,
+) -> Result<Vec<MirrorPreset>, Message> {
     blocking(app, move |state| state.delete_mirror_preset(&id)).await?
 }
 
@@ -1507,7 +1522,7 @@ pub async fn preview_mirror(
     app: AppHandle,
     id: String,
     on_compared: Channel<ComparedView>,
-) -> Result<MirrorPreviewView, String> {
+) -> Result<MirrorPreviewView, Message> {
     blocking(app, move |state| {
         state.preview_mirror(&id, &|done, total| {
             let _ = on_compared.send(ComparedView {
@@ -1533,7 +1548,7 @@ pub async fn mirror_preview_page(
     kind: Option<PreviewKind>,
     offset: u32,
     limit: u32,
-) -> Result<Vec<PreviewRow>, String> {
+) -> Result<Vec<PreviewRow>, Message> {
     blocking(app, move |state| {
         state.mirror_preview_page(kind, offset, limit)
     })
@@ -1547,7 +1562,7 @@ pub async fn run_mirror(
     app: AppHandle,
     id: String,
     on_progress: Channel<ProgressView>,
-) -> Result<(), String> {
+) -> Result<(), Message> {
     let sink = Watched {
         to: on_progress,
         app: app.clone(),
@@ -1557,14 +1572,14 @@ pub async fn run_mirror(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn add_mirror_to_queue(app: AppHandle, id: String) -> Result<QueueView, String> {
+pub async fn add_mirror_to_queue(app: AppHandle, id: String) -> Result<QueueView, Message> {
     blocking(app, move |state| state.add_mirror_to_queue(&id)).await?
 }
 
 /// Verify's Choose…: what `path`'s checksum files list (plan 8).
 #[tauri::command]
 #[specta::specta]
-pub async fn check_directory(app: AppHandle, path: String) -> Result<CheckView, String> {
+pub async fn check_directory(app: AppHandle, path: String) -> Result<CheckView, Message> {
     blocking(app, move |state| state.check_directory(Path::new(&path))).await?
 }
 
@@ -1575,7 +1590,7 @@ pub async fn start_check(
     app: AppHandle,
     path: String,
     on_progress: Channel<ProgressView>,
-) -> Result<(), String> {
+) -> Result<(), Message> {
     let sink = Watched {
         to: on_progress,
         app: app.clone(),
@@ -1585,45 +1600,48 @@ pub async fn start_check(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn add_check_to_queue(app: AppHandle, path: String) -> Result<QueueView, String> {
+pub async fn add_check_to_queue(app: AppHandle, path: String) -> Result<QueueView, Message> {
     blocking(app, move |state| state.add_check_to_queue(&path)).await?
 }
 
 /// "Retry": only the failed files, checked again (RFD §5.4).
 #[tauri::command]
 #[specta::specta]
-pub async fn retry_failed(app: AppHandle) -> Result<SessionView, String> {
+pub async fn retry_failed(app: AppHandle) -> Result<SessionView, Message> {
     blocking(app, |state| state.retry_failed()).await?
 }
 
 /// Everything the window needs at start; load problems are handed out once.
 #[tauri::command]
 #[specta::specta]
-pub async fn app_start(app: AppHandle) -> Result<StartView, String> {
+pub async fn app_start(app: AppHandle) -> Result<StartView, Message> {
     blocking(app, |state| state.start_view()).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn recent_destinations(app: AppHandle) -> Result<Vec<String>, String> {
+pub async fn recent_destinations(app: AppHandle) -> Result<Vec<String>, Message> {
     blocking(app, |state| state.recent()).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn select_copy_preset(app: AppHandle, id: Option<String>) -> Result<SessionView, String> {
+pub async fn select_copy_preset(
+    app: AppHandle,
+    id: Option<String>,
+) -> Result<SessionView, Message> {
     blocking(app, move |state| state.select_copy_preset(id)).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn update_copy_preset(app: AppHandle) -> Result<CopyPresetsView, String> {
+pub async fn update_copy_preset(app: AppHandle) -> Result<CopyPresetsView, Message> {
     blocking(app, |state| state.update_copy_preset()).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_copy_preset_as(app: AppHandle, name: String) -> Result<CopyPresetsView, String> {
+pub async fn save_copy_preset_as(app: AppHandle, name: String) -> Result<CopyPresetsView, Message> {
     blocking(app, move |state| state.save_copy_preset_as(name)).await?
 }
 
@@ -1632,7 +1650,7 @@ pub async fn save_copy_preset_as(app: AppHandle, name: String) -> Result<CopyPre
 pub async fn create_copy_preset(
     app: AppHandle,
     input: CopyPresetInput,
-) -> Result<Vec<CopyPreset>, String> {
+) -> Result<Vec<CopyPreset>, Message> {
     blocking(app, move |state| state.create_copy_preset(input)).await?
 }
 
@@ -1642,26 +1660,26 @@ pub async fn edit_copy_preset(
     app: AppHandle,
     id: String,
     input: CopyPresetInput,
-) -> Result<CopyPresetsView, String> {
+) -> Result<CopyPresetsView, Message> {
     blocking(app, move |state| state.edit_copy_preset(&id, input)).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_copy_preset(app: AppHandle, id: String) -> Result<CopyPresetsView, String> {
+pub async fn delete_copy_preset(app: AppHandle, id: String) -> Result<CopyPresetsView, Message> {
     blocking(app, move |state| state.delete_copy_preset(&id)).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn set_settings(app: AppHandle, settings: Settings) -> Result<Settings, String> {
+pub async fn set_settings(app: AppHandle, settings: Settings) -> Result<Settings, Message> {
     blocking(app, move |state| state.set_settings(settings)).await?
 }
 
 /// Copy or Copy & Verify, remembered for the next launch (FR-36).
 #[tauri::command]
 #[specta::specta]
-pub async fn set_mode(app: AppHandle, verify: bool) -> Result<(), String> {
+pub async fn set_mode(app: AppHandle, verify: bool) -> Result<(), Message> {
     blocking(app, move |state| state.remember(|r| r.verify = verify)).await
 }
 
@@ -1672,38 +1690,58 @@ struct Pending {
 }
 
 /// Why Import is refused while a job or the queue runs (#77).
-pub const IMPORT_WAITS: &str = "Import it when the current job has finished.";
+pub fn import_waits() -> Message {
+    msg!("errors.import.waits")
+}
+
 /// Why Import is refused when presets or settings changed after the file was opened.
-pub const IMPORT_CHANGED: &str = "Your presets or settings changed since this file was opened. Open it again to see what it would change.";
+pub fn import_changed() -> Message {
+    msg!("errors.import.changed")
+}
 
 /// "1 copy preset, 2 mirror presets and the settings".
-fn what_line(copies: usize, mirrors: usize, settings: bool) -> String {
+fn what_line(copies: usize, mirrors: usize, settings: bool) -> Message {
     let mut parts = Vec::new();
     if copies > 0 {
-        parts.push(format!(
-            "{copies} copy preset{}",
-            if copies == 1 { "" } else { "s" }
-        ));
+        parts.push(msg!("export.what.copyPresets", count = copies));
     }
     if mirrors > 0 {
-        parts.push(format!(
-            "{mirrors} mirror preset{}",
-            if mirrors == 1 { "" } else { "s" }
-        ));
+        parts.push(msg!("export.what.mirrorPresets", count = mirrors));
     }
     if settings {
-        parts.push("the settings".to_string());
+        parts.push(msg!("export.what.settings"));
     }
-    match parts.len() {
-        0 => "nothing".to_string(),
-        1 => parts.remove(0),
-        n => format!("{} and {}", parts[..n - 1].join(", "), parts[n - 1]),
+    match parts.as_slice() {
+        [] => msg!("export.what.nothing"),
+        [one] => one.clone(),
+        [a, b] => msg!("format.list2", a = a, b = b),
+        [a, b, c] => msg!("format.list3", a = a, b = b, c = c),
+        _ => unreachable!("three kinds at most"),
+    }
+}
+
+/// What an import saves, kind by kind, in this order.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Kind {
+    CopyPresets,
+    MirrorPresets,
+    Settings,
+}
+
+impl Kind {
+    /// "The copy presets", to start a sentence.
+    fn named(self) -> Message {
+        match self {
+            Kind::CopyPresets => msg!("import.kind.copyPresets"),
+            Kind::MirrorPresets => msg!("import.kind.mirrorPresets"),
+            Kind::Settings => msg!("import.kind.settings"),
+        }
     }
 }
 
 /// Export and import (#77).
 impl AppState {
-    pub fn export_all(&self, path: &Path, what: &ExportWhat) -> Result<String, String> {
+    pub fn export_all(&self, path: &Path, what: &ExportWhat) -> Result<Message, Message> {
         let settings = what.settings.then(|| lock(&self.settings).clone());
         let copies = if what.copy_presets {
             lock(&self.copy_presets).presets.clone()
@@ -1716,7 +1754,7 @@ impl AppState {
             Vec::new()
         };
         if settings.is_none() && copies.is_empty() && mirrors.is_empty() {
-            return Err("Choose something to export.".into());
+            return Err(msg!("errors.export.nothing"));
         }
         let text = transfer::export_text(
             settings.as_ref(),
@@ -1726,17 +1764,17 @@ impl AppState {
             chrono::Local::now(),
         );
         transfer::write_file(path, &text)?;
-        Ok(format!(
-            "Exported {}.",
-            what_line(copies.len(), mirrors.len(), settings.is_some())
+        Ok(msg!(
+            "export.done",
+            what = what_line(copies.len(), mirrors.len(), settings.is_some()),
         ))
     }
 
-    pub fn export_copy_preset(&self, id: &str, path: &Path) -> Result<String, String> {
+    pub fn export_copy_preset(&self, id: &str, path: &Path) -> Result<Message, Message> {
         let preset = lock(&self.copy_presets)
             .get(id)
             .cloned()
-            .ok_or("That preset no longer exists.")?;
+            .ok_or_else(|| msg!("errors.preset.gone"))?;
         let text = transfer::export_text(
             None,
             std::slice::from_ref(&preset),
@@ -1745,14 +1783,14 @@ impl AppState {
             chrono::Local::now(),
         );
         transfer::write_file(path, &text)?;
-        Ok(format!("Exported “{}”.", preset.name))
+        Ok(msg!("export.doneNamed", name = &preset.name))
     }
 
-    pub fn export_mirror_preset(&self, id: &str, path: &Path) -> Result<String, String> {
+    pub fn export_mirror_preset(&self, id: &str, path: &Path) -> Result<Message, Message> {
         let preset = lock(&self.mirrors)
             .get(id)
             .cloned()
-            .ok_or("That mirror no longer exists.")?;
+            .ok_or_else(|| msg!("errors.mirror.gone"))?;
         let text = transfer::export_text(
             None,
             &[],
@@ -1761,13 +1799,13 @@ impl AppState {
             chrono::Local::now(),
         );
         transfer::write_file(path, &text)?;
-        Ok(format!("Exported “{}”.", preset.name))
+        Ok(msg!("export.doneNamed", name = &preset.name))
     }
 
     /// Reads `path` for the Import screen. Changes nothing.
-    pub fn open_import(&self, path: &Path) -> Result<ImportView, String> {
+    pub fn open_import(&self, path: &Path) -> Result<ImportView, Message> {
         if self.busy() {
-            return Err(IMPORT_WAITS.into());
+            return Err(import_waits());
         }
         let contents = transfer::read_file(path)?;
         let name = path
@@ -1791,43 +1829,43 @@ impl AppState {
     /// saved before the next; the first failure stops it, and the message says what went in
     /// and what didn't. The file is taken once, so a second press imports nothing; nothing is
     /// imported if a job runs or the presets or settings changed since the screen was shown.
-    pub fn apply_import(&self, choices: &ImportChoices) -> Result<ImportDone, String> {
+    pub fn apply_import(&self, choices: &ImportChoices) -> Result<ImportDone, Message> {
         // Held throughout, so the queue can't start in the middle (`claim_queue_run`).
         let run = lock(&self.queue_run);
         if run.running || self.jobs.is_running() {
-            return Err(IMPORT_WAITS.into());
+            return Err(import_waits());
         }
         let Pending { contents, seen } = lock(&self.importing)
             .take()
-            .ok_or("There is no file to import.")?;
+            .ok_or_else(|| msg!("errors.import.noFile"))?;
         let now = (
             lock(&self.copy_presets).clone(),
             lock(&self.mirrors).clone(),
             lock(&self.settings).clone(),
         );
         if now != seen {
-            return Err(IMPORT_CHANGED.into());
+            return Err(import_changed());
         }
         let wants_settings = choices.settings && matches!(contents.settings, Some(Ok(_)));
         let mut done = (0usize, 0usize, false);
-        let failure = (|| -> Result<(), (&str, String)> {
+        let failure = (|| -> Result<(), (Kind, Message)> {
             if !choices.copy_presets.is_empty() {
                 done.0 = self
                     .change_whole(&self.copy_presets, COPY_PRESETS, |p| {
                         transfer::apply_copy(&contents, &choices.copy_presets, p)
                     })
-                    .map_err(|e| ("The copy presets", e))?;
+                    .map_err(|e| (Kind::CopyPresets, e))?;
             }
             if !choices.mirror_presets.is_empty() {
                 done.1 = self
                     .change_whole(&self.mirrors, MIRRORS, |m| {
                         transfer::apply_mirrors(&contents, &choices.mirror_presets, m)
                     })
-                    .map_err(|e| ("The mirror presets", e))?;
+                    .map_err(|e| (Kind::MirrorPresets, e))?;
             }
             if wants_settings && let Some(Ok(theirs)) = &contents.settings {
                 self.change_whole(&self.settings, SETTINGS, |_| Ok((theirs.clone(), ())))
-                    .map_err(|e| ("The settings", e))?;
+                    .map_err(|e| (Kind::Settings, e))?;
                 done.2 = true;
             }
             Ok(())
@@ -1836,33 +1874,27 @@ impl AppState {
         drop(run);
         let imported = what_line(done.0, done.1, done.2);
         let (message, failed) = match failure {
-            None => (format!("Imported {imported}."), false),
-            Some((what, why)) => {
+            None => (msg!("import.done", what = imported), false),
+            Some((kind, why)) => {
                 // The kinds after the one that failed were never tried.
-                let later: Vec<&str> = match what {
-                    "The copy presets" => [
-                        (!choices.mirror_presets.is_empty()).then_some("the mirror presets"),
-                        wants_settings.then_some("the settings"),
-                    ]
-                    .into_iter()
-                    .flatten()
-                    .collect(),
-                    "The mirror presets" => wants_settings
-                        .then_some("the settings")
-                        .into_iter()
-                        .collect(),
-                    _ => Vec::new(),
-                };
-                let mut message = if done == (0, 0, false) {
-                    format!("{what} couldn't be saved: {why}")
+                let mirrors_later = kind == Kind::CopyPresets && !choices.mirror_presets.is_empty();
+                let settings_later = kind != Kind::Settings && wants_settings;
+                let failed = if done == (0, 0, false) {
+                    msg!("import.failed", what = kind.named(), why = why)
                 } else {
-                    format!("Imported {imported}. {what} couldn't be saved: {why}")
+                    msg!(
+                        "import.partly",
+                        done = imported,
+                        what = kind.named(),
+                        why = why
+                    )
                 };
-                if !later.is_empty() {
-                    let rest = later.join(" and ");
-                    let rest = rest[..1].to_uppercase() + &rest[1..];
-                    message.push_str(&format!(" {rest} weren't imported."));
-                }
+                let message = match (mirrors_later, settings_later) {
+                    (false, false) => failed,
+                    (true, false) => msg!("import.andNot.mirrors", message = failed),
+                    (false, true) => msg!("import.andNot.settings", message = failed),
+                    (true, true) => msg!("import.andNot.both", message = failed),
+                };
                 (message, true)
             }
         };
@@ -1884,8 +1916,8 @@ impl AppState {
         &self,
         current: &Mutex<T>,
         name: &str,
-        change: impl FnOnce(&T) -> Result<(T, R), String>,
-    ) -> Result<R, String> {
+        change: impl FnOnce(&T) -> Result<(T, R), Message>,
+    ) -> Result<R, Message> {
         let mut current = lock(current);
         let (next, result) = change(&current)?;
         self.store.save(name, &next)?;
@@ -1904,7 +1936,11 @@ impl AppState {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn export_all(app: AppHandle, path: String, what: ExportWhat) -> Result<String, String> {
+pub async fn export_all(
+    app: AppHandle,
+    path: String,
+    what: ExportWhat,
+) -> Result<Message, Message> {
     blocking(app, move |s| s.export_all(Path::new(&path), &what)).await?
 }
 
@@ -1914,7 +1950,7 @@ pub async fn export_copy_preset(
     app: AppHandle,
     id: String,
     path: String,
-) -> Result<String, String> {
+) -> Result<Message, Message> {
     blocking(app, move |s| s.export_copy_preset(&id, Path::new(&path))).await?
 }
 
@@ -1924,20 +1960,20 @@ pub async fn export_mirror_preset(
     app: AppHandle,
     id: String,
     path: String,
-) -> Result<String, String> {
+) -> Result<Message, Message> {
     blocking(app, move |s| s.export_mirror_preset(&id, Path::new(&path))).await?
 }
 
 /// Reads a `.secopy` file for the Import screen; changes nothing.
 #[tauri::command]
 #[specta::specta]
-pub async fn open_import(app: AppHandle, path: String) -> Result<ImportView, String> {
+pub async fn open_import(app: AppHandle, path: String) -> Result<ImportView, Message> {
     blocking(app, move |s| s.open_import(Path::new(&path))).await?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn apply_import(app: AppHandle, choices: ImportChoices) -> Result<ImportDone, String> {
+pub async fn apply_import(app: AppHandle, choices: ImportChoices) -> Result<ImportDone, Message> {
     blocking(app, move |s| s.apply_import(&choices)).await?
 }
 
@@ -1954,6 +1990,7 @@ mod tests {
     use std::sync::{Arc, Mutex as StdMutex};
 
     use super::*;
+    use crate::message::En;
     use crate::store::{COPY_PRESETS, REMEMBERED, SETTINGS};
 
     #[derive(Clone, Default)]
@@ -2424,6 +2461,7 @@ mod tests {
         assert!(
             summary.results[0]
                 .reason
+                .en()
                 .as_deref()
                 .unwrap()
                 .ends_with("isn't there any more.")
@@ -2448,7 +2486,7 @@ mod tests {
         fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
         assert_eq!(summary.results[0].result, QueueResult::Failed);
         assert_eq!(
-            summary.results[0].reason.as_deref(),
+            summary.results[0].reason.en().as_deref(),
             Some("1 item couldn't be read.")
         );
         assert_eq!(state.queue_view().jobs.len(), 1, "it stays queued");
@@ -2522,14 +2560,15 @@ mod tests {
         let reasons: Vec<_> = summary
             .results
             .iter()
-            .map(|r| (r.result, r.reason.as_deref()))
+            .map(|r| (r.result, r.reason.en()))
             .collect();
+        let stopped = Some("Secopy hit an internal error; the queue stopped.".to_string());
         assert_eq!(
             reasons,
             [
                 (QueueResult::Complete, None),
-                (QueueResult::Failed, Some(QUEUE_STOPPED)),
-                (QueueResult::Failed, Some(QUEUE_STOPPED)),
+                (QueueResult::Failed, stopped.clone()),
+                (QueueResult::Failed, stopped),
             ],
             "every job, A's result included"
         );
@@ -2559,7 +2598,7 @@ mod tests {
         let summary = state.run_claimed(PanicsOnProgress::default());
         assert_eq!(summary.results[0].result, QueueResult::Failed);
         assert_eq!(
-            summary.results[0].reason.as_deref(),
+            summary.results[0].reason.en().as_deref(),
             Some("Secopy hit an internal error.")
         );
     }
@@ -2687,7 +2726,7 @@ mod tests {
         );
         let summary = state.run_queue(Events::default()).unwrap();
         assert_eq!(
-            summary.results[0].reason.as_deref(),
+            summary.results[0].reason.en().as_deref(),
             Some("Needs a newer Secopy.")
         );
         assert_eq!(summary.results[1].result, QueueResult::Complete);
@@ -2699,7 +2738,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let state = queued(dir.path(), &[("A", 400), ("B", 1)]);
         for e in &mut lock(&state.queue).jobs {
-            e.last_error = Some("an old reason".into());
+            e.last_error = Some(Message::raw("an old reason"));
         }
         state.cancel(false); // before the run: flag is reset by the run, so cancel during it
         std::thread::scope(|s| {
@@ -2719,7 +2758,7 @@ mod tests {
             2,
             "the cancelled job and the one not run both stay"
         );
-        assert_eq!(left[0].last_error.as_deref(), Some("Stopped."));
+        assert_eq!(left[0].last_error.en().as_deref(), Some("Stopped."));
         assert_eq!(left[1].last_error, None, "no stale reason on a job not run");
     }
 
@@ -2812,7 +2851,7 @@ mod tests {
         let p = state.preview_mirror(&id, &|_, _| {}).unwrap();
         assert_eq!((p.new_files, p.removed_files, p.unchanged), (1, 3, 0));
         assert_eq!(
-            p.guard.as_deref(),
+            p.guard.en().as_deref(),
             Some("3 of the destination's 3 files would be removed.")
         );
         let removed = state.mirror_preview_page(Some(PreviewKind::Removed), 0, 10);
@@ -2970,7 +3009,7 @@ mod tests {
             .unwrap();
         assert_eq!(summary.results[0].result, QueueResult::Cancelled);
         assert_eq!(
-            state.queue_view().jobs[0].last_error.as_deref(),
+            state.queue_view().jobs[0].last_error.en().as_deref(),
             Some("Stopped.")
         );
         assert!(events.0.lock().unwrap().iter().any(|e| matches!(
@@ -3022,7 +3061,7 @@ mod tests {
         let summary = state.run_queue(Events::default()).unwrap();
         assert_eq!(summary.results[0].result, QueueResult::Failed);
         assert_eq!(
-            summary.results[0].reason.as_deref(),
+            summary.results[0].reason.en().as_deref(),
             Some("3 of the destination's 3 files would be removed.")
         );
         assert!(d.join("x.mov").exists(), "nothing removed");
@@ -3049,7 +3088,7 @@ mod tests {
         state.delete_mirror_preset(&id).unwrap();
         let summary = state.run_queue(Events::default()).unwrap();
         assert_eq!(
-            summary.results[0].reason.as_deref(),
+            summary.results[0].reason.en().as_deref(),
             Some("The mirror preset no longer exists.")
         );
     }
@@ -3098,7 +3137,10 @@ mod tests {
         assert_eq!(state.queue_view().jobs[0].kind, "check");
         let summary = state.run_queue(Events::default()).unwrap();
         assert_eq!(summary.results[0].result, QueueResult::Failed);
-        assert_eq!(summary.results[0].reason.as_deref(), Some("1 changed."));
+        assert_eq!(
+            summary.results[0].reason.en().as_deref(),
+            Some("1 changed.")
+        );
     }
 
     /// #69: past the 1,000 checksum file problems a summary lists, the queue's reason still
@@ -3120,8 +3162,8 @@ mod tests {
         state.add_check_to_queue(&show(&root)).unwrap();
         let summary = state.run_queue(Events::default()).unwrap();
         assert_eq!(
-            summary.results[0].reason.as_deref(),
-            Some("1005 checksum file problems.")
+            summary.results[0].reason.en().as_deref(),
+            Some("1,005 checksum file problems.")
         );
         let check = summary.results[0].summary.clone().unwrap().check.unwrap();
         assert_eq!((check.problems.len(), check.more_problems), (1000, Some(5)));
@@ -3219,7 +3261,7 @@ mod tests {
         a.export_copy_preset(&id, &file).unwrap();
         a.open_import(&file).unwrap();
         lock(&a.queue_run).running = true;
-        assert_eq!(a.open_import(&file).unwrap_err(), IMPORT_WAITS);
+        assert_eq!(a.open_import(&file).unwrap_err(), import_waits());
         let choices = ImportChoices {
             copy_presets: vec![PresetChoice {
                 index: 0,
@@ -3227,7 +3269,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        assert_eq!(a.apply_import(&choices).unwrap_err(), IMPORT_WAITS);
+        assert_eq!(a.apply_import(&choices).unwrap_err(), import_waits());
         assert_eq!(lock(&a.copy_presets).presets.len(), 1);
     }
 
@@ -3315,7 +3357,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        assert_eq!(a.apply_import(&replace).unwrap_err(), IMPORT_CHANGED);
+        assert_eq!(a.apply_import(&replace).unwrap_err(), import_changed());
         assert_eq!(
             lock(&a.copy_presets).get(&id).unwrap().source,
             "/Volumes/CARD_B"

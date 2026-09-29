@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
+import { raw } from "../test/fake-api";
 import { queuedJob, summaryView } from "../test/fake-api";
 import QueueSummary from "./QueueSummary.svelte";
 
@@ -12,8 +13,8 @@ describe("QueueSummary", () => {
           complete: 1, count: 3, millis: 6_130_000,
           results: [
             { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
-            { job: queuedJob({ source: "/Volumes/CARD_B/DCIM" }), result: "failed", reason: "3 files failed.", summary: summaryView({ outcome: "failures", failed: 3 }) },
-            { job: queuedJob({ source: "/x" }), result: "notRun", reason: "Not run: the queue stopped.", summary: null },
+            { job: queuedJob({ source: raw("/Volumes/CARD_B/DCIM") }), result: "failed", reason: raw("3 files failed."), summary: summaryView({ outcome: "failures", failed: 3 }) },
+            { job: queuedJob({ source: raw("/x") }), result: "notRun", reason: raw("Not run: the queue stopped."), summary: null },
           ],
           saveError: null,
         },
@@ -52,8 +53,8 @@ describe("QueueSummary", () => {
       props: {
         summary: {
           complete: 0, count: 1, millis: 1000,
-          results: [{ job: queuedJob({ kind: "unknown", supported: false, source: "", destination: "" }), result: "failed", reason: "Needs a newer Secopy.", summary: null }],
-          saveError: "Couldn't save the queue: permission denied",
+          results: [{ job: queuedJob({ kind: "unknown", supported: false, source: raw(""), destination: "" }), result: "failed", reason: raw("Needs a newer Secopy."), summary: null }],
+          saveError: raw("Couldn't save the queue: permission denied"),
         },
         onOpen: () => {},
         onDone: () => {},
@@ -70,7 +71,7 @@ describe("QueueSummary", () => {
       props: {
         summary: {
           complete: 0, count: 1, millis: 1000,
-          results: [{ job: queuedJob({ kind: "mirror", supported: false, name: null }), result: "failed", reason: "The mirror preset no longer exists.", summary: null }],
+          results: [{ job: queuedJob({ kind: "mirror", supported: false, name: null }), result: "failed", reason: raw("The mirror preset no longer exists."), summary: null }],
           saveError: null,
         },
         onOpen: () => {},
@@ -86,7 +87,7 @@ describe("QueueSummary", () => {
       props: {
         summary: {
           complete: 1, count: 1, millis: 1000,
-          results: [{ job: queuedJob({ kind: "check", source: "/Volumes/Backup/Day01", destination: "" }), result: "complete", reason: null, summary: summaryView() }],
+          results: [{ job: queuedJob({ kind: "check", source: raw("/Volumes/Backup/Day01"), destination: "" }), result: "complete", reason: null, summary: summaryView() }],
           saveError: null,
         },
         onOpen: () => {},

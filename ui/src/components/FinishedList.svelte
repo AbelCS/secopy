@@ -2,6 +2,7 @@
   // Finished files (RFD §5.3). Virtualized: only the visible rows exist, and rows are fetched
   // from the app a page at a time, so it stays smooth with a million files.
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import { useApi } from "../lib/api";
   import type { FinishedRow } from "../lib/bindings";
   import { formatBytes, formatDuration, formatSpeed } from "../lib/format";
@@ -131,7 +132,7 @@
           <span>{formatSpeed(row.millis > 0 ? (row.size * 1000) / row.millis : null)}</span>
           <span class="mono">{row.hash ?? t("format.unknown")}</span>
           <!-- A short word; why is on hover, and in the summary's Failed list. -->
-          <span class={row.status} title={row.reason ?? ""}>{statusText(row)}</span>
+          <span class={row.status} title={row.reason ? say(row.reason) : ""}>{statusText(row)}</span>
         {:else}
           <span class="muted">…</span>
         {/if}

@@ -3,6 +3,7 @@ import en from "../locales/en.json";
 import { setLocale } from "./i18n";
 import type { Message } from "./bindings";
 import { AppError, fieldOf, say } from "./message";
+import rustKeys from "../locales/rust-keys.json";
 
 describe("messages from the app", () => {
   afterEach(() => setLocale("en"));
@@ -36,5 +37,18 @@ describe("messages from the app", () => {
     expect(fieldOf(new AppError({ key: "errors.field.origin.notFull", args: {} }))).toBe("origin");
     expect(fieldOf(new AppError({ key: "errors.save.file", args: {} }))).toBeNull();
     expect(fieldOf(new Error("The origin must be a full path"))).toBeNull();
+  });
+
+  test("every key the app can send has words, with its placeholders filled", () => {
+    for (const key of rustKeys) {
+      const entry = key.split(".").reduce<unknown>((node, part) => (node as Record<string, unknown>)?.[part], en);
+      const texts = typeof entry === "string" ? [entry] : Object.values(entry as Record<string, string>);
+      const args: Message["args"] = {};
+      for (const [, name] of texts.join(" ").matchAll(/\{(\w+)\}/g)) args[name] = name === "count" ? 2 : "x";
+      if (typeof entry !== "string") args.count = 2;
+      const words = say({ key, args });
+      expect(words, key).not.toBe(key);
+      expect(words, key).not.toMatch(/\{\w+\}/);
+    }
   });
 });

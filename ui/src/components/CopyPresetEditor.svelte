@@ -2,6 +2,7 @@
   // One copy preset's fields (FR-38): its name, the source it loads, whether that directory itself
   // is copied, and which file types. Problems show next to their field.
   import { t } from "../lib/i18n";
+  import { fieldOf } from "../lib/message";
   import { baseName, messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { CopyPreset, CopyPresetInput } from "../lib/bindings";
@@ -112,8 +113,9 @@
       await onSave({ name, source, includeFolder, extensions: all ? null : types });
     } catch (e) {
       const message = messageOf(e);
-      if (message.startsWith("The source")) sourceProblem = message;
-      else if (/name|preset called/.test(message)) nameProblem = message;
+      const field = fieldOf(e);
+      if (field === "source") sourceProblem = message;
+      else if (field === "name") nameProblem = message;
       else otherProblem = message;
     } finally {
       saving = false;

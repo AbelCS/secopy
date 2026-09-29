@@ -6,7 +6,7 @@ test("ok results give their data", async () => {
 });
 
 test("error results throw the app's message", async () => {
-  const failed = unwrap(Promise.resolve({ status: "error", error: "The destination is not an existing directory" }));
+  const failed = unwrap(Promise.resolve({ status: "error", error: { key: "errors.blocker.destMissing", args: {} } }));
   await expect(failed).rejects.toThrow("The destination is not an existing directory");
 });
 

@@ -2,6 +2,7 @@
   // What a mirror would do (FR-47): the counts, every file by kind, and what looks wrong
   // (FR-50). Start runs exactly this.
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import { useApi } from "../lib/api";
   import type { MirrorPreviewView, PreviewKind, PreviewRow, QueueView } from "../lib/bindings";
   import { formatBytes, messageOf } from "../lib/format";
@@ -78,7 +79,7 @@
 
   async function run() {
     if (preview.guard) {
-      const sure = await api.confirm(preview.guard, t("mirror.preview.guard.title"), t("mirror.preview.guard.run"), t("mirror.preview.guard.cancel"));
+      const sure = await api.confirm(say(preview.guard), t("mirror.preview.guard.title"), t("mirror.preview.guard.run"), t("mirror.preview.guard.cancel"));
       if (!sure) return;
     }
     onRun();
@@ -105,7 +106,7 @@
     <span class="muted" aria-hidden="true">→</span>
     <span class="mono path" title={preview.destination}><bdi>{preview.destination}</bdi></span>
   </p>
-  {#if preview.guard}<Notice tone="warning">{preview.guard}</Notice>{/if}
+  {#if preview.guard}<Notice tone="warning">{say(preview.guard)}</Notice>{/if}
   {#if error}<Notice tone="danger">{error}</Notice>{/if}
 
   <Section title={t("mirror.preview.changes")}>
@@ -155,7 +156,7 @@
             <tr>
               <td class="mono name" title={r.path}><bdi>{r.path}</bdi></td>
               <td class="size">{formatBytes(r.size)}</td>
-              <td class="muted">{r.reason}</td>
+              <td class="muted">{say(r.reason)}</td>
             </tr>
           {/each}
         </tbody>

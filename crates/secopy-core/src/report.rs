@@ -200,12 +200,12 @@ impl Report {
             result: result_line(job, &counts),
             cache_bypass: job.cache_bypass.map(|b| b == CacheBypass::Active),
             checksum_file: job.checksum_file.as_ref().map(|p| p.display().to_string()),
-            checksum_error: job.checksum_error.clone(),
+            checksum_error: job.checksum_error.as_ref().map(ToString::to_string),
             checksum_off: job.checksum_off,
             removed_partials: job.removed_partials,
             counts,
             files,
-            durability_error: job.durability_error.clone(),
+            durability_error: job.durability_error.as_ref().map(ToString::to_string),
             mirror: None,
             check: None,
             dir_errors: job
@@ -213,7 +213,7 @@ impl Report {
                 .iter()
                 .map(|(rel, why)| Unread {
                     path: slash_path(rel),
-                    reason: why.clone(),
+                    reason: why.to_string(),
                 })
                 .collect(),
             unread: job

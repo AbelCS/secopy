@@ -2,6 +2,7 @@
   // Import (#77): what a .secopy file holds, against what this Mac has. Nothing changes
   // until Import; Back leaves everything as it was.
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import type { Snippet } from "svelte";
   import type { ImportChoices, ImportView, PresetImport } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -67,7 +68,7 @@
           <li>
             <Checkbox label={p.name} checked={state[i].on} disabled={!!p.problem} onChange={(on) => (state[i].on = on)} />
             {#each p.paths as path (path)}<p class="note mono">{path}</p>{/each}
-            {#if p.problem}<p class="note problem">{p.problem}</p>{/if}
+            {#if p.problem}<p class="note problem">{say(p.problem)}</p>{/if}
             {#each p.missing as path (path)}<p class="note">{t("import.notConnected", { path })}</p>{/each}
             {#if !p.clash && !p.problem && p.newName !== p.name}
               <p class="note">{t("import.renamed", { name: p.newName })}</p>
@@ -101,12 +102,12 @@
   {#if view.settings}
     <Section title={t("import.settings")}>
       {#if view.settings.problem}
-        <p class="problem">{view.settings.problem}</p>
+        <p class="problem">{say(view.settings.problem)}</p>
       {:else if view.settings.changes.length === 0}
         <p class="note">{t("import.sameSettings")}</p>
       {:else}
         <Checkbox label={t("import.importSettings")} checked={settingsOn} onChange={(on) => (settingsOn = on)} />
-        <ul class="changes">{#each view.settings.changes as c (c)}<li>{c}</li>{/each}</ul>
+        <ul class="changes">{#each view.settings.changes as c, i (i)}<li>{say(c)}</li>{/each}</ul>
       {/if}
     </Section>
   {/if}

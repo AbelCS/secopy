@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
+import { raw } from "../test/fake-api";
 import { apiContext } from "../lib/api";
 import type { QueueView } from "../lib/bindings";
 import { fakeApi, queuedJob, queueView } from "../test/fake-api";
 import QueueScreen from "./QueueScreen.svelte";
 import { helpOf } from "../test/hint";
 
-function show(queue: QueueView = queueView({ jobs: [queuedJob(), queuedJob({ source: "/Volumes/CARD_B/DCIM", verify: false })] })) {
+function show(queue: QueueView = queueView({ jobs: [queuedJob(), queuedJob({ source: raw("/Volumes/CARD_B/DCIM"), verify: false })] })) {
   const { api } = fakeApi();
   const calls = { queue: [] as QueueView[], run: 0 };
   render(QueueScreen, {
@@ -30,7 +31,7 @@ describe("QueueScreen", () => {
     show(
       queueView({
         jobs: [
-          queuedJob({ kind: "mirror", name: "Footage", source: "/Volumes/SSD/Footage", destination: "/Volumes/Media/Footage" }),
+          queuedJob({ kind: "mirror", name: "Footage", source: raw("/Volumes/SSD/Footage"), destination: "/Volumes/Media/Footage" }),
         ],
       }),
     );
@@ -41,7 +42,7 @@ describe("QueueScreen", () => {
   });
 
   test("a check job shows Verify and its directory", () => {
-    show(queueView({ jobs: [queuedJob({ kind: "check", source: "/Volumes/Backup/Day01", destination: "" })] }));
+    show(queueView({ jobs: [queuedJob({ kind: "check", source: raw("/Volumes/Backup/Day01"), destination: "" })] }));
     const row = screen.getByRole("listitem");
     within(row).getByText("Verify");
     within(row).getByText("/Volumes/Backup/Day01");
@@ -58,7 +59,7 @@ describe("QueueScreen", () => {
   });
 
   test("a queued mirror whose preset was deleted says so", () => {
-    show(queueView({ jobs: [queuedJob({ kind: "mirror", supported: false, name: null, lastError: "The mirror preset no longer exists." })] }));
+    show(queueView({ jobs: [queuedJob({ kind: "mirror", supported: false, name: null, lastError: raw("The mirror preset no longer exists.") })] }));
     screen.getByText("A mirror that was deleted");
     expect(screen.queryByText("A job for a newer Secopy")).toBeNull();
   });
@@ -100,7 +101,7 @@ describe("QueueScreen", () => {
   });
 
   test("a failed job says why; a newer job says so", () => {
-    show(queueView({ jobs: [queuedJob({ lastError: "CARD_A isn't connected." }), queuedJob({ kind: "unknown", supported: false, lastError: "Needs a newer Secopy." })] }));
+    show(queueView({ jobs: [queuedJob({ lastError: raw("CARD_A isn't connected.") }), queuedJob({ kind: "unknown", supported: false, lastError: raw("Needs a newer Secopy.") })] }));
     screen.getByText("CARD_A isn't connected.");
     screen.getByText("Needs a newer Secopy.");
   });

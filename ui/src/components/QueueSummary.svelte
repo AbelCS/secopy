@@ -2,6 +2,7 @@
   // The end of a queue run (FR-43): one row per job with its result, each opening that job's
   // own summary.
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import type { QueuedJobView, QueueResult, QueueSummaryView } from "../lib/bindings";
   import { formatDuration } from "../lib/format";
   import { headline } from "../lib/headline";
@@ -35,12 +36,12 @@
   /** A job in words, for its Summary button's name: "Verify · /Volumes/Backup". "to", not
    *  "→", so VoiceOver doesn't read "right arrow". */
   function jobName(job: QueuedJobView): string {
-    if (job.kind === "check") return t("queue.name.check", { source: job.source });
+    if (job.kind === "check") return t("queue.name.check", { source: say(job.source) });
     const kind =
       job.kind === "mirror"
         ? t("queue.name.mirror", { name: job.name ?? "" }).trim()
         : t(job.verify ? "queue.mode.copyVerify" : "queue.mode.copy");
-    return t("queue.name.job", { kind, source: job.source, destination: job.destination });
+    return t("queue.name.job", { kind, source: say(job.source), destination: job.destination });
   }
 </script>
 
@@ -55,7 +56,7 @@
       </h2>
     </div>
     <p class="muted">{t("queue.done.took", { time: formatDuration(summary.millis) })}</p>
-    {#if summary.saveError}<Notice tone="danger">{summary.saveError}</Notice>{/if}
+    {#if summary.saveError}<Notice tone="danger">{say(summary.saveError)}</Notice>{/if}
   </div>
 
   <Section title={t("queue.done.jobs")}>
@@ -70,15 +71,15 @@
             {:else}
               {#if r.job.kind === "check"}
                 <span>{t("queue.mode.verify")}</span>
-                <span class="mono path"><bdi>{r.job.source}</bdi></span>
+                <span class="mono path"><bdi>{say(r.job.source)}</bdi></span>
               {:else}
                 {#if r.job.kind === "mirror"}<span>{t("queue.mode.mirror", { name: r.job.name ?? "" })}</span>{/if}
-                <span class="mono path"><bdi>{r.job.source}</bdi></span>
+                <span class="mono path"><bdi>{say(r.job.source)}</bdi></span>
                 <span class="muted" aria-hidden="true">→</span>
                 <span class="mono path"><bdi>{r.job.destination}</bdi></span>
               {/if}
             {/if}
-            <span class="line">{r.summary ? headline(r.summary) : (r.reason ?? "")}</span>
+            <span class="line">{r.summary ? headline(r.summary) : r.reason ? say(r.reason) : ""}</span>
           </div>
           {#if r.summary}
             <Button aria-label={t("queue.done.summaryOf", { number: i + 1, name: jobName(r.job) })} onclick={() => onOpen(i)}
