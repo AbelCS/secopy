@@ -103,8 +103,8 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
 
 - **New mirror** asks for a **Name**, the **Origin** and the **Destination**, what happens to
   **files deleted in the origin** (**Archive them** for a number of days, 30 by default, or
-  **Delete them**), and whether to **also compare unchanged files byte for byte** (slower;
-  catches a damaged file in the backup that has the right size and date).
+  **Delete them**), and the **Comparison**: **Standard** (size and modification date) or **Paranoid**
+  (byte-for-byte comparison of both copies; very slow: reads all data on both sides).
 - **Preview…** works out what a run would do before anything is touched:
 
 ![Mirror preview](images/mirror-preview.png)

@@ -31,12 +31,24 @@ describe("MirrorScreen", () => {
     expect(screen.getByRole("spinbutton", { name: "Days to keep" })).toHaveProperty("value", "30");
   });
 
-  test("Checking says copies are always verified, and what the deep check adds", () => {
-    show();
-    screen.getByText(/always verified after copying/);
-    const deep = screen.getByRole("checkbox", { name: "Also compare unchanged files byte for byte" });
-    expect(deep).toHaveProperty("checked", false);
-    screen.getByText(/same size and date are normally left alone/);
+  test("Comparison: Standard or Paranoid, each saying what it does; Paranoid warns it's very slow", async () => {
+    const { api } = show();
+    screen.getByText("New and changed files are always verified after copying.");
+    const standard = screen.getByRole("radio", { name: "Standard" });
+    const paranoid = screen.getByRole("radio", { name: "Paranoid" });
+    expect(standard).toHaveProperty("checked", true);
+    expect(standard.getAttribute("aria-describedby")).toBeTruthy();
+    expect(document.getElementById(standard.getAttribute("aria-describedby")!)?.textContent).toContain(
+      "Size and modification date.",
+    );
+    const said = document.getElementById(paranoid.getAttribute("aria-describedby")!)?.textContent ?? "";
+    expect(said).toContain("Byte-for-byte comparison of both copies.");
+    expect(said).toContain("Very slow: reads all data on both sides.");
+    await fireEvent.click(paranoid);
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(api.editMirrorPreset).toHaveBeenCalledWith("m1", expect.objectContaining({ deepCheck: true })),
+    );
   });
 
   test("a long Preview… says how far it is and can be cancelled", async () => {
@@ -149,7 +161,7 @@ describe("MirrorScreen", () => {
 
   test("the days say when archived files go; shortening them says what the next run removes", async () => {
     show();
-    screen.getByText(/Each run first removes archived files older than this/);
+    screen.getByText(/Each run deletes those older than this/);
     await fireEvent.input(screen.getByRole("spinbutton", { name: "Days to keep" }), { target: { value: "7" } });
     await screen.findByText("At the next run, files archived more than 7 days ago are removed.");
   });
