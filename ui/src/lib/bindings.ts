@@ -458,6 +458,8 @@ export type PresetImport = {
 	missing: string[],
 	/**  Why it can't be imported. */
 	problem: Message | null,
+	/**  It stands for the file's whole list of presets, which can't be read. */
+	section: boolean,
 };
 
 export type PreviewKind = "new" | "changed" | "removed";

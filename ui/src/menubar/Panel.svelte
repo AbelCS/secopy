@@ -70,7 +70,7 @@
   {:else}
     <div class="head">
       <span class="heading">{say(view.heading)}</span>
-      <span class="percent">{view.percent === null ? "…" : t("menubar.percent", { value: view.percent })}</span>
+      <span class="percent">{view.percent === null ? t("menubar.title.starting") : t("menubar.percent", { value: view.percent })}</span>
     </div>
     <dl class="route">
       {#if view.from}<dt>{t("menubar.from")}</dt><dd class="path mono" title={say(view.from)}><bdi>{say(view.from)}</bdi></dd>{/if}

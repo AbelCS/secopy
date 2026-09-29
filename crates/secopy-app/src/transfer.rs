@@ -38,11 +38,13 @@ pub struct Contents {
     pub mirror_presets: Vec<Result<MirrorPresetInput, Unreadable>>,
 }
 
-/// A preset in the file that can't be read: its name if it has one (else empty), and why.
+/// A preset in the file that can't be read: its name if it has one (else empty), and why;
+/// `section` when the whole list of presets can't be read.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Unreadable {
     pub name: String,
     pub why: Message,
+    pub section: bool,
 }
 
 #[derive(Serialize)]
@@ -178,6 +180,7 @@ fn presets<T: serde::de::DeserializeOwned>(list: Option<Value>) -> Vec<Result<T,
             return vec![Err(Unreadable {
                 name: String::new(),
                 why: msg!("import.problem.section"),
+                section: true,
             })];
         }
     };
@@ -192,6 +195,7 @@ fn presets<T: serde::de::DeserializeOwned>(list: Option<Value>) -> Vec<Result<T,
             serde_json::from_value::<T>(item).map_err(|e| Unreadable {
                 name,
                 why: msg!("import.problem.details", detail = e.to_string()),
+                section: false,
             })
         })
         .collect()
@@ -231,6 +235,8 @@ pub struct PresetImport {
     pub missing: Vec<String>,
     /// Why it can't be imported.
     pub problem: Option<Message>,
+    /// It stands for the file's whole list of presets, which can't be read.
+    pub section: bool,
 }
 
 /// What the user ticked: presets by their index in the file.
@@ -286,6 +292,7 @@ pub fn plan(
                     paths,
                     name: p.name,
                     problem: None,
+                    section: false,
                 }
             }
         })
@@ -303,6 +310,7 @@ pub fn plan(
                     paths,
                     name: p.name,
                     problem: None,
+                    section: false,
                 }
             }
         })
@@ -323,6 +331,7 @@ fn unreadable(u: Unreadable) -> PresetImport {
         clash: None,
         missing: Vec::new(),
         problem: Some(u.why),
+        section: u.section,
     }
 }
 
@@ -341,6 +350,7 @@ fn copy_rows(
             let p = CopyPresets::normalized(p.clone()).map_err(|why| Unreadable {
                 name: p.name.clone(),
                 why,
+                section: false,
             })?;
             let name = names.free_name(&p.name);
             let _ = names.add(CopyPresetInput {
@@ -365,6 +375,7 @@ fn mirror_rows(
             let p = MirrorPresets::normalized(p.clone()).map_err(|why| Unreadable {
                 name: p.name.clone(),
                 why,
+                section: false,
             })?;
             let name = names.free_name(&p.name);
             let _ = names.add(MirrorPresetInput {
@@ -505,6 +516,25 @@ mod tests {
     use super::*;
     use crate::message::En;
     use crate::store::{CopyPresets, DeletedFiles, DeletedMode, MirrorPresetInput, MirrorPresets};
+
+
+    /// Review: a section that can't be read is the section, not a preset with no name.
+    #[test]
+    fn an_unreadable_section_says_which_section() {
+        let text = r#"{"secopy":1,"mirrorPresets":{"a":1}}"#;
+        let view = plan(
+            "x",
+            &contents(text),
+            &CopyPresets::default(),
+            &MirrorPresets::default(),
+            &Settings::default(),
+            &|_| true,
+        );
+        assert!(view.mirror_presets[0].section);
+        let text = r#"{"secopy":1,"copyPresets":[{"source":7}]}"#;
+        let view = plan("x", &contents(text), &CopyPresets::default(), &MirrorPresets::default(), &Settings::default(), &|_| true);
+        assert!(!view.copy_presets[0].section, "one preset with no name");
+    }
 
     fn copy_presets() -> CopyPresets {
         let mut p = CopyPresets::default();
