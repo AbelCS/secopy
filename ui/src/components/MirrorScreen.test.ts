@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import { apiContext } from "../lib/api";
 import { AppError } from "../lib/message";
@@ -63,6 +63,77 @@ describe("MirrorScreen", () => {
     api.previewMirror.mockRejectedValueOnce(new AppError({ key: "errors.mirror.same", args: {} }));
     await fireEvent.click(screen.getByRole("button", { name: "Preview…" }));
     await screen.findByText("The origin and the destination are the same directory.");
+  });
+
+  /** Switches the saved archive-mode preset to Delete and presses Save. */
+  async function switchToDelete() {
+    await fireEvent.click(screen.getByRole("radio", { name: "Delete them" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  }
+
+  test("switching to Delete with an empty archive just saves", async () => {
+    const { api } = show();
+    await switchToDelete();
+    await waitFor(() => expect(api.editMirrorPreset).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.deleteMirrorArchive).not.toHaveBeenCalled();
+  });
+
+  test("switching to Delete asks about the archive; Delete them now deletes it, then saves", async () => {
+    const { api } = show();
+    api.mirrorArchive.mockResolvedValue({ state: "files", files: 124, bytes: 38_200_000_000 });
+    api.deleteMirrorArchive.mockResolvedValue({ removed: 124, notDeleted: null });
+    await switchToDelete();
+    const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
+    within(dialog).getByText("The archive holds 124 files (38.2 GB) from earlier runs.");
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Delete them now" }));
+    await waitFor(() => expect(api.editMirrorPreset).toHaveBeenCalled());
+    expect(api.deleteMirrorArchive).toHaveBeenCalledWith("m1");
+    expect(api.deleteMirrorArchive.mock.invocationCallOrder[0]).toBeLessThan(api.editMirrorPreset.mock.invocationCallOrder[0]);
+    await screen.findByText("Deleted 124 archived files.");
+  });
+
+  test("Keep them for the preset's days saves and deletes nothing; Cancel doesn't save", async () => {
+    const { api } = show([mirrorPreset({ deleted: { mode: "archive", days: 7 } })]);
+    api.mirrorArchive.mockResolvedValue({ state: "files", files: 1, bytes: 5 });
+    await switchToDelete();
+    let dialog = await screen.findByRole("dialog", { name: "Files already archived" });
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(api.editMirrorPreset).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    dialog = await screen.findByRole("dialog", { name: "Files already archived" });
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Keep them 7 days" }));
+    await waitFor(() => expect(api.editMirrorPreset).toHaveBeenCalled());
+    expect(api.deleteMirrorArchive).not.toHaveBeenCalled();
+  });
+
+  test("a destination that isn't connected can have its archive deleted at the next run", async () => {
+    const { api } = show();
+    api.mirrorArchive.mockResolvedValue({ state: "unavailable" });
+    await switchToDelete();
+    const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
+    within(dialog).getByText("The destination isn't connected, so its archive can't be checked.");
+    expect(within(dialog).queryByRole("button", { name: "Delete them now" })).toBeNull();
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Delete it at the next run" }));
+    await waitFor(() => expect(api.clearMirrorArchiveNextRun).toHaveBeenCalledWith("m1"));
+    expect(api.editMirrorPreset).toHaveBeenCalled();
+  });
+
+  test("while a job runs, the archive is deleted at the next run or kept", async () => {
+    const { api } = show();
+    api.mirrorArchive.mockResolvedValue({ state: "busy" });
+    await switchToDelete();
+    const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
+    within(dialog).getByText("A job is running, so the archive can't be deleted now.");
+    within(dialog).getByRole("button", { name: "Delete it at the next run" });
+    within(dialog).getByRole("button", { name: "Keep archived files 30 days" });
+  });
+
+  test("the days say when archived files go; shortening them says what the next run removes", async () => {
+    show();
+    screen.getByText(/Each run first removes archived files older than this/);
+    await fireEvent.input(screen.getByRole("spinbutton", { name: "Days to keep" }), { target: { value: "7" } });
+    await screen.findByText("At the next run, files archived more than 7 days ago are removed.");
   });
 
   test("a problem with the origin is shown under Origin", async () => {

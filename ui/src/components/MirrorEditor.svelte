@@ -70,6 +70,12 @@
     canSave = isChanged && !saving;
   });
 
+  /** Days made shorter on a saved archive: the next run removes more of what's archived (#101). */
+  const shorter = $derived.by(() => {
+    const n = Number.parseInt(days, 10);
+    return preset?.deleted.mode === "archive" && n > 0 && n < preset.deleted.days ? n : null;
+  });
+
   /** Back to the saved preset. */
   export function revert() {
     name = start.name;
@@ -168,6 +174,7 @@
           bind:value={days}
           help={t("mirror.editor.daysHelp")}
         />
+        {#if shorter !== null}<p class="note">{t("mirror.editor.daysShorter", { count: shorter })}</p>{/if}
       </div>
     {:else}
       <p class="muted">{t("mirror.editor.deleteNote")}</p>

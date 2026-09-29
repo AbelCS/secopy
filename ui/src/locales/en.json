@@ -824,7 +824,7 @@
       "removed": "{count} deleted in the origin →",
       "deleted": "deleted",
       "archived": "archived, kept {days} days",
-      "archivedHelp": "Moved into the hidden .secopy-archive directory in the destination, and removed for good after {days} days.",
+      "archivedHelp": "Moved into the hidden .secopy-archive directory in the destination. Each run first removes archived files older than {days} days.",
       "failing": {
         "one": "{count} file will fail: a name the destination can't take, or something in the way",
         "other": "{count} files will fail: a name the destination can't take, or something in the way"
@@ -859,12 +859,16 @@
       "archive": "Archive them",
       "delete": "Delete them",
       "days": "Days to keep",
-      "daysHelp": "In a hidden .secopy-archive directory on the destination, then removed.",
+      "daysHelp": "In a hidden .secopy-archive directory on the destination. Each run first removes archived files older than this, counted from when they were archived.",
       "deleteNote": "Files deleted in the origin are deleted in the destination too. This can't be undone.",
       "checking": "Checking",
       "verifyNote": "New and changed files are always verified after copying: read back from the destination and compared by checksum.",
       "deepCheck": "Also compare unchanged files byte for byte",
-      "deepCheckHelp": "Files with the same size and date are normally left alone. This reads both copies in full to catch a damaged or silently changed file in the backup. Slow on big libraries."
+      "deepCheckHelp": "Files with the same size and date are normally left alone. This reads both copies in full to catch a damaged or silently changed file in the backup. Slow on big libraries.",
+      "daysShorter": {
+        "one": "At the next run, files archived more than {count} day ago are removed.",
+        "other": "At the next run, files archived more than {count} days ago are removed."
+      }
     },
     "guard": {
       "unread": {
@@ -885,6 +889,35 @@
     },
     "removal": {
       "changed": "It changed after the preview, so it was kept."
+    },
+    "archiveNotDeleted": {
+      "one": "{count} archived file couldn't be deleted ({why}). It's removed once it's {days} days old.",
+      "other": "{count} archived files couldn't be deleted ({why}). They're removed once they're {days} days old."
+    },
+    "switch": {
+      "title": "Files already archived",
+      "files": {
+        "one": "The archive holds {count} file ({size}) from earlier runs.",
+        "other": "The archive holds {count} files ({size}) from earlier runs."
+      },
+      "unavailable": "The destination isn't connected, so its archive can't be checked.",
+      "busy": "A job is running, so the archive can't be deleted now.",
+      "deleteNow": "Delete them now",
+      "deleteNextRun": "Delete it at the next run",
+      "keep": {
+        "one": "Keep them {count} day",
+        "other": "Keep them {count} days"
+      },
+      "keepArchived": {
+        "one": "Keep archived files {count} day",
+        "other": "Keep archived files {count} days"
+      }
+    },
+    "archive": {
+      "deleted": {
+        "one": "Deleted {count} archived file.",
+        "other": "Deleted {count} archived files."
+      }
     }
   },
   "menubar": {
@@ -1023,7 +1056,8 @@
       "changedSincePreview": "The mirror changed since its preview. Preview it again.",
       "gone": "That mirror no longer exists.",
       "presetGone": "The mirror preset no longer exists.",
-      "previewFirst": "Preview the mirror first."
+      "previewFirst": "Preview the mirror first.",
+      "archiveBusy": "Delete the archive when the current job has finished."
     },
     "export": {
       "notAFileName": "That isn't a file name.",

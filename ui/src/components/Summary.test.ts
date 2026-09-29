@@ -18,6 +18,19 @@ function show(summary: SummaryView) {
 }
 
 describe("Summary", () => {
+  test("a mirror says which archived files it couldn't delete, and when they go", () => {
+    const note = {
+      key: "mirror.archiveNotDeleted",
+      args: { count: 2, why: { key: "errors.os.permissionDenied", args: {} }, days: 7 },
+    };
+    show(
+      summaryView({
+        mirror: { new: 1, updated: 0, removed: 0, archived: false, removalFailures: [], nothingRemoved: null, archiveNotDeleted: note },
+      }),
+    );
+    screen.getByText("2 archived files couldn't be deleted (Permission denied). They're removed once they're 7 days old.");
+  });
+
   test("a mirror: its headline, why nothing was removed, what couldn't be, and Done", async () => {
     const { api } = fakeApi();
     const calls = { done: 0 };

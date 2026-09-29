@@ -31,6 +31,8 @@ import type {
   ImportView,
   PanelView,
   Message,
+  ArchiveView,
+  ArchiveDeletedView,
 } from "../lib/bindings";
 
 export function sourceView(over: Partial<SourceView> = {}): SourceView {
@@ -325,6 +327,9 @@ export function fakeApi(session: SessionView = sessionView()) {
     createMirrorPreset: vi.fn((_input: MirrorPresetInput) => Promise.resolve([mirrorPreset()])),
     editMirrorPreset: vi.fn((_id: string, _input: MirrorPresetInput) => Promise.resolve([mirrorPreset()])),
     deleteMirrorPreset: vi.fn((_id: string) => Promise.resolve([] as MirrorPreset[])),
+    mirrorArchive: vi.fn((_id: string) => Promise.resolve({ state: "empty" } as ArchiveView)),
+    deleteMirrorArchive: vi.fn((_id: string) => Promise.resolve({ removed: 0, notDeleted: null } as ArchiveDeletedView)),
+    clearMirrorArchiveNextRun: vi.fn((_id: string) => Promise.resolve([mirrorPreset()])),
     previewMirror: vi.fn((_id: string, _onCompared: (c: ComparedView) => void) => Promise.resolve(mirrorPreview())),
     cancelMirrorPreview: vi.fn(() => Promise.resolve()),
     mirrorPreviewPage: vi.fn((_kind: PreviewKind | null, _o: number, _l: number) => Promise.resolve([] as PreviewRow[])),

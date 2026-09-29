@@ -27,6 +27,8 @@ import {
   type PanelView,
   type MirrorPreset,
   type MirrorPresetInput,
+  type ArchiveView,
+  type ArchiveDeletedView,
   type MirrorPreviewView,
   type OnFailure,
   type PreviewKind,
@@ -109,6 +111,10 @@ export const tauriApi = {
   editMirrorPreset: (id: string, input: MirrorPresetInput): Promise<MirrorPreset[]> =>
     unwrap(commands.editMirrorPreset(id, input)),
   deleteMirrorPreset: (id: string): Promise<MirrorPreset[]> => unwrap(commands.deleteMirrorPreset(id)),
+  /** What a mirror's archive holds (#101), asked before switching it to Delete. */
+  mirrorArchive: (id: string): Promise<ArchiveView> => unwrap(commands.mirrorArchive(id)),
+  deleteMirrorArchive: (id: string): Promise<ArchiveDeletedView> => unwrap(commands.deleteMirrorArchive(id)),
+  clearMirrorArchiveNextRun: (id: string): Promise<MirrorPreset[]> => unwrap(commands.clearMirrorArchiveNextRun(id)),
   /** What a preset would do now; the preview's Start then runs exactly this (FR-47). */
   previewMirror: (id: string, onCompared: (c: ComparedView) => void): Promise<MirrorPreviewView> => {
     const channel = new Channel<ComparedView>();

@@ -39,11 +39,17 @@ export const commands = {
 	/**  The panel's Quit Secopy: asks first while a job runs, as ⌘Q does (#80). */
 	quitApp: () => __TAURI_INVOKE<void>("quit_app"),
 	exportAll: (path: string, what: ExportWhat) => typedError<Message, Message>(__TAURI_INVOKE("export_all", { path, what })),
+	/**  What a mirror's archive holds (#101). */
+	mirrorArchive: (id: string) => typedError<ArchiveView, Message>(__TAURI_INVOKE("mirror_archive", { id })),
+	/**  Deletes a mirror's archive now (#101). */
+	deleteMirrorArchive: (id: string) => typedError<ArchiveDeletedView, Message>(__TAURI_INVOKE("delete_mirror_archive", { id })),
+	/**  Deletes a mirror's archive at its next run (#101). */
+	clearMirrorArchiveNextRun: (id: string) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("clear_mirror_archive_next_run", { id })),
 	exportCopyPreset: (id: string, path: string) => typedError<Message, Message>(__TAURI_INVOKE("export_copy_preset", { id, path })),
 	exportMirrorPreset: (id: string, path: string) => typedError<Message, Message>(__TAURI_INVOKE("export_mirror_preset", { id, path })),
 	/**  Reads a `.secopy` file for the Import screen; changes nothing. */
 	openImport: (path: string) => typedError<ImportView, Message>(__TAURI_INVOKE("open_import", { path })),
-	applyImport: (choices: ImportChoices) => typedError<ImportDone, Message>(__TAURI_INVOKE("apply_import", { choices })),
+	applyImport: (choices: ImportChoices) => typedError<ImportDone_Serialize, Message>(__TAURI_INVOKE("apply_import", { choices })),
 	/**  A `.secopy` file opened from Finder, once. */
 	takeOpenedFile: () => __TAURI_INVOKE<string | null>("take_opened_file"),
 	/**
@@ -112,7 +118,7 @@ export const commands = {
 	/**  Why the report couldn't be saved there (each place it was written). */
 	reportErrors: Message[],
 	/**  A mirror's own figures (plan 7); `None` for a copy. */
-	mirror: MirrorSummaryView | null,
+	mirror: MirrorSummaryView_Serialize | null,
 	/**  What Cancel's "Also remove the files already copied" did (#54). */
 	undone: UndoneView | null,
 	/**  A check's own figures (plan 8); `None` for a copy or a mirror. */
@@ -130,13 +136,13 @@ export const commands = {
 	clearQueue: () => typedError<QueueView, Message>(__TAURI_INVOKE("clear_queue")),
 	setQueueOnFailure: (onFailure: OnFailure) => typedError<QueueView, Message>(__TAURI_INVOKE("set_queue_on_failure", { onFailure })),
 	/**  Starts the queue on its own thread; events arrive on `on_event`. */
-	runQueue: (onEvent: Channel<QueueEvent>) => typedError<null, Message>(__TAURI_INVOKE("run_queue", { onEvent })),
+	runQueue: (onEvent: Channel<QueueEvent_Deserialize>) => typedError<null, Message>(__TAURI_INVOKE("run_queue", { onEvent })),
 	queueFinishedPage: (index: number, offset: number, limit: number, failedOnly: boolean) => typedError<FinishedRow[], Message>(__TAURI_INVOKE("queue_finished_page", { index, offset, limit, failedOnly })),
 	queueSaveReport: (index: number, path: string) => typedError<null, Message>(__TAURI_INVOKE("queue_save_report", { index, path })),
-	mirrorPresets: () => typedError<MirrorPreset[], Message>(__TAURI_INVOKE("mirror_presets")),
-	createMirrorPreset: (input: MirrorPresetInput) => typedError<MirrorPreset[], Message>(__TAURI_INVOKE("create_mirror_preset", { input })),
-	editMirrorPreset: (id: string, input: MirrorPresetInput) => typedError<MirrorPreset[], Message>(__TAURI_INVOKE("edit_mirror_preset", { id, input })),
-	deleteMirrorPreset: (id: string) => typedError<MirrorPreset[], Message>(__TAURI_INVOKE("delete_mirror_preset", { id })),
+	mirrorPresets: () => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("mirror_presets")),
+	createMirrorPreset: (input: MirrorPresetInput) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("create_mirror_preset", { input })),
+	editMirrorPreset: (id: string, input: MirrorPresetInput) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("edit_mirror_preset", { id, input })),
+	deleteMirrorPreset: (id: string) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("delete_mirror_preset", { id })),
 	/**  A mirror's preview (FR-47); the preview's Start then runs it. */
 	previewMirror: (id: string, onCompared: Channel<ComparedView>) => typedError<MirrorPreviewView, Message>(__TAURI_INVOKE("preview_mirror", { id, onCompared })),
 	mirrorPreviewPage: (kind: "new" | "changed" | "removed" | null, offset: number, limit: number) => typedError<PreviewRow[], Message>(__TAURI_INVOKE("mirror_preview_page", { kind, offset, limit })),
@@ -161,6 +167,22 @@ export type ActiveFileView = {
 	size: number,
 	bytesDone: number,
 };
+
+/**  What "Delete them now" did (#101). */
+export type ArchiveDeletedView = {
+	removed: number,
+	/**  Archived files that couldn't be deleted, and when they go instead. */
+	notDeleted: Message | null,
+};
+
+/**  What a mirror's archive holds, asked before switching it to Delete (#101). */
+export type ArchiveView = 
+/**  No archive, or nothing in it. */
+{ state: "empty" } | { state: "files"; files: number; bytes: number } | 
+/**  The destination isn't connected (or can't be read). */
+{ state: "unavailable" } | 
+/**  A job or the queue runs: the archive isn't touched now. */
+{ state: "busy" };
 
 /**
  *  A placeholder's value. The UI formats numbers for its language, a `Size` as bytes
@@ -319,13 +341,26 @@ export type ImportChoices = {
 };
 
 /**  After Import: what to say, and everything the window shows, as saved (#77). */
-export type ImportDone = {
+export type ImportDone = ImportDone_Serialize | ImportDone_Deserialize;
+
+/**  After Import: what to say, and everything the window shows, as saved (#77). */
+export type ImportDone_Deserialize = {
 	message: Message,
 	/**  Part of it couldn't be saved; `message` says what. */
 	failed: boolean,
 	settings: Settings,
 	copyPresets: CopyPreset[],
-	mirrorPresets: MirrorPreset[],
+	mirrorPresets: MirrorPreset_Deserialize[],
+};
+
+/**  After Import: what to say, and everything the window shows, as saved (#77). */
+export type ImportDone_Serialize = {
+	message: Message,
+	/**  Part of it couldn't be saved; `message` says what. */
+	failed: boolean,
+	settings: Settings,
+	copyPresets: CopyPreset[],
+	mirrorPresets: MirrorPreset_Serialize[],
 };
 
 /**  What the Import screen shows: nothing is changed by making it. */
@@ -353,15 +388,7 @@ export type Message = {
 };
 
 /**  A saved one-way mirror (plan 7, FR-44). */
-export type MirrorPreset = {
-	id: string,
-	name: string,
-	origin: string,
-	destination: string,
-	deleted: DeletedFiles,
-	/**  Also compare contents by checksum (FR-46). */
-	deepCheck: boolean,
-};
+export type MirrorPreset = MirrorPreset_Serialize | MirrorPreset_Deserialize;
 
 /**  A mirror preset as typed in its editor. */
 export type MirrorPresetInput = {
@@ -370,6 +397,38 @@ export type MirrorPresetInput = {
 	destination: string,
 	deleted: DeletedFiles,
 	deepCheck: boolean,
+};
+
+/**  A saved one-way mirror (plan 7, FR-44). */
+export type MirrorPreset_Deserialize = {
+	id: string,
+	name: string,
+	origin: string,
+	destination: string,
+	deleted: DeletedFiles,
+	/**  Also compare contents by checksum (FR-46). */
+	deepCheck: boolean,
+	/**
+	 *  "Delete it at the next run" (#101): the destination whose archive the next run deletes
+	 *  first. Kept with its path, so a later change of destination never points it elsewhere.
+	 */
+	clearArchive?: string | null,
+};
+
+/**  A saved one-way mirror (plan 7, FR-44). */
+export type MirrorPreset_Serialize = {
+	id: string,
+	name: string,
+	origin: string,
+	destination: string,
+	deleted: DeletedFiles,
+	/**  Also compare contents by checksum (FR-46). */
+	deepCheck: boolean,
+	/**
+	 *  "Delete it at the next run" (#101): the destination whose archive the next run deletes
+	 *  first. Kept with its path, so a later change of destination never points it elsewhere.
+	 */
+	clearArchive?: string | null,
 };
 
 /**  A mirror's preview (FR-47): what a run would do, before anything is touched. */
@@ -393,7 +452,10 @@ export type MirrorPreviewView = {
 };
 
 /**  What a mirror did besides copying (FR-52). */
-export type MirrorSummaryView = {
+export type MirrorSummaryView = MirrorSummaryView_Serialize | MirrorSummaryView_Deserialize;
+
+/**  What a mirror did besides copying (FR-52). */
+export type MirrorSummaryView_Deserialize = {
 	/**  Files new in the origin, copied. */
 	new: number,
 	/**  Files changed in the origin, replaced. */
@@ -406,6 +468,26 @@ export type MirrorSummaryView = {
 	removalFailures: FinishedRow[],
 	/**  Why nothing was removed: the copy phase failed or was cancelled. */
 	nothingRemoved: Message | null,
+	/**  Archived files the user asked to delete that couldn't be (#101), and when they go. */
+	archiveNotDeleted?: Message | null,
+};
+
+/**  What a mirror did besides copying (FR-52). */
+export type MirrorSummaryView_Serialize = {
+	/**  Files new in the origin, copied. */
+	new: number,
+	/**  Files changed in the origin, replaced. */
+	updated: number,
+	/**  Files gone from the origin, archived or deleted. */
+	removed: number,
+	/**  Removed files were archived (or deleted). */
+	archived: boolean,
+	/**  Files that couldn't be archived or deleted, with why. */
+	removalFailures: FinishedRow[],
+	/**  Why nothing was removed: the copy phase failed or was cancelled. */
+	nothingRemoved: Message | null,
+	/**  Archived files the user asked to delete that couldn't be (#101), and when they go. */
+	archiveNotDeleted?: Message | null,
 };
 
 export type OnFailure = "continue" | "stop";
@@ -504,28 +586,62 @@ export type ProgressView = {
 };
 
 /**  What a queue run sends to the window. */
-export type QueueEvent = 
+export type QueueEvent = QueueEvent_Serialize | QueueEvent_Deserialize;
+
+/**  What a queue run sends to the window. */
+export type QueueEvent_Deserialize = 
 /**  The job is being checked (its source scanned, the destination looked at). */
-{ type: "jobChecking"; index: number; count: number } | 
+({ type: "jobChecking"; index: number; count: number }) & { done?: never; job?: never; summary?: never; total?: never; view?: never } | 
 /**  A queued mirror's deep check: files compared, of how many. */
-{ type: "compared"; index: number; done: number; total: number } | 
+({ type: "compared"; index: number; done: number; total: number }) & { count?: never; job?: never; summary?: never; view?: never } | 
 /**  The checks passed and it runs: a job that can't start never gets this. */
-{ type: "jobStarted"; index: number; count: number; job: QueuedJobView } | { type: "progress"; view: ProgressView } | { type: "done"; summary: QueueSummaryView };
+({ type: "jobStarted"; index: number; count: number; job: QueuedJobView }) & { done?: never; summary?: never; total?: never; view?: never } | ({ type: "progress"; view: ProgressView }) & { count?: never; done?: never; index?: never; job?: never; summary?: never; total?: never } | ({ type: "done"; summary: QueueSummaryView_Deserialize }) & { count?: never; done?: never; index?: never; job?: never; total?: never; view?: never };
+
+/**  What a queue run sends to the window. */
+export type QueueEvent_Serialize = 
+/**  The job is being checked (its source scanned, the destination looked at). */
+({ type: "jobChecking"; index: number; count: number }) & { done?: never; job?: never; summary?: never; total?: never; view?: never } | 
+/**  A queued mirror's deep check: files compared, of how many. */
+({ type: "compared"; index: number; done: number; total: number }) & { count?: never; job?: never; summary?: never; view?: never } | 
+/**  The checks passed and it runs: a job that can't start never gets this. */
+({ type: "jobStarted"; index: number; count: number; job: QueuedJobView }) & { done?: never; summary?: never; total?: never; view?: never } | ({ type: "progress"; view: ProgressView }) & { count?: never; done?: never; index?: never; job?: never; summary?: never; total?: never } | ({ type: "done"; summary: QueueSummaryView_Serialize }) & { count?: never; done?: never; index?: never; job?: never; total?: never; view?: never };
 
 /**  How a queued job ended. */
 export type QueueResult = "complete" | "failed" | "cancelled" | "notRun";
 
-export type QueueResultView = {
+export type QueueResultView = QueueResultView_Serialize | QueueResultView_Deserialize;
+
+export type QueueResultView_Deserialize = {
 	job: QueuedJobView,
 	result: QueueResult,
 	/**  Why it failed, was cancelled or didn't run. */
 	reason: Message | null,
 	/**  The job's summary, when it ran. */
-	summary: SummaryView | null,
+	summary: SummaryView_Deserialize | null,
 };
 
-export type QueueSummaryView = {
-	results: QueueResultView[],
+export type QueueResultView_Serialize = {
+	job: QueuedJobView,
+	result: QueueResult,
+	/**  Why it failed, was cancelled or didn't run. */
+	reason: Message | null,
+	/**  The job's summary, when it ran. */
+	summary: SummaryView_Serialize | null,
+};
+
+export type QueueSummaryView = QueueSummaryView_Serialize | QueueSummaryView_Deserialize;
+
+export type QueueSummaryView_Deserialize = {
+	results: QueueResultView_Deserialize[],
+	complete: number,
+	count: number,
+	millis: number,
+	/**  Why the queue couldn't be saved after a job; the run itself went on. */
+	saveError: Message | null,
+};
+
+export type QueueSummaryView_Serialize = {
+	results: QueueResultView_Serialize[],
 	complete: number,
 	count: number,
 	millis: number,
@@ -652,7 +768,10 @@ export type StartView = {
 };
 
 /**  The summary after a job (RFD §5.4). */
-export type SummaryView = {
+export type SummaryView = SummaryView_Serialize | SummaryView_Deserialize;
+
+/**  The summary after a job (RFD §5.4). */
+export type SummaryView_Deserialize = {
 	outcome: JobOutcome,
 	/**  Why the job stopped, for `JobOutcome::Stopped`. */
 	stoppedBecause: Message | null,
@@ -686,7 +805,49 @@ export type SummaryView = {
 	/**  Why the report couldn't be saved there (each place it was written). */
 	reportErrors: Message[],
 	/**  A mirror's own figures (plan 7); `None` for a copy. */
-	mirror: MirrorSummaryView | null,
+	mirror: MirrorSummaryView_Deserialize | null,
+	/**  What Cancel's "Also remove the files already copied" did (#54). */
+	undone: UndoneView | null,
+	/**  A check's own figures (plan 8); `None` for a copy or a mirror. */
+	check: CheckSummaryView | null,
+};
+
+/**  The summary after a job (RFD §5.4). */
+export type SummaryView_Serialize = {
+	outcome: JobOutcome,
+	/**  Why the job stopped, for `JobOutcome::Stopped`. */
+	stoppedBecause: Message | null,
+	verify: boolean,
+	files: number,
+	copied: number,
+	verified: number,
+	skippedIdentical: number,
+	skippedDifferent: number,
+	failed: number,
+	/**  Items the scan couldn't read, so they weren't copied (#58). */
+	unread: number,
+	/**  The destination reported an error while the copy was made durable (#58). */
+	durabilityError: Message | null,
+	/**  Empty directories that couldn't be created (#58); listed with the failures. */
+	dirErrors: number,
+	notStarted: number,
+	bytesWritten: number,
+	millis: number,
+	/**  Failed files with their reasons, first 1,000. */
+	failures: FinishedRow[],
+	/**  Rows in the finished list: every file the job got to. */
+	finished: number,
+	copyRoot: string,
+	checksumFile: string | null,
+	checksumError: Message | null,
+	/**  The checksum file is off in Settings (RFD §5.5). */
+	checksumOff: boolean,
+	/**  The text report saved in the app's data folder (FR-35). */
+	reportFile: string | null,
+	/**  Why the report couldn't be saved there (each place it was written). */
+	reportErrors: Message[],
+	/**  A mirror's own figures (plan 7); `None` for a copy. */
+	mirror: MirrorSummaryView_Serialize | null,
 	/**  What Cancel's "Also remove the files already copied" did (#54). */
 	undone: UndoneView | null,
 	/**  A check's own figures (plan 8); `None` for a copy or a mirror. */

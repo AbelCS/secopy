@@ -444,6 +444,10 @@ pub struct MirrorPreset {
     pub deleted: DeletedFiles,
     /// Also compare contents by checksum (FR-46).
     pub deep_check: bool,
+    /// "Delete it at the next run" (#101): the destination whose archive the next run deletes
+    /// first. Kept with its path, so a later change of destination never points it elsewhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clear_archive: Option<String>,
 }
 
 /// A mirror preset as typed in its editor.
@@ -477,6 +481,7 @@ impl MirrorPresets {
             destination: input.destination,
             deleted: input.deleted,
             deep_check: input.deep_check,
+            clear_archive: None,
         };
         self.presets.push(preset.clone());
         Ok(preset)
