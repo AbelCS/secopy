@@ -268,6 +268,16 @@ impl Jobs {
         self.job()?.summary()
     }
 
+    /// The current (or last) job's name, for the menu bar: "Copy & Verify · CARD_A → Day01".
+    pub fn label(&self) -> Option<String> {
+        self.job().map(|job| job.label())
+    }
+
+    /// The current (or last) job is a check (Verify).
+    pub fn is_check(&self) -> bool {
+        self.job().is_some_and(|job| job.check_plan().is_some())
+    }
+
     /// "Save report…": the text report at `path` and the JSON next to it (FR-35).
     pub fn save_report(&self, path: &Path) -> Result<(), String> {
         self.job()

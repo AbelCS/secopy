@@ -3,6 +3,7 @@
 pub mod commands;
 pub mod dto;
 pub mod jobs;
+pub mod menubar;
 mod migrate;
 pub mod mirrors;
 mod picker;
