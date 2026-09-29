@@ -121,7 +121,8 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
   them now**, or **Keep them** for the preset's days (runs keep removing them when due). If
   the destination isn't connected, or a job is running, you can choose **Delete it at the next
   run** instead: the next run deletes the archive before copying anything. Files that can't be
-  deleted are listed, and go when they're due.
+  deleted are listed, and go when they're due. Changing the destination at the same time leaves
+  the old destination's archive as it is: it's no longer this mirror's.
 - If a run looks wrong (the origin is empty, can't be fully read, or more than half of the
   backup would be removed), Secopy asks first; in the queue, such a run doesn't start.
 - The destination keeps a checksum file of its own, `.secopy-checksums.xxh64`, so the backup

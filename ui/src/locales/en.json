@@ -97,7 +97,8 @@
       "allCopied": {
         "one": "All {count} file copied",
         "other": "All {count} files copied"
-      }
+      },
+      "archiveNotDeleted": "Archived files couldn't all be deleted"
     },
     "stats": {
       "files": {

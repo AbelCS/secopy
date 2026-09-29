@@ -676,43 +676,60 @@ pub fn archive_summary(destination: &Path) -> std::io::Result<Option<ArchiveSumm
     Ok((summary.files > 0).then_some(summary))
 }
 
-/// What deleting an archive did: files removed, and those that couldn't be, with why.
+/// What deleting an archive did: files removed, files still there, and why the first that
+/// couldn't be deleted wasn't.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ArchiveDeleted {
     pub removed: u64,
-    pub failed: Vec<(PathBuf, IoFailure)>,
+    pub remaining: u64,
+    pub error: Option<(PathBuf, IoFailure)>,
+}
+
+/// Files under `dir`, links not followed.
+fn files_under(dir: &Path) -> u64 {
+    WalkDir::new(dir)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| !e.file_type().is_dir())
+        .count() as u64
 }
 
 /// Deletes `destination`'s whole archive (#101), when the user asks: only inside a real
-/// `.secopy-archive` directory, never through a link. What can't be deleted stays, listed.
+/// `.secopy-archive` directory, never through a link. Each run directory goes with
+/// `remove_dir_all`, which never follows a link, even one swapped in while it works. What
+/// can't be deleted stays, counted.
 pub fn delete_archive(destination: &Path) -> ArchiveDeleted {
     let mut done = ArchiveDeleted::default();
     let root = destination.join(ARCHIVE_DIR);
     if !fs::symlink_metadata(&root).is_ok_and(|m| m.is_dir()) {
         return done;
     }
-    for entry in WalkDir::new(&root).follow_links(false).contents_first(true) {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(e) => {
-                let path = e
-                    .path()
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| root.clone());
-                done.failed.push((path, std::io::Error::from(e).into()));
-                continue;
-            }
+    let before = files_under(&root);
+    let entries = match fs::read_dir(&root) {
+        Ok(entries) => entries,
+        Err(e) => {
+            done.remaining = before;
+            done.error = Some((root, e.into()));
+            return done;
+        }
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        let removed = match fs::symlink_metadata(&path) {
+            Ok(meta) if meta.is_dir() => fs::remove_dir_all(&path),
+            Ok(_) => fs::remove_file(&path),
+            Err(e) => Err(e),
         };
-        if entry.file_type().is_dir() {
-            // Empty once its files are gone; one still holding a file that failed stays.
-            let _ = fs::remove_dir(entry.path());
-        } else {
-            match fs::remove_file(entry.path()) {
-                Ok(()) => done.removed += 1,
-                Err(e) => done.failed.push((entry.into_path(), e.into())),
-            }
+        if let Err(e) = removed
+            && done.error.is_none()
+        {
+            done.error = Some((path, e.into()));
         }
     }
+    let _ = fs::remove_dir(&root); // only once it's empty
+    done.remaining = if root.exists() { files_under(&root) } else { 0 };
+    done.removed = before.saturating_sub(done.remaining);
     done
 }
 

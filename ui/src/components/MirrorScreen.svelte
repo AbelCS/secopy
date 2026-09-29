@@ -116,9 +116,12 @@
     } else if (selected) {
       const preset = selected;
       let choice: ArchiveChoice = "keep";
-      if (preset.deleted.mode === "archive" && input.deleted.mode === "delete") {
+      // Asked only for the archive of the destination kept: a new destination leaves the old
+      // one's archive alone, as it's no longer this mirror's.
+      const sameDestination = input.destination.trim().replace(/\/+$/, "") === preset.destination;
+      if (preset.deleted.mode === "archive" && input.deleted.mode === "delete" && sameDestination) {
         const archive = await api.mirrorArchive(preset.id);
-        if (archive.state !== "empty") choice = await askAboutArchive(archive, preset.deleted.days);
+        if (archive.state !== "empty") choice = await askAboutArchive(archive, input.deleted.days);
       }
       if (choice === "cancel") return;
       // The archive of the destination saved so far: deleted before the preset changes.

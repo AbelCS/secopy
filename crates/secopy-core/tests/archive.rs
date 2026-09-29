@@ -48,7 +48,7 @@ fn deleting_the_archive_removes_it_all() {
     );
     fs::write(dir.path().join("kept.mov"), "x").unwrap();
     let done = mirror::delete_archive(dir.path());
-    assert_eq!((done.removed, done.failed.len()), (2, 0));
+    assert_eq!((done.removed, done.remaining, done.error), (2, 0, None));
     assert!(!dir.path().join(ARCHIVE_DIR).exists());
     assert!(dir.path().join("kept.mov").exists(), "only the archive");
 }
@@ -80,13 +80,10 @@ fn files_that_cant_be_deleted_are_listed() {
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o555)).unwrap();
     let done = mirror::delete_archive(dir.path());
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
-    assert_eq!(done.removed, 1);
-    assert_eq!(done.failed.len(), 1);
-    assert!(
-        done.failed[0].0.ends_with("locked/a.mov"),
-        "{:?}",
-        done.failed
-    );
+    assert!(done.remaining >= 1, "{done:?}");
+    assert_eq!(done.removed + done.remaining, 2);
+    let (path, _) = done.error.clone().expect("why it stopped");
+    assert!(path.starts_with(dir.path().join(ARCHIVE_DIR)), "{path:?}");
     assert!(locked.join("a.mov").exists());
 }
 

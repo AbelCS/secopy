@@ -496,6 +496,10 @@ impl MirrorPresets {
             .ok_or_else(|| msg!("errors.mirror.gone"))?;
         preset.name = input.name;
         preset.origin = input.origin;
+        // A pending archive deletion belongs to the destination it was asked for (#101).
+        if preset.destination != input.destination {
+            preset.clear_archive = None;
+        }
         preset.destination = input.destination;
         preset.deleted = input.deleted;
         preset.deep_check = input.deep_check;

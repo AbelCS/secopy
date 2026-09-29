@@ -30,6 +30,10 @@ test("a mirror says what it did", () => {
   expect(
     headline(summaryView({ outcome: "failures", failed: 0, mirror: mirror({ removalFailures: [row, { ...row, id: 1 }] }) })),
   ).toBe("2 files couldn't be removed");
+  const note = { key: "format.raw", args: { text: "x" } };
+  expect(
+    headline(summaryView({ outcome: "failures", failed: 0, mirror: mirror({ archiveNotDeleted: note }) })),
+  ).toBe("Archived files couldn't all be deleted");
 });
 
 test("a cancel that removed the copied files says so", () => {
