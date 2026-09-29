@@ -190,9 +190,9 @@ export const tauriApi = {
       const { x, y } = dropPoint(event.payload.position, window.devicePixelRatio, isMacOS());
       handler(event.payload.paths, document.elementFromPoint(x, y));
     }),
-  /** Closing the window; call `prevent()` to keep it open. */
   /** The window is closing: Rust hides it behind the menu bar icon when that applies (#80). */
   hideToMenuBar: (): Promise<boolean> => commands.hideToMenuBar(),
+  /** Closing the window; call `prevent()` to keep it open. */
   onCloseRequested: (handler: (prevent: () => void) => Promise<void>): Promise<() => void> =>
     getCurrentWindow().onCloseRequested((event) => handler(() => event.preventDefault())),
 };

@@ -178,12 +178,18 @@ pub fn run() {
             if let RunEvent::Opened { urls } = &event
                 && let Some(path) = opened_file(urls)
             {
+                // Seen, not imported behind a hidden window (#80).
+                if menubar::is_hidden(app) {
+                    menubar::show(app);
+                }
                 app.state::<AppState>().set_opened(path);
                 let _ = app.emit(OPEN_FILE, ());
             }
             // The app is going away: stop the copy first, so no partial file is left behind.
             // `Exit` also covers quitting from the Dock or at logout, which can't be refused.
             if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
+                // Nothing follows the job for the icon any more (#80).
+                menubar::forget(app);
                 let state = app.state::<AppState>();
                 state.remember(|_| {}); // writes the window size
                 state.cancel(false); // quitting keeps the files already copied
