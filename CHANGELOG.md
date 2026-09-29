@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.1](https://github.com/AbelCS/secopy/compare/v0.16.0...v0.16.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **core:** free space counts purgeable space, and warns when a copy needs it ([d61ad60](https://github.com/AbelCS/secopy/commit/d61ad609728c3078aa24af5727c39b8f5d0d7e5f)), closes [#108](https://github.com/AbelCS/secopy/issues/108)
+* **ui:** "Files go to" shows even when Start is blocked ([c30b38b](https://github.com/AbelCS/secopy/commit/c30b38b10b9a89c6e907f689e754706be0e28ecd)), closes [#109](https://github.com/AbelCS/secopy/issues/109)
+
 ## [0.16.0](https://github.com/AbelCS/secopy/compare/v0.15.0...v0.16.0) (2026-09-29)
 
 
