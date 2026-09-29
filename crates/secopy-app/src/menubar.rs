@@ -217,6 +217,12 @@ pub fn hide(app: &AppHandle) -> bool {
         };
         drop(inner);
         bar.hidden.store(true, SeqCst);
+        // The job may have ended while the icon was made: its end found nothing to update.
+        // Nothing runs any more, so the window comes back and closes as with nothing running.
+        if !app.state::<AppState>().busy() {
+            show(app);
+            return false;
+        }
     }
     hid
 }
@@ -306,12 +312,15 @@ fn make_icon(app: &AppHandle, status: &Status) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
             PAUSE => {
+                // The job's real state, not what the menu last showed.
                 let state = app.state::<AppState>();
-                if lock(&app.state::<MenuBar>().inner).paused {
+                if state.jobs.is_paused() {
                     state.jobs.resume();
                 } else {
                     state.jobs.pause();
                 }
+                // The next progress shows it at once.
+                lock(&app.state::<MenuBar>().inner).last = None;
             }
             OPEN => show(app),
             QUIT => crate::quit(app),
@@ -322,24 +331,51 @@ fn make_icon(app: &AppHandle, status: &Status) -> tauri::Result<()> {
 }
 
 /// Shows `status` on the icon: the title always, the menu only when its lines changed.
+/// Never waits: the tray is changed on the main thread, which may itself be waiting for this
+/// job (quitting stops the job and waits for it).
 fn update(app: &AppHandle, status: &Status) {
-    let Some(tray) = app.tray_by_id(TRAY) else {
-        return;
-    };
-    let _ = tray.set_title(Some(title(status)));
     let bar = app.state::<MenuBar>();
     let new_lines = lines(status);
     let paused = matches!(status, Status::Running(r) if r.view.paused);
-    let changed = {
+    let rebuild = {
         let mut inner = lock(&bar.inner);
         let changed = inner.lines != new_lines || inner.paused != paused;
         inner.lines = new_lines;
         inner.paused = paused;
         changed
     };
-    if changed && let Ok(menu) = menu(app, status) {
-        let _ = tray.set_menu(Some(menu));
-    }
+    let (handle, status) = (app.clone(), status.clone());
+    let _ = app.run_on_main_thread(move || {
+        let Some(tray) = handle.tray_by_id(TRAY) else {
+            return;
+        };
+        let _ = tray.set_title(Some(title(&status)));
+        if rebuild && let Ok(menu) = menu(&handle, &status) {
+            let _ = tray.set_menu(Some(menu));
+        }
+    });
+}
+
+/// While a queue checks its next job: its place, nothing else yet.
+pub fn checking(queue: (u32, u32)) -> Status {
+    Status::Running(Running {
+        label: format!("Checking job {} of {}", queue.0, queue.1),
+        queue: Some(queue),
+        check: false,
+        view: ProgressView::default(),
+    })
+}
+
+/// Sends to the window, then does `follow` (the menu bar's part); a panic there can't keep
+/// the window from its progress, nor its Done.
+pub fn deliver(send: impl FnOnce(), follow: impl FnOnce()) {
+    send();
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(follow));
+}
+
+/// Quitting: the icon stops following the job, so nothing waits on it.
+pub fn forget(app: &AppHandle) {
+    app.state::<MenuBar>().hidden.store(false, SeqCst);
 }
 
 /// A job's progress: nothing while the window shows; at most once a second while hidden.
@@ -378,7 +414,14 @@ pub fn progress(app: &AppHandle, view: &ProgressView) {
 pub fn queue_event(app: &AppHandle, e: &QueueEvent) {
     let bar = app.state::<MenuBar>();
     match e {
-        QueueEvent::JobChecking { index, count } | QueueEvent::JobStarted { index, count, .. } => {
+        QueueEvent::JobChecking { index, count } => {
+            let place = (index + 1, *count);
+            lock(&bar.inner).queue = Some(place);
+            if bar.hidden.load(SeqCst) {
+                update(app, &checking(place));
+            }
+        }
+        QueueEvent::JobStarted { index, count, .. } => {
             lock(&bar.inner).queue = Some((index + 1, *count));
         }
         QueueEvent::Progress { view } => progress(app, view),
@@ -554,5 +597,21 @@ mod tests {
         assert!(!hidden, "no icon: the window stays");
         assert!(hide_with(|| Ok(()), || hidden = true));
         assert!(hidden);
+    }
+
+    /// Review: while a queue checks its next job, the icon says so, not the last job's figures.
+    #[test]
+    fn a_queue_checking_its_next_job_says_so() {
+        let s = checking((2, 3));
+        assert_eq!(title(&s), "2/3 · …");
+        assert_eq!(lines(&s)[0], "Checking job 2 of 3");
+    }
+
+    /// Review: the window always gets its progress, even if the menu bar's part fails.
+    #[test]
+    fn the_window_gets_its_progress_even_if_the_menu_bar_fails() {
+        let mut sent = false;
+        deliver(|| sent = true, || panic!("a menu bar bug"));
+        assert!(sent);
     }
 }

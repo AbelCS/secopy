@@ -273,6 +273,11 @@ impl Jobs {
         self.job().map(|job| job.label())
     }
 
+    /// The current job is paused.
+    pub fn is_paused(&self) -> bool {
+        self.job().is_some_and(|job| job.control.is_paused())
+    }
+
     /// The current (or last) job is a check (Verify).
     pub fn is_check(&self) -> bool {
         self.job().is_some_and(|job| job.check_plan().is_some())

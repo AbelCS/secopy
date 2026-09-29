@@ -634,4 +634,13 @@ describe("App", () => {
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenCalled();
   });
+
+  test("if the menu bar check fails, closing during a job still asks", async () => {
+    const { api, state } = app();
+    await startButton();
+    api.jobRunning.mockResolvedValue(true);
+    api.hideToMenuBar.mockRejectedValue(new Error("no such command"));
+    await state.close!(() => {});
+    expect(api.confirm).toHaveBeenCalled();
+  });
 });

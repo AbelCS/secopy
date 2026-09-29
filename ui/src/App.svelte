@@ -467,7 +467,8 @@
     // Closing during a copy asks first; if closed anyway, the app stops the copy cleanly.
     const unlisten = api.onCloseRequested(async (prevent) => {
       // During a job, with the setting on, Rust hides the window behind the menu bar icon (#80).
-      if (await api.hideToMenuBar()) {
+      // If that check fails, closing asks as before rather than doing nothing.
+      if (await api.hideToMenuBar().catch(() => false)) {
         prevent();
         return;
       }

@@ -925,15 +925,25 @@ pub struct Watched<C> {
 
 impl ProgressSink for Watched<Channel<ProgressView>> {
     fn send(&self, view: ProgressView) {
-        crate::menubar::progress(&self.app, &view);
-        let _ = Channel::send(&self.to, view);
+        let shown = view.clone();
+        crate::menubar::deliver(
+            || {
+                let _ = Channel::send(&self.to, shown);
+            },
+            || crate::menubar::progress(&self.app, &view),
+        );
     }
 }
 
 impl QueueSink for Watched<Channel<QueueEvent>> {
     fn send(&self, event: QueueEvent) {
-        crate::menubar::queue_event(&self.app, &event);
-        let _ = Channel::send(&self.to, event);
+        let shown = event.clone();
+        crate::menubar::deliver(
+            || {
+                let _ = Channel::send(&self.to, shown);
+            },
+            || crate::menubar::queue_event(&self.app, &event),
+        );
     }
 }
 
