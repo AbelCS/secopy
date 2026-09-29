@@ -238,6 +238,7 @@ export function fakeApi(start: Partial<{ copyPresets: CopyPreset[] }> = {}): Api
     onCloseRequested: ok(() => {}),
     onOpenSettings: ok(() => {}),
     jobRunning: ok(false),
+    takeOpenedFile: ok(null),
     recentDestinations: ok([]),
     confirm: ok(true),
     queue: ok(queue),
@@ -253,5 +254,7 @@ export function fakeApi(start: Partial<{ copyPresets: CopyPreset[] }> = {}): Api
     }),
     mirrorPreviewPage: (kind: string | null) => Promise.resolve(previewRows.filter((r) => kind === null || r.kind === kind)),
   };
-  return new Proxy({} as Api, { get: (_target, key: string) => table[key] ?? ok(session) });
+  // Listeners give a way to stop listening; anything else not listed answers with the session.
+  const other = (key: string) => (/^on[A-Z]/.test(key) ? ok(() => {}) : ok(session));
+  return new Proxy({} as Api, { get: (_target, key: string) => table[key] ?? other(key) });
 }
