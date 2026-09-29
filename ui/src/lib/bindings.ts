@@ -162,6 +162,14 @@ export type ActiveFileView = {
 	bytesDone: number,
 };
 
+/**
+ *  A placeholder's value. The UI formats numbers for its language, a `Size` as bytes
+ *  ("212.4 GB"), translates a nested `Message` first and joins a `List` ("a, b").
+ */
+export type Arg = 
+/**  Counts and bytes are exact as `f64` up to 2^53. */
+number | string | Message[] | { bytes: number } | Message;
+
 /**  What a check found (plan 8). */
 export type CheckSummaryView = {
 	intact: number,
@@ -331,6 +339,15 @@ export type JobOutcome = "complete" | "failures" | "cancelled" | "stopped";
 export type JobPhase = "copying" | "verifying" | 
 /**  A mirror archiving or deleting what's gone from its origin (plan 7). */
 "removing" | "done";
+
+/**
+ *  A text for the UI: a catalog key and the values of its placeholders. Build it with
+ *  [`msg!`](crate::msg).
+ */
+export type Message = {
+	key: string,
+	args: { [key in string]: Arg },
+};
 
 /**  A saved one-way mirror (plan 7, FR-44). */
 export type MirrorPreset = {
