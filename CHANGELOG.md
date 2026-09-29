@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.0](https://github.com/AbelCS/secopy/compare/v0.15.0...v0.16.0) (2026-09-29)
+
+
+### Features
+
+* **ui:** a mirror's archive on its screen ([c83fb99](https://github.com/AbelCS/secopy/commit/c83fb9970c27b8699e79c80a3f7a1b26d75b40b2)), closes [#99](https://github.com/AbelCS/secopy/issues/99)
+* **ui:** mirror comparison: Standard or Paranoid ([e59afad](https://github.com/AbelCS/secopy/commit/e59afade26a28a32eedba669d837dd0c66d5bec0)), closes [#100](https://github.com/AbelCS/secopy/issues/100)
+
 ## [0.15.0](https://github.com/AbelCS/secopy/compare/v0.14.0...v0.15.0) (2026-09-29)
 
 
