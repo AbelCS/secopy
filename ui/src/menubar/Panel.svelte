@@ -4,6 +4,7 @@
   // Open Secopy and Quit. Rust sends what to show; clicking elsewhere closes it.
   import { onMount } from "svelte";
   import { tauriApi, type Api } from "../lib/api";
+  import { t } from "../lib/i18n";
   import type { PanelView } from "../lib/bindings";
   import Button from "../lib/ui/Button.svelte";
   import Icon from "../lib/ui/Icon.svelte";
@@ -39,23 +40,23 @@
 
   const meta = $derived.by(() => {
     if (!view) return "";
-    if (view.removing) return "Removing files…";
-    if (paused) return `${view.files} · Paused`;
-    return [view.files, view.speed, view.left].filter(Boolean).join(" · ");
+    if (view.removing) return t("menubar.removing");
+    if (paused) return t("menubar.paused", { files: view.files });
+    return [view.files, view.speed, view.left].filter(Boolean).join(t("format.dot"));
   });
 </script>
 
 <main class="panel">
   {#if !view}
-    {#if loaded}<p class="muted">Nothing is running.</p>{/if}
+    {#if loaded}<p class="muted">{t("menubar.nothing")}</p>{/if}
   {:else if view.ended}
     <div class="ended" class:ok={view.ended.ok}>
       <Icon name={view.ended.ok ? "check" : "x"} size={20} />
       <span>{view.ended.text}</span>
     </div>
     <div class="actions">
-      <Button variant="link" onclick={() => api.quitApp()}>Quit Secopy</Button>
-      <Button variant="primary" onclick={() => api.openMainWindow()}>Open Secopy</Button>
+      <Button variant="link" onclick={() => api.quitApp()}>{t("menubar.quit")}</Button>
+      <Button variant="primary" onclick={() => api.openMainWindow()}>{t("menubar.open")}</Button>
     </div>
   {:else}
     <div class="head">
@@ -63,8 +64,8 @@
       <span class="percent">{view.percent}</span>
     </div>
     <dl class="route">
-      {#if view.from}<dt>From</dt><dd class="path mono" title={view.from}><bdi>{view.from}</bdi></dd>{/if}
-      {#if view.to}<dt>To</dt><dd class="path mono" title={view.to}><bdi>{view.to}</bdi></dd>{/if}
+      {#if view.from}<dt>{t("menubar.from")}</dt><dd class="path mono" title={view.from}><bdi>{view.from}</bdi></dd>{/if}
+      {#if view.to}<dt>{t("menubar.to")}</dt><dd class="path mono" title={view.to}><bdi>{view.to}</bdi></dd>{/if}
     </dl>
     <div
       class="bar"
@@ -78,10 +79,10 @@
     </div>
     <p class="meta">{meta}</p>
     <div class="actions">
-      <Button variant="link" onclick={() => api.quitApp()}>Quit Secopy…</Button>
+      <Button variant="link" onclick={() => api.quitApp()}>{t("menubar.quitAsk")}</Button>
       <span class="right">
-        <Button disabled={view.removing} onclick={pauseOrResume}>{paused ? "Resume" : "Pause"}</Button>
-        <Button variant="primary" onclick={() => api.openMainWindow()}>Open Secopy</Button>
+        <Button disabled={view.removing} onclick={pauseOrResume}>{t(paused ? "menubar.resume" : "menubar.pause")}</Button>
+        <Button variant="primary" onclick={() => api.openMainWindow()}>{t("menubar.open")}</Button>
       </span>
     </div>
   {/if}

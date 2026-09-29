@@ -64,10 +64,18 @@ function lookup(key: string): Entry | undefined {
  *  format). A plural entry picks its form from `values.count`. A missing key or placeholder
  *  throws in tests; in the app it shows the key or the placeholder, never a blank. */
 export function t(key: Key, values: Values = {}): string {
+  return tParts(key, values)
+    .map((p) => p.text)
+    .join("");
+}
+
+/** As `t()`, in pieces: the filled values apart from the words around them, so a screen can
+ *  style a value (a file name in mono) inside a translated sentence. */
+export function tParts(key: Key, values: Values = {}): { text: string; value: boolean }[] {
   const entry = lookup(key);
   if (entry === undefined) {
     if (strict) throw new Error(`No text for the key ${key}`);
-    return key;
+    return [{ text: key, value: false }];
   }
   let text: string;
   if (typeof entry === "string") {
@@ -77,12 +85,16 @@ export function t(key: Key, values: Values = {}): string {
     const form = plurals.select(count) as keyof Plural;
     text = entry[form] ?? entry.other;
   }
-  return text.replace(/\{(\w+)\}/g, (whole, name: string) => {
-    const value = values[name];
-    if (value === undefined) {
-      if (strict) throw new Error(`No value for ${whole} in ${key}`);
-      return whole;
-    }
-    return typeof value === "number" ? numbers.format(value) : value;
-  });
+  const parts: { text: string; value: boolean }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(/\{(\w+)\}/g)) {
+    const value = values[m[1]];
+    if (value === undefined && strict) throw new Error(`No value for ${m[0]} in ${key}`);
+    if (m.index > last) parts.push({ text: text.slice(last, m.index), value: false });
+    if (value === undefined) parts.push({ text: m[0], value: false });
+    else parts.push({ text: typeof value === "number" ? numbers.format(value) : value, value: true });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length || parts.length === 0) parts.push({ text: text.slice(last), value: false });
+  return parts;
 }

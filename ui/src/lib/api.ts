@@ -1,5 +1,6 @@
 // Everything the UI asks of the app, in one place. Components take it from the Svelte
 // context (`useApi`), so tests can pass a fake instead of talking to Tauri.
+import { t } from "./i18n";
 
 import { Channel } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -155,17 +156,17 @@ export const tauriApi = {
   /** FROM's Choose…: a folder or files, in one panel. */
   pickSource: (): Promise<string[] | null> => unwrap(commands.pickSource()),
   /** One directory: a copy preset's source, a mirror's origin or destination. */
-  pickDirectory: async (title = "Choose a directory"): Promise<string | null> =>
+  pickDirectory: async (title = t("dialog.chooseDirectory")): Promise<string | null> =>
     asList(await open({ directory: true, multiple: false, title }))?.[0] ?? null,
   pickDestination: async (): Promise<string | null> =>
-    asList(await open({ directory: true, multiple: false, title: "Copy to" }))?.[0] ?? null,
+    asList(await open({ directory: true, multiple: false, title: t("dialog.copyTo") }))?.[0] ?? null,
   exportAll: (path: string, what: ExportWhat): Promise<string> => unwrap(commands.exportAll(path, what)),
   exportCopyPreset: (id: string, path: string): Promise<string> => unwrap(commands.exportCopyPreset(id, path)),
   exportMirrorPreset: (id: string, path: string): Promise<string> => unwrap(commands.exportMirrorPreset(id, path)),
   /** A .secopy file to import. */
   pickImportFile: async (): Promise<string | null> =>
     asList(
-      await open({ multiple: false, directory: false, filters: [{ name: "Secopy settings", extensions: ["secopy"] }] }),
+      await open({ multiple: false, directory: false, filters: [{ name: t("dialog.secopyFiles"), extensions: ["secopy"] }] }),
     )?.[0] ?? null,
   openImport: (path: string): Promise<ImportView> => unwrap(commands.openImport(path)),
   applyImport: (choices: ImportChoices): Promise<ImportDone> => unwrap(commands.applyImport(choices)),
@@ -174,10 +175,10 @@ export const tauriApi = {
   onOpenFile: (cb: () => void): Promise<() => void> => listen("open-file", () => cb()),
   /** Where to save a .secopy file. */
   pickExportPath: (suggested: string): Promise<string | null> =>
-    save({ defaultPath: suggested, filters: [{ name: "Secopy settings", extensions: ["secopy"] }] }),
+    save({ defaultPath: suggested, filters: [{ name: t("dialog.secopyFiles"), extensions: ["secopy"] }] }),
   pickReportPath: (suggested: string): Promise<string | null> =>
-    save({ defaultPath: suggested, filters: [{ name: "Text", extensions: ["txt"] }] }),
-  confirm: (message: string, title: string, ok = "Stop copying", cancel = "Keep copying"): Promise<boolean> =>
+    save({ defaultPath: suggested, filters: [{ name: t("dialog.textFiles"), extensions: ["txt"] }] }),
+  confirm: (message: string, title: string, ok: string, cancel: string): Promise<boolean> =>
     ask(message, { title, kind: "warning", okLabel: ok, cancelLabel: cancel }),
   reveal: (path: string): Promise<void> => revealItemInDir(path),
   /** The window is in front; notifications are only for when it isn't. */

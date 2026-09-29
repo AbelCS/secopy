@@ -64,7 +64,7 @@
   const options = $derived([
     { value: "", label: t("presets.none") },
     ...presets.map((p) => ({ value: p.id, label: p.name })),
-    { value: MANAGE, label: "Manage presets…" },
+    { value: MANAGE, label: t("presets.manage") },
   ]);
 
   function choose(value: string, menu: HTMLSelectElement) {

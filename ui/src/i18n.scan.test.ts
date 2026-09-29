@@ -38,20 +38,6 @@ function components(dir = ROOT): string[] {
   });
 }
 
-/** Components that still write their words themselves; Tasks 4–6 empty it. */
-const PENDING = new Set<string>([
-  "components/ExportDialog.svelte",
-  "components/ImportScreen.svelte",
-  "components/MirrorEditor.svelte",
-  "components/MirrorPreview.svelte",
-  "components/MirrorScreen.svelte",
-  "components/QueueScreen.svelte",
-  "components/QueueSummary.svelte",
-  "components/SettingsScreen.svelte",
-  "components/VerifyScreen.svelte",
-  "menubar/Panel.svelte",
-]);
-
 describe("no text written directly in components", () => {
   test("the scan finds written text and ignores expressions", () => {
     expect(hardCoded(`<p>Hello</p><p>{t("x")}</p><p> → </p>`)).toEqual(["Hello"]);
@@ -62,11 +48,7 @@ describe("no text written directly in components", () => {
   for (const file of components()) {
     test(file, () => {
       const found = hardCoded(readFileSync(join(ROOT, file), "utf8"));
-      if (PENDING.has(file)) {
-        expect(found.length, `${file} is clean: take it off PENDING`).toBeGreaterThan(0);
-      } else {
-        expect(found, `${file} writes text itself; use t()`).toEqual([]);
-      }
+      expect(found, `${file} writes text itself; use t()`).toEqual([]);
     });
   }
 });

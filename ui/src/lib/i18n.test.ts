@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { locale, setLocale, t } from "./i18n";
+import { locale, setLocale, t, tParts } from "./i18n";
 import en from "../locales/en.json";
 import { headline } from "./headline";
 import { notificationFor } from "./summaryText";
@@ -31,6 +31,15 @@ describe("t()", () => {
 
   test("a missing placeholder is an error in tests", () => {
     expect(() => t("test.named")).toThrow("{name}");
+  });
+
+  test("tParts keeps the filled values apart, for markup around them", () => {
+    expect(tParts("test.named", { name: "Sony FX3" })).toEqual([
+      { text: "Hello “", value: false },
+      { text: "Sony FX3", value: true },
+      { text: "”", value: false },
+    ]);
+    expect(tParts("test.plain")).toEqual([{ text: "Plain text", value: false }]);
   });
 
   test("the language is English when there's no catalog for the Mac's", () => {

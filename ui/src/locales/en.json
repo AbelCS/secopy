@@ -316,7 +316,9 @@
     "delete": "Delete…",
     "revert": "Revert",
     "save": "Save",
-    "choose": "Choose…"
+    "choose": "Choose…",
+    "cancel": "Cancel",
+    "importFile": "Import…"
   },
   "copy": {
     "files": {
@@ -459,7 +461,8 @@
       "atLeastOne": "Add at least one file type.",
       "pickSource": "Source",
       "noExtension": "(no extension)"
-    }
+    },
+    "manage": "Manage presets…"
   },
   "finished": {
     "title": "Finished",
@@ -483,5 +486,263 @@
       "status": "Status"
     },
     "label": "Finished files"
+  },
+  "export": {
+    "title": "Export",
+    "about": "Choose what goes in the file. The queue and this Mac's recent destinations stay here.",
+    "settings": "Settings",
+    "copyPresets": "Copy presets {count}",
+    "mirrorPresets": "Mirror presets {count}",
+    "count": "({count})",
+    "none": "(none)"
+  },
+  "import": {
+    "title": "Import",
+    "notConnected": "{path} isn't connected now.",
+    "renamed": "Imported as “{name}”: the file has this name twice.",
+    "clash": "You already have “{name}”",
+    "keepBoth": "Keep both, as “{name}”",
+    "replace": "Replace yours",
+    "settings": "Settings",
+    "sameSettings": "Same as yours",
+    "importSettings": "Import the settings",
+    "copyPresets": "Copy presets",
+    "mirrorPresets": "Mirror presets",
+    "import": "Import"
+  },
+  "settings": {
+    "title": "Settings",
+    "discard": "Your changes to the settings aren't saved.",
+    "everyCopy": "Every copy",
+    "checksumFile": {
+      "label": "Write the checksum file to the destination",
+      "help": "A {file} file lists every copied file with its checksum, so the copy can be checked again later, for example with {command}."
+    },
+    "systemCount": {
+      "label": "Show the count of skipped system files",
+      "help": "Files computers leave behind ({a}, {b}, {c}…) are never copied; this only shows how many were skipped. Every other file is copied, hidden or not."
+    },
+    "report": {
+      "label": "Also save the job report next to the checksum file",
+      "help": "Every job's report is also kept in the app; this adds a copy next to the checksum file."
+    },
+    "notify": {
+      "label": "Notify when a copy finishes",
+      "help": "Only when Secopy's window isn't in front. macOS asks for permission the first time."
+    },
+    "menuBar": {
+      "label": "Keep copying in the menu bar when the window is closed",
+      "help": "Closing the window during a job hides it; a menu bar icon shows the progress and brings it back. When off, closing asks to stop the job."
+    },
+    "transfer": {
+      "title": "Settings and presets",
+      "about": "Move your settings and presets to a new Mac, or share presets, in a .secopy file.",
+      "exportHelp": "Exports your saved settings; save first to include these changes."
+    }
+  },
+  "verify": {
+    "title": "Verify",
+    "directory": "Directory",
+    "found": {
+      "checksumFiles": {
+        "one": "{count} checksum file",
+        "other": "{count} checksum files"
+      },
+      "listed": {
+        "one": "{count} file listed",
+        "other": "{count} files listed"
+      },
+      "notListed": {
+        "one": "{count} file not listed",
+        "other": "{count} files not listed"
+      }
+    },
+    "about": "Choose the directory of a copy, or a whole drive: Secopy reads every file its checksum files list and compares it. Nothing is written to it.",
+    "pick": "Directory to verify",
+    "nothing": "No checksum files here: there's nothing to verify. Secopy writes one with every copy and every mirror.",
+    "addToQueue": "Add to queue",
+    "addToQueueHelp": "Adds this directory to the Queue; it's verified when the queue gets to it.",
+    "start": "Start",
+    "startHelp": {
+      "one": "Reads the {count} listed file ({size}) and compares each with its checksum; nothing is written.",
+      "other": "Reads the {count} listed files ({size}) and compares each with its checksum; nothing is written."
+    }
+  },
+  "queue": {
+    "title": "Queue",
+    "clear": {
+      "message": "Every job in the queue is removed.",
+      "title": "Clear the queue?",
+      "clear": "Clear",
+      "keep": "Keep"
+    },
+    "empty": "Nothing queued. Set up a copy, a mirror or a verify and press Add to queue: it runs here, one after another with the others.",
+    "jobs": "Queued jobs",
+    "mode": {
+      "verify": "Verify",
+      "mirror": "Mirror · {name}",
+      "copyVerify": "Copy & Verify",
+      "copy": "Copy"
+    },
+    "unsupported": {
+      "mirror": "A mirror that was deleted",
+      "newer": "A job for a newer Secopy"
+    },
+    "moveUp": "Move job {number} up",
+    "moveDown": "Move job {number} down",
+    "remove": "Remove job {number}",
+    "onFailure": {
+      "title": "If a job fails",
+      "continue": "Continue with the next job",
+      "stop": "Stop the queue"
+    },
+    "count": {
+      "one": "{count} job",
+      "other": "{count} jobs"
+    },
+    "clearButton": "Clear…",
+    "clearHelp": "Removes every job from the queue, after asking.",
+    "start": "Start",
+    "startHelp": {
+      "one": "Runs the one job in the queue.",
+      "other": "Runs the {count} jobs one after another."
+    },
+    "result": {
+      "complete": "Complete",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "notRun": "Not run"
+    },
+    "name": {
+      "check": "Verify · {source}",
+      "mirror": "Mirror {name}",
+      "job": "{kind} · {source} to {destination}"
+    },
+    "done": {
+      "headline": "Queue done: {complete} of {jobs} complete",
+      "took": "took {time}",
+      "jobs": "Jobs",
+      "results": "Job results",
+      "summaryOf": "Summary of job {number}, {name}",
+      "summary": "Summary",
+      "done": "Done"
+    }
+  },
+  "mirror": {
+    "title": "Mirror",
+    "discardNew": "Your changes to the new mirror aren't saved.",
+    "delete": {
+      "message": "The mirror “{name}” is deleted. Its origin, destination and archive are not touched.",
+      "title": "Delete mirror?",
+      "ok": "Delete",
+      "keep": "Keep"
+    },
+    "all": "All mirrors",
+    "list": "Mirrors",
+    "addNew": "+ New mirror",
+    "newTitle": "New mirror",
+    "about": "About mirrors",
+    "empty": {
+      "what": "A mirror keeps a copy of a directory identical to it: new and changed files are copied and verified, and files deleted in the origin are archived (or deleted) in the destination. Nothing is ever written to the origin, and every run shows a preview first.",
+      "how": "Create one with “+ New mirror”."
+    },
+    "unsaved": "Unsaved changes",
+    "comparing": "Comparing contents: {done} of {files}",
+    "files": {
+      "one": "{count} file",
+      "other": "{count} files"
+    },
+    "previewing": "Working out the preview…",
+    "addToQueue": "Add to queue",
+    "addToQueueHelp": "Adds this mirror to the Queue; what to copy and remove is worked out again when it runs.",
+    "preview": {
+      "open": "Preview…",
+      "startHelp": {
+        "copy": "Copies and verifies {copied}.",
+        "archive": "Archives {removed} gone from the origin.",
+        "delete": "Deletes {removed} gone from the origin.",
+        "copyArchive": "Copies and verifies {copied}, then archives {removed} gone from the origin.",
+        "copyDelete": "Copies and verifies {copied}, then deletes {removed} gone from the origin."
+      },
+      "copied": {
+        "new": {
+          "one": "{count} new file",
+          "other": "{count} new files"
+        },
+        "changed": {
+          "one": "{count} changed file",
+          "other": "{count} changed files"
+        },
+        "both": {
+          "one": "{new} new and {changed} changed file",
+          "other": "{new} new and {changed} changed files"
+        }
+      },
+      "guard": {
+        "title": "Run the mirror anyway?",
+        "run": "Run",
+        "cancel": "Cancel"
+      },
+      "changes": "Changes",
+      "inSync": "Already in sync.",
+      "new": "{count} new",
+      "changed": "{count} changed",
+      "removed": "{count} deleted in the origin →",
+      "deleted": "deleted",
+      "archived": "archived, kept {days} days",
+      "archivedHelp": "Moved into the hidden .secopy-archive directory in the destination, and removed for good after {days} days.",
+      "failing": {
+        "one": "{count} file will fail: a name the destination can't take, or something in the way",
+        "other": "{count} files will fail: a name the destination can't take, or something in the way"
+      },
+      "unchanged": "{count} unchanged",
+      "files": "Files",
+      "show": "Show",
+      "shown": {
+        "all": "All",
+        "new": "New",
+        "changed": "Changed",
+        "removed": "Deleted"
+      },
+      "more": "and {count} more",
+      "start": "Start"
+    },
+    "editor": {
+      "name": "Name",
+      "namePlaceholder": "e.g. Footage → NAS",
+      "origin": "Origin",
+      "originPlaceholder": "e.g. /Volumes/SSD/Footage",
+      "destination": "Destination",
+      "destinationPlaceholder": "e.g. /Volumes/Media/Footage",
+      "deleted": "Deleted files",
+      "deletedLegend": "Files deleted in the origin",
+      "archive": "Archive them",
+      "delete": "Delete them",
+      "days": "Days to keep",
+      "daysHelp": "In a hidden .secopy-archive directory on the destination, then removed.",
+      "deleteNote": "Files deleted in the origin are deleted in the destination too. This can't be undone.",
+      "checking": "Checking",
+      "verifyNote": "New and changed files are always verified after copying: read back from the destination and compared by checksum.",
+      "deepCheck": "Also compare unchanged files byte for byte",
+      "deepCheckHelp": "Files with the same size and date are normally left alone. This reads both copies in full to catch a damaged or silently changed file in the backup. Slow on big libraries."
+    }
+  },
+  "menubar": {
+    "removing": "Removing files…",
+    "paused": "{files} · Paused",
+    "nothing": "Nothing is running.",
+    "quit": "Quit Secopy",
+    "quitAsk": "Quit Secopy…",
+    "open": "Open Secopy",
+    "from": "From",
+    "to": "To",
+    "pause": "Pause",
+    "resume": "Resume"
+  },
+  "dialog": {
+    "chooseDirectory": "Choose a directory",
+    "copyTo": "Copy to",
+    "secopyFiles": "Secopy settings",
+    "textFiles": "Text"
   }
 }

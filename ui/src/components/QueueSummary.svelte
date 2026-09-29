@@ -1,8 +1,9 @@
 <script lang="ts">
   // The end of a queue run (FR-43): one row per job with its result, each opening that job's
   // own summary.
+  import { t } from "../lib/i18n";
   import type { QueuedJobView, QueueResult, QueueSummaryView } from "../lib/bindings";
-  import { formatDuration, plural } from "../lib/format";
+  import { formatDuration } from "../lib/format";
   import { headline } from "../lib/headline";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
@@ -25,49 +26,53 @@
 
   const ok = $derived(summary.complete === summary.count);
   const word: Record<QueueResult, string> = {
-    complete: "Complete",
-    failed: "Failed",
-    cancelled: "Cancelled",
-    notRun: "Not run",
+    complete: t("queue.result.complete"),
+    failed: t("queue.result.failed"),
+    cancelled: t("queue.result.cancelled"),
+    notRun: t("queue.result.notRun"),
   };
 
   /** A job in words, for its Summary button's name: "Verify · /Volumes/Backup". "to", not
    *  "→", so VoiceOver doesn't read "right arrow". */
   function jobName(job: QueuedJobView): string {
-    if (job.kind === "check") return `Verify · ${job.source}`;
-    const kind = job.kind === "mirror" ? `Mirror ${job.name ?? ""}`.trim() : job.verify ? "Copy & Verify" : "Copy";
-    return `${kind} · ${job.source} to ${job.destination}`;
+    if (job.kind === "check") return t("queue.name.check", { source: job.source });
+    const kind =
+      job.kind === "mirror"
+        ? t("queue.name.mirror", { name: job.name ?? "" }).trim()
+        : t(job.verify ? "queue.mode.copyVerify" : "queue.mode.copy");
+    return t("queue.name.job", { kind, source: job.source, destination: job.destination });
   }
 </script>
 
 <AppShell>
-  {#snippet header()}<ScreenHeader title="Queue" />{/snippet}
+  {#snippet header()}<ScreenHeader title={t("queue.title")} />{/snippet}
 
   <div class="result">
     <div role="status">
       <h2 class:ok class:bad={!ok}>
-        <Icon name={ok ? "check" : "x"} size={20} /> Queue done: {summary.complete} of {plural(summary.count, "job")} complete
+        <Icon name={ok ? "check" : "x"} size={20} />
+        {t("queue.done.headline", { complete: summary.complete, jobs: t("queue.count", { count: summary.count }) })}
       </h2>
     </div>
-    <p class="muted">took {formatDuration(summary.millis)}</p>
+    <p class="muted">{t("queue.done.took", { time: formatDuration(summary.millis) })}</p>
     {#if summary.saveError}<Notice tone="danger">{summary.saveError}</Notice>{/if}
   </div>
 
-  <Section title="Jobs">
-    <ol class="jobs" role="list" aria-label="Job results">
+  <Section title={t("queue.done.jobs")}>
+    <ol class="jobs" role="list" aria-label={t("queue.done.results")}>
       {#each summary.results as r, i (i)}
         <li class="job {r.result}">
           <span class="icon" aria-hidden="true">{r.result === "complete" ? "✓" : r.result === "notRun" ? "–" : "✗"}</span>
           <div class="what">
             <span class="word">{word[r.result]}</span>
             {#if !r.job.supported}
-              <span>{r.job.kind === "mirror" ? "A mirror that was deleted" : "A job for a newer Secopy"}</span>
+              <span>{t(r.job.kind === "mirror" ? "queue.unsupported.mirror" : "queue.unsupported.newer")}</span>
             {:else}
               {#if r.job.kind === "check"}
-                <span>Verify</span>
+                <span>{t("queue.mode.verify")}</span>
                 <span class="mono path"><bdi>{r.job.source}</bdi></span>
               {:else}
-                {#if r.job.kind === "mirror"}<span>Mirror · {r.job.name ?? ""}</span>{/if}
+                {#if r.job.kind === "mirror"}<span>{t("queue.mode.mirror", { name: r.job.name ?? "" })}</span>{/if}
                 <span class="mono path"><bdi>{r.job.source}</bdi></span>
                 <span class="muted" aria-hidden="true">→</span>
                 <span class="mono path"><bdi>{r.job.destination}</bdi></span>
@@ -76,7 +81,9 @@
             <span class="line">{r.summary ? headline(r.summary) : (r.reason ?? "")}</span>
           </div>
           {#if r.summary}
-            <Button aria-label="Summary of job {i + 1}, {jobName(r.job)}" onclick={() => onOpen(i)}>Summary</Button>
+            <Button aria-label={t("queue.done.summaryOf", { number: i + 1, name: jobName(r.job) })} onclick={() => onOpen(i)}
+              >{t("queue.done.summary")}</Button
+            >
           {/if}
         </li>
       {/each}
@@ -85,7 +92,7 @@
 
   {#snippet actions()}
     <ActionBar>
-      {#snippet end()}<Button variant="primary" onclick={onDone}>Done</Button>{/snippet}
+      {#snippet end()}<Button variant="primary" onclick={onDone}>{t("queue.done.done")}</Button>{/snippet}
     </ActionBar>
   {/snippet}
 </AppShell>
