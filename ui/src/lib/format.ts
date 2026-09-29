@@ -1,32 +1,47 @@
-// How figures are shown (RFD §5.3): decimal units like Finder, tabular digits in the CSS.
+// How figures are shown (RFD §5.3): decimal units like Finder, tabular digits in the CSS, and
+// the separators and words of the current language (#84).
+import { locale, t } from "./i18n";
 
-const count = new Intl.NumberFormat("en-US");
+/** The current language's number format, with `min`–`max` decimals. */
+const numbers = (min = 0, max = 0) =>
+  new Intl.NumberFormat(locale(), { minimumFractionDigits: min, maximumFractionDigits: max });
 
 /** 1284 → "1,284" */
 export function formatCount(n: number): string {
-  return count.format(n);
+  return numbers().format(n);
 }
+
+const UNITS = [
+  "format.bytes.b",
+  "format.bytes.kb",
+  "format.bytes.mb",
+  "format.bytes.gb",
+  "format.bytes.tb",
+  "format.bytes.pb",
+] as const;
 
 /** Decimal units, like Finder: 212400000000 → "212.4 GB". */
 export function formatBytes(n: number): string {
-  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
   let value = n;
   let unit = 0;
-  while (value >= 1000 && unit < units.length - 1) {
+  while (value >= 1000 && unit < UNITS.length - 1) {
     value /= 1000;
     unit += 1;
   }
-  return unit === 0 ? `${n} B` : `${value.toFixed(1)} ${units[unit]}`;
+  const figure = unit === 0 ? numbers().format(n) : numbers(1, 1).format(value);
+  return t(UNITS[unit], { value: figure });
 }
 
 /** Bytes per second → "1.2 GB/s"; "—" when unknown. */
 export function formatSpeed(bytesPerSecond: number | null): string {
-  return bytesPerSecond === null ? "—" : `${formatBytes(Math.round(bytesPerSecond))}/s`;
+  return bytesPerSecond === null
+    ? t("format.unknown")
+    : t("format.speed", { size: formatBytes(Math.round(bytesPerSecond)) });
 }
 
 /** Milliseconds → "0:07", "4:12", "1:02:03"; "—" when unknown. */
 export function formatDuration(ms: number | null): string {
-  if (ms === null || !Number.isFinite(ms)) return "—";
+  if (ms === null || !Number.isFinite(ms)) return t("format.unknown");
   const total = Math.max(0, Math.round(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
@@ -37,7 +52,7 @@ export function formatDuration(ms: number | null): string {
 /** done/total → "69.8 %"; an empty total counts as complete. */
 export function formatPercent(done: number, total: number): string {
   const p = total === 0 ? 100 : (done * 100) / total;
-  return `${p.toFixed(1)} %`;
+  return t("format.percent", { value: numbers(1, 1).format(p) });
 }
 
 /** "1 file", "2 files" */

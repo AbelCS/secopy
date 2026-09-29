@@ -2,6 +2,22 @@
   "test": {
     "plain": "Plain text",
     "named": "Hello “{name}”",
-    "files": { "one": "{count} file", "other": "{count} files" }
+    "files": {
+      "one": "{count} file",
+      "other": "{count} files"
+    }
+  },
+  "format": {
+    "unknown": "—",
+    "speed": "{size}/s",
+    "percent": "{value} %",
+    "bytes": {
+      "b": "{value} B",
+      "kb": "{value} KB",
+      "mb": "{value} MB",
+      "gb": "{value} GB",
+      "tb": "{value} TB",
+      "pb": "{value} PB"
+    }
   }
 }
