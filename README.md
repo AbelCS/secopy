@@ -15,6 +15,8 @@ copied.
 - **Verify:** point at a backup, a copy or a whole drive; every file its checksum files list
   is read again and compared, so silent damage shows up. Mirrors keep a checksum file too.
 - **Cancel** can also remove the files already copied, leaving the destination as it was.
+- **Menu bar:** close the window during a job and it keeps going in the menu bar, with its
+  progress; the window comes back from there (a setting, on by default).
 - **Export and import:** settings and presets in a `.secopy` file, for a new Mac or to share
   presets; importing shows what's inside first and never overwrites anything silently.
 

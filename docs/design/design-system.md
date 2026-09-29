@@ -90,6 +90,8 @@ Components use tokens only, never raw colours or sizes.
 ## Rules
 
 - One primary button per screen, in the action bar on the right.
+- The menu bar icon (#80) is a monochrome template glyph (two overlapping squares, drawn by
+  `scripts/menubar-icon.py`) so macOS tints it; its menu is native, in the window's words.
 - Button labels use the fewest words that can't be read two ways: **Start** for every job
   (the tab or screen says which), **Update**, **Save as…**, **Clear…**, **Retry**. Keep the
   object when one word would be ambiguous (**Add to queue** next to the Queue button,
