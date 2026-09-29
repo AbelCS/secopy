@@ -2200,6 +2200,7 @@ mod tests {
                             show_system_count: i % 3 == 0,
                             report_next_to_checksum: i % 5 == 0,
                             notify_when_done: i % 7 == 0,
+                            keep_in_menu_bar: i % 11 == 0,
                         };
                         let a = state.set_settings(settings).err();
                         let b = state

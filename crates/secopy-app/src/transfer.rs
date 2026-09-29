@@ -486,6 +486,11 @@ pub fn settings_changes(from: &Settings, to: &Settings) -> Vec<String> {
             from.notify_when_done,
             to.notify_when_done,
         ),
+        (
+            "Keep copying in the menu bar",
+            from.keep_in_menu_bar,
+            to.keep_in_menu_bar,
+        ),
     ]
     .into_iter()
     .filter(|(_, a, b)| a != b)
@@ -965,5 +970,19 @@ mod tests {
             apply_copy(&contents(text), &both, &copy_presets()).unwrap_err(),
             "Two presets in the file would replace “Sony FX3”; choose Keep both for one of them."
         );
+    }
+
+    #[test]
+    fn the_menu_bar_setting_travels_and_is_named() {
+        let off = Settings {
+            keep_in_menu_bar: false,
+            ..Settings::default()
+        };
+        assert_eq!(
+            settings_changes(&Settings::default(), &off),
+            ["Keep copying in the menu bar: on → off"]
+        );
+        let text = export_text(Some(&off), &[], &[], "0.12.0", now());
+        assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(off)));
     }
 }

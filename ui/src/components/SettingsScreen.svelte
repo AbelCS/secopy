@@ -104,6 +104,16 @@
       >
         {#snippet help()}Only when Secopy's window isn't in front. macOS asks for permission the first time.{/snippet}
       </Checkbox>
+      <Checkbox
+        label="Keep copying in the menu bar when the window is closed"
+        checked={draft.keepInMenuBar}
+        onChange={(on) => (draft.keepInMenuBar = on)}
+      >
+        {#snippet help()}
+          Closing the window during a job hides it; a menu bar icon shows the progress and brings it back. When off,
+          closing asks to stop the job.
+        {/snippet}
+      </Checkbox>
     </div>
     {#if settingsError}<Notice tone="danger">{settingsError}</Notice>{/if}
   </Section>

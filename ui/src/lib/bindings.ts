@@ -510,6 +510,8 @@ export type Settings = {
 	reportNextToChecksum: boolean,
 	/**  A notification when a copy ends while the window isn't in front (3b-2). */
 	notifyWhenDone: boolean,
+	/**  Closing the window during a job hides it, with a menu bar icon (#80). */
+	keepInMenuBar: boolean,
 };
 
 export type SettingsImport = {
