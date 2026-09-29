@@ -20,7 +20,8 @@
       "pb": "{value} PB"
     },
     "dot": " · ",
-    "comma": ", "
+    "comma": ", ",
+    "raw": "{text}"
   },
   "summary": {
     "headline": {

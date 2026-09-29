@@ -4,6 +4,7 @@ pub mod commands;
 pub mod dto;
 pub mod jobs;
 pub mod menubar;
+pub mod message;
 mod migrate;
 pub mod mirrors;
 mod picker;
@@ -31,7 +32,9 @@ pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 
 /// The commands and types the UI sees; `ui/src/lib/bindings.ts` is generated from this.
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
+    tauri_specta::Builder::<tauri::Wry>::new()
+        .typ::<message::Message>()
+        .commands(tauri_specta::collect_commands![
         commands::pick_source,
         commands::hide_to_menu_bar,
         commands::menubar_view,
