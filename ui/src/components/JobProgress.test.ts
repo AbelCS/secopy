@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
+import en from "../locales/en.json";
+import { setLocale } from "../lib/i18n";
 import { apiContext } from "../lib/api";
 import type { FinishedRow, ProgressView } from "../lib/bindings";
 import { fakeApi, progressView } from "../test/fake-api";
@@ -305,6 +307,18 @@ describe("JobProgress", () => {
     const verifying = screen.getByRole("progressbar", { name: "C0007.MP4" });
     expect(verifying).not.toBe(copying);
     expect(verifying.getAttribute("aria-valuenow")).toBe("10");
+  });
+
+  test("a file's bar is as wide as its progress in a language with a decimal comma", () => {
+    setLocale("de", en);
+    try {
+      const file = { id: 7, name: "C0007.MP4", path: "CLIP/C0007.MP4", size: 8_000_000_000, verifying: false };
+      show(progressView({ active: [{ ...file, bytesDone: 2_020_000_000 }] }));
+      const fill = screen.getByRole("progressbar", { name: "C0007.MP4" }).querySelector(".fill") as HTMLElement;
+      expect(fill.style.width).toBe("25.25%");
+    } finally {
+      setLocale("en");
+    }
   });
 
   test("in a queue: Job n of m, and Cancel stops the queue", async () => {

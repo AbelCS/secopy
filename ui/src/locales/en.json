@@ -107,7 +107,7 @@
       "average": "{speed} average",
       "alreadyThere": "{count} already at the destination, not checked",
       "keptDifferent": {
-        "one": "{count} different file left as they were",
+        "one": "{count} different file left as it was",
         "other": "{count} different files left as they were"
       },
       "notStarted": "{count} not started",
@@ -300,7 +300,8 @@
       }
     },
     "progress": {
-      "figures": "{done} of {total}"
+      "figures": "{done} of {total}",
+      "withSpeed": "{done} of {total} · {speed}"
     },
     "hint": {
       "more": "More about this"

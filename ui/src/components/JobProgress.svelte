@@ -161,7 +161,7 @@
         aria-valuemax={100}
         aria-valuenow={Math.round(size === 0 ? 100 : (done * 100) / size)}
       >
-        <div class="fill" style:width={formatPercent(done, size).replace(" ", "")}></div>
+        <div class="fill" style:width="{size === 0 ? 100 : (done * 100) / size}%"></div>
       </div>
     </td>
     <td class="of">{of}</td>

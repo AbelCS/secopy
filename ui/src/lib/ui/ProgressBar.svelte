@@ -33,7 +33,11 @@
   >
     <div class="fill" style:width="{fraction * 100}%"></div>
   </div>
-  <span class="figures">{t("ui.progress.figures", { done: formatBytes(done), total: formatBytes(total) })}{speed === null ? "" : ` · ${formatSpeed(speed)}`}</span>
+  <span class="figures"
+    >{speed === null
+      ? t("ui.progress.figures", { done: formatBytes(done), total: formatBytes(total) })
+      : t("ui.progress.withSpeed", { done: formatBytes(done), total: formatBytes(total), speed: formatSpeed(speed) })}</span
+  >
 </div>
 
 <style>

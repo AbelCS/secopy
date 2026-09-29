@@ -13,6 +13,12 @@ describe("summaryText", () => {
     ]);
   });
 
+  test("one different file is left as it was", () => {
+    expect(summaryStats(summaryView({ skippedDifferent: 1 })).map(String).join(" | ")).toContain(
+      "1 different file left as it was",
+    );
+  });
+
   test("a notification says the headline and the main figures", () => {
     expect(notificationFor(summaryView())).toEqual({
       title: "✓ All 1,284 files copied and verified",

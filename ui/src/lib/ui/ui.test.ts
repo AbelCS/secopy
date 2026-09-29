@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { createRawSnippet } from "svelte";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import en from "../../locales/en.json";
+import { setLocale } from "../i18n";
+import ProgressBar from "./ProgressBar.svelte";
 import ActionBar from "./ActionBar.svelte";
 import AppShell from "./AppShell.svelte";
 import Button from "./Button.svelte";
@@ -260,5 +263,15 @@ describe("design system", () => {
   test("FormRow: a label can explain itself", () => {
     render(FormRow, { props: { label: "Existing files", hint: "Same name, different file.", children: text("x") } });
     expect(hintOf(screen.getByText("Existing files"))).toBe("Same name, different file.");
+  });
+});
+
+describe("ProgressBar", () => {
+  afterEach(() => setLocale("en"));
+
+  test("the figures and the speed are one text of the catalog, so a language can order them", () => {
+    setLocale("xx", { ...en, ui: { ...en.ui, progress: { ...en.ui.progress, withSpeed: "{speed} — {done}/{total}" } } });
+    const { container } = render(ProgressBar, { props: { label: "Copied", done: 1000, total: 2000, speed: 500 } });
+    expect(container.querySelector(".figures")?.textContent).toBe("500 B/s — 1.0 KB/2.0 KB");
   });
 });
