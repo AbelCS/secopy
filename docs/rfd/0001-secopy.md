@@ -265,7 +265,7 @@ Design: [job queue](../superpowers/specs/2026-09-28-job-queue-design.md).
 
 ### 5.8 Mirror
 
-Mirror presets (name, origin, destination, what to do with deleted files, deep check) live in
+Mirror presets (name, origin, destination, what to do with deleted files, comparison) live in
 the **Mirror** section. **Preview…** shows every change before anything is touched (new,
 changed, deleted in the origin, unchanged); **Start** runs it on the Copying screen; a
 preset can also be added to the queue.
@@ -369,9 +369,9 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-44 | **Mirror presets:** a name, an origin and a destination (full paths that don't overlap), what to do with files deleted in the origin (archive for N days, default 30, or delete), and a deep check option. | S |
+| FR-44 | **Mirror presets:** a name, an origin and a destination (full paths that don't overlap), what to do with files deleted in the origin (archive for N days, default 30, or delete), and the comparison: **Standard** (size and date) or **Paranoid** (byte-for-byte, the deep check). | S |
 | FR-45 | One way only: the origin is never written to. | M |
-| FR-46 | A file is new when it isn't in the destination, changed when its size or modification date differs (dates within 2 s count as equal), and, with the deep check, when its contents differ (xxHash64 of both sides). | S |
+| FR-46 | A file is new when it isn't in the destination, changed when its size or modification date differs (dates within 2 s count as equal), and, with Paranoid (the deep check), when its contents differ (xxHash64 of both sides). | S |
 | FR-47 | **Preview** before a manual run: counts, sizes and the list of new, changed and deleted files; "Already in sync" when there's nothing to do. A run executes the previewed plan. | S |
 | FR-48 | Everything Mirror writes is verified. A changed file is replaced atomically, and its old version archived (archive mode) only after the new copy is verified. | M |
 | FR-49 | Files deleted in the origin are archived to `<destination>/.secopy-archive/<date time>/…` or deleted, only after every copy succeeded; a failed or cancelled run removes nothing. At the start of every run, archived files older than the preset's N days are removed, counted from when they were archived, in Delete mode too (what was archived before a switch still goes when due). Switching a mirror from Archive to Delete asks what to do with its archive: **delete it now**, **keep it N days**, or, when the destination isn't connected or a job runs, **delete it at the next run** (kept with that destination; dropped if the destination changes; done when that run is started, once, and only after the preset is saved without it). A new destination in the same save leaves the old one's archive alone. Files that can't be deleted are listed and go when due. Only a real `.secopy-archive` directory is touched, never through a link. | M |
@@ -599,3 +599,4 @@ The stack meets these constraints:
 | 2026-09-29 | **Translation-ready, English only** (#84): every word the app shows is in a catalog (`ui/src/locales/en.json`); Rust sends message codes, never sentences; the Mac's language when a catalog exists for it. Reports and the CLI stay English. No second language yet. |
 | 2026-09-29 | **License: GPL-3.0-or-later** (#97), copyright Abel Castro Suárez: anyone may use and change Secopy, and what they distribute built on it stays open source under the GPL. |
 | 2026-09-29 | **Mirror archive days** (#101): one number, applied at every run to everything archived, counted from when it was archived; in Delete mode too. Switching to Delete asks what to do with the archive (now, keep N days, or at the next run). |
+| 2026-09-29 | **Mirror comparison** (#100): **Standard** (size and date) or **Paranoid** (byte-for-byte), no "None": every mirror copy stays verified. Paranoid is marked "Very slow" in the warning style: on a 100 MB/s drive a 1 TB mirror with nothing changed takes 5 h 33 min per run, against a fraction of a second with Standard. Saved as `deepCheck`, unchanged. |

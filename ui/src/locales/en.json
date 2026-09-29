@@ -860,16 +860,19 @@
       "archive": "Archive them",
       "delete": "Delete them",
       "days": "Days to keep",
-      "daysHelp": "In a hidden .secopy-archive directory on the destination. Each run first removes archived files older than this, counted from when they were archived.",
+      "daysHelp": "In .secopy-archive on the destination. Each run deletes those older than this.",
       "deleteNote": "Files deleted in the origin are deleted in the destination too. This can't be undone.",
-      "checking": "Checking",
-      "verifyNote": "New and changed files are always verified after copying: read back from the destination and compared by checksum.",
-      "deepCheck": "Also compare unchanged files byte for byte",
-      "deepCheckHelp": "Files with the same size and date are normally left alone. This reads both copies in full to catch a damaged or silently changed file in the backup. Slow on big libraries.",
+      "verifyNote": "New and changed files are always verified after copying.",
       "daysShorter": {
         "one": "At the next run, files archived more than {count} day ago are removed.",
         "other": "At the next run, files archived more than {count} days ago are removed."
-      }
+      },
+      "comparison": "Comparison",
+      "standard": "Standard",
+      "standardHelp": "Size and modification date.",
+      "paranoid": "Paranoid",
+      "paranoidHelp": "Byte-for-byte comparison of both copies.",
+      "paranoidWarning": "Very slow: reads all data on both sides."
     },
     "guard": {
       "unread": {

@@ -7,7 +7,6 @@
   import { useApi } from "../lib/api";
   import type { DeletedMode, MirrorPreset, MirrorPresetInput } from "../lib/bindings";
   import Button from "../lib/ui/Button.svelte";
-  import Checkbox from "../lib/ui/Checkbox.svelte";
   import FormRow from "../lib/ui/FormRow.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import RadioGroup from "../lib/ui/RadioGroup.svelte";
@@ -181,17 +180,23 @@
     {/if}
   </FormRow>
 
-  <FormRow label={t("mirror.editor.checking")}>
-    <p class="note">{t("mirror.editor.verifyNote")}</p>
-    <Checkbox
-      label={t("mirror.editor.deepCheck")}
-      checked={deepCheck}
-      onChange={(on) => (deepCheck = on)}
-    >
-      {#snippet help()}
-        {t("mirror.editor.deepCheckHelp")}
-      {/snippet}
-    </Checkbox>
+  <FormRow label={t("mirror.editor.comparison")}>
+    <RadioGroup
+      legend={t("mirror.editor.comparison")}
+      hideLegend
+      options={[
+        { value: false, label: t("mirror.editor.standard"), help: t("mirror.editor.standardHelp") },
+        {
+          value: true,
+          label: t("mirror.editor.paranoid"),
+          help: t("mirror.editor.paranoidHelp"),
+          warning: t("mirror.editor.paranoidWarning"),
+        },
+      ]}
+      value={deepCheck}
+      onChange={(v) => (deepCheck = v)}
+    />
+    <p class="help">{t("mirror.editor.verifyNote")}</p>
   </FormRow>
 
   {#if otherProblem}<Notice tone="danger">{otherProblem}</Notice>{/if}
@@ -209,6 +214,12 @@
 
   .note {
     margin: 0 0 var(--space-2);
+  }
+
+  .help {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
   }
 
   .muted {
