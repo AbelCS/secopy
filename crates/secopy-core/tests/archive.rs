@@ -92,3 +92,16 @@ fn a_destination_that_isnt_there_is_an_error_not_an_empty_archive() {
     let dir = tempfile::tempdir().unwrap();
     assert!(mirror::archive_summary(&dir.path().join("gone")).is_err());
 }
+
+/// Review of #101: an archive that can't be read isn't "nothing left": its error is kept.
+#[test]
+fn an_archive_that_cant_be_read_says_why() {
+    let dir = tempfile::tempdir().unwrap();
+    archived(dir.path(), "2026-09-01 10.00.00", &[("a.mov", 1)]);
+    let root = dir.path().join(ARCHIVE_DIR);
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o000)).unwrap();
+    let done = mirror::delete_archive(dir.path());
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(done.error.is_some(), "{done:?}");
+    assert!(root.join("2026-09-01 10.00.00/a.mov").exists());
+}
