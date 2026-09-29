@@ -38,9 +38,12 @@ means every type. A preset never holds a destination: you choose it for each cop
 Drop a directory on **To**, or press **Choose…** (⌘D); **Recent…** lists the last ones.
 Before you can start, Secopy checks and shows:
 
-- **Where the files go**, the free space, and the drive's format.
+- **Where the files go**, the space available (as Finder counts it), and the drive's format.
 - **What stops the copy:** the destination isn't there or can't be written to, there isn't
-  enough free space, or the destination is inside the source. Start stays off.
+  enough space, or the destination is inside the source. Start stays off.
+- **Needs purgeable space:** the copy fits only once macOS frees purgeable space (Time Machine
+  local snapshots, caches). It frees it on demand, but not always in time; if it doesn't, the
+  copy stops when the disk is full. To free it first, delete the local snapshots in Disk Utility.
 - **Files that will fail:** a name the destination drive doesn't allow (FAT32 and exFAT
   refuse `: * ? " < > |`, for example), a file too large for FAT32's 4 GB limit, or something
   in the way. You can start anyway; those files are listed as failed. Names are never changed.

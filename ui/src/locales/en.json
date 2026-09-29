@@ -392,7 +392,7 @@
     "to": "To",
     "destination": "Destination",
     "checking": "Checking…",
-    "free": "{size} free · {kind}",
+    "free": "{size} available · {kind}",
     "dropDestination": "Drop the destination directory here, or choose it.",
     "recent": "Recent destinations",
     "recentPlaceholder": "Recent…",
@@ -408,6 +408,9 @@
       "overwrite": "Overwrite",
       "skip": "Skip",
       "filesGoTo": "Files go to",
+      "purgeable": "Needs purgeable space: {needed} needed, {free} free now",
+      "aboutPurgeable": "About purgeable space",
+      "purgeableHelp": "Space macOS frees on demand (Time Machine local snapshots, caches), not always in time. If it isn't freed, the copy stops when the disk is full. To free it first, delete the local snapshots in Disk Utility.",
       "notEmpty": {
         "one": "Already contains {count} item. Identical files will be skipped.",
         "other": "Already contains {count} items. Identical files will be skipped."
@@ -1048,7 +1051,7 @@
       "destMissing": "The destination is not an existing directory",
       "destNotWritable": "Can't write to the destination: {why}",
       "destInsideSource": "The destination is the source directory or inside it",
-      "notEnoughSpace": "Not enough free space: {needed} needed, {free} free"
+      "notEnoughSpace": "Not enough space: {needed} needed, {available} available"
     },
     "scan": {
       "notAFile": "Not a regular file",

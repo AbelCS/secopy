@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use secopy_core::error::FileError;
 use secopy_core::fsinfo::{FsInfo, FsKind, NameLimit};
 use secopy_core::names::numbered;
-use secopy_core::plan::{Action, DiffersPolicy, Plan, space_margin};
+use secopy_core::plan::{Action, DiffersPolicy, Plan, PurgeableNeeded, space_margin};
 use secopy_core::preflight::{
     Blocker, Conflict, ConflictKind, FileProblem, Preflight, ProblemKind,
 };
@@ -25,6 +25,7 @@ fn fs_with(free_bytes: u64) -> FsInfo {
         kind: FsKind::Apfs,
         case_sensitive: false,
         free_bytes,
+        available_bytes: free_bytes,
         max_file_size: None,
         name_limit: NameLimit::Utf16Units(255),
         device: 1,
@@ -157,22 +158,49 @@ fn free_space_counts_only_written_files_plus_a_margin() {
     let written = 400;
     let needed = written + space_margin(written);
     pf.fs.free_bytes = needed;
+    pf.fs.available_bytes = needed;
     let plan = Plan::resolve(&sel, &pf, DiffersPolicy::KeepBoth);
     assert_eq!(plan.bytes_to_write(), written);
     assert!(plan.blockers().is_empty());
 
     pf.fs.free_bytes = needed - 1;
+    pf.fs.available_bytes = needed - 1;
     let plan = Plan::resolve(&sel, &pf, DiffersPolicy::KeepBoth);
     assert_eq!(
         plan.blockers(),
         vec![Blocker::NotEnoughSpace {
             needed,
-            free: needed - 1
+            available: needed - 1
         }]
     );
+    assert_eq!(plan.purgeable_needed(), None);
     // Skipping the file that differs needs less.
     let plan = Plan::resolve(&sel, &pf, DiffersPolicy::Skip);
     assert!(plan.blockers().is_empty());
+}
+
+#[test]
+fn purgeable_space_counts_but_is_flagged() {
+    let dir = tempfile::tempdir().unwrap();
+    let (sel, mut pf) = setup(dir.path());
+    let written = 400;
+    let needed = written + space_margin(written);
+    // Fits only if macOS frees purgeable space (Time Machine snapshots, caches).
+    pf.fs.free_bytes = needed - 1;
+    pf.fs.available_bytes = needed;
+    let plan = Plan::resolve(&sel, &pf, DiffersPolicy::KeepBoth);
+    assert!(plan.blockers().is_empty());
+    assert_eq!(
+        plan.purgeable_needed(),
+        Some(PurgeableNeeded {
+            needed,
+            free: needed - 1
+        })
+    );
+    // Fits in what is free now.
+    pf.fs.free_bytes = needed;
+    let plan = Plan::resolve(&sel, &pf, DiffersPolicy::KeepBoth);
+    assert_eq!(plan.purgeable_needed(), None);
 }
 
 #[test]

@@ -278,6 +278,7 @@ export type DestinationView = {
 	copyRoot: string,
 	/**  Stops the job (FR-16); Start stays disabled. */
 	blocker: Message | null,
+	/**  Available, counting purgeable space, as Finder shows it (#108). */
 	freeBytes: number,
 	/**
 	 *  The destination's file system as a code: `apfs`, `hfs`, `exfat`, `fat32`, `ntfs`,
@@ -523,8 +524,10 @@ export type PanelView = {
 export type PlanView = {
 	filesToWrite: number,
 	bytesToWrite: number,
-	/**  Not enough free space (FR-16). */
+	/**  Not enough space (FR-16). */
 	blocker: Message | null,
+	/**  It fits only once macOS frees purgeable space: a warning, not a block (#108). */
+	purgeable: Message | null,
 };
 
 export type PresetChoice = {

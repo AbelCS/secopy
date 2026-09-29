@@ -20,7 +20,11 @@ pub enum Blocker {
     DestMissing,
     DestNotWritable(IoFailure),
     DestInsideSource,
-    NotEnoughSpace { needed: u64, free: u64 },
+    /// `available` counts purgeable space (`FsInfo::available_bytes`).
+    NotEnoughSpace {
+        needed: u64,
+        available: u64,
+    },
 }
 
 impl fmt::Display for Blocker {
@@ -31,9 +35,9 @@ impl fmt::Display for Blocker {
             Blocker::DestInsideSource => {
                 write!(f, "the destination is the source directory or inside it")
             }
-            Blocker::NotEnoughSpace { needed, free } => write!(
+            Blocker::NotEnoughSpace { needed, available } => write!(
                 f,
-                "not enough free space: {needed} bytes needed, {free} bytes free"
+                "not enough space: {needed} bytes needed, {available} bytes available"
             ),
         }
     }
@@ -273,6 +277,7 @@ mod tests {
             kind: FsKind::Fat,
             case_sensitive,
             free_bytes: u64::MAX,
+            available_bytes: u64::MAX,
             max_file_size: Some(FAT_MAX_FILE_SIZE),
             name_limit: NameLimit::Utf16Units(255),
             device: 0,
