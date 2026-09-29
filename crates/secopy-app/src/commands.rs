@@ -2007,15 +2007,23 @@ mod tests {
     use crate::message::En;
     use crate::store::{COPY_PRESETS, REMEMBERED, SETTINGS};
 
-
     /// Review: a stop's reason is one sentence, whatever it ends with.
     #[test]
     fn a_stopped_jobs_reason_ends_once() {
         use secopy_core::error::FatalError;
         let gone = stopped_reason(Some(say::fatal(&FatalError::DestinationGone)));
-        assert_eq!(gone, "The destination is no longer available; was it disconnected?");
-        assert_eq!(stopped_reason(Some(say::fatal(&FatalError::DiskFull))), "The destination drive is full.");
-        assert_eq!(stopped_reason(Some(say::internal())), "Secopy hit an internal error.");
+        assert_eq!(
+            gone,
+            "The destination is no longer available; was it disconnected?"
+        );
+        assert_eq!(
+            stopped_reason(Some(say::fatal(&FatalError::DiskFull))),
+            "The destination drive is full."
+        );
+        assert_eq!(
+            stopped_reason(Some(say::internal())),
+            "Secopy hit an internal error."
+        );
         assert_eq!(stopped_reason(None), "Stopped.");
     }
 
