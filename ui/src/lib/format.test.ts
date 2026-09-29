@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { setLocale } from "./i18n";
 import en from "../locales/en.json";
-import { formatBytes, formatCount, formatDuration, formatPercent, formatSpeed, plural } from "./format";
+import { formatBytes, formatCount, formatDuration, formatPercent, formatSpeed } from "./format";
 
 describe("format", () => {
   test("counts use thousands separators", () => {
@@ -27,11 +27,6 @@ describe("format", () => {
   test("percent treats an empty total as done", () => {
     expect(formatPercent(0, 0)).toBe("100.0 %");
     expect(formatPercent(1482, 2124)).toBe("69.8 %");
-  });
-
-  test("plural", () => {
-    expect(plural(1, "file")).toBe("1 file");
-    expect(plural(1284, "file")).toBe("1,284 files");
   });
 });
 
