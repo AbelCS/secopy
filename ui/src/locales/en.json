@@ -729,6 +729,26 @@
       "verifyNote": "New and changed files are always verified after copying: read back from the destination and compared by checksum.",
       "deepCheck": "Also compare unchanged files byte for byte",
       "deepCheckHelp": "Files with the same size and date are normally left alone. This reads both copies in full to catch a damaged or silently changed file in the backup. Slow on big libraries."
+    },
+    "guard": {
+      "unread": {
+        "one": "{count} item in the origin couldn't be read ({path}: {why}). Nothing is removed from the destination this run.",
+        "other": "{count} items in the origin couldn't be read ({path}: {why}). Nothing is removed from the destination this run."
+      },
+      "emptyOrigin": "The origin has no files: every file in the destination would be removed.",
+      "tooMany": "{removals} of the destination's {files} files would be removed."
+    },
+    "notRemoved": {
+      "cancelled": "Files deleted in the origin were left in the destination: the mirror was cancelled.",
+      "stopped": "Files deleted in the origin were left in the destination: the mirror stopped.",
+      "failed": {
+        "one": "Files deleted in the origin were left in the destination: {count} file failed.",
+        "other": "Files deleted in the origin were left in the destination: {count} files failed."
+      },
+      "notClean": "Files deleted in the origin were left in the destination: the copy didn't end cleanly."
+    },
+    "removal": {
+      "changed": "It changed after the preview, so it was kept."
     }
   },
   "menubar": {
@@ -748,5 +768,87 @@
     "copyTo": "Copy to",
     "secopyFiles": "Secopy settings",
     "textFiles": "Text"
+  },
+  "errors": {
+    "os": {
+      "notFound": "It isn't there",
+      "permissionDenied": "Permission denied",
+      "readOnly": "The drive is read-only",
+      "full": "The drive is full",
+      "tooLarge": "The file is too large for this drive",
+      "badName": "The drive doesn't accept this name",
+      "notADirectory": "Not a directory",
+      "isADirectory": "It's a directory",
+      "exists": "It already exists",
+      "notEmpty": "The directory isn't empty",
+      "timedOut": "The drive took too long to answer",
+      "endedEarly": "The file ended sooner than expected",
+      "busy": "It's in use",
+      "network": "The network drive can't be reached",
+      "stale": "The network drive's file is no longer valid",
+      "unsupported": "The drive doesn't support this",
+      "unknown": "{text}"
+    },
+    "file": {
+      "readSource": "Cannot read source: {why}",
+      "writeDest": "Cannot write destination: {why}",
+      "readBack": "Cannot read back the copy: {why}",
+      "changedWhileRead": "Cannot read back the copy: it changed while it was read",
+      "hashMismatch": "Hash mismatch (source {expected}, copy {actual})",
+      "alreadyExists": "A file with this name already exists at the destination",
+      "nameClash": "Another file in this copy has the same name (names are compared ignoring case)",
+      "partialInUse": "Another copy is writing this file",
+      "tooLarge": "The file is larger than the destination drive allows ({size})",
+      "inTheWay": "Something is in the way at {path}",
+      "sourceChanged": "The source file changed while it was copied",
+      "changed": "Changed since it was copied (expected {expected}, found {actual})",
+      "missing": "Missing",
+      "isLink": "Is a link, not checked (links aren't followed)",
+      "isDirectory": "Is a directory, not a file",
+      "notAFile": "Isn't a regular file, not checked",
+      "cancelled": "Cancelled"
+    },
+    "name": {
+      "controlChar": "The name contains a control character",
+      "invalidChar": "The name contains \"{char}\", which this drive doesn't allow",
+      "reserved": "The name is reserved on Windows",
+      "trailingDotOrSpace": "The name ends with a dot or a space, which this drive doesn't allow",
+      "tooLong": "The name is longer than this drive allows ({max} characters)"
+    },
+    "fatal": {
+      "diskFull": "The destination drive is full",
+      "destinationGone": "The destination is no longer available; was it disconnected?",
+      "sourceGone": "The source is no longer available; was it disconnected?"
+    },
+    "internal": "Secopy hit an internal error",
+    "blocker": {
+      "destMissing": "The destination is not an existing directory",
+      "destNotWritable": "Can't write to the destination: {why}",
+      "destInsideSource": "The destination is the source directory or inside it",
+      "notEnoughSpace": "Not enough free space: {needed} needed, {free} free"
+    },
+    "scan": {
+      "notAFile": "Not a regular file",
+      "loop": "It links back to a directory that holds it",
+      "problem": "{path}: {why}",
+      "driveRoot": "A drive root has no directory name; copy only its contents instead"
+    },
+    "check": {
+      "notALine": "Not a \"<checksum>  <path>\" line",
+      "notAChecksum": "\"{hex}\" isn't an xxHash64 checksum",
+      "pathUnreadable": "The path can't be read",
+      "unreadable": "Couldn't be read: {why}",
+      "outside": "{path} points outside the checked directory",
+      "atLine": "{file}:{line}: {why}",
+      "inFile": "{file}: {why}"
+    },
+    "mirror": {
+      "originMissing": "The origin isn't there: {path}",
+      "same": "The origin and the destination are the same directory.",
+      "destinationInOrigin": "The destination can't be inside the origin.",
+      "originInDestination": "The origin can't be inside the destination.",
+      "archiveNotDir": "The destination's .secopy-archive isn't a directory (it's a link or a file). Move it away, or choose to delete removed files.",
+      "previewCancelled": "Cancelled."
+    }
   }
 }

@@ -9,6 +9,7 @@ mod migrate;
 pub mod mirrors;
 mod picker;
 pub mod queue;
+pub mod say;
 pub mod session;
 pub mod store;
 pub mod transfer;
