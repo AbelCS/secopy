@@ -2,9 +2,18 @@
 //! bar icon shows the progress and brings it back. The decisions and the words are here, pure;
 //! the icon and the window are handled below them.
 
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
 use std::time::{Duration, Instant};
 
-use crate::dto::{JobOutcome, JobPhase, ProgressView};
+use tauri::image::Image;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{ActivationPolicy, AppHandle, Manager};
+
+use crate::commands::AppState;
+use crate::dto::{JobOutcome, JobPhase, ProgressView, QueueEvent};
+use crate::lock;
 
 /// A job the icon follows: what it is, its place in a queue, and its last progress.
 #[derive(Debug, Clone, PartialEq)]
@@ -143,6 +152,251 @@ pub fn queue_outcome(complete: u32, count: u32) -> JobOutcome {
 /// (the queue goes on).
 pub fn ends_here(view: &ProgressView, in_queue: bool) -> bool {
     view.phase == JobPhase::Done && !in_queue
+}
+
+const TRAY: &str = "secopy-menubar";
+const PAUSE: &str = "menubar-pause";
+const OPEN: &str = "menubar-open";
+const QUIT: &str = "menubar-quit";
+const ICON: &[u8] = include_bytes!("../icons/menubar.png");
+
+/// The menu bar icon's state (managed by the app).
+#[derive(Default)]
+pub struct MenuBar {
+    /// The window is hidden and the icon shows: the only thing progress events check first.
+    hidden: AtomicBool,
+    inner: Mutex<Inner>,
+}
+
+#[derive(Default)]
+struct Inner {
+    last: Option<Instant>,
+    lines: Vec<String>,
+    queue: Option<(u32, u32)>,
+    paused: bool,
+    finished: bool,
+}
+
+/// Makes the icon, then hides the window: never the window without the icon.
+pub(crate) fn hide_with(
+    make_icon: impl FnOnce() -> Result<(), String>,
+    hide_window: impl FnOnce(),
+) -> bool {
+    if make_icon().is_err() {
+        return false;
+    }
+    hide_window();
+    true
+}
+
+pub fn is_hidden(app: &AppHandle) -> bool {
+    app.state::<MenuBar>().hidden.load(SeqCst)
+}
+
+/// Hides the window behind a menu bar icon; `false` (and nothing changed) if the icon can't be made.
+pub fn hide(app: &AppHandle) -> bool {
+    let status = running_status(app, None);
+    let hid = hide_with(
+        || make_icon(app, &status).map_err(|e| e.to_string()),
+        || {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.hide();
+            }
+            let _ = app.set_activation_policy(ActivationPolicy::Accessory);
+        },
+    );
+    if hid {
+        let bar = app.state::<MenuBar>();
+        let mut inner = lock(&bar.inner);
+        // The queue's place carries over: it was set while the window showed.
+        *inner = Inner {
+            last: Some(Instant::now()),
+            lines: lines(&status),
+            queue: inner.queue,
+            ..Inner::default()
+        };
+        drop(inner);
+        bar.hidden.store(true, SeqCst);
+    }
+    hid
+}
+
+/// Shows the window again, back in the Dock; the icon goes.
+pub fn show(app: &AppHandle) {
+    let bar = app.state::<MenuBar>();
+    bar.hidden.store(false, SeqCst);
+    let mut inner = lock(&bar.inner);
+    // A queue still running keeps its place for the next time the window hides.
+    *inner = Inner {
+        queue: inner.queue,
+        ..Inner::default()
+    };
+    drop(inner);
+    let _ = app.set_activation_policy(ActivationPolicy::Regular);
+    let _ = app.remove_tray_by_id(TRAY);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+fn running_status(app: &AppHandle, view: Option<&ProgressView>) -> Status {
+    let state = app.state::<AppState>();
+    let bar = app.state::<MenuBar>();
+    Status::Running(Running {
+        label: state.jobs.label().unwrap_or_else(|| "Secopy".into()),
+        queue: lock(&bar.inner).queue,
+        check: state.jobs.is_check(),
+        view: view.cloned().unwrap_or_default(),
+    })
+}
+
+fn menu(app: &AppHandle, status: &Status) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::new(app)?;
+    for line in lines(status) {
+        menu.append(&MenuItem::new(app, line, false, None::<&str>)?)?;
+    }
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    match status {
+        Status::Running(r) => {
+            let pause = if r.view.paused { "Resume" } else { "Pause" };
+            menu.append(&MenuItem::with_id(app, PAUSE, pause, true, None::<&str>)?)?;
+            menu.append(&MenuItem::with_id(
+                app,
+                OPEN,
+                "Open Secopy",
+                true,
+                None::<&str>,
+            )?)?;
+            menu.append(&PredefinedMenuItem::separator(app)?)?;
+            menu.append(&MenuItem::with_id(
+                app,
+                QUIT,
+                "Quit Secopy…",
+                true,
+                None::<&str>,
+            )?)?;
+        }
+        Status::Finished { .. } => {
+            menu.append(&MenuItem::with_id(
+                app,
+                OPEN,
+                "Open Secopy",
+                true,
+                None::<&str>,
+            )?)?;
+            menu.append(&MenuItem::with_id(
+                app,
+                QUIT,
+                "Quit Secopy",
+                true,
+                None::<&str>,
+            )?)?;
+        }
+    }
+    Ok(menu)
+}
+
+fn make_icon(app: &AppHandle, status: &Status) -> tauri::Result<()> {
+    TrayIconBuilder::with_id(TRAY)
+        .icon(Image::from_bytes(ICON)?)
+        .icon_as_template(true)
+        .title(title(status))
+        .menu(&menu(app, status)?)
+        .show_menu_on_left_click(true)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            PAUSE => {
+                let state = app.state::<AppState>();
+                if lock(&app.state::<MenuBar>().inner).paused {
+                    state.jobs.resume();
+                } else {
+                    state.jobs.pause();
+                }
+            }
+            OPEN => show(app),
+            QUIT => crate::quit(app),
+            _ => {}
+        })
+        .build(app)?;
+    Ok(())
+}
+
+/// Shows `status` on the icon: the title always, the menu only when its lines changed.
+fn update(app: &AppHandle, status: &Status) {
+    let Some(tray) = app.tray_by_id(TRAY) else {
+        return;
+    };
+    let _ = tray.set_title(Some(title(status)));
+    let bar = app.state::<MenuBar>();
+    let new_lines = lines(status);
+    let paused = matches!(status, Status::Running(r) if r.view.paused);
+    let changed = {
+        let mut inner = lock(&bar.inner);
+        let changed = inner.lines != new_lines || inner.paused != paused;
+        inner.lines = new_lines;
+        inner.paused = paused;
+        changed
+    };
+    if changed && let Ok(menu) = menu(app, status) {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
+/// A job's progress: nothing while the window shows; at most once a second while hidden.
+pub fn progress(app: &AppHandle, view: &ProgressView) {
+    let bar = app.state::<MenuBar>();
+    if !bar.hidden.load(SeqCst) {
+        return;
+    }
+    let (in_queue, finished, last) = {
+        let inner = lock(&bar.inner);
+        (inner.queue.is_some(), inner.finished, inner.last)
+    };
+    if finished {
+        return;
+    }
+    let end = ends_here(view, in_queue);
+    let now = Instant::now();
+    if !due(last, now, end) {
+        return;
+    }
+    lock(&bar.inner).last = Some(now);
+    let status = if end {
+        let summary = app.state::<AppState>().jobs.summary();
+        lock(&bar.inner).finished = true;
+        Status::Finished {
+            outcome: summary.as_ref().map_or(JobOutcome::Stopped, |s| s.outcome),
+            why: summary.and_then(|s| s.stopped_because),
+        }
+    } else {
+        running_status(app, Some(view))
+    };
+    update(app, &status);
+}
+
+/// A queue's events: its place, its jobs' progress, and its end.
+pub fn queue_event(app: &AppHandle, e: &QueueEvent) {
+    let bar = app.state::<MenuBar>();
+    match e {
+        QueueEvent::JobChecking { index, count } | QueueEvent::JobStarted { index, count, .. } => {
+            lock(&bar.inner).queue = Some((index + 1, *count));
+        }
+        QueueEvent::Progress { view } => progress(app, view),
+        QueueEvent::Done { summary } => {
+            if bar.hidden.load(SeqCst) {
+                lock(&bar.inner).finished = true;
+                update(
+                    app,
+                    &Status::Finished {
+                        outcome: queue_outcome(summary.complete, summary.count),
+                        why: None,
+                    },
+                );
+            }
+            lock(&bar.inner).queue = None;
+        }
+        QueueEvent::Compared { .. } => {}
+    }
 }
 
 #[cfg(test)]
@@ -291,5 +545,14 @@ mod tests {
         assert!(ends_here(&done, false));
         assert!(!ends_here(&done, true));
         assert!(!ends_here(&ProgressView::default(), false));
+    }
+
+    #[test]
+    fn hides_only_with_an_icon() {
+        let mut hidden = false;
+        assert!(!hide_with(|| Err("no tray".into()), || hidden = true));
+        assert!(!hidden, "no icon: the window stays");
+        assert!(hide_with(|| Ok(()), || hidden = true));
+        assert!(hidden);
     }
 }

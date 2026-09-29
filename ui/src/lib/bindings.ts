@@ -8,6 +8,11 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 export const commands = {
 	/**  FROM's Choose…: a folder or files, in one panel (FR-1, FR-2). `None` when cancelled. */
 	pickSource: () => typedError<string[] | null, string>(__TAURI_INVOKE("pick_source")),
+	/**
+	 *  The window is closing: hides it behind the menu bar icon when that applies (#80); `false`
+	 *  and nothing changed otherwise, and the window asks or quits as before.
+	 */
+	hideToMenuBar: () => __TAURI_INVOKE<boolean>("hide_to_menu_bar"),
 	exportAll: (path: string, what: ExportWhat) => typedError<string, string>(__TAURI_INVOKE("export_all", { path, what })),
 	exportCopyPreset: (id: string, path: string) => typedError<string, string>(__TAURI_INVOKE("export_copy_preset", { id, path })),
 	exportMirrorPreset: (id: string, path: string) => typedError<string, string>(__TAURI_INVOKE("export_mirror_preset", { id, path })),
