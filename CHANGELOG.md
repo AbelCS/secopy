@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.13.0](https://github.com/AbelCS/secopy/compare/v0.12.0...v0.13.0) (2026-09-29)
+
+
+### Features
+
+* a setting to keep copying in the menu bar ([53d3f6c](https://github.com/AbelCS/secopy/commit/53d3f6c0201047254eb76ddb2c675e3761a5c606)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* **app:** keep copying in the menu bar when the window is closed ([160921f](https://github.com/AbelCS/secopy/commit/160921f2454d85fa58b541d928859ae5f3a3bbf2)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* **app:** what the menu bar icon says, and when ([96ad4c1](https://github.com/AbelCS/secopy/commit/96ad4c14a1a1c3930702303ace8a19575a882380)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* the menu bar icon opens a panel instead of a menu ([79b2a69](https://github.com/AbelCS/secopy/commit/79b2a69bc39de4474556ee006d4280db868a56f5)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* **ui:** closing during a job hides to the menu bar ([e94386f](https://github.com/AbelCS/secopy/commit/e94386fbfce11854fb7b1c94826270e7f95599c6)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* **ui:** the menu bar panel has rounded corners, like a native popover ([390bc15](https://github.com/AbelCS/secopy/commit/390bc1581dfbfd95addcbf0791169433c7c902be)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+
+
+### Bug Fixes
+
+* **app:** closing Secopy's window quits even with the panel's window ([1060946](https://github.com/AbelCS/secopy/commit/106094602a7841ac159f543a46fc7f28c8dd061b)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* **app:** the menu bar icon starts true, and a cancelled queue says so ([e610652](https://github.com/AbelCS/secopy/commit/e6106523b354dbde1d890999f30a75c5c04dd76e)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* **app:** the menu bar's menu stays open while the job runs ([de89177](https://github.com/AbelCS/secopy/commit/de89177fa5af393927fbd9c07064931df9e473a0)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* findings from reviewing the menu bar ([fbde483](https://github.com/AbelCS/secopy/commit/fbde4830f9c5c07f2ca947f1ca5748a5f2219115)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* the menu bar panel's corners are really see-through ([897a8b8](https://github.com/AbelCS/secopy/commit/897a8b8b5a1ca49167a529e8263bfcb57446b7b2)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+* **ui:** the panel's Pause doesn't flip back on an earlier update ([72a0042](https://github.com/AbelCS/secopy/commit/72a0042dae5e0c4660f54352d9e83d792f3040d4)), closes [#80](https://github.com/AbelCS/secopy/issues/80)
+
 ## [0.12.0](https://github.com/AbelCS/secopy/compare/v0.11.0...v0.12.0) (2026-09-28)
 
 
