@@ -175,14 +175,20 @@ export type ArchiveDeletedView = {
 	notDeleted: Message | null,
 };
 
-/**  What a mirror's archive holds, asked before switching it to Delete (#101). */
-export type ArchiveView = 
-/**  No archive, or nothing in it. */
-{ state: "empty" } | { state: "files"; files: number; bytes: number } | 
-/**  The destination isn't connected (or can't be read). */
-{ state: "unavailable" } | 
-/**  A job or the queue runs: the archive isn't touched now. */
-{ state: "busy" };
+/**
+ *  What a mirror's archive holds (#99, #101): shown on the mirror's screen, and asked before
+ *  switching it to Delete.
+ */
+export type ArchiveView = {
+	files: number,
+	bytes: number,
+	/**  When its oldest run was archived (RFC 3339). */
+	oldest: string | null,
+	/**  The destination is there: when not, nothing is known about its archive. */
+	connected: boolean,
+	/**  A job or the queue runs: the archive isn't deleted now. */
+	busy: boolean,
+};
 
 /**
  *  A placeholder's value. The UI formats numbers for its language, a `Size` as bytes

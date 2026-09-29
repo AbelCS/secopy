@@ -327,7 +327,9 @@ export function fakeApi(session: SessionView = sessionView()) {
     createMirrorPreset: vi.fn((_input: MirrorPresetInput) => Promise.resolve([mirrorPreset()])),
     editMirrorPreset: vi.fn((_id: string, _input: MirrorPresetInput) => Promise.resolve([mirrorPreset()])),
     deleteMirrorPreset: vi.fn((_id: string) => Promise.resolve([] as MirrorPreset[])),
-    mirrorArchive: vi.fn((_id: string) => Promise.resolve({ state: "empty" } as ArchiveView)),
+    mirrorArchive: vi.fn((_id: string) =>
+      Promise.resolve({ files: 0, bytes: 0, oldest: null, connected: true, busy: false } as ArchiveView),
+    ),
     deleteMirrorArchive: vi.fn((_id: string) => Promise.resolve({ removed: 0, notDeleted: null } as ArchiveDeletedView)),
     clearMirrorArchiveNextRun: vi.fn((_id: string) => Promise.resolve([mirrorPreset()])),
     previewMirror: vi.fn((_id: string, _onCompared: (c: ComparedView) => void) => Promise.resolve(mirrorPreview())),

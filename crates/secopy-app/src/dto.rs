@@ -483,21 +483,20 @@ pub struct MirrorSummaryView {
     pub archive_not_deleted: Option<Message>,
 }
 
-/// What a mirror's archive holds, asked before switching it to Delete (#101).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
-#[serde(tag = "state", rename_all = "camelCase")]
-pub enum ArchiveView {
-    /// No archive, or nothing in it.
-    Empty,
-    Files {
-        files: u32,
-        #[specta(type = specta_typescript::Number)]
-        bytes: u64,
-    },
-    /// The destination isn't connected (or can't be read).
-    Unavailable,
-    /// A job or the queue runs: the archive isn't touched now.
-    Busy,
+/// What a mirror's archive holds (#99, #101): shown on the mirror's screen, and asked before
+/// switching it to Delete.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveView {
+    pub files: u32,
+    #[specta(type = specta_typescript::Number)]
+    pub bytes: u64,
+    /// When its oldest run was archived (RFC 3339).
+    pub oldest: Option<String>,
+    /// The destination is there: when not, nothing is known about its archive.
+    pub connected: bool,
+    /// A job or the queue runs: the archive isn't deleted now.
+    pub busy: bool,
 }
 
 /// What "Delete them now" did (#101).

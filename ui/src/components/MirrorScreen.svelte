@@ -1,7 +1,7 @@
 <script lang="ts">
   // Mirror presets (RFD §5.8, FR-44): the list on the left, the selected one on the right.
   // A saved preset is previewed (then run) or added to the queue; an edited one is saved first.
-  import { t } from "../lib/i18n";
+  import { locale, t } from "../lib/i18n";
   import { AppError, say } from "../lib/message";
   import type { Snippet } from "svelte";
   import { useApi } from "../lib/api";
@@ -94,6 +94,55 @@
     selectedId = id;
   }
 
+  /** The selected mirror's archive (#99); `null` while it's being looked at. */
+  let archive: ArchiveView | null = $state(null);
+  const savedId = $derived(selectedId !== NEW && selected ? selected.id : null);
+
+  async function lookAtArchive(id: string) {
+    const seen = await api.mirrorArchive(id).catch(() => null);
+    if (savedId === id) archive = seen;
+  }
+
+  $effect(() => {
+    archive = null;
+    if (savedId) void lookAtArchive(savedId);
+  });
+
+  const DATE = { day: "numeric", month: "short", year: "numeric" } as const;
+  const archiveText = $derived.by(() => {
+    if (!archive) return "";
+    if (!archive.connected) return t("mirror.archive.notConnected");
+    if (archive.files === 0) return t("mirror.archive.empty");
+    return [
+      t("mirror.archive.files", { count: archive.files }),
+      formatBytes(archive.bytes),
+      archive.oldest
+        ? t("mirror.archive.oldest", { date: new Intl.DateTimeFormat(locale(), DATE).format(new Date(archive.oldest)) })
+        : "",
+    ]
+      .filter(Boolean)
+      .join(t("format.dot"));
+  });
+
+  async function deleteArchive(p: MirrorPreset, held: ArchiveView) {
+    const sure = await api.confirm(
+      t("mirror.archive.confirm", { count: held.files, size: formatBytes(held.bytes) }),
+      t("mirror.archive.confirmTitle"),
+      t("mirror.delete.ok"),
+      t("mirror.delete.keep"),
+    );
+    if (!sure) return;
+    try {
+      const deleted = await api.deleteMirrorArchive(p.id);
+      said = t("mirror.archive.deleted", { count: deleted.removed });
+      error = deleted.notDeleted ? say(deleted.notDeleted) : null;
+    } catch (e) {
+      said = null;
+      error = messageOf(e);
+    }
+    await lookAtArchive(p.id);
+  }
+
   /** Switching to Delete: what to do with what's already archived (#101). */
   type ArchiveChoice = "now" | "nextRun" | "keep" | "cancel";
   let asked: { archive: ArchiveView; days: number; answer: (c: ArchiveChoice) => void } | null = $state(null);
@@ -121,7 +170,7 @@
       const sameDestination = input.destination.trim().replace(/\/+$/, "") === preset.destination;
       if (preset.deleted.mode === "archive" && input.deleted.mode === "delete" && sameDestination) {
         const archive = await api.mirrorArchive(preset.id);
-        if (archive.state !== "empty") choice = await askAboutArchive(archive, input.deleted.days);
+        if (archive.files > 0 || !archive.connected) choice = await askAboutArchive(archive, input.deleted.days);
       }
       if (choice === "cancel") return;
       // The archive of the destination saved so far: deleted before the preset changes.
@@ -231,6 +280,7 @@
       </nav>
     </Section>
 
+    <div class="stack">
     <Section title={selectedId === NEW ? t("mirror.newTitle") : (selected?.name ?? t("mirror.about"))}>
       {#if selectedId === NEW || selected}
         {#key editorKey}
@@ -252,6 +302,29 @@
       {#if said}<Notice tone="success">{said}</Notice>{/if}
       {#if error}<Notice tone="danger">{error}</Notice>{/if}
     </Section>
+    {#if savedId && selected}
+      {@const p = selected}
+      <Section title={t("mirror.archive.title")}>
+        <div class="archive">
+          <span class="muted archive-text">
+            <span>{archiveText}</span>
+            {#if archive?.busy && archive.files > 0}<span>{t("mirror.archive.busy")}</span>{/if}
+          </span>
+          <span class="archive-actions">
+            <Button
+              disabled={!archive?.connected || archive.files === 0}
+              onclick={() => api.reveal(`${p.destination}/.secopy-archive`)}>{t("mirror.archive.show")}</Button
+            >
+            <Button
+              variant="danger"
+              disabled={!archive?.connected || archive.files === 0 || archive.busy}
+              onclick={() => archive && deleteArchive(p, archive)}>{t("mirror.archive.delete")}</Button
+            >
+          </span>
+        </div>
+      </Section>
+    {/if}
+    </div>
   </div>
 
   {#snippet actions()}
@@ -298,15 +371,15 @@
   {@const q = asked}
   <Dialog title={t("mirror.switch.title")} onClose={() => answer("cancel")}>
     <p>
-      {q.archive.state === "files"
-        ? t("mirror.switch.files", { count: q.archive.files, size: formatBytes(q.archive.bytes) })
-        : q.archive.state === "busy"
+      {!q.archive.connected
+        ? t("mirror.switch.unavailable")
+        : q.archive.busy
           ? t("mirror.switch.busy")
-          : t("mirror.switch.unavailable")}
+          : t("mirror.switch.files", { count: q.archive.files, size: formatBytes(q.archive.bytes) })}
     </p>
     {#snippet actions()}
       <Button data-autofocus onclick={() => answer("cancel")}>{t("ui.cancel")}</Button>
-      {#if q.archive.state === "files"}
+      {#if q.archive.connected && !q.archive.busy}
         <Button onclick={() => answer("keep")}>{t("mirror.switch.keep", { count: q.days })}</Button>
         <Button variant="danger" onclick={() => answer("now")}>{t("mirror.switch.deleteNow")}</Button>
       {:else}
@@ -318,6 +391,30 @@
 {/if}
 
 <style>
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .archive {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .archive-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .archive-actions {
+    display: flex;
+    gap: var(--space-2);
+  }
+
   .panes {
     display: grid;
     grid-template-columns: 220px minmax(0, 1fr);

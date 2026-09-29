@@ -239,6 +239,7 @@ export function fakeApi(start: Partial<{ copyPresets: CopyPreset[] }> = {}): Api
     onOpenSettings: ok(() => {}),
     jobRunning: ok(false),
     takeOpenedFile: ok(null),
+    mirrorArchive: ok({ files: 124, bytes: 38_200_000_000, oldest: "2026-09-12T10:00:00+02:00", connected: true, busy: false }),
     recentDestinations: ok([]),
     confirm: ok(true),
     queue: ok(queue),

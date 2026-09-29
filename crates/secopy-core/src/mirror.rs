@@ -655,6 +655,8 @@ pub fn finish(
 pub struct ArchiveSummary {
     pub files: u64,
     pub bytes: u64,
+    /// When its oldest run was archived (from the run directory's name).
+    pub oldest: Option<chrono::DateTime<chrono::Local>>,
 }
 
 /// What `destination`'s archive holds (#101): `None` when it has none, it's empty, or it's a
@@ -665,7 +667,17 @@ pub fn archive_summary(destination: &Path) -> std::io::Result<Option<ArchiveSumm
     if !fs::symlink_metadata(&root).is_ok_and(|m| m.is_dir()) {
         return Ok(None);
     }
-    let mut summary = ArchiveSummary { files: 0, bytes: 0 };
+    let mut summary = ArchiveSummary {
+        files: 0,
+        bytes: 0,
+        oldest: fs::read_dir(&root)
+            .into_iter()
+            .flatten()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+            .filter_map(|e| archived_at(&e.file_name().to_string_lossy()))
+            .min(),
+    };
     for entry in WalkDir::new(&root).follow_links(false) {
         let entry = entry.map_err(std::io::Error::from)?;
         if entry.file_type().is_file() {
@@ -733,6 +745,15 @@ pub fn delete_archive(destination: &Path) -> ArchiveDeleted {
     done
 }
 
+/// When an archive run directory was made, from its name (`archive_dir`'s, "… (2)" too).
+fn archived_at(name: &str) -> Option<chrono::DateTime<chrono::Local>> {
+    let stamp = name.split(" (").next().unwrap_or_default();
+    chrono::NaiveDateTime::parse_from_str(stamp, STAMP)
+        .ok()?
+        .and_local_timezone(chrono::Local)
+        .single()
+}
+
 /// Removes archive run directories older than `days` (named by `archive_dir`).
 pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chrono::Local>) -> u32 {
     let limit = now - chrono::Duration::days(i64::from(days));
@@ -749,13 +770,7 @@ pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chron
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
     {
-        let name = e.file_name().to_string_lossy().into_owned();
-        // "… (2)": a second run in the same second.
-        let stamp = name.split(" (").next().unwrap_or_default();
-        let old = chrono::NaiveDateTime::parse_from_str(stamp, STAMP)
-            .ok()
-            .and_then(|t| t.and_local_timezone(chrono::Local).single())
-            .is_some_and(|t| t < limit);
+        let old = archived_at(&e.file_name().to_string_lossy()).is_some_and(|t| t < limit);
         if old && fs::remove_dir_all(e.path()).is_ok() {
             removed += 1;
         }
