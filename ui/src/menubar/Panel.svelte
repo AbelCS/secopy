@@ -87,12 +87,14 @@
 </main>
 
 <style>
+  /* The window is see-through: only the panel's rounded card shows, like a macOS popover. */
+  :global(:root),
   :global(html),
   :global(body),
   :global(#app) {
     margin: 0;
     height: 100%;
-    background: var(--surface);
+    background: transparent;
     overflow: hidden;
   }
 
@@ -104,6 +106,9 @@
     flex-direction: column;
     gap: var(--space-1);
     background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
     color: var(--text);
     font-size: var(--text-md);
     user-select: none;

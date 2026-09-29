@@ -344,6 +344,9 @@ pub fn make_panel(app: &AppHandle) -> tauri::Result<()> {
         .inner_size(PANEL_SIZE.0, PANEL_SIZE.1)
         .resizable(false)
         .decorations(false)
+        // See-through, so the panel's own rounded corners show, with the native shadow.
+        .transparent(true)
+        .shadow(true)
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
