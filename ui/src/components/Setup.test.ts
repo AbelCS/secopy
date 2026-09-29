@@ -124,6 +124,16 @@ describe("Setup", () => {
     expect(start()).toHaveProperty("disabled", true);
   });
 
+  test("where the files go is shown even when Start is blocked", () => {
+    setup(
+      readyView({
+        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: raw("Not enough free space") },
+      }),
+    );
+    to().getByText("Files go to");
+    to().getByText("/Volumes/RAID/Day01/DCIM");
+  });
+
   test("a non-empty copy root is a warning, not a block", () => {
     setup(readyView({ destination: destinationView({ existingItems: 1204 }) }));
     screen.getByText(/Already contains 1,204 items/);
