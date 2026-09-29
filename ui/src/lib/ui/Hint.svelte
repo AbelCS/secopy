@@ -3,13 +3,14 @@
   // underline, or with no term an ⓘ mark stands in (`label` names it). Only where a word
   // isn't clear on its own. VoiceOver reads the explanation after the term (a description);
   // it stays out of the names of the things around it.
+  import { t } from "../i18n";
   import type { Snippet } from "svelte";
   import Icon from "./Icon.svelte";
 
   let {
     text,
     children,
-    label = "More about this",
+    label = t("ui.hint.more"),
     above = false,
   }: {
     text: string;

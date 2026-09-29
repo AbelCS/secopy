@@ -18,6 +18,193 @@
       "gb": "{value} GB",
       "tb": "{value} TB",
       "pb": "{value} PB"
+    },
+    "dot": " · ",
+    "comma": ", "
+  },
+  "summary": {
+    "headline": {
+      "cancelled": "Cancelled",
+      "stopped": "Stopped: {why}",
+      "checkCannotContinue": "the check could not continue",
+      "copyCannotContinue": "the copy could not continue",
+      "check": {
+        "changed": {
+          "one": "{count} file changed",
+          "other": "{count} files changed"
+        },
+        "missing": "{count} missing",
+        "unreadable": "{count} couldn't be read",
+        "problems": {
+          "one": "{count} checksum file problem",
+          "other": "{count} checksum file problems"
+        },
+        "intact": {
+          "one": "All {count} file intact",
+          "other": "All {count} files intact"
+        }
+      },
+      "unread": {
+        "one": "{count} item couldn't be read",
+        "other": "{count} items couldn't be read"
+      },
+      "notRemoved": {
+        "one": "{count} file couldn't be removed",
+        "other": "{count} files couldn't be removed"
+      },
+      "dirErrors": {
+        "one": "{count} empty directory couldn't be created",
+        "other": "{count} empty directories couldn't be created"
+      },
+      "checksumFailed": "The checksum file couldn't be written",
+      "notDurable": "The destination couldn't confirm the files are saved",
+      "mirror": {
+        "new": "{count} new",
+        "updated": "{count} updated",
+        "archived": "{count} archived",
+        "deleted": "{count} deleted",
+        "inSync": "Already in sync",
+        "done": "Mirrored: {parts}"
+      },
+      "undoneBack": "Cancelled: the destination is back as it was",
+      "undoneRemoved": "Cancelled: the copied files were removed",
+      "failed": {
+        "one": "{count} file failed",
+        "other": "{count} files failed"
+      },
+      "keptDifferent": {
+        "one": "{count} different file left as it was",
+        "other": "{count} different files left as they were"
+      },
+      "nothingCopied": "Nothing copied: {kept}",
+      "someVerified": {
+        "one": "{count} file copied and verified; {kept}",
+        "other": "{count} files copied and verified; {kept}"
+      },
+      "someCopied": {
+        "one": "{count} file copied; {kept}",
+        "other": "{count} files copied; {kept}"
+      },
+      "nothingToCopy": "Nothing to copy: everything was already there",
+      "allVerified": {
+        "one": "All {count} file copied and verified",
+        "other": "All {count} files copied and verified"
+      },
+      "allCopied": {
+        "one": "All {count} file copied",
+        "other": "All {count} files copied"
+      }
+    },
+    "stats": {
+      "files": {
+        "one": "{count} file",
+        "other": "{count} files"
+      },
+      "took": "took {time}",
+      "notChecked": "{count} not checked",
+      "notCheckedHint": "Files no checksum file lists: nothing to compare them with.",
+      "written": "{size} written",
+      "average": "{speed} average",
+      "alreadyThere": "{count} already at the destination, not checked",
+      "keptDifferent": {
+        "one": "{count} different file left as they were",
+        "other": "{count} different files left as they were"
+      },
+      "notStarted": "{count} not started",
+      "notStartedHint": "Files the job didn't reach because it was cancelled or stopped."
+    }
+  },
+  "progress": {
+    "stop": {
+      "question": {
+        "copy": "Stop copying?",
+        "mirror": "Stop mirroring?",
+        "check": "Stop verifying?"
+      },
+      "questionQueue": {
+        "copy": "Stop copying and stop the queue?",
+        "mirror": "Stop mirroring and stop the queue?",
+        "check": "Stop verifying and stop the queue?"
+      },
+      "queueOnly": "Stop the queue?",
+      "notStarted": "This job hasn't started yet: nothing was written for it.",
+      "left": {
+        "check": "Nothing was changed: a check only reads files.",
+        "mirror": "Files already copied stay; the file in progress is removed. Files deleted in the origin are left in the destination.",
+        "copyListed": "Files already copied stay and are listed in the checksum file; the file in progress is removed.",
+        "copy": "Files already copied stay; the file in progress is removed."
+      }
+    },
+    "quit": {
+      "question": {
+        "copy": "Stop copying and quit?",
+        "mirror": "Stop mirroring and quit?",
+        "check": "Stop verifying and quit?"
+      },
+      "stop": {
+        "copy": "Stop copying",
+        "mirror": "Stop mirroring",
+        "check": "Stop verifying"
+      },
+      "keep": {
+        "copy": "Keep copying",
+        "mirror": "Keep mirroring",
+        "check": "Keep verifying"
+      },
+      "queueQuestion": "Stop the queue and quit?",
+      "queueStop": "Stop the queue",
+      "queueKeep": "Continue",
+      "finishing": {
+        "undo": "Secopy finishes putting the destination back as it was first, then quits.",
+        "archive": "Secopy finishes archiving the files gone from the origin first, then quits.",
+        "delete": "Secopy finishes deleting the files gone from the origin first, then quits."
+      },
+      "whenDone": "Quit when it's done?",
+      "quit": "Quit",
+      "keepOpen": "Keep open"
+    }
+  },
+  "notify": {
+    "job": {
+      "title": "{mark} {headline}"
+    },
+    "queue": {
+      "title": {
+        "one": "Queue done: {complete} of {count} job complete",
+        "other": "Queue done: {complete} of {count} jobs complete"
+      },
+      "failed": {
+        "one": "{count} job failed",
+        "other": "{count} jobs failed"
+      },
+      "allFinished": "Every job finished."
+    }
+  },
+  "app": {
+    "dismiss": "Dismiss",
+    "settings": "Settings",
+    "tabs": {
+      "copy": "Copy",
+      "mirror": "Mirror",
+      "verify": "Verify"
+    },
+    "exportName": "Secopy settings {date}.secopy"
+  },
+  "ui": {
+    "actions": "Actions",
+    "sections": "Sections",
+    "queue": {
+      "label": "Queue",
+      "withCount": {
+        "one": "Queue, {count} job",
+        "other": "Queue, {count} jobs"
+      }
+    },
+    "progress": {
+      "figures": "{done} of {total}"
+    },
+    "hint": {
+      "more": "More about this"
     }
   }
 }

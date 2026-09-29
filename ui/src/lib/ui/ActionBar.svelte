@@ -1,12 +1,13 @@
 <script lang="ts">
   // The bottom bar: other and destructive actions on the left, a short status in the middle,
   // the screen's main action on the right.
+  import { t } from "../i18n";
   import type { Snippet } from "svelte";
 
   let { start, status, end }: { start?: Snippet; status?: string | Snippet; end?: Snippet } = $props();
 </script>
 
-<div class="bar" role="group" aria-label="Actions">
+<div class="bar" role="group" aria-label={t("ui.actions")}>
   <div class="start">{#if start}{@render start()}{/if}</div>
   <div class="status" aria-live="polite">
     {#if typeof status === "string"}{status}{:else if status}{@render status()}{/if}

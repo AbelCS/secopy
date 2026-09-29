@@ -1,7 +1,8 @@
 <script lang="ts">
   // The progress view (RFD §5.3): phase and time, one bar per phase, active files, finished
   // files, Pause / Resume and Cancel.
-  import { doing, NOT_STARTED, stopMessage, type JobKind } from "../lib/stopping";
+  import { notStarted, stopMessage, stopQuestion, type JobKind } from "../lib/stopping";
+  import { t } from "../lib/i18n";
   import { useApi } from "../lib/api";
   import type { ProgressView } from "../lib/bindings";
   import { formatBytes, formatCount, formatDuration, formatPercent, plural } from "../lib/format";
@@ -104,13 +105,7 @@
   /** Also remove the files already copied (#54); off each time it opens. */
   let removeCopied = $state(false);
   const kind: JobKind = $derived(check ? "check" : title === "Mirroring" ? "mirror" : "copy");
-  const question = $derived(
-    queue && checking
-      ? "Stop the queue?"
-      : queue
-        ? `Stop ${doing(kind)} and stop the queue?`
-        : `Stop ${doing(kind)}?`,
-  );
+  const question = $derived(queue && checking ? t("progress.stop.queueOnly") : stopQuestion(kind, !!queue));
   // A job that ends (or starts removing) while the question is open has nothing to stop.
   $effect(() => {
     if (finishing) asking = false;
@@ -286,7 +281,7 @@
   <Dialog title={question} onClose={() => (asking = false)}>
     <p>
       {checking
-        ? NOT_STARTED
+        ? notStarted()
         : check
           ? "Nothing was changed: the files checked so far are in the summary."
           : removeCopied

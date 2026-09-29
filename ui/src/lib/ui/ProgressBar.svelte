@@ -2,6 +2,7 @@
   // One phase's bar (RFD §5.3): bytes done of the total, and the current speed once it is
   // known. The whole job's percent and time left are shown once, above the bars. The fill
   // animates for as long as the gap between updates, so two updates a second look smooth.
+  import { t } from "../i18n";
   import { formatBytes, formatSpeed } from "../format";
 
   let {
@@ -32,7 +33,7 @@
   >
     <div class="fill" style:width="{fraction * 100}%"></div>
   </div>
-  <span class="figures">{formatBytes(done)} of {formatBytes(total)}{speed === null ? "" : ` · ${formatSpeed(speed)}`}</span>
+  <span class="figures">{t("ui.progress.figures", { done: formatBytes(done), total: formatBytes(total) })}{speed === null ? "" : ` · ${formatSpeed(speed)}`}</span>
 </div>
 
 <style>

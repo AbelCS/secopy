@@ -2,6 +2,7 @@
   // The top bar: the kinds of job as tabs on the left (Copy, Mirror, Verify), and on the
   // right what isn't a kind of job: the Queue (where jobs wait and run, with their count)
   // and Settings. The current tab is underlined; the Queue is highlighted while it's open.
+  import { t } from "../i18n";
   import type { Snippet } from "svelte";
   import Icon from "./Icon.svelte";
 
@@ -23,7 +24,7 @@
 </script>
 
 <div class="tabbar">
-  <nav class="tabs" aria-label="Sections">
+  <nav class="tabs" aria-label={t("ui.sections")}>
     {#each items as item (item.id)}
       <button
         type="button"
@@ -43,11 +44,11 @@
         class="queue"
         class:on={selected === "queue"}
         aria-current={selected === "queue" ? "page" : undefined}
-        aria-label={queue.count ? `Queue, ${queue.count} ${queue.count === 1 ? "job" : "jobs"}` : "Queue"}
+        aria-label={queue.count ? t("ui.queue.withCount", { count: queue.count }) : t("ui.queue.label")}
         onclick={() => onSelect("queue")}
       >
         <Icon name="list" />
-        Queue
+        {t("ui.queue.label")}
         {#if queue.count}<span class="count" aria-hidden="true">{queue.count}</span>{/if}
       </button>
     {/if}
