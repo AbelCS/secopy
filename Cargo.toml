@@ -7,6 +7,9 @@ version = "0.14.0"
 edition = "2024"
 rust-version = "1.88"
 publish = false
+license = "GPL-3.0-or-later"
+authors = ["Abel Castro Suárez"]
+repository = "https://github.com/AbelCS/secopy"
 
 [workspace.dependencies]
 secopy-core = { path = "crates/secopy-core" }

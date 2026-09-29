@@ -25,6 +25,7 @@
     }
   },
   "bundle": {
+    "copyright": "Copyright © 2026 Abel Castro Suárez. GPL-3.0-or-later.",
     "active": true,
     "targets": ["dmg"],
     "category": "Utility",
