@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { locale, setLocale, t } from "./i18n";
+import en from "../locales/en.json";
+import { headline } from "./headline";
+import { notificationFor } from "./summaryText";
+import { stopMessage } from "./stopping";
+import { summaryView } from "../test/fake-api";
 
 describe("t()", () => {
   afterEach(() => setLocale("en"));
@@ -30,5 +35,17 @@ describe("t()", () => {
 
   test("the language is English when there's no catalog for the Mac's", () => {
     expect(locale()).toBe("en");
+  });
+
+  /** `text` in capitals, its {placeholders} untouched. */
+  const upper = (text: string) => text.replace(/(^|\})([^{]*)/g, (m) => m.toUpperCase());
+  
+  test("builders use the catalog", () => {
+    const plain = { headline: headline(summaryView()), stop: stopMessage("check", true), title: notificationFor(summaryView()).title };
+    const shouty = JSON.parse(JSON.stringify(en), (_k, v) => (typeof v === "string" ? upper(v) : v));
+    setLocale("en", shouty);
+    expect(headline(summaryView())).toBe(plain.headline.toUpperCase());
+    expect(stopMessage("check", true)).toBe(plain.stop.toUpperCase());
+    expect(notificationFor(summaryView()).title).toBe(plain.title.toUpperCase());
   });
 });

@@ -4,7 +4,8 @@
   import { messageOf } from "./lib/format";
   import { onMount } from "svelte";
   import { provideApi, tauriApi, type Api } from "./lib/api";
-  import { doing, finishingMessage, NOT_STARTED, stopMessage, type JobKind } from "./lib/stopping";
+  import { finishingMessage, notStarted, quitQuestion, stopMessage, type JobKind } from "./lib/stopping";
+  import { t } from "./lib/i18n";
   import { notificationFor, queueNotification } from "./lib/summaryText";
   import type {
     CopyPreset,
@@ -232,7 +233,7 @@
   async function exportChosen(what: ExportWhat) {
     exporting = false;
     const today = new Date().toISOString().slice(0, 10);
-    const path = await api.pickExportPath(`Secopy settings ${today}.secopy`);
+    const path = await api.pickExportPath(t("app.exportName", { date: today }));
     if (!path) return;
     const said = await run(() => api.exportAll(path, what));
     if (said) info = { text: said, on: screen };
@@ -477,23 +478,23 @@
       }
       if (!(await api.jobRunning())) return;
       // Settings can't change during a copy, so these are the running job's.
-      const work = doing(runningKind);
+      const quit = quitQuestion(runningKind);
       const removing = progress?.phase === "removing";
       const stop = removing
         ? await api.confirm(
             finishingMessage(progress!.undoing, progress!.archiving),
-            "Quit when it's done?",
-            "Quit",
-            "Keep open",
+            t("progress.quit.whenDone"),
+            t("progress.quit.quit"),
+            t("progress.quit.keepOpen"),
           )
         : queueRun?.checking
-        ? await api.confirm(NOT_STARTED, "Stop the queue and quit?", "Stop the queue", "Continue")
-        : await api.confirm(
-            stopMessage(runningKind, settings.writeChecksumFile),
-            `Stop ${work} and quit?`,
-            `Stop ${work}`,
-            `Keep ${work}`,
-          );
+        ? await api.confirm(
+            notStarted(),
+            t("progress.quit.queueQuestion"),
+            t("progress.quit.queueStop"),
+            t("progress.quit.queueKeep"),
+          )
+        : await api.confirm(stopMessage(runningKind, settings.writeChecksumFile), quit.title, quit.stop, quit.keep);
       if (!stop) prevent();
     });
     return () => {
@@ -512,7 +513,7 @@
   {#if warnings.length > 0}
     <Notice tone="warning">
       {#each warnings as w (w)}<p class="warning">{w}</p>{/each}
-      <Button variant="link" onclick={() => (warnings = [])}>Dismiss</Button>
+      <Button variant="link" onclick={() => (warnings = [])}>{t("app.dismiss")}</Button>
     </Notice>
   {/if}
 {/snippet}
@@ -521,15 +522,15 @@
   {#if showTabs}
     <TabBar
       items={[
-        { id: "copy", label: "Copy" },
-        { id: "mirror", label: "Mirror" },
-        { id: "verify", label: "Verify" },
+        { id: "copy", label: t("app.tabs.copy") },
+        { id: "mirror", label: t("app.tabs.mirror") },
+        { id: "verify", label: t("app.tabs.verify") },
       ]}
       queue={{ count: queue.jobs.length }}
       selected={section}
       onSelect={(id) => go(id as "copy" | "mirror" | "verify" | "queue")}
     >
-      {#snippet trailing()}<Button icon="settings" onclick={openSettings}>Settings</Button>{/snippet}
+      {#snippet trailing()}<Button icon="settings" onclick={openSettings}>{t("app.settings")}</Button>{/snippet}
     </TabBar>
   {/if}
   <div class="screen">
