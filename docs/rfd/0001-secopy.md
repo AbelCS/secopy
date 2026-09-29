@@ -203,6 +203,7 @@ apply when saved (Save); Cancel or Esc drops them.
 | Show count of skipped system files | On | FR-13. |
 | Also save the job report next to the checksum file | Off | FR-35. |
 | Notify when a copy finishes | On | Only when the window isn't in front. |
+| Keep copying in the menu bar when the window is closed | On | FR-56. |
 | Advanced: files in flight, buffer size | Auto | §7.2. Folded under "Advanced". Plan 4 (performance). |
 | Include system files | — | Reserved (FR-14). Not shown in v1. |
 
@@ -385,6 +386,12 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-53 | **Export** (File › Export…, Settings): a `.secopy` file (versioned JSON) with any of the settings, the copy presets and the mirror presets, as chosen; one preset from its own screen. Never the queue, recent destinations, the remembered window or reports. Written to a temporary name and renamed, never half-written. | S |
 | FR-54 | **Import** (File › Import…, Settings) shows what the file holds before anything changes: settings that differ, each preset with its paths, name clashes (**Keep both**, the default, as "Name (2)", or **Replace**, which keeps the preset's place in the queue), paths not on this Mac (a note), and presets that can't be imported (with why). Imported presets get the same checks as hand-made ones. A newer or foreign file, or one over 10 MB, is refused with nothing changed. Nothing is imported while a job or the queue runs. A save that fails partway says exactly what went in. | S |
 | FR-55 | Opening a `.secopy` file from Finder opens the Import screen. | C |
+
+### 6.12 Menu bar
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-56 | Closing the window while a job or the queue runs hides it (setting on, and only once the menu bar icon exists; otherwise closing asks to stop, as before). The icon shows the progress next to it (`42%`, `2/3 · 42%`, `Paused`, `Removing`, then ✓ only for a complete job, ✗ otherwise) and a native menu: the job, files, speed and time left, Pause/Resume, Open Secopy, Quit Secopy…. Secopy leaves the Dock while hidden; Open Secopy or opening Secopy again shows the window; ⌘Q shows it and asks, as before. The icon exists only while hidden during a job, or until a job that ended while hidden is seen. | S |
 
 ## 7. Engine design (performance)
 
@@ -588,3 +595,4 @@ The stack meets these constraints:
 | 2026-09-28 | **Presets** (#72): copy profiles are now copy presets, like mirror presets: one word for saved setups. The saved file keeps its name, profiles.json. |
 | 2026-09-28 | **Short button labels** (#72): the fewest words that can't be read two ways. Every job starts with **Start** (copy, verify, mirror, queue: the tab says which, like ⌘↩); **Update**, **Save as…**, **New preset…**, **Clear…**, **Retry**. **Add to queue**, **Save report…** and **Show in Finder** keep their words: one word would be ambiguous. Replaces "Start copy" (#45). |
 | 2026-09-29 | **Export and import** (#77): one `.secopy` file for settings and presets, for backups, new Macs and sharing; clashes Keep both by default or Replace (keeping the preset's id); paths not on this Mac are a note, not an error; nothing imported while a job runs. |
+| 2026-09-29 | **Keep copying in the menu bar** (#80): only while a job runs; a native menu, not a custom panel (one could come later); Secopy leaves the Dock while hidden; a setting, on by default; the window is never hidden without the icon. |

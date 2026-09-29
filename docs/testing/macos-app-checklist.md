@@ -102,5 +102,15 @@ section says, which also checks those first-launch steps), then:
     Import screen shows it. Start a copy and double-click one: "Import it when the copy has
     finished.", nothing changes; File › Import… is greyed out while it runs. Back on the
     Import screen changes nothing.
+33. **Menu bar.** Start a copy that lasts a few minutes and close the window: an icon with a
+    percentage appears in the menu bar and Secopy leaves the Dock and ⌘Tab; the percentage
+    moves. Its menu shows the job, files, speed and time left. Pause pauses (the title says
+    Paused), Resume carries on. Open Secopy shows the progress screen and the icon goes. Close
+    again and let it finish: ✓ and the notification; Open Secopy shows the summary. Check light
+    and dark menu bars.
+34. **Menu bar, the rest.** A copy with a failed file finishes hidden: ✗, "Finished with
+    problems". ⌘Q while hidden and running: the window shows and asks. Open Secopy from
+    Spotlight while hidden: the window shows. A queue shows `2/3 · …`. With the setting off,
+    closing during a copy asks to stop it, as before; closing with nothing running quits.
 
 Record the macOS version, the card reader and anything odd in the release PR.
