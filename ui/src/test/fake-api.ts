@@ -350,6 +350,7 @@ export function fakeApi(session: SessionView = sessionView()) {
       return Promise.resolve(() => {});
     }),
     takeOpenedFile: vi.fn(() => Promise.resolve(null as string | null)),
+    hideToMenuBar: vi.fn(() => Promise.resolve(false)),
     pickImportFile: vi.fn(() => Promise.resolve(null as string | null)),
     openImport: vi.fn((_p: string) => Promise.resolve(importView())),
     applyImport: vi.fn((_c: ImportChoices) =>

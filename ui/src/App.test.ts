@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import App from "./App.svelte";
 import {
   fakeApi,
@@ -613,5 +613,25 @@ describe("App", () => {
     state.menu!("import-file");
     await screen.findByText("Other.secopy");
     expect(screen.getAllByRole("checkbox", { name: "GoPro" })).toHaveLength(2);
+  });
+
+  test("closing during a job hides to the menu bar without asking, when Rust hid the window", async () => {
+    const { api, state } = app();
+    await startButton();
+    api.jobRunning.mockResolvedValue(true);
+    api.hideToMenuBar.mockResolvedValue(true);
+    const prevent = vi.fn();
+    await state.close!(prevent);
+    expect(prevent).toHaveBeenCalled();
+    expect(api.confirm).not.toHaveBeenCalled();
+  });
+
+  test("when Rust didn't hide the window, closing during a job asks as before", async () => {
+    const { api, state } = app();
+    await startButton();
+    api.jobRunning.mockResolvedValue(true);
+    api.hideToMenuBar.mockResolvedValue(false);
+    await state.close!(() => {});
+    expect(api.confirm).toHaveBeenCalled();
   });
 });
