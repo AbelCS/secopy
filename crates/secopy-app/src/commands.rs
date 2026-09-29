@@ -770,7 +770,7 @@ impl AppState {
                 };
                 // Nobody is there to confirm: a run that looks wrong doesn't start (FR-50).
                 if let Some(guard) = &job.plan.guard {
-                    return (QueueResult::Failed, Some(guard.clone()), None);
+                    return (QueueResult::Failed, Some(guard.to_string()), None);
                 }
                 let settings = JobSettings::for_mirror(&job, chrono::Local::now());
                 let work = Work::Copy {
@@ -1229,7 +1229,7 @@ impl AppState {
             },
             failing: count(failing),
             unchanged: count(plan.copy.files.len() - plan.changes.len() - failing),
-            guard: plan.guard.clone(),
+            guard: plan.guard.as_ref().map(ToString::to_string),
         };
         *lock(&self.preview) = Some((preset, job));
         Ok(view)

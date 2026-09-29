@@ -8,6 +8,7 @@ use std::time::SystemTime;
 
 use walkdir::WalkDir;
 
+use crate::error::IoFailure;
 use crate::filter::{ExtKey, ExtensionFilter, ext_key};
 use crate::source::{DirMode, Source};
 use crate::system::is_system_file;
@@ -49,8 +50,33 @@ pub struct ExtStat {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScanProblem {
     pub path: PathBuf,
+    /// In English, for reports and the CLI.
     pub message: String,
+    /// What it is, for the app to say in the user's language (#84).
+    pub kind: ScanProblemKind,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScanProblemKind {
+    /// Picked, but not a regular file (a directory among picked files, a device…).
+    NotAFile,
+    Io(IoFailure),
+    /// A directory that links back to one of its parents.
+    Loop,
+}
+
+/// `scan`'s error for "copy the folder itself" of a drive root, which has no name: inside the
+/// `io::Error`, so callers can tell it apart (`get_ref()` + `downcast_ref`).
+#[derive(Debug)]
+pub struct DriveRoot;
+
+impl std::fmt::Display for DriveRoot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("a drive root has no directory name; copy only its contents instead")
+    }
+}
+
+impl std::error::Error for DriveRoot {}
 
 #[derive(Debug, Clone, Default)]
 pub struct Scan {
@@ -158,11 +184,17 @@ impl Scan {
         });
     }
 
-    fn problem(&mut self, path: &Path, message: impl ToString) {
+    fn problem(&mut self, path: &Path, message: impl ToString, kind: ScanProblemKind) {
         self.problems.push(ScanProblem {
             path: path.to_path_buf(),
             message: message.to_string(),
+            kind,
         });
+    }
+
+    fn io_problem(&mut self, path: &Path, e: io::Error) {
+        let message = e.to_string();
+        self.problem(path, message, ScanProblemKind::Io(e.into()));
     }
 }
 
@@ -177,8 +209,8 @@ fn scan_files(paths: &[PathBuf]) -> Scan {
                 let name = path.file_name().expect("a regular file has a file name");
                 scan.push_file(path.clone(), PathBuf::from(name), &meta);
             }
-            Ok(_) => scan.problem(path, "not a regular file"),
-            Err(e) => scan.problem(path, e),
+            Ok(_) => scan.problem(path, "not a regular file", ScanProblemKind::NotAFile),
+            Err(e) => scan.io_problem(path, e),
         }
     }
     scan
@@ -228,7 +260,12 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
                     .path()
                     .map(Path::to_path_buf)
                     .unwrap_or_else(|| root.clone());
-                scan.problem(&path, e);
+                let message = e.to_string();
+                let kind = match e.into_io_error() {
+                    Some(io) => ScanProblemKind::Io(io.into()),
+                    None => ScanProblemKind::Loop,
+                };
+                scan.problem(&path, message, kind);
                 continue;
             }
         };
@@ -254,7 +291,14 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
                     non_empty.insert(parent);
                     scan.push_file(entry.into_path(), rel, &meta);
                 }
-                Err(e) => scan.problem(entry.path(), e),
+                Err(e) => {
+                    let message = e.to_string();
+                    let kind = match e.into_io_error() {
+                        Some(io) => ScanProblemKind::Io(io.into()),
+                        None => ScanProblemKind::Loop,
+                    };
+                    scan.problem(entry.path(), message, kind);
+                }
             }
         }
         // Sockets, FIFOs and devices are ignored.
@@ -278,10 +322,8 @@ fn folder_name(root: &Path) -> io::Result<std::ffi::OsString> {
         resolved = fs::canonicalize(root)?;
         &resolved
     };
-    named.file_name().map(ToOwned::to_owned).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "a drive root has no directory name; copy only its contents instead",
-        )
-    })
+    named
+        .file_name()
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, DriveRoot))
 }

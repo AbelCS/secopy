@@ -191,7 +191,9 @@ fn mismatches(calls: &[(String, Vec<String>)], catalog: &serde_json::Value) -> V
         if !seen.insert((key.clone(), args.clone())) {
             continue;
         }
-        let entry = key.split('.').try_fold(catalog, |node, part| node.get(part));
+        let entry = key
+            .split('.')
+            .try_fold(catalog, |node, part| node.get(part));
         let mut wanted = std::collections::BTreeSet::new();
         match entry {
             Some(serde_json::Value::String(text)) => placeholders(text, &mut wanted),
@@ -208,7 +210,10 @@ fn mismatches(calls: &[(String, Vec<String>)], catalog: &serde_json::Value) -> V
         }
         let sent: std::collections::BTreeSet<String> = args.iter().cloned().collect();
         if sent != wanted {
-            out.push(format!("{key}: sends {args:?} but the text has {:?}", wanted.into_iter().collect::<Vec<_>>()));
+            out.push(format!(
+                "{key}: sends {args:?} but the text has {:?}",
+                wanted.into_iter().collect::<Vec<_>>()
+            ));
         }
     }
     out
@@ -262,7 +267,10 @@ mod tests {
             calls(source),
             vec![
                 ("errors.one".to_string(), vec![]),
-                ("errors.two".to_string(), vec!["count".to_string(), "name".to_string()]),
+                (
+                    "errors.two".to_string(),
+                    vec!["count".to_string(), "name".to_string()]
+                ),
                 ("errors.three".to_string(), vec!["why".to_string()]),
                 ("errors.one".to_string(), vec![]),
             ]
@@ -283,16 +291,23 @@ mod tests {
             ],
             &catalog,
         );
-        assert_eq!(found, vec!["errors.nope: not in en.json", "errors.two: sends [] but the text has [\"name\"]"]);
+        assert_eq!(
+            found,
+            vec![
+                "errors.nope: not in en.json",
+                "errors.two: sends [] but the text has [\"name\"]"
+            ]
+        );
     }
 
     /// Every key the app can send is in the catalog, with the same placeholders.
     #[test]
     fn every_message_the_app_sends_is_in_the_catalog() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let catalog: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(root.join("../../ui/src/locales/en.json")).unwrap())
-                .unwrap();
+        let catalog: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("../../ui/src/locales/en.json")).unwrap(),
+        )
+        .unwrap();
         let mut all = Vec::new();
         for entry in std::fs::read_dir(root.join("src")).unwrap() {
             let path = entry.unwrap().path();
@@ -301,7 +316,11 @@ mod tests {
                 let code = text.split("\n#[cfg(test)]").next().unwrap();
                 all.extend(calls(code));
                 if path.file_name().unwrap() != "message.rs" {
-                    assert!(!code.contains("Message {"), "{}: build messages with msg!", path.display());
+                    assert!(
+                        !code.contains("Message {"),
+                        "{}: build messages with msg!",
+                        path.display()
+                    );
                 }
             }
         }
