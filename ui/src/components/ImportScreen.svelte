@@ -60,13 +60,13 @@
 <!-- A held Esc repeats: only the first press counts. -->
 <svelte:window onkeydown={(e) => e.key === "Escape" && !e.repeat && onBack()} />
 
-{#snippet presets(title: string, unnamed: string, list: PresetImport[], state: Row[])}
+{#snippet presets(title: string, unnamed: string, whole: string, list: PresetImport[], state: Row[])}
   {#if list.length > 0}
     <Section {title}>
       <ul class="items">
         {#each list as p, i (i)}
           <li>
-            <Checkbox label={p.name || unnamed} checked={state[i].on} disabled={!!p.problem} onChange={(on) => (state[i].on = on)} />
+            <Checkbox label={p.section ? whole : p.name || unnamed} checked={state[i].on} disabled={!!p.problem} onChange={(on) => (state[i].on = on)} />
             {#each p.paths as path (path)}<p class="note mono">{path}</p>{/each}
             {#if p.problem}<p class="note problem">{say(p.problem)}</p>{/if}
             {#each p.missing as path (path)}<p class="note">{t("import.notConnected", { path })}</p>{/each}
@@ -111,8 +111,8 @@
       {/if}
     </Section>
   {/if}
-  {@render presets(t("import.copyPresets"), t("import.noName.copy"), view.copyPresets, copy)}
-  {@render presets(t("import.mirrorPresets"), t("import.noName.mirror"), view.mirrorPresets, mirrors)}
+  {@render presets(t("import.copyPresets"), t("import.noName.copy"), t("import.kind.copyPresets"), view.copyPresets, copy)}
+  {@render presets(t("import.mirrorPresets"), t("import.noName.mirror"), t("import.kind.mirrorPresets"), view.mirrorPresets, mirrors)}
 
   {#snippet actions()}
     <ActionBar>

@@ -768,8 +768,8 @@ mod tests {
         assert_eq!(settings, Settings::default());
         let warning = warning.unwrap();
         assert!(
-            warning.starts_with("settings.json couldn't be read"),
-            "{warning}"
+            warning.starts_with("settings.json couldn't be read (key must be a string"),
+            "the parser's own words, as before: {warning}"
         );
         assert!(!dir.path().join(SETTINGS).exists());
         let aside: Vec<_> = fs::read_dir(dir.path())

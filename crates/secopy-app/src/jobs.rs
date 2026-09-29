@@ -146,6 +146,9 @@ struct Done {
     report_file: Result<PathBuf, Message>,
     /// Why the report couldn't also be written next to the checksum file.
     next_to_error: Option<Message>,
+    /// Why a mirror's own checksum file couldn't be written (the report has it too, with
+    /// "the mirror's checksum file:" before it).
+    mirror_checksum_error: Option<secopy_core::error::IoFailure>,
     /// A mirror's removals, or why nothing was removed (plan 7).
     removals: Option<Result<mirror::Finished, mirror::NotRemoved>>,
     /// What a cancel with "Also remove the files already copied" removed (#54).
@@ -298,7 +301,7 @@ impl Jobs {
                     None if *verify => msg!("menubar.heading.copyingVerifying"),
                     None => msg!("menubar.heading.copying"),
                 };
-                (heading, ready.shown.clone(), Some(show(&ready.copy_root)))
+                (heading, panel_from(&ready.source, &ready.shown), Some(show(&ready.copy_root)))
             }
         })
     }
@@ -545,7 +548,10 @@ impl Job {
             finished: count(outcomes.len()),
             copy_root: show(job.root()),
             checksum_file: done.report.checksum_file.as_deref().map(show),
-            checksum_error: done.report.checksum_error.as_ref().map(say::io_failure),
+            checksum_error: checksum_error(
+                done.mirror_checksum_error.as_ref(),
+                done.report.checksum_error.as_ref(),
+            ),
             // A check writes no checksum file: none was turned off.
             checksum_off: job.copy().is_some()
                 && !job.settings().is_some_and(|s| s.write_checksum_file),
@@ -629,6 +635,7 @@ impl Job {
             finished: Local::now(),
             report_file: Err(no_report()),
             next_to_error: None,
+            mirror_checksum_error: None,
             removals: None,
             undone: None,
             check,
@@ -681,6 +688,7 @@ impl Job {
             finished: Local::now(),
             report_file: Err(no_report()),
             next_to_error: None,
+            mirror_checksum_error: None,
             report: checked.job.clone(),
             removals: None,
             undone: None,
@@ -740,6 +748,7 @@ impl Job {
             undone
         });
         // A mirror removes what's gone from its origin, only after a clean copy phase.
+        let mut mirror_checksum = None;
         let removals = mirroring.map(|m| {
             if !report.cancelled {
                 let last = lock(&self.last).clone();
@@ -754,11 +763,12 @@ impl Job {
             if let Ok(finished) = &finished
                 && let Err(e) = mirror::write_checksums(&m.plan, &report, finished)
             {
-                // The report says whose checksum file it was; the UI says why by its kind.
+                // The report says whose checksum file it was, in English; the UI in its words.
                 report.checksum_error = Some(secopy_core::error::IoFailure {
                     kind: e.kind(),
                     message: format!("the mirror's checksum file: {e}"),
                 });
+                mirror_checksum = Some(e.into());
             }
             finished
         });
@@ -766,12 +776,14 @@ impl Job {
             finished: Local::now(),
             report_file: Err(no_report()),
             next_to_error: None,
+            mirror_checksum_error: None,
             report,
             removals,
             undone,
             check: None,
             panicked: false,
         };
+        done.mirror_checksum_error = mirror_checksum;
         done.report_file = self.save(&done, reports_dir);
         if settings.report_next_to_checksum
             && let Some(checksum) = &done.report.checksum_file
@@ -976,6 +988,26 @@ fn append_undone(text: &Path, u: &Undone) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Where the menu bar panel says a copy is from: a directory by its path (a retry too), picked
+/// files as the UI names them ("3 files").
+fn panel_from(source: &Source, shown: &Message) -> Message {
+    match source {
+        Source::Directory { path, .. } => Message::raw(show(path)),
+        Source::Files(_) => shown.clone(),
+    }
+}
+
+/// The summary's checksum error: a mirror's own checksum file says so.
+fn checksum_error(
+    mirror: Option<&secopy_core::error::IoFailure>,
+    report: Option<&secopy_core::error::IoFailure>,
+) -> Option<Message> {
+    match (mirror, report) {
+        (Some(e), _) => Some(msg!("summary.mirrorChecksum", why = say::io_failure(e))),
+        (None, e) => e.map(say::io_failure),
+    }
+}
+
 /// One row of the finished list; `check` for a check's files (intact, changed, missing).
 /// A finished file as a row; `check` is the plan when the job is a check.
 fn row(o: &FileOutcome, check: Option<&CheckPlan>) -> FinishedRow {
@@ -1030,6 +1062,35 @@ mod tests {
     use super::*;
     use crate::message::En;
     use crate::session::{Change, Session, scan_source};
+
+
+    /// Review: the menu bar says where a retry copies from, not "Retry: 3 failed files".
+    #[test]
+    fn the_panel_names_a_directory_source_by_its_path() {
+        let retry = msg!("copy.picked.retry", count = 3u32);
+        let dir = Source::Directory {
+            path: PathBuf::from("/Volumes/A/CLIP"),
+            mode: secopy_core::source::DirMode::FolderItself,
+        };
+        assert_eq!(panel_from(&dir, &retry), "/Volumes/A/CLIP");
+        let files = Source::Files(vec![PathBuf::from("/a"), PathBuf::from("/b")]);
+        assert_eq!(panel_from(&files, &retry), "Retry: 3 failed files");
+    }
+
+    /// Review: a mirror's checksum file that couldn't be written says it was the mirror's.
+    #[test]
+    fn a_mirrors_checksum_error_says_whose() {
+        let io = secopy_core::error::IoFailure {
+            kind: std::io::ErrorKind::Other,
+            message: "Input/output error (os error 5)".into(),
+        };
+        assert_eq!(
+            checksum_error(Some(&io), None).unwrap(),
+            "the mirror's checksum file: Input/output error (os error 5)"
+        );
+        assert_eq!(checksum_error(None, Some(&io)).unwrap(), "Input/output error (os error 5)");
+        assert!(checksum_error(None, None).is_none());
+    }
 
     #[derive(Clone, Default)]
     struct Collect(Arc<Mutex<Vec<ProgressView>>>);
