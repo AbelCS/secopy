@@ -564,10 +564,11 @@ fn check_one(
     };
     match hash_from_device(&path, opts.buffer_size, progress, control) {
         // Written to while it was read: what was hashed is no version of the file.
-        Ok(_) if resized(&path, size) => {
-            let e = io::Error::other("it changed while it was read");
-            (FileStatus::Failed(FileError::read_back(e)), None, file.size)
-        }
+        Ok(_) if resized(&path, size) => (
+            FileStatus::Failed(FileError::ChangedWhileRead),
+            None,
+            file.size,
+        ),
         Ok((actual, bypass)) => {
             if bypass == CacheBypass::Unavailable {
                 no_bypass.store(true, Relaxed);

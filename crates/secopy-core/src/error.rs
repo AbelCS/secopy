@@ -36,6 +36,9 @@ pub enum FileError {
     WriteDest(IoFailure),
     #[error("cannot read back the copy: {0}")]
     ReadBack(IoFailure),
+    /// Verify: the file's size changed while it was read, so what was hashed is no version of it.
+    #[error("cannot read back the copy: it changed while it was read")]
+    ChangedWhileRead,
     #[error("hash mismatch (source {expected}, copy {actual})")]
     HashMismatch { expected: String, actual: String },
     #[error("a file with this name already exists at the destination")]

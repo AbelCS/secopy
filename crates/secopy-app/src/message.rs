@@ -316,11 +316,11 @@ mod tests {
                 let code = text.split("\n#[cfg(test)]").next().unwrap();
                 all.extend(calls(code));
                 if path.file_name().unwrap() != "message.rs" {
-                    assert!(
-                        !code.contains("Message {"),
-                        "{}: build messages with msg!",
-                        path.display()
-                    );
+                    // A struct literal, not a function returning one.
+                    let literal = code
+                        .match_indices("Message {")
+                        .any(|(i, _)| !code[..i].ends_with("-> ") && !code[..i].ends_with("::"));
+                    assert!(!literal, "{}: build messages with msg!", path.display());
                 }
             }
         }
