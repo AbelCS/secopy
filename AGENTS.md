@@ -14,7 +14,7 @@ OS is a compile error (RFD §14).
   (tests check that no component writes text itself and that every key is used). Rust never
   sends English to the UI: it sends `Message { key, args }` built with `msg!` (a test checks
   every key against the catalog), and no Rust code decides anything by English text. Reports
-  and the CLI stay English.
+  and the CLI stay English. How to add a language: [docs/i18n.md](docs/i18n.md).
 - **Reliability first:** users copy irreplaceable footage. Secopy must never lose, corrupt or
   silently skip data, and never report success when something wasn't copied, read, verified,
   saved or removed as planned. Every change to the engine or to how a result is reported is
