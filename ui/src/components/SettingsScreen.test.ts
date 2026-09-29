@@ -106,4 +106,13 @@ describe("SettingsScreen", () => {
     await fireEvent.click(save());
     await waitFor(() => expect(api.setSettings).toHaveBeenCalledWith(settingsView({ notifyWhenDone: false })));
   });
+
+  test("the menu bar setting is on, and saving keeps it off when unticked", async () => {
+    const { api } = show();
+    const box = screen.getByRole("checkbox", { name: "Keep copying in the menu bar when the window is closed" });
+    expect(box).toHaveProperty("checked", true);
+    await fireEvent.click(box);
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(api.setSettings).toHaveBeenCalledWith(expect.objectContaining({ keepInMenuBar: false }));
+  });
 });

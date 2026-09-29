@@ -167,7 +167,7 @@ export function copyPreset(over: Partial<CopyPreset> = {}): CopyPreset {
 }
 
 export function settingsView(over: Partial<Settings> = {}): Settings {
-  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, ...over };
+  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, ...over };
 }
 
 export function startView(over: Partial<StartView> = {}): StartView {

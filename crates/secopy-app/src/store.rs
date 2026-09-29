@@ -32,6 +32,8 @@ pub struct Settings {
     pub report_next_to_checksum: bool,
     /// A notification when a copy ends while the window isn't in front (3b-2).
     pub notify_when_done: bool,
+    /// Closing the window during a job hides it, with a menu bar icon (#80).
+    pub keep_in_menu_bar: bool,
 }
 
 /// `settings.json` as read: missing fields take their defaults. Kept apart from
@@ -47,6 +49,8 @@ struct SettingsOnDisk {
     report_next_to_checksum: bool,
     #[serde(default = "yes")]
     notify_when_done: bool,
+    #[serde(default = "yes")]
+    keep_in_menu_bar: bool,
 }
 
 fn yes() -> bool {
@@ -61,6 +65,7 @@ impl<'de> Deserialize<'de> for Settings {
             show_system_count: s.show_system_count,
             report_next_to_checksum: s.report_next_to_checksum,
             notify_when_done: s.notify_when_done,
+            keep_in_menu_bar: s.keep_in_menu_bar,
         })
     }
 }
@@ -72,6 +77,7 @@ impl Default for Settings {
             show_system_count: true,
             report_next_to_checksum: false,
             notify_when_done: true,
+            keep_in_menu_bar: true,
         }
     }
 }
@@ -1074,5 +1080,17 @@ mod tests {
             MirrorPresets::normalized(mirror).unwrap_err(),
             "Keep archived files for at most 36,500 days."
         );
+    }
+
+    /// #80: settings saved before the menu bar setting existed keep it on.
+    #[test]
+    fn the_menu_bar_setting_is_on_unless_turned_off() {
+        let old: Settings = serde_json::from_str(r#"{"writeChecksumFile":true}"#).unwrap();
+        assert!(old.keep_in_menu_bar);
+        assert!(Settings::default().keep_in_menu_bar);
+        let off: Settings = serde_json::from_str(r#"{"keepInMenuBar":false}"#).unwrap();
+        assert!(!off.keep_in_menu_bar);
+        let json = serde_json::to_value(&off).unwrap();
+        assert_eq!(json["keepInMenuBar"], false);
     }
 }
