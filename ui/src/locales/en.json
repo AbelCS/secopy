@@ -1,0 +1,7 @@
+{
+  "test": {
+    "plain": "Plain text",
+    "named": "Hello “{name}”",
+    "files": { "one": "{count} file", "other": "{count} files" }
+  }
+}
