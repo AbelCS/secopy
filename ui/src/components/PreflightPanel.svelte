@@ -28,17 +28,17 @@
   ];
 </script>
 
+<FormRow label={t("copy.preflight.filesGoTo")}>
+  <p class="mono">{destination.copyRoot}</p>
+  {#if destination.existingItems}
+    <Notice tone="warning">
+      {t("copy.preflight.notEmpty", { count: destination.existingItems })}
+    </Notice>
+  {/if}
+</FormRow>
 {#if blocker}
   <Notice tone="danger">{say(blocker)}</Notice>
 {:else}
-  <FormRow label={t("copy.preflight.filesGoTo")}>
-    <p class="mono">{destination.copyRoot}</p>
-    {#if destination.existingItems}
-      <Notice tone="warning">
-        {t("copy.preflight.notEmpty", { count: destination.existingItems })}
-      </Notice>
-    {/if}
-  </FormRow>
   {#if destination.problemCount > 0}
     <FormRow label={t("copy.preflight.problems")}>
       <details class="failing">
