@@ -191,6 +191,8 @@ export const tauriApi = {
       handler(event.payload.paths, document.elementFromPoint(x, y));
     }),
   /** Closing the window; call `prevent()` to keep it open. */
+  /** The window is closing: Rust hides it behind the menu bar icon when that applies (#80). */
+  hideToMenuBar: (): Promise<boolean> => commands.hideToMenuBar(),
   onCloseRequested: (handler: (prevent: () => void) => Promise<void>): Promise<() => void> =>
     getCurrentWindow().onCloseRequested((event) => handler(() => event.preventDefault())),
 };

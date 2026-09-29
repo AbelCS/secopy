@@ -466,6 +466,11 @@
     void unlistenOpen.then(() => openedFromFinder());
     // Closing during a copy asks first; if closed anyway, the app stops the copy cleanly.
     const unlisten = api.onCloseRequested(async (prevent) => {
+      // During a job, with the setting on, Rust hides the window behind the menu bar icon (#80).
+      if (await api.hideToMenuBar()) {
+        prevent();
+        return;
+      }
       if (!(await api.jobRunning())) return;
       // Settings can't change during a copy, so these are the running job's.
       const work = doing(runningKind);
