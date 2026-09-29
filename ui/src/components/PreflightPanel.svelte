@@ -2,6 +2,7 @@
   // What pre-flight found (FR-16..FR-18, RFD §5.2): what blocks Start, what will fail, what's
   // already there, and the choice for files that differ.
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import type { ConflictPolicy, DestinationView, PlanView } from "../lib/bindings";
   import FormRow from "../lib/ui/FormRow.svelte";
   import Notice from "../lib/ui/Notice.svelte";
@@ -28,7 +29,7 @@
 </script>
 
 {#if blocker}
-  <Notice tone="danger">{blocker}</Notice>
+  <Notice tone="danger">{say(blocker)}</Notice>
 {:else}
   <FormRow label={t("copy.preflight.filesGoTo")}>
     <p class="mono">{destination.copyRoot}</p>
@@ -44,7 +45,7 @@
         <summary>{t("copy.preflight.willFail", { count: destination.problemCount })}</summary>
         <ul>
           {#each destination.problems as p (p.path)}
-            <li><span class="mono">{p.path}</span>: {p.reason}</li>
+            <li><span class="mono">{p.path}</span>: {say(p.reason)}</li>
           {/each}
           {#if destination.problemCount > destination.problems.length}
             <li class="muted">{t("copy.preflight.more", { count: destination.problemCount - destination.problems.length })}</li>

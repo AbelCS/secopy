@@ -1,18 +1,20 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
+import { raw } from "../test/fake-api";
 import type { PanelView } from "../lib/bindings";
 import { fakeApi } from "../test/fake-api";
 import Panel from "./Panel.svelte";
 
 const running = (over: Partial<PanelView> = {}): PanelView => ({
-  heading: "Copying & verifying",
-  from: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
+  heading: raw("Copying & verifying"),
+  from: raw("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"),
   to: "/Volumes/V001/Day01/CLIP",
   fraction: 0.42,
-  percent: "42%",
-  files: "44 of 106 files",
-  speed: "850.0 MB/s",
-  left: "3:12 left",
+  percent: 42,
+  filesDone: 44,
+  totalFiles: 106,
+  speed: 850_000_000,
+  leftMs: 192_000,
   paused: false,
   removing: false,
   ended: null,
@@ -56,12 +58,12 @@ describe("Panel", () => {
   test("updates arrive as events", async () => {
     const { state } = show(running());
     await screen.findByText("42%");
-    state.panelView!(running({ percent: "43%", fraction: 0.43 }));
+    state.panelView!(running({ percent: 43, fraction: 0.43 }));
     await screen.findByText("43%");
   });
 
   test("the end: ✓ only for a complete job, with what happened", async () => {
-    show(running({ ended: { ok: false, text: "Finished with problems" } }));
+    show(running({ ended: { ok: false, text: raw("Finished with problems") } }));
     await screen.findByText("Finished with problems");
     expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
     screen.getByRole("button", { name: "Open Secopy" });
@@ -76,13 +78,13 @@ describe("Panel", () => {
   test("an update from before Pause was pressed doesn't flip the button back", async () => {
     const { state } = show(running());
     await fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
-    state.panelView!(running({ paused: false, percent: "43%" }));
+    state.panelView!(running({ paused: false, percent: 43 }));
     await screen.findByText("43%");
     screen.getByRole("button", { name: "Resume" });
-    state.panelView!(running({ paused: true, percent: "44%" }));
+    state.panelView!(running({ paused: true, percent: 44 }));
     await screen.findByText("44%");
     screen.getByRole("button", { name: "Resume" });
-    state.panelView!(running({ paused: false, percent: "45%" }));
+    state.panelView!(running({ paused: false, percent: 45 }));
     await screen.findByText("45%");
     screen.getByRole("button", { name: "Pause" });
   });

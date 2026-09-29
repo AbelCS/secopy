@@ -2,6 +2,7 @@
   // One mirror preset's fields (FR-44): its name, origin and destination, what happens to
   // files deleted in the origin, and the deep check. Problems show next to their field.
   import { t } from "../lib/i18n";
+  import { fieldOf } from "../lib/message";
   import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { DeletedMode, MirrorPreset, MirrorPresetInput } from "../lib/bindings";
@@ -101,9 +102,10 @@
       });
     } catch (e) {
       const message = messageOf(e);
-      if (message.startsWith("The origin")) originProblem = message;
-      else if (message.startsWith("The destination")) destinationProblem = message;
-      else if (/name|mirror called/.test(message)) nameProblem = message;
+      const field = fieldOf(e);
+      if (field === "origin") originProblem = message;
+      else if (field === "destination") destinationProblem = message;
+      else if (field === "name") nameProblem = message;
       else otherProblem = message;
     } finally {
       saving = false;

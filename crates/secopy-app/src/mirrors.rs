@@ -23,7 +23,7 @@ pub fn prepare(
     preset: &MirrorPreset,
     control: &JobControl,
     on_compared: &(dyn Fn(u64, u64) + Sync),
-) -> Result<MirrorJob, String> {
+) -> Result<MirrorJob, crate::message::Message> {
     for p in [&preset.origin, &preset.destination] {
         let path = Path::new(p);
         if !path.is_dir() {
@@ -40,7 +40,8 @@ pub fn prepare(
         &options,
         control,
         on_compared,
-    )?;
+    )
+    .map_err(|e| crate::say::plan_error(&e))?;
     Ok(MirrorJob {
         plan: Arc::new(plan),
         name: preset.name.clone(),
@@ -54,6 +55,8 @@ impl MirrorJob {
             source: self.plan.source.clone(),
             plan: self.plan.copy.clone(),
             label: format!("Mirror · {}", self.name),
+            shown: crate::message::Message::raw(crate::dto::show(&self.plan.origin)),
+            mirror: Some(self.name.clone()),
             copy_root: self.plan.copy.dest.clone(),
         }
     }

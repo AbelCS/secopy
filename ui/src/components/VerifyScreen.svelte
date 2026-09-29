@@ -2,6 +2,7 @@
   // Verify (plan 8, FR-34): choose the directory of a copy, or a whole drive; every file its
   // checksum files list is read again and compared. Nothing is written to it.
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import { onMount, type Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { CheckView, QueueView } from "../lib/bindings";
@@ -106,7 +107,7 @@
     {/if}
     {#if view && view.problems.length > 0}
       <Notice tone="danger">
-        {#each view.problems as p (p)}<p class="problem">{p}</p>{/each}
+        {#each view.problems as p, i (i)}<p class="problem">{say(p)}</p>{/each}
       </Notice>
     {/if}
     {#if error}<Notice tone="danger">{error}</Notice>{/if}

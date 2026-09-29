@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/svelte";
 import axe from "axe-core";
+import { raw } from "./test/fake-api";
 import { describe, expect, test } from "vitest";
 import App from "./App.svelte";
 import JobProgress from "./components/JobProgress.svelte";
@@ -73,7 +74,7 @@ describe("accessibility (axe-core)", () => {
   test("Queue", async () => {
     const { api } = fakeApi();
     const { container } = render(QueueScreen, {
-      props: { queue: queueView({ jobs: [queuedJob(), queuedJob({ lastError: "CARD isn't connected." })] }), onQueue: () => {}, onRun: () => {} },
+      props: { queue: queueView({ jobs: [queuedJob(), queuedJob({ lastError: raw("CARD isn't connected.") })] }), onQueue: () => {}, onRun: () => {} },
       context: apiContext(api),
     });
     expect(await violations(container)).toEqual([]);
@@ -108,7 +109,7 @@ describe("accessibility (axe-core)", () => {
   test("Mirror preview", async () => {
     const { api } = fakeApi();
     const { container } = render(MirrorPreview, {
-      props: { preview: mirrorPreview({ guard: "3 of the destination's 3 files would be removed." }), onRun: () => {}, onQueue: () => {}, onCancel: () => {} },
+      props: { preview: mirrorPreview({ guard: raw("3 of the destination's 3 files would be removed.") }), onRun: () => {}, onQueue: () => {}, onCancel: () => {} },
       context: apiContext(api),
     });
     expect(await violations(container)).toEqual([]);

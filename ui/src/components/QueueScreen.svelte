@@ -2,6 +2,7 @@
   // The queue (RFD §5.7): the jobs saved with Add to queue, in the order they run, what to do
   // when one fails, and Start.
   import { t } from "../lib/i18n";
+  import { say } from "../lib/message";
   import { tick, type Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { OnFailure, QueueView } from "../lib/bindings";
@@ -83,7 +84,7 @@
             <div class="what">
               {#if job.supported && job.kind === "check"}
                 <span class="mode">{t("queue.mode.verify")}</span>
-                <span class="path mono" title={job.source}><bdi>{job.source}</bdi></span>
+                <span class="path mono" title={say(job.source)}><bdi>{say(job.source)}</bdi></span>
               {:else if job.supported}
                 <span class="mode"
                   >{job.kind === "mirror"
@@ -91,13 +92,13 @@
                     : t(job.verify ? "queue.mode.copyVerify" : "queue.mode.copy")}</span
                 >
                 <!-- A long path keeps its end visible; <bdi> keeps its slashes in place. -->
-                <span class="path mono" title={job.source}><bdi>{job.source}</bdi></span>
+                <span class="path mono" title={say(job.source)}><bdi>{say(job.source)}</bdi></span>
                 <span class="arrow" aria-hidden="true">→</span>
                 <span class="path mono" title={job.destination}><bdi>{job.destination}</bdi></span>
               {:else}
                 <span class="mode">{t(job.kind === "mirror" ? "queue.unsupported.mirror" : "queue.unsupported.newer")}</span>
               {/if}
-              {#if job.lastError}<Notice tone="danger">{job.lastError}</Notice>{/if}
+              {#if job.lastError}<Notice tone="danger">{say(job.lastError)}</Notice>{/if}
             </div>
             <div class="buttons">
               <Button aria-label={t("queue.moveUp", { number: i + 1 })} disabled={i === 0} onclick={() => move(i, i - 1)}>↑</Button>

@@ -1,9 +1,18 @@
 <script lang="ts">
   // The main window (RFD §5.2): FROM, TO, what pre-flight found, mode, Start.
-  import { t } from "../lib/i18n";
+  import { t, type Key } from "../lib/i18n";
+  import { say } from "../lib/message";
   import { onMount } from "svelte";
   import { useApi } from "../lib/api";
-  import type { ConflictPolicy, CopyPreset, CopyPresetsView, QueueView, SessionView, Settings } from "../lib/bindings";
+  import type {
+    ConflictPolicy,
+    CopyPreset,
+    CopyPresetsView,
+    DestinationView,
+    QueueView,
+    SessionView,
+    Settings,
+  } from "../lib/bindings";
   import { baseName, formatBytes, messageOf } from "../lib/format";
   import type { Snippet } from "svelte";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -221,6 +230,18 @@
       unlisten.then((stop) => stop());
     };
   });
+
+  /** The destination's file system, by its code from the app. */
+  const FS: Record<string, Key> = {
+    apfs: "copy.fs.apfs",
+    hfs: "copy.fs.hfs",
+    exfat: "copy.fs.exfat",
+    fat32: "copy.fs.fat32",
+    ntfs: "copy.fs.ntfs",
+    smb: "copy.fs.smb",
+    nfs: "copy.fs.nfs",
+  };
+  const fsName = (d: DestinationView) => (FS[d.fsKind] ? t(FS[d.fsKind]) : (d.fsName ?? d.fsKind));
 </script>
 
 <AppShell>
@@ -233,10 +254,10 @@
   <Section title={t("copy.from")} data-drop="from">
     <FormRow label={t("copy.source")}>
       {#if scanning > 0}<p class="muted" role="status">{t("copy.scanning")}</p>{/if}
-      {#if view.pickProblem}<Notice tone="danger">{view.pickProblem}</Notice>{/if}
+      {#if view.pickProblem}<Notice tone="danger">{say(view.pickProblem)}</Notice>{/if}
       {#if source}
         <div>
-          <p class="path mono">{source.label}</p>
+          <p class="path mono">{say(source.label)}</p>
           <p class="muted">
             {#each sourceSummary as part, i (i)}{#if i > 0}{" · "}{/if}{#if part.hint}<Hint text={part.hint}
                   >{part.text}</Hint
@@ -247,7 +268,7 @@
           <details class="unreadable">
             <summary>{t("copy.unreadable", { count: source.problemCount })}</summary>
             <ul>
-              {#each source.problems as p (p)}<li class="mono">{p}</li>{/each}
+              {#each source.problems as p, i (i)}<li class="mono">{say(p)}</li>{/each}
             </ul>
           </details>
         {/if}
@@ -299,14 +320,14 @@
         <div>
           <p class="path mono">{destination.path}</p>
           {#if !destination.blocker}
-            <p class="muted">{t("copy.free", { size: formatBytes(destination.freeBytes), kind: destination.fsKind })}</p>
+            <p class="muted">{t("copy.free", { size: formatBytes(destination.freeBytes), kind: fsName(destination) })}</p>
           {/if}
         </div>
       {:else}
         <p class="muted">{t("copy.dropDestination")}</p>
       {/if}
       {#if destError}<Notice tone="danger">{destError}</Notice>{/if}
-      {#if destination?.blocker && !source}<Notice tone="danger">{destination.blocker}</Notice>{/if}
+      {#if destination?.blocker && !source}<Notice tone="danger">{say(destination.blocker)}</Notice>{/if}
       {#snippet aside()}
         {#if recent.length > 0}
           <select aria-label={t("copy.recent")} value="" onchange={(e) => chooseRecent(e.currentTarget)}>

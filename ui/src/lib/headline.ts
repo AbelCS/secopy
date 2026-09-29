@@ -2,13 +2,16 @@
 
 import type { SummaryView } from "./bindings";
 import { t } from "./i18n";
+import { say } from "./message";
 
 export function headline(s: SummaryView): string {
   const c = s.check;
   if (c) {
     if (s.outcome === "cancelled") return t("summary.headline.cancelled");
     if (s.outcome === "stopped")
-      return t("summary.headline.stopped", { why: s.stoppedBecause ?? t("summary.headline.checkCannotContinue") });
+      return t("summary.headline.stopped", {
+        why: s.stoppedBecause ? say(s.stoppedBecause) : t("summary.headline.checkCannotContinue"),
+      });
     // The summary lists the first 1,000 problems; the rest are only counted.
     const problems = c.problems.length + (c.moreProblems ?? 0);
     const parts = [
@@ -42,7 +45,9 @@ export function headline(s: SummaryView): string {
   }
   switch (s.outcome) {
     case "stopped":
-      return t("summary.headline.stopped", { why: s.stoppedBecause ?? t("summary.headline.copyCannotContinue") });
+      return t("summary.headline.stopped", {
+        why: s.stoppedBecause ? say(s.stoppedBecause) : t("summary.headline.copyCannotContinue"),
+      });
     case "cancelled":
       if (!s.undone) return t("summary.headline.cancelled");
       return s.undone.notRestored === 0 && s.undone.failed === 0

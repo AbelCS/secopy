@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, test, vi } from "vitest";
+import { raw } from "./test/fake-api";
 import App from "./App.svelte";
 import {
   fakeApi,
@@ -132,7 +133,7 @@ describe("App", () => {
 
   test("a saved file that couldn't be read is shown once", async () => {
     const { api, state } = fakeApi(readyView());
-    state.start = startView({ session: readyView(), warnings: ["settings.json couldn't be read (…)."] });
+    state.start = startView({ session: readyView(), warnings: [raw("settings.json couldn't be read (…).")] });
     render(App, { props: { api } });
     await screen.findByText("settings.json couldn't be read (…).");
     await fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
@@ -578,7 +579,7 @@ describe("App", () => {
     await startButton();
     api.pickImportFile.mockResolvedValue("/Users/me/Team.secopy");
     api.openImport.mockResolvedValue(importView());
-    api.applyImport.mockResolvedValue({ message: "Imported 1 copy preset.", failed: false, settings: settingsView(), copyPresets: [copyPreset()], mirrorPresets: [] });
+    api.applyImport.mockResolvedValue({ message: raw("Imported 1 copy preset."), failed: false, settings: settingsView(), copyPresets: [copyPreset()], mirrorPresets: [] });
     state.menu!("import-file");
     await screen.findByRole("heading", { level: 1, name: "Import" });
     await fireEvent.click(screen.getByRole("button", { name: "Import" }));

@@ -27,10 +27,13 @@ use secopy_core::source::Source;
 
 use crate::dto::{
     ActiveFileView, CheckSummaryView, FinishedRow, JobOutcome, JobPhase, MirrorSummaryView,
-    ProgressView, RowStatus, SmallFilesView, SummaryView, UndoneView, count, sentence, show,
+    ProgressView, RowStatus, SmallFilesView, SummaryView, UndoneView, count, show,
 };
 use crate::lock;
+use crate::message::Message;
 use crate::mirrors::MirrorJob;
+use crate::msg;
+use crate::say;
 use crate::session::Ready;
 use crate::store::Settings;
 
@@ -40,10 +43,10 @@ pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
 const OWN_ROW: u64 = 8 << 20;
 /// Failures listed in the summary; the finished list has all of them.
 const FAILURES_SHOWN: usize = 1000;
-/// Why a job whose thread panicked stopped (#69).
-pub const INTERNAL_ERROR: &str = "Secopy hit an internal error";
-/// Such a job has no report: one would read as if it had run to the end.
-const NO_REPORT: &str = "Secopy hit an internal error before the job ended, so there is no report.";
+/// A job whose thread panicked (#69) has no report: one would read as if it had run to the end.
+fn no_report() -> Message {
+    msg!("errors.report.none")
+}
 
 /// The settings a job starts with (RFD §5.5); changing them later doesn't affect it.
 #[derive(Debug, Clone)]
@@ -140,9 +143,9 @@ struct Done {
     report: JobReport,
     finished: DateTime<Local>,
     /// The report saved in the reports folder, or why it couldn't be.
-    report_file: Result<PathBuf, String>,
+    report_file: Result<PathBuf, Message>,
     /// Why the report couldn't also be written next to the checksum file.
-    next_to_error: Option<String>,
+    next_to_error: Option<Message>,
     /// A mirror's removals, or why nothing was removed (plan 7).
     removals: Option<Result<mirror::Finished, mirror::NotRemoved>>,
     /// What a cancel with "Also remove the files already copied" removed (#54).
@@ -170,7 +173,7 @@ impl Jobs {
         verify: bool,
         settings: JobSettings,
         sink: impl ProgressSink,
-    ) -> Result<(), String> {
+    ) -> Result<(), Message> {
         self.start_work(
             Work::Copy {
                 ready: Box::new(ready),
@@ -182,11 +185,11 @@ impl Jobs {
     }
 
     /// Starts `work`. Fails if a job is already running.
-    pub fn start_work(&self, work: Work, sink: impl ProgressSink) -> Result<(), String> {
+    pub fn start_work(&self, work: Work, sink: impl ProgressSink) -> Result<(), Message> {
         // Held until the job is in place, so two starts can't both get past the check.
         let mut current = lock(&self.current);
         if current.as_ref().is_some_and(|job| job.running()) {
-            return Err("A copy is already running.".into());
+            return Err(msg!("errors.job.alreadyRunning"));
         }
         let small_total = count(match &work {
             Work::Copy { ready, .. } => ready
@@ -282,20 +285,20 @@ impl Jobs {
     }
 
     /// For the menu bar panel: what the current (or last) job does, from where, and to where.
-    pub fn describe(&self) -> Option<(String, String, Option<String>)> {
+    pub fn describe(&self) -> Option<(Message, Message, Option<String>)> {
         self.job().map(|job| match &job.work {
-            Work::Check(plan) => ("Verifying".to_string(), show(&plan.dir), None),
+            Work::Check(plan) => (
+                msg!("menubar.heading.verifying"),
+                Message::raw(show(&plan.dir)),
+                None,
+            ),
             Work::Copy { ready, verify, .. } => {
-                let heading = match ready.label.strip_prefix("Mirror · ") {
-                    Some(name) => format!("Mirroring {name}"),
-                    None if *verify => "Copying & verifying".to_string(),
-                    None => "Copying".to_string(),
+                let heading = match &ready.mirror {
+                    Some(name) => msg!("menubar.heading.mirroring", name = name),
+                    None if *verify => msg!("menubar.heading.copyingVerifying"),
+                    None => msg!("menubar.heading.copying"),
                 };
-                let from = match &ready.source {
-                    Source::Directory { path, .. } => show(path),
-                    Source::Files(_) => ready.label.clone(),
-                };
-                (heading, from, Some(show(&ready.copy_root)))
+                (heading, ready.shown.clone(), Some(show(&ready.copy_root)))
             }
         })
     }
@@ -311,9 +314,9 @@ impl Jobs {
     }
 
     /// "Save report…": the text report at `path` and the JSON next to it (FR-35).
-    pub fn save_report(&self, path: &Path) -> Result<(), String> {
+    pub fn save_report(&self, path: &Path) -> Result<(), Message> {
         self.job()
-            .ok_or("There is no report yet.")?
+            .ok_or_else(|| msg!("errors.report.noneYet"))?
             .save_report(path)
     }
 
@@ -362,7 +365,7 @@ impl JobHandle {
         self.0.finished_page(offset, limit, failed_only)
     }
 
-    pub fn save_report(&self, path: &Path) -> Result<(), String> {
+    pub fn save_report(&self, path: &Path) -> Result<(), Message> {
         self.0.save_report(path)
     }
 }
@@ -457,10 +460,7 @@ impl Job {
                         .problems
                         .iter()
                         .take(FAILURES_SHOWN)
-                        .map(|p| match p.line {
-                            Some(line) => format!("{}:{line}: {}", show(&p.file), p.reason),
-                            None => format!("{}: {}", show(&p.file), p.reason),
-                        })
+                        .map(say::check_problem)
                         .collect(),
                     more_problems: (checked.problems.len() > FAILURES_SHOWN)
                         .then(|| count(checked.problems.len() - FAILURES_SHOWN)),
@@ -489,8 +489,8 @@ impl Job {
                 JobOutcome::Complete
             },
             stopped_because: match &done.report.fatal {
-                _ if done.panicked => Some(INTERNAL_ERROR.into()),
-                fatal => fatal.as_ref().map(|f| sentence(&f.to_string())),
+                _ if done.panicked => Some(say::internal()),
+                fatal => fatal.as_ref().map(say::fatal),
             },
             verify: job.verify(),
             files: count(c.files),
@@ -500,7 +500,7 @@ impl Job {
             skipped_different: count(c.skipped_different),
             failed: count(c.failed),
             unread: count(done.report.unread.len()),
-            durability_error: done.report.durability_error.clone(),
+            durability_error: done.report.durability_error.as_ref().map(say::io_failure),
             dir_errors: count(done.report.dir_errors.len()),
             not_started: count(c.not_started),
             bytes_written: c.bytes_written,
@@ -519,7 +519,7 @@ impl Job {
                     millis: 0,
                     hash: None,
                     status: RowStatus::Failed,
-                    reason: Some(format!("Couldn't be read: {}", p.message)),
+                    reason: Some(msg!("summary.reason.unread", why = say::scan_why(&p.kind))),
                 })
                 .chain(done.report.dir_errors.iter().map(|(rel, why)| FinishedRow {
                     id: 0,
@@ -529,7 +529,10 @@ impl Job {
                     millis: 0,
                     hash: None,
                     status: RowStatus::Failed,
-                    reason: Some(format!("Empty directory not created: {why}")),
+                    reason: Some(msg!(
+                        "summary.reason.dirNotCreated",
+                        why = say::io_failure(why)
+                    )),
                 }))
                 .chain(
                     outcomes
@@ -542,22 +545,19 @@ impl Job {
             finished: count(outcomes.len()),
             copy_root: show(job.root()),
             checksum_file: done.report.checksum_file.as_deref().map(show),
-            checksum_error: done.report.checksum_error.clone(),
+            checksum_error: done.report.checksum_error.as_ref().map(say::io_failure),
             // A check writes no checksum file: none was turned off.
             checksum_off: job.copy().is_some()
                 && !job.settings().is_some_and(|s| s.write_checksum_file),
             report_file: done.report_file.as_deref().ok().map(show),
-            report_error: {
-                let errors: Vec<String> = done
-                    .report_file
-                    .as_ref()
-                    .err()
-                    .cloned()
-                    .into_iter()
-                    .chain(done.next_to_error.clone())
-                    .collect();
-                (!errors.is_empty()).then(|| errors.join("; "))
-            },
+            report_errors: done
+                .report_file
+                .as_ref()
+                .err()
+                .cloned()
+                .into_iter()
+                .chain(done.next_to_error.clone())
+                .collect(),
             mirror,
             undone: done.undone.as_ref().map(|u| UndoneView {
                 removed: count(u.removed),
@@ -569,15 +569,15 @@ impl Job {
     }
 
     /// "Save report…": the text report at `path` and the JSON next to it (FR-35).
-    fn save_report(&self, path: &Path) -> Result<(), String> {
+    fn save_report(&self, path: &Path) -> Result<(), Message> {
         let job = self;
         let done = lock(&job.done);
-        let done = done.as_ref().ok_or("The copy is still running.")?;
+        let done = done.as_ref().ok_or_else(|| msg!("errors.report.running"))?;
         if done.panicked {
-            return Err(NO_REPORT.into());
+            return Err(no_report());
         }
         let report = job.report(done);
-        let write = |p: &Path, body: String| fs::write(p, body).map_err(|e| e.to_string());
+        let write = |p: &Path, body: String| fs::write(p, body).map_err(|e| say::io_error(&e));
         write(path, report.to_text())?;
         write(&path.with_extension("json"), report.to_json())
     }
@@ -627,7 +627,7 @@ impl Job {
         let done = Done {
             report,
             finished: Local::now(),
-            report_file: Err(NO_REPORT.into()),
+            report_file: Err(no_report()),
             next_to_error: None,
             removals: None,
             undone: None,
@@ -637,7 +637,7 @@ impl Job {
         let last = lock(&self.last).clone();
         let mut ended = lock(&self.done);
         // Past its end (sending the last view), the job stands as it ended.
-        let fatal = ended.is_none().then(|| INTERNAL_ERROR.to_string());
+        let fatal = ended.is_none().then(say::internal);
         ended.get_or_insert(done);
         drop(ended);
         let full = AssertUnwindSafe(|| {
@@ -679,7 +679,7 @@ impl Job {
         });
         let mut done = Done {
             finished: Local::now(),
-            report_file: Err(String::new()),
+            report_file: Err(no_report()),
             next_to_error: None,
             report: checked.job.clone(),
             removals: None,
@@ -754,13 +754,17 @@ impl Job {
             if let Ok(finished) = &finished
                 && let Err(e) = mirror::write_checksums(&m.plan, &report, finished)
             {
-                report.checksum_error = Some(format!("the mirror's checksum file: {e}"));
+                // The report says whose checksum file it was; the UI says why by its kind.
+                report.checksum_error = Some(secopy_core::error::IoFailure {
+                    kind: e.kind(),
+                    message: format!("the mirror's checksum file: {e}"),
+                });
             }
             finished
         });
         let mut done = Done {
             finished: Local::now(),
-            report_file: Err(String::new()),
+            report_file: Err(no_report()),
             next_to_error: None,
             report,
             removals,
@@ -776,9 +780,9 @@ impl Job {
                 .report(&done)
                 .write_next_to(checksum)
                 .err()
-                .map(|e| format!("next to the checksum file: {e}"));
+                .map(|e| msg!("errors.report.nextToChecksum", why = say::io_error(&e)));
         }
-        let fatal = done.report.fatal.as_ref().map(|f| sentence(&f.to_string()));
+        let fatal = done.report.fatal.as_ref().map(say::fatal);
         // The engine's last progress, so a stopped job's bars stay where it stopped.
         let last = lock(&self.last).clone();
         let mut view = self.progress(&last, true, fatal);
@@ -788,7 +792,7 @@ impl Job {
         sink.send(view);
     }
 
-    fn progress(&self, p: &Progress, finished: bool, fatal: Option<String>) -> ProgressView {
+    fn progress(&self, p: &Progress, finished: bool, fatal: Option<Message>) -> ProgressView {
         let (total_files, total_bytes) = self.totals();
         let mut active = Vec::new();
         // Small files are one steady row below; only big ones are worth a bar each.
@@ -874,8 +878,14 @@ impl Job {
     }
 
     /// Saves the report in the app's data folder, named like the checksum file (FR-35).
-    fn save(&self, done: &Done, reports_dir: &Path) -> Result<PathBuf, String> {
-        let failed = |e: std::io::Error| format!("{}: {e}", show(reports_dir));
+    fn save(&self, done: &Done, reports_dir: &Path) -> Result<PathBuf, Message> {
+        let failed = |e: std::io::Error| {
+            msg!(
+                "errors.report.dir",
+                path = reports_dir,
+                why = say::io_error(&e)
+            )
+        };
         fs::create_dir_all(reports_dir).map_err(failed)?;
         let stem = match done
             .report
@@ -932,13 +942,13 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
                         millis: 0,
                         hash: None,
                         status: RowStatus::Failed,
-                        reason: Some(format!("Not removed: {e}")),
+                        reason: Some(msg!("summary.reason.notRemoved", why = say::removal(e))),
                     })
                 })
                 .collect(),
             None,
         ),
-        Some(Err(why)) => (0, Vec::new(), Some(why.to_string())),
+        Some(Err(why)) => (0, Vec::new(), Some(say::not_removed(why))),
         None => (0, Vec::new(), None),
     };
     MirrorSummaryView {
@@ -974,28 +984,25 @@ fn row(o: &FileOutcome, check: Option<&CheckPlan>) -> FinishedRow {
         FileStatus::Verified if check.is_some() => (RowStatus::Intact, None),
         FileStatus::Verified => (RowStatus::Verified, None),
         FileStatus::Failed(e @ FileError::Changed { .. }) => {
-            (RowStatus::Changed, Some(sentence(&e.to_string())))
+            (RowStatus::Changed, Some(say::file_error(e)))
         }
         FileStatus::Failed(FileError::Missing) => (RowStatus::Missing, None),
-        FileStatus::Skipped(SkipReason::Identical) => (
-            RowStatus::Skipped,
-            Some("Already at the destination (not checked)".to_string()),
-        ),
-        FileStatus::Skipped(SkipReason::Differs) => (
-            RowStatus::Skipped,
-            Some("A different file with this name was kept".to_string()),
-        ),
-        FileStatus::Failed(e) => (RowStatus::Failed, Some(sentence(&e.to_string()))),
+        FileStatus::Skipped(SkipReason::Identical) => {
+            (RowStatus::Skipped, Some(msg!("summary.reason.identical")))
+        }
+        FileStatus::Skipped(SkipReason::Differs) => {
+            (RowStatus::Skipped, Some(msg!("summary.reason.differs")))
+        }
+        FileStatus::Failed(e) => (RowStatus::Failed, Some(say::file_error(e))),
         FileStatus::Cancelled => (RowStatus::Cancelled, None),
     };
     // A check's problem file says which checksum file listed it (#69).
     if let (Some(plan), FileStatus::Failed(_)) = (check, &o.status)
         && let Some(file) = plan.files.get(o.id)
     {
-        let listed = format!("Listed in {}.", show(&file.from));
         reason = Some(match reason {
-            Some(why) => format!("{why} {listed}"),
-            None => listed,
+            Some(why) => msg!("errors.check.listedIn", why = why, file = &file.from),
+            None => msg!("errors.check.listedInOnly", file = &file.from),
         });
     }
     FinishedRow {
@@ -1021,6 +1028,7 @@ pub(crate) fn source_path(s: &Source) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::message::En;
     use crate::session::{Change, Session, scan_source};
 
     #[derive(Clone, Default)]
@@ -1206,6 +1214,7 @@ mod tests {
         assert!(row.path.ends_with("locked"), "{row:?}");
         assert!(
             row.reason
+                .en()
                 .as_deref()
                 .unwrap()
                 .starts_with("Couldn't be read"),
@@ -1318,7 +1327,7 @@ mod tests {
         run(&f, false);
         let s = f.jobs.summary().unwrap();
         assert_eq!(s.report_file, None);
-        assert!(s.report_error.is_some());
+        assert!(!s.report_errors.is_empty());
     }
 
     #[test]
@@ -1417,6 +1426,7 @@ mod tests {
         assert!(
             s.failures[0]
                 .reason
+                .en()
                 .as_deref()
                 .unwrap()
                 .starts_with("Cannot read source")
@@ -1469,7 +1479,7 @@ mod tests {
         let stem = checksum.file_stem().unwrap().to_string_lossy().into_owned();
         assert!(f.dest.join(format!("{stem}_report.txt")).is_file());
         assert!(f.dest.join(format!("{stem}_report.json")).is_file());
-        assert!(!s.checksum_off && s.report_error.is_none());
+        assert!(!s.checksum_off && s.report_errors.is_empty());
     }
 
     /// Two ready jobs over temp dirs: one file, then two files.
@@ -1606,7 +1616,7 @@ mod tests {
         jobs.wait();
         let m = jobs.summary().unwrap().mirror.unwrap();
         assert_eq!(
-            m.nothing_removed.as_deref(),
+            m.nothing_removed.en().as_deref(),
             Some("Files deleted in the origin were left in the destination: 1 file failed.")
         );
         assert!(d.join("x.mov").exists());
@@ -1683,7 +1693,10 @@ mod tests {
         let rows = jobs.finished_page(0, 10, false);
         let reason = |status| {
             let row = rows.iter().find(|r| r.status == status).unwrap();
-            row.reason.clone().unwrap_or_default()
+            row.reason
+                .as_ref()
+                .map(Message::english)
+                .unwrap_or_default()
         };
         assert_eq!(reason(RowStatus::Missing), listed);
         assert!(
@@ -1760,7 +1773,10 @@ mod tests {
         let views = sink.0.0.lock().unwrap().clone();
         let last = views.last().expect("a view after the panics");
         assert_eq!(last.phase, JobPhase::Done);
-        assert_eq!(last.fatal.as_deref(), Some(INTERNAL_ERROR));
+        assert_eq!(
+            last.fatal.en().as_deref(),
+            Some("Secopy hit an internal error")
+        );
         assert_eq!(f.jobs.summary().unwrap().outcome, JobOutcome::Stopped);
     }
 
@@ -1782,12 +1798,18 @@ mod tests {
         assert!(!f.jobs.is_running());
         let last = sink.0.last();
         assert_eq!(last.phase, JobPhase::Done);
-        assert_eq!(last.fatal.as_deref(), Some(INTERNAL_ERROR));
+        assert_eq!(
+            last.fatal.en().as_deref(),
+            Some("Secopy hit an internal error")
+        );
         let s = f.jobs.summary().unwrap();
         assert_eq!(s.outcome, JobOutcome::Stopped);
-        assert_eq!(s.stopped_because.as_deref(), Some(INTERNAL_ERROR));
+        assert_eq!(
+            s.stopped_because.en().as_deref(),
+            Some("Secopy hit an internal error")
+        );
         assert!(
-            s.report_error.is_some(),
+            !s.report_errors.is_empty(),
             "no report for a run that never ended"
         );
         assert!(
