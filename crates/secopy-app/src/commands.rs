@@ -1075,6 +1075,27 @@ pub fn resume_job(app: AppHandle) {
     app.state::<AppState>().jobs.resume();
 }
 
+/// The menu bar panel's content now (#80); it asks when it opens.
+#[tauri::command]
+#[specta::specta]
+pub fn menubar_view(app: AppHandle) -> Option<crate::menubar::PanelView> {
+    crate::menubar::panel_view(&app)
+}
+
+/// The panel's Open Secopy: the window again, back in the Dock (#80).
+#[tauri::command]
+#[specta::specta]
+pub fn open_main_window(app: AppHandle) {
+    crate::menubar::show(&app);
+}
+
+/// The panel's Quit Secopy: asks first while a job runs, as ⌘Q does (#80).
+#[tauri::command]
+#[specta::specta]
+pub fn quit_app(app: AppHandle) {
+    crate::quit(&app);
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_job(app: AppHandle, remove_copied: bool) {

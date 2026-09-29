@@ -13,6 +13,31 @@ export const commands = {
 	 *  and nothing changed otherwise, and the window asks or quits as before.
 	 */
 	hideToMenuBar: () => __TAURI_INVOKE<boolean>("hide_to_menu_bar"),
+	/**  The menu bar panel's content now (#80); it asks when it opens. */
+	menubarView: () => __TAURI_INVOKE<{
+	heading: string,
+	from: string | null,
+	to: string | null,
+	/**  Work done, 0–1; `None` before there is anything to count. */
+	fraction: number | null,
+	/**  "42%", or "…". */
+	percent: string,
+	/**  "44 of 106 files". */
+	files: string,
+	/**  "850.0 MB/s"; `None` until there is a speed. */
+	speed: string | null,
+	/**  "3:12 left". */
+	left: string | null,
+	paused: boolean,
+	/**  A mirror archiving or deleting, or Cancel putting the destination back. */
+	removing: boolean,
+	/**  How it ended, once it has. */
+	ended: Ended | null,
+} | null>("menubar_view"),
+	/**  The panel's Open Secopy: the window again, back in the Dock (#80). */
+	openMainWindow: () => __TAURI_INVOKE<void>("open_main_window"),
+	/**  The panel's Quit Secopy: asks first while a job runs, as ⌘Q does (#80). */
+	quitApp: () => __TAURI_INVOKE<void>("quit_app"),
 	exportAll: (path: string, what: ExportWhat) => typedError<string, string>(__TAURI_INVOKE("export_all", { path, what })),
 	exportCopyPreset: (id: string, path: string) => typedError<string, string>(__TAURI_INVOKE("export_copy_preset", { id, path })),
 	exportMirrorPreset: (id: string, path: string) => typedError<string, string>(__TAURI_INVOKE("export_mirror_preset", { id, path })),
@@ -235,6 +260,12 @@ export type DestinationView = {
 	stalePartials: number,
 };
 
+export type Ended = {
+	/**  Complete: every file done. Anything else is not. */
+	ok: boolean,
+	text: string,
+};
+
 /**  What goes in an export (#77). */
 export type ExportWhat = {
 	settings: boolean,
@@ -358,6 +389,28 @@ export type MirrorSummaryView = {
 };
 
 export type OnFailure = "continue" | "stop";
+
+/**  What the panel under the icon shows. */
+export type PanelView = {
+	heading: string,
+	from: string | null,
+	to: string | null,
+	/**  Work done, 0–1; `None` before there is anything to count. */
+	fraction: number | null,
+	/**  "42%", or "…". */
+	percent: string,
+	/**  "44 of 106 files". */
+	files: string,
+	/**  "850.0 MB/s"; `None` until there is a speed. */
+	speed: string | null,
+	/**  "3:12 left". */
+	left: string | null,
+	paused: boolean,
+	/**  A mirror archiving or deleting, or Cancel putting the destination back. */
+	removing: boolean,
+	/**  How it ended, once it has. */
+	ended: Ended | null,
+};
 
 export type PlanView = {
 	filesToWrite: number,

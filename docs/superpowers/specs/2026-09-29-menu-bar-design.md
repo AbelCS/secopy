@@ -19,7 +19,7 @@ with no window and no icon.
 |---|---|
 | D1 | The icon exists only while something runs, or until a job that finished while hidden has been seen. Closing the window with nothing running quits, as today. |
 | D2 | While the window is hidden, Secopy leaves the Dock and ⌘Tab (accessory app); it comes back when the window shows. |
-| D3 | The icon's panel is a native macOS menu (text lines), not a custom window. The title next to the icon carries the percentage. |
+| D3 | The icon opens a small panel of Secopy's own under it (a progress bar, readable text, Pause, Open Secopy, Quit). A native menu was tried first and dropped after testing: disabled lines are grey, and replacing the menu closed it on every update. The title next to the icon carries the percentage. |
 | D4 | A setting, **on by default**: "Keep copying in the menu bar when the window is closed". Off: today's behaviour (closing asks "Stop copying and quit?"). It is exported and imported like the other settings. |
 | D5 | ⌘Q and the menu's Quit while a job runs show the window and ask, as today. Hiding is never stopping. |
 
@@ -44,20 +44,14 @@ own question: a hidden window never asks.
   - running: `42%`; a queue: `2/3 · 42%`; paused: `Paused`; a check: the same percentages;
     a mirror's removals: `Removing`; before the first update: `…`;
   - finished: `✓` (complete) or `✗` (anything else).
-- The menu, rebuilt when its content changes (not on every update):
-  - running:
-    ```
-    Copy & Verify · CARD_A → Day01        (disabled: the job)
-    42% · 44 of 106 files                  (disabled)
-    850 MB/s · about 3 min left            (disabled; omitted until known)
-    ───
-    Pause / Resume
-    Open Secopy
-    ───
-    Quit Secopy…
-    ```
-  - finished: a disabled line with how it ended — "Finished: every file done", "Finished with
-    problems", "Cancelled", "Stopped: <why>" — then **Open Secopy**, then **Quit Secopy**.
+- Clicking the icon opens the panel under it (a window of Secopy's own, 340 × 190, made hidden
+  at start); clicking elsewhere closes it:
+  - running: the job ("Copying & verifying", "Job 2 of 3 · …", "Checking job 2 of 3"), the
+    percentage, From and To paths (cut at their start), a progress bar, "44 of 106 files ·
+    850.0 MB/s · 3:12 left" (or "Paused", "Removing files…"), **Pause/Resume**, **Open Secopy**,
+    and **Quit Secopy…** as a link;
+  - finished: ✓ or ✗ with how it ended — "Finished: every file done", "Finished with
+    problems", "Cancelled", "Stopped: <why>" — then **Open Secopy** and **Quit Secopy**.
 - Updated from Rust, from the job's own progress, at most once a second, so it doesn't depend on
   the hidden window's web view.
 
@@ -128,5 +122,5 @@ means on); the Import screen lists it as a change like the other switches.
 
 ## Out of scope
 
-A custom panel with a progress bar (a later option, D3); an always-present menu bar icon;
+An always-present menu bar icon;
 starting jobs from the menu bar; a Dock progress badge.

@@ -34,6 +34,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
         commands::pick_source,
         commands::hide_to_menu_bar,
+        commands::menubar_view,
+        commands::open_main_window,
+        commands::quit_app,
         commands::export_all,
         commands::export_copy_preset,
         commands::export_mirror_preset,
@@ -121,6 +124,13 @@ pub fn run() {
             }
         })
         .on_window_event(|window, event| {
+            // The menu bar panel closes when you click elsewhere, like a menu (#80).
+            if window.label() == menubar::PANEL {
+                if let WindowEvent::Focused(false) = event {
+                    let _ = window.hide();
+                }
+                return;
+            }
             if let WindowEvent::Resized(size) = event {
                 let scale = window.scale_factor().unwrap_or(1.0);
                 let size = size.to_logical::<f64>(scale);
@@ -148,6 +158,10 @@ pub fn run() {
             }
             app.manage(AppState::new(data));
             app.manage(menubar::MenuBar::default());
+            // Ready before it's needed, so it opens at once; without it the icon opens Secopy.
+            if let Err(e) = menubar::make_panel(app.handle()) {
+                eprintln!("Secopy: no menu bar panel: {e}");
+            }
             // Its items, to grey out what doesn't apply (`set_menu_state`).
             if let Some(file) = app.menu().as_ref().and_then(FileMenu::find) {
                 app.manage(file);

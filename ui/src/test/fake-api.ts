@@ -29,6 +29,7 @@ import type {
   ImportChoices,
   ImportDone,
   ImportView,
+  PanelView,
 } from "../lib/bindings";
 
 export function sourceView(over: Partial<SourceView> = {}): SourceView {
@@ -268,6 +269,8 @@ export function fakeApi(session: SessionView = sessionView()) {
     start: startView({ session }),
     openSettings: null as (() => void) | null,
     menu: null as ((item: string) => void) | null,
+    /** The handler `onPanelView` was given: the menu bar panel's updates. */
+    panelView: null as ((view: PanelView) => void) | null,
     /** The handler `onOpenFile` was given: a .secopy file opened from Finder. */
     openFile: null as (() => void) | null,
     queue: queueView(),
@@ -291,6 +294,13 @@ export function fakeApi(session: SessionView = sessionView()) {
     }),
     pauseJob: vi.fn(() => Promise.resolve()),
     resumeJob: vi.fn(() => Promise.resolve()),
+    menubarView: vi.fn(() => Promise.resolve(null as PanelView | null)),
+    onPanelView: vi.fn((handler: (view: PanelView) => void) => {
+      state.panelView = handler;
+      return Promise.resolve(() => {});
+    }),
+    openMainWindow: vi.fn(() => Promise.resolve()),
+    quitApp: vi.fn(() => Promise.resolve()),
     cancelJob: vi.fn((_removeCopied: boolean) => Promise.resolve()),
     jobRunning: vi.fn(() => Promise.resolve(false)),
     finishedPage: vi.fn((_o: number, _l: number, _f: boolean) => Promise.resolve([] as Awaited<ReturnType<Api["finishedPage"]>>)),
