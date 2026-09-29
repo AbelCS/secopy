@@ -158,18 +158,19 @@ fn the_guard_trips_on_an_empty_origin_or_half_the_destination() {
     write(&d, &[("a.mov", b"a"), ("b.mov", b"b"), ("c.mov", b"c")]);
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     assert_eq!(
-        p.guard.as_deref(),
+        p.guard.map(|g| g.to_string()).as_deref(),
         Some("The origin has no files: every file in the destination would be removed.")
     );
     write(&o, &[("a.mov", b"a")]);
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     assert_eq!(
-        p.guard.as_deref(),
+        p.guard.map(|g| g.to_string()).as_deref(),
         Some("2 of the destination's 3 files would be removed.")
     );
     assert!(
         mirror::plan(&o.join("nope"), &d, &opts())
             .unwrap_err()
+            .to_string()
             .contains("isn't there")
     );
 }
@@ -179,7 +180,7 @@ fn run(
     archive: Option<&Path>,
 ) -> (
     secopy_core::job::JobReport,
-    Result<mirror::Finished, String>,
+    Result<mirror::Finished, mirror::NotRemoved>,
 ) {
     let opts = JobOptions {
         write_checksum_file: false,
@@ -247,7 +248,7 @@ fn nothing_is_removed_after_a_failure() {
     let (report, removed) = run(&p, None);
     assert!(!report.is_success());
     assert_eq!(
-        removed.unwrap_err(),
+        removed.unwrap_err().to_string(),
         "Files deleted in the origin were left in the destination: 1 file failed."
     );
     assert!(d.join("gone.mov").exists());
@@ -303,7 +304,10 @@ fn an_origin_directory_that_cant_be_read_removes_nothing() {
     let p = p.unwrap();
     assert!(p.removals.is_empty(), "{:?}", p.removals);
     assert!(p.remove_dirs.is_empty(), "{:?}", p.remove_dirs);
-    let guard = p.guard.expect("the preview says why nothing is removed");
+    let guard = p
+        .guard
+        .expect("the preview says why nothing is removed")
+        .to_string();
     assert!(guard.contains("couldn't be read"), "{guard}");
     assert!(guard.contains("Nothing is removed"), "{guard}");
 }
@@ -378,7 +382,8 @@ fn a_rename_is_reported() {
 fn the_origin_and_destination_cant_hold_each_other() {
     let (_dir, o, d) = pair();
     write(&o, &[("a.mov", b"a"), ("sub/b.mov", b"b")]);
-    let err = |origin: &Path, dest: &Path| mirror::plan(origin, dest, &opts()).unwrap_err();
+    let err =
+        |origin: &Path, dest: &Path| mirror::plan(origin, dest, &opts()).unwrap_err().to_string();
     assert_eq!(
         err(&o, &o),
         "The origin and the destination are the same directory."
@@ -424,7 +429,9 @@ fn the_deep_check_reports_progress_and_can_be_cancelled() {
     assert_eq!(*seen.lock().unwrap(), [(0, 2), (1, 2), (2, 2)]);
     control.cancel();
     assert_eq!(
-        mirror::plan_watched(&o, &d, &deep, &control, &|_, _| {}).unwrap_err(),
+        mirror::plan_watched(&o, &d, &deep, &control, &|_, _| {})
+            .unwrap_err()
+            .to_string(),
         "Cancelled."
     );
 }
@@ -437,7 +444,9 @@ fn a_symlink_into_the_origin_is_refused() {
     let link = dir.path().join("link");
     std::os::unix::fs::symlink(o.join("sub"), &link).unwrap();
     assert_eq!(
-        mirror::plan(&o, &link.join("new"), &opts()).unwrap_err(),
+        mirror::plan(&o, &link.join("new"), &opts())
+            .unwrap_err()
+            .to_string(),
         "The destination can't be inside the origin."
     );
 }
@@ -476,7 +485,7 @@ fn a_linked_archive_is_never_followed() {
     .unwrap();
     assert_eq!(mirror::clean_archives(&d, 30, chrono::Local::now()), 0);
     assert!(old.join("precious.mov").exists());
-    let err = mirror::plan(&o, &d, &opts()).unwrap_err();
+    let err = mirror::plan(&o, &d, &opts()).unwrap_err().to_string();
     assert!(err.contains(".secopy-archive"), "{err}");
 }
 
@@ -497,7 +506,7 @@ fn a_destination_file_changed_since_the_preview_is_kept() {
     fs::write(d.join("gone.mov"), b"somebody's new work").unwrap();
     let (_, finished) = run(&p, None);
     let removals = finished.unwrap().removals;
-    let why = removals[0].result.as_ref().unwrap_err();
+    let why = removals[0].result.as_ref().unwrap_err().to_string();
     assert!(why.contains("changed"), "{why}");
     assert_eq!(
         fs::read(d.join("gone.mov")).unwrap(),
@@ -532,7 +541,10 @@ fn the_report_has_the_removals_and_their_failures() {
             .contains("Removed from the destination (deleted): 1")
     );
     let mut failed = finished.unwrap();
-    failed.removals[0].result = Err("Permission denied".into());
+    failed.removals[0].result = Err(mirror::RemovalError::Io(secopy_core::error::IoFailure {
+        kind: std::io::ErrorKind::PermissionDenied,
+        message: "Permission denied".into(),
+    }));
     let bad = secopy_core::report::Report::new(&p.copy, &report, &meta)
         .with_mirror(mirror::report_part(&Ok(failed), false));
     assert_eq!(bad.result, "1 file couldn't be removed");

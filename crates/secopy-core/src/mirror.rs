@@ -7,11 +7,12 @@ use std::path::{Path, PathBuf};
 use unicode_normalization::UnicodeNormalization;
 use walkdir::WalkDir;
 
+use crate::error::IoFailure;
 use crate::filter::ExtensionFilter;
 use crate::job::{JobControl, JobReport};
 use crate::plan::{Action, DiffersPolicy, Plan};
-use crate::preflight::preflight;
-use crate::scan::{ScanOptions, scan};
+use crate::preflight::{Blocker, preflight};
+use crate::scan::{DriveRoot, ScanOptions, ScanProblem, scan};
 use crate::source::{DirMode, Source};
 use crate::system::is_system_file;
 use crate::verify::hash_from_device;
@@ -89,15 +90,147 @@ pub struct MirrorPlan {
     /// Files in the destination (system files and the archive not counted).
     pub destination_files: u64,
     /// Why the run looks wrong (FR-50), if it does.
-    pub guard: Option<String>,
+    pub guard: Option<Guard>,
     pub options: MirrorOptions,
+}
+
+/// Why a mirror can't be planned. `Display` is the English text reports and the CLI show.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlanError {
+    OriginMissing(PathBuf),
+    Same,
+    DestinationInOrigin,
+    OriginInDestination,
+    /// The destination's archive is a link or a file.
+    ArchiveNotDir,
+    /// The origin couldn't be scanned; `drive_root` for "the folder itself" of a drive root.
+    Scan {
+        io: IoFailure,
+        drive_root: bool,
+    },
+    Blocked(Blocker),
+    Cancelled,
+}
+
+impl std::fmt::Display for PlanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PlanError::OriginMissing(origin) => {
+                write!(f, "The origin isn't there: {}", origin.display())
+            }
+            PlanError::Same => {
+                f.write_str("The origin and the destination are the same directory.")
+            }
+            PlanError::DestinationInOrigin => {
+                f.write_str("The destination can't be inside the origin.")
+            }
+            PlanError::OriginInDestination => {
+                f.write_str("The origin can't be inside the destination.")
+            }
+            PlanError::ArchiveNotDir => write!(
+                f,
+                "The destination's {ARCHIVE_DIR} isn't a directory (it's a link or a file). Move it \
+                 away, or choose to delete removed files."
+            ),
+            PlanError::Scan { io, .. } => write!(f, "{io}"),
+            PlanError::Blocked(b) => write!(f, "{b}"),
+            PlanError::Cancelled => f.write_str("Cancelled."),
+        }
+    }
+}
+
+impl From<PlanError> for String {
+    fn from(e: PlanError) -> String {
+        e.to_string()
+    }
+}
+
+/// Why a mirror run looks wrong (FR-50). `Display` is the English text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Guard {
+    /// Items in the origin couldn't be read: they would look deleted, so nothing is removed.
+    Unread {
+        count: usize,
+        first: ScanProblem,
+    },
+    EmptyOrigin,
+    TooMany {
+        removals: u64,
+        files: u64,
+    },
+}
+
+impl std::fmt::Display for Guard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Guard::Unread { count, first } => write!(
+                f,
+                "{} in the origin couldn't be read ({}: {}). Nothing is removed from the destination this run.",
+                match count {
+                    1 => "1 item".to_string(),
+                    n => format!("{n} items"),
+                },
+                first.path.display(),
+                first.message
+            ),
+            Guard::EmptyOrigin => f.write_str(
+                "The origin has no files: every file in the destination would be removed.",
+            ),
+            Guard::TooMany { removals, files } => {
+                write!(
+                    f,
+                    "{removals} of the destination's {files} files would be removed."
+                )
+            }
+        }
+    }
+}
+
+/// Why `finish` removed nothing. `Display` is the English text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotRemoved {
+    Cancelled,
+    Stopped,
+    Failed(usize),
+    NotClean,
+}
+
+impl std::fmt::Display for NotRemoved {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Files deleted in the origin were left in the destination: ")?;
+        match self {
+            NotRemoved::Cancelled => f.write_str("the mirror was cancelled."),
+            NotRemoved::Stopped => f.write_str("the mirror stopped."),
+            NotRemoved::Failed(1) => f.write_str("1 file failed."),
+            NotRemoved::Failed(n) => write!(f, "{n} files failed."),
+            NotRemoved::NotClean => f.write_str("the copy didn't end cleanly."),
+        }
+    }
+}
+
+/// Why one file wasn't removed. `Display` is the English text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RemovalError {
+    ChangedAfterPreview,
+    Io(IoFailure),
+}
+
+impl std::fmt::Display for RemovalError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RemovalError::ChangedAfterPreview => {
+                f.write_str("It changed after the preview, so it was kept.")
+            }
+            RemovalError::Io(io) => write!(f, "{io}"),
+        }
+    }
 }
 
 pub fn plan(
     origin: &Path,
     destination: &Path,
     options: &MirrorOptions,
-) -> Result<MirrorPlan, String> {
+) -> Result<MirrorPlan, PlanError> {
     plan_watched(origin, destination, options, &JobControl::new(), &|_, _| {})
 }
 
@@ -109,31 +242,31 @@ pub fn plan_watched(
     options: &MirrorOptions,
     control: &JobControl,
     on_compared: &(dyn Fn(u64, u64) + Sync),
-) -> Result<MirrorPlan, String> {
+) -> Result<MirrorPlan, PlanError> {
     if !origin.is_dir() {
-        return Err(format!("The origin isn't there: {}", origin.display()));
+        return Err(PlanError::OriginMissing(origin.to_path_buf()));
     }
     nested(origin, destination)?;
     // Archiving into a link could put (and later clean up) files anywhere.
     if let Deleted::Archive { .. } = options.deleted
         && fs::symlink_metadata(destination.join(ARCHIVE_DIR)).is_ok_and(|m| !m.is_dir())
     {
-        return Err(format!(
-            "The destination's {ARCHIVE_DIR} isn't a directory (it's a link or a file). Move it \
-             away, or choose to delete removed files."
-        ));
+        return Err(PlanError::ArchiveNotDir);
     }
     let source = Source::Directory {
         path: origin.to_path_buf(),
         mode: DirMode::ContentsOnly,
     };
-    let scanned = scan(&source, &ScanOptions::default()).map_err(|e| e.to_string())?;
+    let scanned = scan(&source, &ScanOptions::default()).map_err(|e| PlanError::Scan {
+        drive_root: e.get_ref().is_some_and(|r| r.is::<DriveRoot>()),
+        io: e.into(),
+    })?;
     let mut sel = scanned.select(&ExtensionFilter::All);
     // An archive inside the origin (a mirror of a mirror) isn't mirrored.
     sel.files.retain(|f| !f.rel.starts_with(ARCHIVE_DIR));
     sel.dirs.retain(|d| !d.rel.starts_with(ARCHIVE_DIR));
     sel.total_bytes = sel.files.iter().map(|f| f.size).sum();
-    let pf = preflight(&source, &sel, destination).map_err(|b| b.to_string())?;
+    let pf = preflight(&source, &sel, destination).map_err(PlanError::Blocked)?;
     let mut copy = Plan::resolve(&sel, &pf, DiffersPolicy::Overwrite);
     let mut changes = Vec::new();
     let to_compare = if options.deep_check {
@@ -156,7 +289,7 @@ pub fn plan_watched(
             Action::SkipIdentical if options.deep_check => {
                 let equal = compare(&f.entry.source, &destination.join(&f.entry.rel), control);
                 if control.is_stopped() {
-                    return Err("Cancelled.".into());
+                    return Err(PlanError::Cancelled);
                 }
                 match equal {
                     Some(hash) => {
@@ -188,15 +321,10 @@ pub fn plan_watched(
         removals.clear();
         remove_dirs.clear();
         renames.clear();
-        Some(format!(
-            "{} in the origin couldn't be read ({}: {}). Nothing is removed from the destination this run.",
-            match scanned.problems.len() {
-                1 => "1 item".to_string(),
-                n => format!("{n} items"),
-            },
-            first.path.display(),
-            first.message
-        ))
+        Some(Guard::Unread {
+            count: scanned.problems.len(),
+            first: first.clone(),
+        })
     } else {
         guard(
             sel.files.len() as u64,
@@ -222,17 +350,17 @@ pub fn plan_watched(
 
 /// One of the two directories holds the other, or they are the same one, however the paths
 /// are written (letter case, symlinks): mirroring would copy or remove its own files.
-fn nested(origin: &Path, destination: &Path) -> Result<(), String> {
+fn nested(origin: &Path, destination: &Path) -> Result<(), PlanError> {
     let (origin, destination) = (&resolved(origin), &resolved(destination));
     let same = |a: &Path, b: &Path| same_file::is_same_file(a, b).unwrap_or(false);
     if same(origin, destination) {
-        return Err("The origin and the destination are the same directory.".into());
+        return Err(PlanError::Same);
     }
     if destination.ancestors().skip(1).any(|a| same(a, origin)) {
-        return Err("The destination can't be inside the origin.".into());
+        return Err(PlanError::DestinationInOrigin);
     }
     if origin.ancestors().skip(1).any(|a| same(a, destination)) {
-        return Err("The origin can't be inside the destination.".into());
+        return Err(PlanError::OriginInDestination);
     }
     Ok(())
 }
@@ -379,14 +507,13 @@ fn is_nas_file(name: &std::ffi::OsStr) -> bool {
     NAS_NAMES.iter().any(|n| n.eq_ignore_ascii_case(&name))
 }
 
-fn guard(origin_files: u64, removals: u64, destination_files: u64) -> Option<String> {
+fn guard(origin_files: u64, removals: u64, destination_files: u64) -> Option<Guard> {
     if origin_files == 0 && destination_files > 0 {
-        return Some(
-            "The origin has no files: every file in the destination would be removed.".into(),
-        );
+        return Some(Guard::EmptyOrigin);
     }
-    (removals * 2 > destination_files).then(|| {
-        format!("{removals} of the destination's {destination_files} files would be removed.")
+    (removals * 2 > destination_files).then_some(Guard::TooMany {
+        removals,
+        files: destination_files,
     })
 }
 
@@ -394,7 +521,7 @@ fn guard(origin_files: u64, removals: u64, destination_files: u64) -> Option<Str
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Removal {
     pub rel: PathBuf,
-    pub result: Result<(), String>,
+    pub result: Result<(), RemovalError>,
 }
 
 /// What `finish` did: the removals, and the names changed to the origin's spelling.
@@ -407,7 +534,7 @@ pub struct Finished {
 
 /// `finish`'s result for the report.
 pub fn report_part(
-    finished: &Result<Finished, String>,
+    finished: &Result<Finished, NotRemoved>,
     archived: bool,
 ) -> crate::report::MirrorPart {
     let show = |p: &Path| p.display().to_string();
@@ -425,13 +552,13 @@ pub fn report_part(
                     Ok(()) => part.removed.push(show(&r.rel)),
                     Err(why) => part.not_removed.push(crate::report::Unread {
                         path: show(&r.rel),
-                        reason: why.clone(),
+                        reason: why.to_string(),
                     }),
                 }
             }
             part.renamed = f.renamed.iter().map(|(a, b)| (show(a), show(b))).collect();
         }
-        Err(why) => part.nothing_removed = Some(why.clone()),
+        Err(why) => part.nothing_removed = Some(why.to_string()),
     }
     part
 }
@@ -457,31 +584,20 @@ pub fn finish(
     plan: &MirrorPlan,
     report: &JobReport,
     archive: Option<&Path>,
-) -> Result<Finished, String> {
+) -> Result<Finished, NotRemoved> {
     let failed = report.failed().count();
     if report.cancelled {
-        return Err(
-            "Files deleted in the origin were left in the destination: the mirror was cancelled."
-                .into(),
-        );
+        return Err(NotRemoved::Cancelled);
     }
     if report.fatal.is_some() {
-        return Err(
-            "Files deleted in the origin were left in the destination: the mirror stopped.".into(),
-        );
+        return Err(NotRemoved::Stopped);
     }
     if failed > 0 {
-        return Err(format!(
-            "Files deleted in the origin were left in the destination: {failed} {} failed.",
-            if failed == 1 { "file" } else { "files" }
-        ));
+        return Err(NotRemoved::Failed(failed));
     }
     // Anything else that went wrong (unread items, directories, the device): no removals.
     if !report.is_success() {
-        return Err(
-            "Files deleted in the origin were left in the destination: the copy didn't end cleanly."
-                .into(),
-        );
+        return Err(NotRemoved::NotClean);
     }
     let dest = &plan.copy.dest;
     let mut done = Vec::new();
@@ -499,7 +615,7 @@ pub fn finish(
         if plan.seen.get(rel) != Some(&now) {
             done.push(Removal {
                 rel: rel.clone(),
-                result: Err("It changed after the preview, so it was kept.".into()),
+                result: Err(RemovalError::ChangedAfterPreview),
             });
             continue;
         }
@@ -514,7 +630,7 @@ pub fn finish(
         };
         done.push(Removal {
             rel: rel.clone(),
-            result: result.map_err(|e| e.to_string()),
+            result: result.map_err(|e| RemovalError::Io(e.into())),
         });
     }
     for dir in &plan.remove_dirs {

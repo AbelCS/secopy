@@ -13,7 +13,7 @@ use unicode_normalization::UnicodeNormalization;
 use walkdir::WalkDir;
 
 use crate::control::JobControl;
-use crate::error::FileError;
+use crate::error::{FileError, IoFailure};
 use crate::hash::to_hex;
 use crate::job::{ActiveFile, Event, FileOutcome, FileStatus, JobReport, Phase, Progress};
 use crate::mirror::ARCHIVE_DIR;
@@ -23,10 +23,44 @@ use crate::verify::{CacheBypass, hash_from_device};
 /// Lines of a checksum file that couldn't be used: 1-based line number, and why.
 pub type BadLines = Vec<(usize, String)>;
 
+/// Why part of the directory can't be checked, for the app to say in the user's language
+/// (#84); `Display` is the English `reason`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProblemKind {
+    NotALine,
+    NotAChecksum {
+        hex: String,
+    },
+    PathUnreadable,
+    /// A checksum file or directory that couldn't be read; `None` for a directory loop.
+    Unreadable(Option<IoFailure>, String),
+    Outside {
+        path: PathBuf,
+    },
+}
+
+impl std::fmt::Display for ProblemKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProblemKind::NotALine => f.write_str("not a \"<checksum>  <path>\" line"),
+            ProblemKind::NotAChecksum { hex } => write!(f, "\"{hex}\" isn't an xxHash64 checksum"),
+            ProblemKind::PathUnreadable => f.write_str("the path can't be read"),
+            ProblemKind::Unreadable(_, why) => write!(f, "couldn't be read: {why}"),
+            ProblemKind::Outside { path } => {
+                write!(f, "{} points outside the checked directory", path.display())
+            }
+        }
+    }
+}
+
 /// Parses xxhsum/GNU lines, `<16 hex>  <path>`, with the coreutils escaping a leading `\`
 /// announces (`\\`, `\n`, `\r`). Returns the entries and the bad lines (1-based, why).
 pub fn parse(text: &str) -> (Vec<(PathBuf, u64)>, BadLines) {
     let (lines, bad) = parse_lines(text);
+    let bad = bad
+        .into_iter()
+        .map(|(line, kind)| (line, kind.to_string()))
+        .collect();
     (
         lines
             .into_iter()
@@ -37,7 +71,10 @@ pub fn parse(text: &str) -> (Vec<(PathBuf, u64)>, BadLines) {
 }
 
 /// `parse`, with each entry's 1-based line number.
-fn parse_lines(text: &str) -> (Vec<(usize, PathBuf, u64)>, BadLines) {
+/// Entries (line, path, hash) and bad lines (line, why).
+type Parsed = (Vec<(usize, PathBuf, u64)>, Vec<(usize, ProblemKind)>);
+
+fn parse_lines(text: &str) -> Parsed {
     let mut entries = Vec::new();
     let mut bad = Vec::new();
     for (i, line) in text.lines().enumerate() {
@@ -49,14 +86,19 @@ fn parse_lines(text: &str) -> (Vec<(usize, PathBuf, u64)>, BadLines) {
             None => (false, line),
         };
         let Some((hex, path)) = line.split_once("  ") else {
-            bad.push((i + 1, "not a \"<checksum>  <path>\" line".into()));
+            bad.push((i + 1, ProblemKind::NotALine));
             continue;
         };
         let hash = (hex.len() == 16 && hex.bytes().all(|b| b.is_ascii_hexdigit()))
             .then(|| u64::from_str_radix(hex, 16).ok())
             .flatten();
         let Some(hash) = hash else {
-            bad.push((i + 1, format!("\"{hex}\" isn't an xxHash64 checksum")));
+            bad.push((
+                i + 1,
+                ProblemKind::NotAChecksum {
+                    hex: hex.to_string(),
+                },
+            ));
             continue;
         };
         let path = if escaped {
@@ -66,7 +108,7 @@ fn parse_lines(text: &str) -> (Vec<(usize, PathBuf, u64)>, BadLines) {
         };
         match path {
             Some(path) if !path.is_empty() => entries.push((i + 1, PathBuf::from(path), hash)),
-            _ => bad.push((i + 1, "the path can't be read".into())),
+            _ => bad.push((i + 1, ProblemKind::PathUnreadable)),
         }
     }
     (entries, bad)
@@ -113,7 +155,20 @@ pub struct Problem {
     pub file: PathBuf,
     /// 1-based line in `file`; `None` when the whole file couldn't be read.
     pub line: Option<usize>,
+    /// In English, for reports and the CLI.
     pub reason: String,
+    pub kind: ProblemKind,
+}
+
+impl Problem {
+    fn new(file: PathBuf, line: Option<usize>, kind: ProblemKind) -> Problem {
+        Problem {
+            file,
+            line,
+            reason: kind.to_string(),
+            kind,
+        }
+    }
 }
 
 /// What a check reads, worked out before anything is read.
@@ -151,11 +206,13 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
                     .path()
                     .and_then(|p| p.strip_prefix(dir).ok())
                     .map(Path::to_path_buf);
-                problems.push(Problem {
-                    file: file.unwrap_or_default(),
-                    line: None,
-                    reason: format!("couldn't be read: {e}"),
-                });
+                let why = e.to_string();
+                let io = e.into_io_error().map(IoFailure::from);
+                problems.push(Problem::new(
+                    file.unwrap_or_default(),
+                    None,
+                    ProblemKind::Unreadable(io, why),
+                ));
                 continue;
             }
         };
@@ -184,31 +241,28 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
         let text = match fs::read_to_string(dir.join(sum)) {
             Ok(text) => text,
             Err(e) => {
-                problems.push(Problem {
-                    file: sum.clone(),
-                    line: None,
-                    reason: format!("couldn't be read: {e}"),
-                });
+                let why = e.to_string();
+                problems.push(Problem::new(
+                    sum.clone(),
+                    None,
+                    ProblemKind::Unreadable(Some(e.into()), why),
+                ));
                 continue;
             }
         };
         let (entries, bad) = parse_lines(&text);
-        for (line, reason) in bad {
-            problems.push(Problem {
-                file: sum.clone(),
-                line: Some(line),
-                reason,
-            });
+        for (line, kind) in bad {
+            problems.push(Problem::new(sum.clone(), Some(line), kind));
         }
         let base = sum.parent().unwrap_or(Path::new(""));
         for (line, path, expected) in entries {
             let rel = base.join(plain(&path));
             if !inside(&path) || through_a_link(dir, &rel) {
-                problems.push(Problem {
-                    file: sum.clone(),
-                    line: Some(line),
-                    reason: format!("{} points outside the checked directory", path.display()),
-                });
+                problems.push(Problem::new(
+                    sum.clone(),
+                    Some(line),
+                    ProblemKind::Outside { path: path.clone() },
+                ));
                 continue;
             }
             // Not through a link: a link's target is never read.
