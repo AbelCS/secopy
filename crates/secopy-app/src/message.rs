@@ -502,11 +502,11 @@ mod tests {
         let space = crate::msg!(
             "errors.blocker.notEnoughSpace",
             needed = Size(212_400_000_000),
-            free = Size(999)
+            available = Size(999)
         );
         assert_eq!(
             space.english(),
-            "Not enough free space: 212.4 GB needed, 999 B free"
+            "Not enough space: 212.4 GB needed, 999 B available"
         );
         let nested = crate::msg!(
             "errors.file.readSource",

@@ -84,6 +84,7 @@ pub struct DestinationView {
     pub copy_root: String,
     /// Stops the job (FR-16); Start stays disabled.
     pub blocker: Option<Message>,
+    /// Available, counting purgeable space, as Finder shows it (#108).
     #[specta(type = specta_typescript::Number)]
     pub free_bytes: u64,
     /// The destination's file system as a code: `apfs`, `hfs`, `exfat`, `fat32`, `ntfs`,
@@ -127,8 +128,10 @@ pub struct PlanView {
     pub files_to_write: u32,
     #[specta(type = specta_typescript::Number)]
     pub bytes_to_write: u64,
-    /// Not enough free space (FR-16).
+    /// Not enough space (FR-16).
     pub blocker: Option<Message>,
+    /// It fits only once macOS frees purgeable space: a warning, not a block (#108).
+    pub purgeable: Option<Message>,
 }
 
 /// Sent twice a second while a job runs (RFD §5.3, NFR-5).

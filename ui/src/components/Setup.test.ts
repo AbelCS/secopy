@@ -117,17 +117,35 @@ describe("Setup", () => {
   test("not enough space blocks Start", () => {
     setup(
       readyView({
-        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: raw("Not enough free space") },
+        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: raw("Not enough free space"), purgeable: null },
       }),
     );
     expect(screen.getByRole("alert").textContent).toBe("Not enough free space");
     expect(start()).toHaveProperty("disabled", true);
   });
 
+  test("a copy that needs purgeable space warns but doesn't block", () => {
+    setup(
+      readyView({
+        plan: {
+          filesToWrite: 1284,
+          bytesToWrite: 212_400_000_000,
+          blocker: null,
+          purgeable: raw("Needs purgeable space: 47.9 GB needed, 29.3 GB free now"),
+        },
+      }),
+    );
+    const warning = to().getByText(showing("Needs purgeable space: 47.9 GB needed, 29.3 GB free now"));
+    expect(hintOf(within(warning).getByRole("button", { name: "About purgeable space" }))).toContain(
+      "Time Machine local snapshots",
+    );
+    expect(start()).toHaveProperty("disabled", false);
+  });
+
   test("where the files go is shown even when Start is blocked", () => {
     setup(
       readyView({
-        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: raw("Not enough free space") },
+        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: raw("Not enough free space"), purgeable: null },
       }),
     );
     to().getByText("Files go to");

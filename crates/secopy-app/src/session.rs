@@ -567,7 +567,7 @@ impl Session {
                     .selection
                     .as_ref()
                     .expect("checked implies a selection");
-                view.free_bytes = pf.fs.free_bytes;
+                view.free_bytes = pf.fs.available_bytes;
                 (view.fs_kind, view.fs_name) = fs_code(&pf.fs.kind);
                 view.problems = pf
                     .file_problems
@@ -592,7 +592,7 @@ impl Session {
             // No source yet: show what the destination is, or why it can't be used.
             None => match fsinfo::fs_info(dest) {
                 Ok(info) => {
-                    view.free_bytes = info.free_bytes;
+                    view.free_bytes = info.available_bytes;
                     (view.fs_kind, view.fs_name) = fs_code(&info.kind);
                 }
                 Err(_) if !dest.is_dir() => {
@@ -627,6 +627,7 @@ fn plan_view(plan: &Plan) -> PlanView {
         files_to_write: count(plan.files.iter().filter(|f| f.action.writes()).count()),
         bytes_to_write: plan.bytes_to_write(),
         blocker: plan.blockers().first().map(say::blocker),
+        purgeable: plan.purgeable_needed().as_ref().map(say::purgeable),
     }
 }
 
@@ -1149,6 +1150,26 @@ mod tests {
         );
         assert!(view.plan.is_none());
         assert!(s.ready().is_none());
+    }
+
+    #[test]
+    fn a_copy_that_needs_purgeable_space_says_so() {
+        let f = fixture();
+        let mut s = Session::new();
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        s.set_destination(Some(f.dest.clone()));
+        let mut plan = s.plan.clone().expect("a plan");
+        let needed = plan.bytes_to_write() + secopy_core::plan::space_margin(plan.bytes_to_write());
+        plan.fs.free_bytes = needed - 1;
+        plan.fs.available_bytes = needed;
+        let view = plan_view(&plan);
+        assert!(view.blocker.is_none());
+        assert_eq!(
+            view.purgeable.map(|m| m.key),
+            Some("copy.preflight.purgeable".to_string())
+        );
+        plan.fs.free_bytes = needed;
+        assert!(plan_view(&plan).purgeable.is_none());
     }
 
     #[test]

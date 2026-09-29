@@ -8,6 +8,7 @@ use secopy_core::error::{FatalError, FileError, IoFailure};
 use secopy_core::fsinfo::NameLimit;
 use secopy_core::mirror::{Guard, NotRemoved, PlanError, RemovalError};
 use secopy_core::names::NameProblem;
+use secopy_core::plan::PurgeableNeeded;
 use secopy_core::preflight::Blocker;
 use secopy_core::scan::{DriveRoot, ScanProblem, ScanProblemKind};
 
@@ -111,14 +112,23 @@ pub fn blocker(b: &Blocker) -> Message {
             msg!("errors.blocker.destNotWritable", why = io_failure(io))
         }
         Blocker::DestInsideSource => msg!("errors.blocker.destInsideSource"),
-        Blocker::NotEnoughSpace { needed, free } => {
+        Blocker::NotEnoughSpace { needed, available } => {
             msg!(
                 "errors.blocker.notEnoughSpace",
                 needed = Size(*needed),
-                free = Size(*free)
+                available = Size(*available)
             )
         }
     }
+}
+
+/// The copy fits only once macOS frees purgeable space (#108).
+pub fn purgeable(p: &PurgeableNeeded) -> Message {
+    msg!(
+        "copy.preflight.purgeable",
+        needed = Size(p.needed),
+        free = Size(p.free)
+    )
 }
 
 /// Why something under a source couldn't be read (without its path).
@@ -387,9 +397,16 @@ mod tests {
         );
         let m = blocker(&Blocker::NotEnoughSpace {
             needed: 2_000,
-            free: 1_000,
+            available: 1_000,
         });
         assert_eq!(m.key, "errors.blocker.notEnoughSpace");
+        assert_eq!(m.args["needed"], Arg::Size { bytes: 2_000.0 });
+        assert_eq!(m.args["available"], Arg::Size { bytes: 1_000.0 });
+        let m = purgeable(&PurgeableNeeded {
+            needed: 2_000,
+            free: 1_000,
+        });
+        assert_eq!(m.key, "copy.preflight.purgeable");
         assert_eq!(m.args["needed"], Arg::Size { bytes: 2_000.0 });
         assert_eq!(m.args["free"], Arg::Size { bytes: 1_000.0 });
         let m = blocker(&Blocker::DestNotWritable(failure(

@@ -40,7 +40,12 @@ pub struct FsInfo {
     pub kind: FsKind,
     /// Probed by creating a file, not guessed from the kind.
     pub case_sensitive: bool,
+    /// Free now (`statvfs`).
     pub free_bytes: u64,
+    /// Free now plus the purgeable space (Time Machine local snapshots, caches) macOS frees
+    /// on demand: its figure for data the user asks to store, what Finder and Disk Utility
+    /// show. Never less than `free_bytes`.
+    pub available_bytes: u64,
     pub max_file_size: Option<u64>,
     pub name_limit: NameLimit,
     /// Identifies the volume; a change means it was unplugged or remounted (FR-21).
@@ -92,14 +97,23 @@ impl FsKind {
 /// removes a hidden file, so an error here also means `dir` is not writable.
 pub fn fs_info(dir: &Path) -> io::Result<FsInfo> {
     let kind = sys::fs_kind(dir)?;
+    let free_bytes = sys::free_bytes(dir)?;
     Ok(FsInfo {
         case_sensitive: probe_case_sensitive(dir)?,
-        free_bytes: sys::free_bytes(dir)?,
+        free_bytes,
+        available_bytes: available(free_bytes, sys::important_usage_bytes(dir)),
         max_file_size: kind.max_file_size(),
         name_limit: kind.name_limit(),
         device: device_id(dir)?,
         kind,
     })
+}
+
+/// The larger of the space free now and macOS's figure for important usage. That figure is 0
+/// on volumes outside the boot volume group (disk images, external drives), and space free
+/// now can always be written (#108).
+fn available(free: u64, important: Option<u64>) -> u64 {
+    important.map_or(free, |i| i.max(free))
 }
 
 /// Identifies the volume holding `path` (`st_dev`).
@@ -155,6 +169,31 @@ mod sys {
         Ok(u64::from(st.f_bavail) * st.f_frsize)
     }
 
+    /// `NSURLVolumeAvailableCapacityForImportantUsageKey`: Apple's figure for data stored at
+    /// the user's request. `None` when the lookup fails; 0 where the volume has no figure.
+    pub fn important_usage_bytes(dir: &Path) -> Option<u64> {
+        use objc2::rc::autoreleasepool;
+        use objc2_foundation::{
+            NSNumber, NSString, NSURL, NSURLVolumeAvailableCapacityForImportantUsageKey,
+        };
+
+        let path = dir.to_str()?;
+        autoreleasepool(|_| {
+            let url = NSURL::fileURLWithPath(&NSString::from_str(path));
+            let mut value = None;
+            // SAFETY: the key's value is an NSNumber, and `value` accepts any object.
+            unsafe {
+                url.getResourceValue_forKey_error(
+                    &mut value,
+                    NSURLVolumeAvailableCapacityForImportantUsageKey,
+                )
+            }
+            .ok()?;
+            let bytes = value?.downcast::<NSNumber>().ok()?.longLongValue();
+            u64::try_from(bytes).ok()
+        })
+    }
+
     pub fn device_id(path: &Path) -> io::Result<u64> {
         Ok(std::fs::metadata(path)?.dev())
     }
@@ -169,12 +208,29 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let info = fs_info(dir.path()).unwrap();
         assert!(info.free_bytes > 0);
+        assert!(info.available_bytes > 0);
         assert_eq!(info.device, device_id(dir.path()).unwrap());
         assert_eq!(
             fs::read_dir(dir.path()).unwrap().count(),
             0,
             "the probe file is removed"
         );
+    }
+
+    #[test]
+    fn macos_answers_for_important_usage_and_fails_for_a_missing_path() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(sys::important_usage_bytes(dir.path()).is_some());
+        assert_eq!(sys::important_usage_bytes(&dir.path().join("nope")), None);
+    }
+
+    #[test]
+    fn available_is_never_less_than_free_now() {
+        // Volumes outside the boot volume group (disk images, external drives) answer 0.
+        assert_eq!(available(500, Some(0)), 500);
+        assert_eq!(available(500, None), 500);
+        assert_eq!(available(500, Some(400)), 500);
+        assert_eq!(available(500, Some(9_000)), 9_000);
     }
 
     #[test]

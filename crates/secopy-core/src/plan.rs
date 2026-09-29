@@ -81,6 +81,13 @@ pub struct Plan {
     pub unread: Vec<ScanProblem>,
 }
 
+/// Space the job needs, and what is free now: the rest must come from purgeable space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PurgeableNeeded {
+    pub needed: u64,
+    pub free: u64,
+}
+
 /// Free space kept on top of the bytes to write: 1 % of them, at least 64 MiB.
 pub fn space_margin(bytes: u64) -> u64 {
     (bytes / 100).max(64 << 20)
@@ -158,18 +165,37 @@ impl Plan {
         self.files.iter().map(|f| f.entry.size).sum()
     }
 
+    /// Bytes the job needs free: the bytes to write and the margin. 0 when nothing is written.
+    fn space_needed(&self) -> u64 {
+        match self.bytes_to_write() {
+            0 => 0,
+            bytes => bytes.saturating_add(space_margin(bytes)),
+        }
+    }
+
     /// Problems that stop the job. Empty means Start can be enabled (FR-16).
     pub fn blockers(&self) -> Vec<Blocker> {
-        let bytes = self.bytes_to_write();
-        let needed = bytes.saturating_add(space_margin(bytes));
-        if bytes > 0 && needed > self.fs.free_bytes {
+        let needed = self.space_needed();
+        if needed > self.fs.available_bytes {
             vec![Blocker::NotEnoughSpace {
                 needed,
-                free: self.fs.free_bytes,
+                available: self.fs.available_bytes,
             }]
         } else {
             vec![]
         }
+    }
+
+    /// The job fits only if macOS frees purgeable space as it writes, which it doesn't always
+    /// do in time (#108): the job then stops with the disk full.
+    pub fn purgeable_needed(&self) -> Option<PurgeableNeeded> {
+        let needed = self.space_needed();
+        (needed > self.fs.free_bytes && needed <= self.fs.available_bytes).then_some(
+            PurgeableNeeded {
+                needed,
+                free: self.fs.free_bytes,
+            },
+        )
     }
 }
 

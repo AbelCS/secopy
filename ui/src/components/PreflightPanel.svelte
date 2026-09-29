@@ -5,6 +5,7 @@
   import { say } from "../lib/message";
   import type { ConflictPolicy, DestinationView, PlanView } from "../lib/bindings";
   import FormRow from "../lib/ui/FormRow.svelte";
+  import Hint from "../lib/ui/Hint.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import RadioGroup from "../lib/ui/RadioGroup.svelte";
 
@@ -33,6 +34,12 @@
   {#if destination.existingItems}
     <Notice tone="warning">
       {t("copy.preflight.notEmpty", { count: destination.existingItems })}
+    </Notice>
+  {/if}
+  {#if !blocker && plan?.purgeable}
+    <Notice tone="warning">
+      {say(plan.purgeable)}
+      <Hint label={t("copy.preflight.aboutPurgeable")} text={t("copy.preflight.purgeableHelp")} />
     </Notice>
   {/if}
 </FormRow>
