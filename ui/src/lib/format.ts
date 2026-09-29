@@ -6,6 +6,10 @@ import { locale, t } from "./i18n";
 const numbers = (min = 0, max = 0) =>
   new Intl.NumberFormat(locale(), { minimumFractionDigits: min, maximumFractionDigits: max });
 
+/** One decimal, rounded as `toFixed(1)` always did (1.15 → 1.1; Intl would say 1.2), in the
+ *  language's separators. */
+const oneDecimal = (value: number) => numbers(1, 1).format(Number(value.toFixed(1)));
+
 /** 1284 → "1,284" */
 export function formatCount(n: number): string {
   return numbers().format(n);
@@ -28,7 +32,7 @@ export function formatBytes(n: number): string {
     value /= 1000;
     unit += 1;
   }
-  const figure = unit === 0 ? numbers().format(n) : numbers(1, 1).format(value);
+  const figure = unit === 0 ? numbers().format(n) : oneDecimal(value);
   return t(UNITS[unit], { value: figure });
 }
 
@@ -52,7 +56,7 @@ export function formatDuration(ms: number | null): string {
 /** done/total → "69.8 %"; an empty total counts as complete. */
 export function formatPercent(done: number, total: number): string {
   const p = total === 0 ? 100 : (done * 100) / total;
-  return t("format.percent", { value: numbers(1, 1).format(p) });
+  return t("format.percent", { value: oneDecimal(p) });
 }
 
 /** The message of something thrown: the app's commands throw Errors with its words. */

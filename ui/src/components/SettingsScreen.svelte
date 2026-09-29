@@ -33,6 +33,8 @@
   } = $props();
 
   const api = useApi();
+  // File names and a command: shown as they are, in mono, inside the translated help.
+  const CODE = { file: "secopy_….xxh64", command: "xxhsum -c", a: ".DS_Store", b: "._*", c: "Thumbs.db" };
   // The screen is recreated each time it opens, so the draft starts from the saved settings.
   // svelte-ignore state_referenced_locally
   let draft: Settings = $state({ ...settings });
@@ -79,7 +81,7 @@
         onChange={(on) => (draft.writeChecksumFile = on)}
       >
         {#snippet help()}
-          {@render withCode(tParts("settings.checksumFile.help", { file: "secopy_….xxh64", command: "xxhsum -c" }))}
+          {@render withCode(tParts("settings.checksumFile.help", CODE))}
         {/snippet}
       </Checkbox>
       <Checkbox
@@ -88,7 +90,7 @@
         onChange={(on) => (draft.showSystemCount = on)}
       >
         {#snippet help()}
-          {@render withCode(tParts("settings.systemCount.help", { a: ".DS_Store", b: "._*", c: "Thumbs.db" }))}
+          {@render withCode(tParts("settings.systemCount.help", CODE))}
         {/snippet}
       </Checkbox>
       <Checkbox
