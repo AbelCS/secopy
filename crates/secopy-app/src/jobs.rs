@@ -985,19 +985,7 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
     let archive_not_deleted = done
         .archive_deleted
         .as_ref()
-        .filter(|a| a.remaining > 0)
-        .map(|a| {
-            let why = a
-                .error
-                .as_ref()
-                .map_or_else(say::internal, |(_, e)| say::io_failure(e));
-            msg!(
-                "mirror.archiveNotDeleted",
-                count = a.remaining,
-                why = why,
-                days = m.archive_days,
-            )
-        });
+        .and_then(|a| say::archive_not_deleted(a, m.archive_days));
     MirrorSummaryView {
         archive_not_deleted,
         new: count(done_as(true)),

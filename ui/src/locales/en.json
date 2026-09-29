@@ -919,7 +919,8 @@
         "one": "Deleted {count} archived file.",
         "other": "Deleted {count} archived files."
       }
-    }
+    },
+    "archiveNotDeletedAll": "The archive couldn't be deleted ({why}). What's in it is removed once it's {days} days old."
   },
   "menubar": {
     "removing": "Removing files…",

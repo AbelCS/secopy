@@ -750,7 +750,7 @@ impl AppState {
                     verify: job.verify,
                     settings,
                 };
-                let ran = self.start_and_wait(work, started, sink);
+                let ran = self.start_and_wait(work, started, sink, None);
                 if ran.2.is_some() {
                     self.remember(|r| r.used_destination(&show(&job.destination)));
                 }
@@ -783,19 +783,13 @@ impl AppState {
                 if let Some(guard) = &job.plan.guard {
                     return (QueueResult::Failed, Some(say::guard(guard)), None);
                 }
-                let mut settings = JobSettings::for_mirror(&job, chrono::Local::now());
-                // A cancel before this job's turn keeps the deletion for the next run.
-                if !lock(&self.queue_run).cancelled
-                    && let Some(m) = settings.mirror.as_mut()
-                {
-                    m.archive_deleted = self.pending_archive_deletion(&preset.id);
-                }
+                let settings = JobSettings::for_mirror(&job, chrono::Local::now());
                 let work = Work::Copy {
                     ready: Box::new(job.ready()),
                     verify: true,
                     settings,
                 };
-                self.start_and_wait(work, started, sink)
+                self.start_and_wait(work, started, sink, Some(&preset.id))
             }
             QueuedJob::Check { directory } => {
                 let plan = match plan_check(directory) {
@@ -805,7 +799,7 @@ impl AppState {
                 if plan.files.is_empty() {
                     return (QueueResult::Failed, Some(nothing_to_verify()), None);
                 }
-                self.start_and_wait(Work::Check(Arc::new(plan)), started, sink)
+                self.start_and_wait(Work::Check(Arc::new(plan)), started, sink, None)
             }
             QueuedJob::Unknown(_) => (QueueResult::Failed, Some(msg!("queue.reason.newer")), None),
         }
@@ -813,11 +807,14 @@ impl AppState {
 
     /// Starts a queued job unless the queue was cancelled while it was being checked, waits
     /// for it, and says how it ended.
+    /// `mirror`: the preset of a mirror job, whose pending archive deletion (#101) happens
+    /// here, after the cancel check and under its lock: a cancelled job deletes nothing.
     fn start_and_wait(
         &self,
-        work: Work,
+        mut work: Work,
         started: QueueEvent,
         sink: &impl QueueSink,
+        mirror: Option<&str>,
     ) -> (QueueResult, Option<Message>, Option<JobHandle>) {
         {
             // A cancel during the checks stops the job before it starts: the check and the
@@ -829,6 +826,11 @@ impl AppState {
                     Some(msg!("queue.reason.cancelled")),
                     None,
                 );
+            }
+            if let (Some(id), Work::Copy { settings, .. }) = (mirror, &mut work)
+                && let Some(m) = settings.mirror.as_mut()
+            {
+                m.archive_deleted = self.pending_archive_deletion(id);
             }
             // The checks passed: the window shows this job's Copying screen from here.
             sink.send(started);
@@ -1269,18 +1271,7 @@ impl AppState {
         drop(run);
         Ok(ArchiveDeletedView {
             removed: count(done.removed),
-            not_deleted: (done.remaining > 0).then(|| {
-                let why = done
-                    .error
-                    .as_ref()
-                    .map_or_else(say::internal, |(_, e)| say::io_failure(e));
-                msg!(
-                    "mirror.archiveNotDeleted",
-                    count = done.remaining,
-                    why = why,
-                    days = preset.deleted.days,
-                )
-            }),
+            not_deleted: crate::say::archive_not_deleted(&done, preset.deleted.days),
         })
     }
 
@@ -1301,11 +1292,13 @@ impl AppState {
     /// for the destination it was asked for, and once. The preset is saved without it first,
     /// so a save that fails deletes nothing and it stays pending.
     fn pending_archive_deletion(&self, id: &str) -> Option<secopy_core::mirror::ArchiveDeleted> {
-        let preset = lock(&self.mirrors).get(id).cloned()?;
-        let path = preset.clear_archive?;
+        // Taken in one step with the save, so an edit can't slip between reading and clearing.
+        let mut target = None;
         let saved = self.change_mirrors(|m| {
-            if let Some(p) = m.presets.iter_mut().find(|p| p.id == id) {
-                p.clear_archive = None;
+            if let Some(p) = m.presets.iter_mut().find(|p| p.id == id)
+                && let Some(path) = p.clear_archive.take()
+            {
+                target = (path == p.destination).then_some(path);
             }
             Ok(())
         });
@@ -1313,7 +1306,7 @@ impl AppState {
             eprintln!("Secopy: the archive wasn't deleted: couldn't save {MIRRORS}: {e:?}");
             return None;
         }
-        (path == preset.destination).then(|| secopy_core::mirror::delete_archive(Path::new(&path)))
+        target.map(|path| secopy_core::mirror::delete_archive(Path::new(&path)))
     }
 
     /// Works out what the preset would do now and keeps it for the preview's Start (FR-47).
@@ -1413,7 +1406,9 @@ impl AppState {
     /// Start on the preview: the previewed plan, through the job runner (FR-47).
     /// Runs the preview of preset `id`, as it was previewed; a preview runs once.
     pub fn run_mirror(&self, id: &str, sink: impl ProgressSink) -> Result<(), Message> {
-        if lock(&self.queue_run).running {
+        // Held to the start, so the queue can't start between the archive deletion and the job.
+        let run = lock(&self.queue_run);
+        if run.running {
             return Err(msg!("errors.queue.busy"));
         }
         let mut preview = lock(&self.preview);
@@ -1434,6 +1429,7 @@ impl AppState {
         }
         self.jobs.start(job.ready(), true, settings, sink)?;
         *preview = None;
+        drop(run);
         Ok(())
     }
 
@@ -3094,6 +3090,45 @@ mod tests {
         fs::set_permissions(&data, fs::Permissions::from_mode(0o755)).unwrap();
         assert!(run.exists());
         assert_eq!(state.mirror_presets()[0].clear_archive, Some(show(&d)));
+    }
+
+    /// Review of #101: an archive that can't be read fails the run too, saying why.
+    #[test]
+    fn an_archive_that_cant_be_read_fails_the_run() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        state.clear_mirror_archive_next_run(&id).unwrap();
+        archived(&d);
+        let root = d.join(secopy_core::mirror::ARCHIVE_DIR);
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o000)).unwrap();
+        state.preview_mirror(&id, &|_, _| {}).unwrap();
+        state.run_mirror(&id, Sink::default()).unwrap();
+        state.jobs.wait();
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o755)).unwrap();
+        let s = state.jobs.summary().unwrap();
+        assert_eq!(s.outcome, JobOutcome::Failures);
+        assert_eq!(
+            s.mirror.unwrap().archive_not_deleted.unwrap(),
+            "The archive couldn't be deleted (Permission denied). What's in it is removed once it's 30 days old."
+        );
+    }
+
+    /// Review of #101: a queued mirror deletes its pending archive as its job starts.
+    #[test]
+    fn a_queued_mirror_deletes_its_pending_archive_as_it_starts() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        fs::remove_file(d.join("x.mov")).unwrap();
+        fs::remove_file(d.join("y.mov")).unwrap();
+        fs::remove_file(d.join("z.mov")).unwrap();
+        state.clear_mirror_archive_next_run(&id).unwrap();
+        let run = archived(&d);
+        state.add_mirror_to_queue(&id).unwrap();
+        let summary = state.run_queue(Events::default()).unwrap();
+        assert_eq!(summary.results[0].result, QueueResult::Complete);
+        assert!(!run.exists());
+        assert_eq!(state.mirror_presets()[0].clear_archive, None);
     }
 
     /// Review of #101: archived files that couldn't be deleted make the run a failure.

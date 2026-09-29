@@ -224,6 +224,35 @@ pub fn removal(e: &RemovalError) -> Message {
     }
 }
 
+/// What an archive deletion left behind (#101), and when it goes instead; `None` when it all
+/// went. An archive that couldn't be read says so without a count.
+pub fn archive_not_deleted(
+    done: &secopy_core::mirror::ArchiveDeleted,
+    days: u32,
+) -> Option<Message> {
+    let why = || {
+        done.error
+            .as_ref()
+            .map_or_else(internal, |(_, e)| io_failure(e))
+    };
+    if done.remaining > 0 {
+        Some(msg!(
+            "mirror.archiveNotDeleted",
+            count = done.remaining,
+            why = why(),
+            days = days,
+        ))
+    } else if done.error.is_some() {
+        Some(msg!(
+            "mirror.archiveNotDeletedAll",
+            why = why(),
+            days = days
+        ))
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
