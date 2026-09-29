@@ -63,7 +63,8 @@ struct Args {
     /// With --mirror: delete files gone from the source instead of archiving them.
     #[arg(long, requires = "mirror")]
     delete: bool,
-    /// With --mirror: days to keep archived files.
+    /// With --mirror: days to keep archived files. Each run first removes archived files older
+    /// than this, with --delete too.
     #[arg(long, requires = "mirror", default_value_t = 30, value_name = "N")]
     archive_days: u32,
     /// With --mirror: also compare the contents of files whose size and date match.
@@ -261,11 +262,10 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
         return Err(format!("{guard} Not mirroring: that looks wrong."));
     }
     let now = Local::now();
+    // Archived files older than --archive-days go first, with --delete too (#101).
+    mirror::clean_archives(args.to(), args.archive_days, now);
     let archive = match deleted {
-        Deleted::Archive { days } => {
-            mirror::clean_archives(args.to(), days, now);
-            Some(mirror::archive_dir(args.to(), now))
-        }
+        Deleted::Archive { .. } => Some(mirror::archive_dir(args.to(), now)),
         Deleted::Delete => None,
     };
     let opts = JobOptions {

@@ -113,6 +113,15 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
   verified; a changed file is replaced only once its new copy is verified. Files deleted in
   the origin are archived into the destination's hidden `.secopy-archive` directory (or
   deleted) **only after every copy succeeded**: a failed or cancelled run removes nothing.
+- **How long archived files are kept:** at the start of every run, Secopy removes archived
+  files older than the preset's days, counted from when they were archived. Changing the days
+  applies to everything already archived: make them shorter and the next run removes the files
+  now past them (the editor says so); make them longer and what's still there is kept longer.
+- **Switching from Archive to Delete** asks what to do with what's already archived: **Delete
+  them now**, or **Keep them** for the preset's days (runs keep removing them when due). If
+  the destination isn't connected, or a job is running, you can choose **Delete it at the next
+  run** instead: the next run deletes the archive before copying anything. Files that can't be
+  deleted are listed, and go when they're due.
 - If a run looks wrong (the origin is empty, can't be fully read, or more than half of the
   backup would be removed), Secopy asks first; in the queue, such a run doesn't start.
 - The destination keeps a checksum file of its own, `.secopy-checksums.xxh64`, so the backup

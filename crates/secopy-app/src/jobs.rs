@@ -63,6 +63,10 @@ pub struct MirrorRun {
     pub plan: Arc<MirrorPlan>,
     /// This run's archive directory (archive mode); `None` deletes.
     pub archive: Option<PathBuf>,
+    /// Archived files older than this many days go first, in either mode (#101).
+    pub archive_days: u32,
+    /// The whole archive of this destination goes first (#101).
+    pub clear_archive: Option<PathBuf>,
 }
 
 impl JobSettings {
@@ -78,6 +82,8 @@ impl JobSettings {
             mirror: Some(MirrorRun {
                 plan: job.plan.clone(),
                 archive,
+                archive_days: job.archive_days,
+                clear_archive: job.clear_archive.clone(),
             }),
         }
     }
@@ -149,6 +155,8 @@ struct Done {
     /// Why a mirror's own checksum file couldn't be written (the report has it too, with
     /// "the mirror's checksum file:" before it).
     mirror_checksum_error: Option<secopy_core::error::IoFailure>,
+    /// What deleting the whole archive did, when the user asked for it (#101).
+    archive_deleted: Option<mirror::ArchiveDeleted>,
     /// A mirror's removals, or why nothing was removed (plan 7).
     removals: Option<Result<mirror::Finished, mirror::NotRemoved>>,
     /// What a cancel with "Also remove the files already copied" removed (#54).
@@ -640,6 +648,7 @@ impl Job {
             report_file: Err(no_report()),
             next_to_error: None,
             mirror_checksum_error: None,
+            archive_deleted: None,
             removals: None,
             undone: None,
             check,
@@ -693,6 +702,7 @@ impl Job {
             report_file: Err(no_report()),
             next_to_error: None,
             mirror_checksum_error: None,
+            archive_deleted: None,
             report: checked.job.clone(),
             removals: None,
             undone: None,
@@ -710,11 +720,14 @@ impl Job {
     fn run_copy(&self, ready: &Ready, sink: &impl ProgressSink, reports_dir: &Path) {
         let settings = self.settings().expect("a copy has settings");
         let mirroring = settings.mirror.as_ref();
-        // Archive runs older than the preset keeps them go first (FR-49).
-        if let Some(m) = mirroring
-            && let Deleted::Archive { days } = m.plan.options.deleted
-        {
-            mirror::clean_archives(&m.plan.copy.dest, days, Local::now());
+        // First the archive: all of it when the user asked (#101), then the runs older than the
+        // preset keeps them (FR-49), in Delete mode too: archived before a switch, they still go.
+        let mut archive_deleted = None;
+        if let Some(m) = mirroring {
+            if let Some(path) = &m.clear_archive {
+                archive_deleted = Some(mirror::delete_archive(path));
+            }
+            mirror::clean_archives(&m.plan.copy.dest, m.archive_days, Local::now());
         }
         let opts = JobOptions {
             verify: self.verify(),
@@ -781,6 +794,7 @@ impl Job {
             report_file: Err(no_report()),
             next_to_error: None,
             mirror_checksum_error: None,
+            archive_deleted: None,
             report,
             removals,
             undone,
@@ -788,6 +802,7 @@ impl Job {
             panicked: false,
         };
         done.mirror_checksum_error = mirror_checksum;
+        done.archive_deleted = archive_deleted;
         done.report_file = self.save(&done, reports_dir);
         if settings.report_next_to_checksum
             && let Some(checksum) = &done.report.checksum_file
@@ -967,7 +982,20 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
         Some(Err(why)) => (0, Vec::new(), Some(say::not_removed(why))),
         None => (0, Vec::new(), None),
     };
+    let archive_not_deleted = done
+        .archive_deleted
+        .as_ref()
+        .and_then(|a| a.failed.first().map(|(_, why)| (a.failed.len(), why)))
+        .map(|(n, why)| {
+            msg!(
+                "mirror.archiveNotDeleted",
+                count = n,
+                why = say::io_failure(why),
+                days = m.archive_days,
+            )
+        });
     MirrorSummaryView {
+        archive_not_deleted,
         new: count(done_as(true)),
         updated: count(done_as(false)),
         removed: count(removed),
@@ -1615,7 +1643,85 @@ mod tests {
             destination: show(d),
             deleted: crate::store::DeletedFiles { mode, days: 30 },
             deep_check: false,
+            clear_archive: None,
         }
+    }
+
+    /// Runs `preset` as a mirror job to its end.
+    fn run_mirror(dir: &Path, preset: &crate::store::MirrorPreset) -> SummaryView {
+        let job = crate::mirrors::prepare(preset, &JobControl::new(), &|_, _| {}).unwrap();
+        let jobs = Jobs::new(dir.join("reports"));
+        jobs.start(
+            job.ready(),
+            true,
+            JobSettings::for_mirror(&job, Local::now()),
+            Collect::default(),
+        )
+        .unwrap();
+        jobs.wait();
+        jobs.summary().unwrap()
+    }
+
+    /// An archive run directory `days_ago` old, holding one file.
+    fn archive_run(d: &Path, days_ago: i64) -> std::path::PathBuf {
+        let run = mirror::archive_dir(d, Local::now() - chrono::Duration::days(days_ago));
+        std::fs::create_dir_all(&run).unwrap();
+        std::fs::write(run.join("old.mov"), b"o").unwrap();
+        run
+    }
+
+    /// #101: after switching to Delete, archived files still go once they reach the preset's days.
+    #[test]
+    fn a_mirror_in_delete_mode_still_removes_expired_archives() {
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        std::fs::create_dir_all(&o).unwrap();
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(o.join("a.mov"), b"a").unwrap();
+        let (expired, young) = (archive_run(&d, 40), archive_run(&d, 2));
+        run_mirror(
+            dir.path(),
+            &preset(&o, &d, crate::store::DeletedMode::Delete),
+        );
+        assert!(!expired.exists(), "older than the preset's 30 days");
+        assert!(young.exists());
+    }
+
+    /// #101: "delete it at the next run" deletes the whole archive when the run starts.
+    #[test]
+    fn a_pending_archive_deletion_happens_when_the_run_starts() {
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        std::fs::create_dir_all(&o).unwrap();
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(o.join("a.mov"), b"a").unwrap();
+        archive_run(&d, 2);
+        let mut p = preset(&o, &d, crate::store::DeletedMode::Delete);
+        p.clear_archive = Some(show(&d));
+        let s = run_mirror(dir.path(), &p);
+        assert!(!d.join(mirror::ARCHIVE_DIR).exists());
+        assert!(s.mirror.unwrap().archive_not_deleted.is_none());
+    }
+
+    /// #101: archived files that can't be deleted are said, with when they go instead.
+    #[test]
+    fn archived_files_that_cant_be_deleted_are_said() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        std::fs::create_dir_all(&o).unwrap();
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(o.join("a.mov"), b"a").unwrap();
+        let run = archive_run(&d, 2);
+        std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let mut p = preset(&o, &d, crate::store::DeletedMode::Delete);
+        p.clear_archive = Some(show(&d));
+        let s = run_mirror(dir.path(), &p);
+        std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            s.mirror.unwrap().archive_not_deleted.unwrap(),
+            "1 archived file couldn't be deleted (Permission denied). It's removed once it's 30 days old."
+        );
     }
 
     #[test]

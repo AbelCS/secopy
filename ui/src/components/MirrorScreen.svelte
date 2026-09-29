@@ -2,14 +2,15 @@
   // Mirror presets (RFD §5.8, FR-44): the list on the left, the selected one on the right.
   // A saved preset is previewed (then run) or added to the queue; an edited one is saved first.
   import { t } from "../lib/i18n";
-  import { AppError } from "../lib/message";
+  import { AppError, say } from "../lib/message";
   import type { Snippet } from "svelte";
   import { useApi } from "../lib/api";
-  import type { MirrorPreset, MirrorPresetInput, MirrorPreviewView, QueueView } from "../lib/bindings";
+  import type { ArchiveView, MirrorPreset, MirrorPresetInput, MirrorPreviewView, QueueView } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
-  import { messageOf } from "../lib/format";
+  import { formatBytes, messageOf } from "../lib/format";
   import Button from "../lib/ui/Button.svelte";
+  import Dialog from "../lib/ui/Dialog.svelte";
   import EmptyState from "../lib/ui/EmptyState.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
@@ -93,6 +94,19 @@
     selectedId = id;
   }
 
+  /** Switching to Delete: what to do with what's already archived (#101). */
+  type ArchiveChoice = "now" | "nextRun" | "keep" | "cancel";
+  let asked: { archive: ArchiveView; days: number; answer: (c: ArchiveChoice) => void } | null = $state(null);
+
+  function askAboutArchive(archive: ArchiveView, days: number): Promise<ArchiveChoice> {
+    return new Promise((answer) => (asked = { archive, days, answer }));
+  }
+
+  function answer(choice: ArchiveChoice) {
+    asked?.answer(choice);
+    asked = null;
+  }
+
   async function save(input: MirrorPresetInput) {
     if (selectedId === NEW) {
       const list = await api.createMirrorPreset(input);
@@ -100,7 +114,21 @@
       const name = input.name.trim().toLowerCase();
       selectedId = list.find((p) => p.name.toLowerCase() === name)?.id ?? null;
     } else if (selected) {
-      onPresets(await api.editMirrorPreset(selected.id, input));
+      const preset = selected;
+      let choice: ArchiveChoice = "keep";
+      if (preset.deleted.mode === "archive" && input.deleted.mode === "delete") {
+        const archive = await api.mirrorArchive(preset.id);
+        if (archive.state !== "empty") choice = await askAboutArchive(archive, preset.deleted.days);
+      }
+      if (choice === "cancel") return;
+      // The archive of the destination saved so far: deleted before the preset changes.
+      const deleted = choice === "now" ? await api.deleteMirrorArchive(preset.id) : null;
+      onPresets(await api.editMirrorPreset(preset.id, input));
+      if (choice === "nextRun") onPresets(await api.clearMirrorArchiveNextRun(preset.id));
+      if (deleted) {
+        said = t("mirror.archive.deleted", { count: deleted.removed });
+        error = deleted.notDeleted ? say(deleted.notDeleted) : null;
+      }
     }
   }
 
@@ -262,6 +290,29 @@
     </ActionBar>
   {/snippet}
 </AppShell>
+
+{#if asked}
+  {@const q = asked}
+  <Dialog title={t("mirror.switch.title")} onClose={() => answer("cancel")}>
+    <p>
+      {q.archive.state === "files"
+        ? t("mirror.switch.files", { count: q.archive.files, size: formatBytes(q.archive.bytes) })
+        : q.archive.state === "busy"
+          ? t("mirror.switch.busy")
+          : t("mirror.switch.unavailable")}
+    </p>
+    {#snippet actions()}
+      <Button data-autofocus onclick={() => answer("cancel")}>{t("ui.cancel")}</Button>
+      {#if q.archive.state === "files"}
+        <Button onclick={() => answer("keep")}>{t("mirror.switch.keep", { count: q.days })}</Button>
+        <Button variant="danger" onclick={() => answer("now")}>{t("mirror.switch.deleteNow")}</Button>
+      {:else}
+        <Button onclick={() => answer("keep")}>{t("mirror.switch.keepArchived", { count: q.days })}</Button>
+        <Button variant="danger" onclick={() => answer("nextRun")}>{t("mirror.switch.deleteNextRun")}</Button>
+      {/if}
+    {/snippet}
+  </Dialog>
+{/if}
 
 <style>
   .panes {

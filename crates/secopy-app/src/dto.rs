@@ -477,6 +477,36 @@ pub struct MirrorSummaryView {
     pub removal_failures: Vec<FinishedRow>,
     /// Why nothing was removed: the copy phase failed or was cancelled.
     pub nothing_removed: Option<Message>,
+    /// Archived files the user asked to delete that couldn't be (#101), and when they go.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(optional)]
+    pub archive_not_deleted: Option<Message>,
+}
+
+/// What a mirror's archive holds, asked before switching it to Delete (#101).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(tag = "state", rename_all = "camelCase")]
+pub enum ArchiveView {
+    /// No archive, or nothing in it.
+    Empty,
+    Files {
+        files: u32,
+        #[specta(type = specta_typescript::Number)]
+        bytes: u64,
+    },
+    /// The destination isn't connected (or can't be read).
+    Unavailable,
+    /// A job or the queue runs: the archive isn't touched now.
+    Busy,
+}
+
+/// What "Delete them now" did (#101).
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveDeletedView {
+    pub removed: u32,
+    /// Archived files that couldn't be deleted, and when they go instead.
+    pub not_deleted: Option<Message>,
 }
 
 /// How far a preview's deep check is: files compared, of how many (#57).

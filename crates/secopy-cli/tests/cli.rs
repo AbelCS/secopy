@@ -293,3 +293,30 @@ fn check_with_nothing_to_verify_fails() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stdout).contains("nothing to verify"));
 }
+
+/// #101: with --delete, archived files from earlier runs still go once older than
+/// --archive-days, as in the app.
+#[test]
+fn a_mirror_with_delete_still_removes_expired_archives() {
+    let dir = tempfile::tempdir().unwrap();
+    let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+    fs::create_dir_all(&o).unwrap();
+    fs::create_dir_all(&d).unwrap();
+    fs::write(o.join("a.mov"), b"a").unwrap();
+    let old =
+        secopy_core::mirror::archive_dir(&d, chrono::Local::now() - chrono::Duration::days(40));
+    fs::create_dir_all(&old).unwrap();
+    fs::write(old.join("gone.mov"), b"g").unwrap();
+    let run = cli()
+        .args(["--mirror", "--delete", "--to"])
+        .arg(&d)
+        .arg(&o)
+        .output()
+        .unwrap();
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(!old.exists(), "older than the default 30 days");
+}

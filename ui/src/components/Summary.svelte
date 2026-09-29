@@ -81,6 +81,9 @@
     {/if}
     <!-- After removing the copies, "left in the destination" would only confuse. -->
     {#if summary.mirror?.nothingRemoved && !summary.undone}<Notice tone="danger">{say(summary.mirror.nothingRemoved)}</Notice>{/if}
+    {#if summary.mirror?.archiveNotDeleted}
+      <Notice tone="warning">{say(summary.mirror.archiveNotDeleted)}</Notice>
+    {/if}
     {#if summary.checksumOff && !summary.mirror && !summary.check}<p class="muted">{t("summary.noChecksumFile")}</p>{/if}
     {#if summary.checksumError}
       <Notice tone="danger">{t("summary.checksumError", { why: say(summary.checksumError) })}</Notice>

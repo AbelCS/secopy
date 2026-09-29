@@ -14,13 +14,13 @@ use crate::say;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 
+use crate::dto::{ArchiveDeletedView, ArchiveView, ExportWhat, ImportDone};
 use crate::dto::{CheckView, ComparedView, MirrorPreviewView, PreviewKind, PreviewRow, count};
 use crate::dto::{
     ConflictPolicy, CopyPresetsView, ExtensionKey, FinishedRow, JobOutcome, ProgressView,
     QueueEvent, QueueResult, QueueResultView, QueueSummaryView, QueueView, QueuedJobView,
     SessionView, StartView, SummaryView, show,
 };
-use crate::dto::{ExportWhat, ImportDone};
 use crate::jobs::{JobHandle, JobSettings, Jobs, ProgressSink, Work};
 use crate::mirrors::MirrorJob;
 use crate::queue::{Entry, OnFailure, QUEUE, Queue, QueuedJob};
@@ -789,7 +789,11 @@ impl AppState {
                     verify: true,
                     settings,
                 };
-                self.start_and_wait(work, started, sink)
+                let ran = self.start_and_wait(work, started, sink);
+                if ran.2.is_some() && job.clear_archive.is_some() {
+                    self.archive_deletion_started(&preset.id);
+                }
+                ran
             }
             QueuedJob::Check { directory } => {
                 let plan = match plan_check(directory) {
@@ -1215,6 +1219,84 @@ impl AppState {
         })
     }
 
+    /// What mirror `id`'s archive holds now (#101): asked before it's switched to Delete.
+    pub fn mirror_archive(&self, id: &str) -> Result<ArchiveView, Message> {
+        let preset = lock(&self.mirrors)
+            .get(id)
+            .cloned()
+            .ok_or_else(preset_gone)?;
+        if self.busy() {
+            return Ok(ArchiveView::Busy);
+        }
+        Ok(
+            match secopy_core::mirror::archive_summary(Path::new(&preset.destination)) {
+                Err(_) => ArchiveView::Unavailable,
+                Ok(None) => ArchiveView::Empty,
+                Ok(Some(s)) => ArchiveView::Files {
+                    files: count(s.files),
+                    bytes: s.bytes,
+                },
+            },
+        )
+    }
+
+    /// "Delete them now" (#101): the whole archive of mirror `id`'s destination; never while a
+    /// job or the queue runs. What can't be deleted goes once it reaches the preset's days.
+    pub fn delete_mirror_archive(&self, id: &str) -> Result<ArchiveDeletedView, Message> {
+        let preset = lock(&self.mirrors)
+            .get(id)
+            .cloned()
+            .ok_or_else(preset_gone)?;
+        // Held throughout, so the queue can't start in the middle (`claim_queue_run`).
+        let run = lock(&self.queue_run);
+        if run.running || self.jobs.is_running() {
+            return Err(msg!("errors.mirror.archiveBusy"));
+        }
+        let destination = Path::new(&preset.destination);
+        if !destination.is_dir() {
+            return Err(crate::session::gone(destination));
+        }
+        let done = secopy_core::mirror::delete_archive(destination);
+        drop(run);
+        Ok(ArchiveDeletedView {
+            removed: count(done.removed),
+            not_deleted: done.failed.first().map(|(_, why)| {
+                msg!(
+                    "mirror.archiveNotDeleted",
+                    count = done.failed.len(),
+                    why = say::io_failure(why),
+                    days = preset.deleted.days,
+                )
+            }),
+        })
+    }
+
+    /// "Delete it at the next run" (#101): kept with the destination it applies to.
+    pub fn clear_mirror_archive_next_run(&self, id: &str) -> Result<Vec<MirrorPreset>, Message> {
+        self.change_mirrors(|m| {
+            let p = m
+                .presets
+                .iter_mut()
+                .find(|p| p.id == id)
+                .ok_or_else(preset_gone)?;
+            p.clear_archive = Some(p.destination.clone());
+            Ok(())
+        })
+    }
+
+    /// A run started with the archive deletion it was asked for: it's done once (#101).
+    fn archive_deletion_started(&self, id: &str) {
+        let cleared = self.change_mirrors(|m| {
+            if let Some(p) = m.presets.iter_mut().find(|p| p.id == id) {
+                p.clear_archive = None;
+            }
+            Ok(())
+        });
+        if let Err(e) = cleared {
+            eprintln!("Secopy: couldn't save {MIRRORS}: {e:?}");
+        }
+    }
+
     /// Works out what the preset would do now and keeps it for the preview's Start (FR-47).
     pub fn preview_mirror(
         &self,
@@ -1327,6 +1409,10 @@ impl AppState {
         let settings = JobSettings::for_mirror(&job, chrono::Local::now());
         self.jobs.start(job.ready(), true, settings, sink)?;
         *preview = None;
+        drop(preview);
+        if job.clear_archive.is_some() {
+            self.archive_deletion_started(id);
+        }
         Ok(())
     }
 
@@ -1499,6 +1585,33 @@ pub async fn queue_save_report(app: AppHandle, index: u32, path: String) -> Resu
 #[specta::specta]
 pub async fn mirror_presets(app: AppHandle) -> Result<Vec<MirrorPreset>, Message> {
     blocking(app, |state| state.mirror_presets()).await
+}
+
+/// What a mirror's archive holds (#101).
+#[tauri::command]
+#[specta::specta]
+pub async fn mirror_archive(app: AppHandle, id: String) -> Result<ArchiveView, Message> {
+    blocking(app, move |state| state.mirror_archive(&id)).await?
+}
+
+/// Deletes a mirror's archive now (#101).
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_mirror_archive(
+    app: AppHandle,
+    id: String,
+) -> Result<ArchiveDeletedView, Message> {
+    blocking(app, move |state| state.delete_mirror_archive(&id)).await?
+}
+
+/// Deletes a mirror's archive at its next run (#101).
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_mirror_archive_next_run(
+    app: AppHandle,
+    id: String,
+) -> Result<Vec<MirrorPreset>, Message> {
+    blocking(app, move |state| state.clear_mirror_archive_next_run(&id)).await?
 }
 
 #[tauri::command]
@@ -2876,6 +2989,66 @@ mod tests {
             })
             .unwrap();
         (state, presets[0].id.clone(), o, d)
+    }
+
+    /// An archived file in `d`'s archive, from a run two days ago.
+    fn archived(d: &Path) -> PathBuf {
+        let run =
+            secopy_core::mirror::archive_dir(d, chrono::Local::now() - chrono::Duration::days(2));
+        fs::create_dir_all(&run).unwrap();
+        fs::write(run.join("old.mov"), b"12345").unwrap();
+        run
+    }
+
+    /// #101: before switching to Delete, the editor asks what the archive holds.
+    #[test]
+    fn a_mirrors_archive_says_what_it_holds() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        assert_eq!(state.mirror_archive(&id).unwrap(), ArchiveView::Empty);
+        archived(&d);
+        assert_eq!(
+            state.mirror_archive(&id).unwrap(),
+            ArchiveView::Files { files: 1, bytes: 5 }
+        );
+        lock(&state.queue_run).running = true;
+        assert_eq!(state.mirror_archive(&id).unwrap(), ArchiveView::Busy);
+        lock(&state.queue_run).running = false;
+        fs::rename(&d, dir.path().join("unplugged")).unwrap();
+        assert_eq!(state.mirror_archive(&id).unwrap(), ArchiveView::Unavailable);
+    }
+
+    /// #101: "Delete them now" deletes the archive, and never while a job runs.
+    #[test]
+    fn deleting_a_mirrors_archive_now() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        archived(&d);
+        lock(&state.queue_run).running = true;
+        assert_eq!(
+            state.delete_mirror_archive(&id).unwrap_err(),
+            "Delete the archive when the current job has finished."
+        );
+        lock(&state.queue_run).running = false;
+        let done = state.delete_mirror_archive(&id).unwrap();
+        assert_eq!((done.removed, done.not_deleted), (1, None));
+        assert!(!d.join(secopy_core::mirror::ARCHIVE_DIR).exists());
+        assert!(d.join("x.mov").exists(), "only the archive");
+    }
+
+    /// #101: "Delete it at the next run" is kept with its destination, and done once.
+    #[test]
+    fn a_pending_archive_deletion_is_kept_then_done_by_the_next_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        let presets = state.clear_mirror_archive_next_run(&id).unwrap();
+        assert_eq!(presets[0].clear_archive, Some(show(&d)));
+        let run = archived(&d);
+        state.preview_mirror(&id, &|_, _| {}).unwrap();
+        state.run_mirror(&id, Sink::default()).unwrap();
+        state.jobs.wait();
+        assert!(!run.exists());
+        assert_eq!(state.mirror_presets()[0].clear_archive, None, "done once");
     }
 
     #[test]
