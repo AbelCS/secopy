@@ -99,8 +99,9 @@ section says, which also checks those first-launch steps), then:
     run the queue: the queued job runs the replaced mirror. A preset whose card isn't in says
     it isn't connected, and still imports.
 32. **Import from Finder.** Double-click a `.secopy` with Secopy closed, then with it open: the
-    Import screen shows it. Start a copy and double-click one: "Import it when the copy has
-    finished.", nothing changes; File › Import… is greyed out while it runs. Back on the
+    Import screen shows it. Start a copy and double-click one: "Import it when the current
+    job has finished.", nothing changes; File › Import… is greyed out while it runs, also
+    during a mirror's archiving or deleting. Back on the
     Import screen changes nothing.
 33. **Menu bar.** Start a copy that lasts a few minutes and close the window: an icon with a
     percentage appears in the menu bar and Secopy leaves the Dock and ⌘Tab; the percentage

@@ -279,17 +279,23 @@ impl<R: Runtime> FileMenu<R> {
         })
     }
 
-    pub fn update(&self, setup: bool, can_start: bool, copying: bool) {
-        for (item, on) in self.items.iter().zip(menu_state(setup, can_start, copying)) {
+    pub fn update(&self, setup: bool, can_start: bool, copying: bool, busy: bool) {
+        for (item, on) in self
+            .items
+            .iter()
+            .zip(menu_state(setup, can_start, copying, busy))
+        {
             let _ = item.set_enabled(on);
         }
     }
 }
 
 /// Which File items apply: [Choose Source, Choose Destination, Start Copy, Cancel Copy,
-/// Import…]. Importing waits while a job runs (#77); Export… always applies.
-fn menu_state(setup: bool, can_start: bool, copying: bool) -> [bool; 5] {
-    [setup, setup, setup && can_start, copying, !copying]
+/// Import…]. `copying`: a job Cancel can stop now; `busy`: any job or the queue runs, even
+/// when it can't be cancelled (a mirror's removals) or between a queue's jobs. Importing
+/// waits for all of those (#77, #83); Export… always applies.
+fn menu_state(setup: bool, can_start: bool, copying: bool, busy: bool) -> [bool; 5] {
+    [setup, setup, setup && can_start, copying, !busy]
 }
 
 /// The first `.secopy` file among `urls` Finder opened Secopy with.
@@ -494,21 +500,30 @@ mod tests {
     fn the_file_menu_offers_only_what_applies() {
         use super::menu_state;
         assert_eq!(
-            menu_state(true, false, false),
+            menu_state(true, false, false, false),
             [true, true, false, false, true]
         );
         assert_eq!(
-            menu_state(true, true, false),
+            menu_state(true, true, false, false),
             [true, true, true, false, true]
         );
         assert_eq!(
-            menu_state(false, false, true),
+            menu_state(false, false, true, true),
             [false, false, false, true, false]
         );
         assert_eq!(
-            menu_state(false, true, false),
-            [false, false, false, false, true]
+            menu_state(false, true, false, false),
+            [false, false, false, false, true],
+            "Start only on New copy"
         );
+    }
+
+    /// #83: Import… waits whenever a job or the queue runs, even when Cancel is off (a
+    /// mirror's removals, the queue between two jobs).
+    #[test]
+    fn import_waits_for_any_job_not_only_a_cancellable_one() {
+        use super::menu_state;
+        assert!(!menu_state(false, false, false, true)[4]);
     }
 
     /// #77: Import… is off while copying; only `.secopy` files come in from Finder.

@@ -1140,9 +1140,9 @@ pub async fn save_report(app: AppHandle, path: String) -> Result<(), String> {
 /// The UI says which File menu items apply.
 #[tauri::command]
 #[specta::specta]
-pub fn set_menu_state(app: AppHandle, setup: bool, can_start: bool, copying: bool) {
+pub fn set_menu_state(app: AppHandle, setup: bool, can_start: bool, copying: bool, busy: bool) {
     if let Some(menu) = app.try_state::<crate::FileMenu<tauri::Wry>>() {
-        menu.update(setup, can_start, copying);
+        menu.update(setup, can_start, copying, busy);
     }
 }
 
@@ -1672,7 +1672,7 @@ struct Pending {
 }
 
 /// Why Import is refused while a job or the queue runs (#77).
-pub const IMPORT_WAITS: &str = "Import it when the copy has finished.";
+pub const IMPORT_WAITS: &str = "Import it when the current job has finished.";
 /// Why Import is refused when presets or settings changed after the file was opened.
 pub const IMPORT_CHANGED: &str = "Your presets or settings changed since this file was opened. Open it again to see what it would change.";
 
