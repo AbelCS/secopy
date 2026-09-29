@@ -650,6 +650,72 @@ pub fn finish(
     })
 }
 
+/// What a destination's archive holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArchiveSummary {
+    pub files: u64,
+    pub bytes: u64,
+}
+
+/// What `destination`'s archive holds (#101): `None` when it has none, it's empty, or it's a
+/// link (never followed). An error when the destination itself can't be read.
+pub fn archive_summary(destination: &Path) -> std::io::Result<Option<ArchiveSummary>> {
+    fs::read_dir(destination)?;
+    let root = destination.join(ARCHIVE_DIR);
+    if !fs::symlink_metadata(&root).is_ok_and(|m| m.is_dir()) {
+        return Ok(None);
+    }
+    let mut summary = ArchiveSummary { files: 0, bytes: 0 };
+    for entry in WalkDir::new(&root).follow_links(false) {
+        let entry = entry.map_err(std::io::Error::from)?;
+        if entry.file_type().is_file() {
+            summary.files += 1;
+            summary.bytes += entry.metadata().map_err(std::io::Error::from)?.len();
+        }
+    }
+    Ok((summary.files > 0).then_some(summary))
+}
+
+/// What deleting an archive did: files removed, and those that couldn't be, with why.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ArchiveDeleted {
+    pub removed: u64,
+    pub failed: Vec<(PathBuf, IoFailure)>,
+}
+
+/// Deletes `destination`'s whole archive (#101), when the user asks: only inside a real
+/// `.secopy-archive` directory, never through a link. What can't be deleted stays, listed.
+pub fn delete_archive(destination: &Path) -> ArchiveDeleted {
+    let mut done = ArchiveDeleted::default();
+    let root = destination.join(ARCHIVE_DIR);
+    if !fs::symlink_metadata(&root).is_ok_and(|m| m.is_dir()) {
+        return done;
+    }
+    for entry in WalkDir::new(&root).follow_links(false).contents_first(true) {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(e) => {
+                let path = e
+                    .path()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| root.clone());
+                done.failed.push((path, std::io::Error::from(e).into()));
+                continue;
+            }
+        };
+        if entry.file_type().is_dir() {
+            // Empty once its files are gone; one still holding a file that failed stays.
+            let _ = fs::remove_dir(entry.path());
+        } else {
+            match fs::remove_file(entry.path()) {
+                Ok(()) => done.removed += 1,
+                Err(e) => done.failed.push((entry.into_path(), e.into())),
+            }
+        }
+    }
+    done
+}
+
 /// Removes archive run directories older than `days` (named by `archive_dir`).
 pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chrono::Local>) -> u32 {
     let limit = now - chrono::Duration::days(i64::from(days));
