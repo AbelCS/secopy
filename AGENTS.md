@@ -9,9 +9,10 @@ OS is a compile error (RFD §14).
 - **Where things stand:** the "Next" section of
   [the roadmap](docs/superpowers/plans/2026-09-26-v1-roadmap.md) lists what comes next, in
   order, with its issues. Start there when asked "what's next?".
-- **English only, translation-ready:** the app is developed in English. Translation support
-  is planned (#84); once it lands, every user-facing string goes through the message
-  catalogs, never hard-coded.
+- **English only, translation-ready:** the app is developed in English, and its words live in
+  the message catalog `ui/src/locales/en.json`: the UI uses `t("key")`, never hard-coded text
+  (tests check that no component writes text itself and that every key is used). Words Rust
+  sends still arrive in English until they become codes (#84, PR 2).
 - **Reliability first:** users copy irreplaceable footage. Secopy must never lose, corrupt or
   silently skip data, and never report success when something wasn't copied, read, verified,
   saved or removed as planned. Every change to the engine or to how a result is reported is

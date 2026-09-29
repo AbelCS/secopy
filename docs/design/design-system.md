@@ -107,6 +107,8 @@ Components use tokens only, never raw colours or sizes.
 - A new screen focuses its title (`ScreenHeader` does it), so VoiceOver says where you are.
 - Every field has a visible label; its error appears right under it and is linked to it.
 - The user-facing words are "directory" and "file".
+- Words live in `ui/src/locales/en.json`; components use `t()`, never written text (a test
+  checks). Words from Rust are shown as they come until they're codes (#84, PR 2).
 - No emoji as icons.
 - A `Hint` only where a word isn't clear on its own (Small files, Existing files, Identical, system files, Copy & Verify, archived, not started), in one or two plain sentences. Not for what a help line under an option already says.
 - A button's `help` only where its short label hides the detail: Start (what it copies, where, the
