@@ -92,7 +92,8 @@ Components use tokens only, never raw colours or sizes.
 - One primary button per screen, in the action bar on the right.
 - The menu bar icon (#80) is a monochrome template glyph (two overlapping squares, drawn by
   `scripts/menubar-icon.py`) so macOS tints it. Clicking it opens the menu bar panel
-  (`menubar/Panel.svelte`, 340 × 190, gallery `#panel` and `#panel-done`): the job, From/To
+  (`menubar/Panel.svelte`, 340 × 190, a see-through window showing a card with 12 px rounded
+  corners and the native shadow, like a macOS popover; gallery `#panel` and `#panel-done`): the job, From/To
   paths cut at their start, a progress bar, files · speed · time left, Pause and Open Secopy,
   and Quit Secopy… as a link.
 - Button labels use the fewest words that can't be read two ways: **Start** for every job

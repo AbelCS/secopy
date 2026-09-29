@@ -9,6 +9,7 @@
     "beforeBuildCommand": { "script": "npm run build", "cwd": "../../ui" }
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "Secopy",

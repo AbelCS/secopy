@@ -70,7 +70,7 @@
   <SettingsScreen {settings} onSettings={() => {}} onExport={() => {}} onImport={() => {}} onDone={() => {}} />
 {:else if page === "panel" || page === "panel-done"}
   <!-- The menu bar panel at its real size (340 × 190). -->
-  <div style="width:340px;height:190px;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin:24px">
+  <div style="width:340px;height:190px;margin:24px">
     <Panel
       api={{
         ...api,
