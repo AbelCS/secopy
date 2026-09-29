@@ -65,8 +65,8 @@ pub struct MirrorRun {
     pub archive: Option<PathBuf>,
     /// Archived files older than this many days go first, in either mode (#101).
     pub archive_days: u32,
-    /// The whole archive of this destination goes first (#101).
-    pub clear_archive: Option<PathBuf>,
+    /// What deleting the whole archive did as this run was started, when the user asked (#101).
+    pub archive_deleted: Option<mirror::ArchiveDeleted>,
 }
 
 impl JobSettings {
@@ -83,7 +83,7 @@ impl JobSettings {
                 plan: job.plan.clone(),
                 archive,
                 archive_days: job.archive_days,
-                clear_archive: job.clear_archive.clone(),
+                archive_deleted: None,
             }),
         }
     }
@@ -493,6 +493,9 @@ impl Job {
                 JobOutcome::Cancelled
             } else if c.failed > 0
                 || removal_failed
+                || mirror
+                    .as_ref()
+                    .is_some_and(|m| m.archive_not_deleted.is_some())
                 || !done.report.unread.is_empty()
                 || done.report.checksum_error.is_some()
                 || done.report.durability_error.is_some()
@@ -720,13 +723,10 @@ impl Job {
     fn run_copy(&self, ready: &Ready, sink: &impl ProgressSink, reports_dir: &Path) {
         let settings = self.settings().expect("a copy has settings");
         let mirroring = settings.mirror.as_ref();
-        // First the archive: all of it when the user asked (#101), then the runs older than the
-        // preset keeps them (FR-49), in Delete mode too: archived before a switch, they still go.
-        let mut archive_deleted = None;
+        // Archive runs older than the preset keeps them go first (FR-49), in Delete mode too:
+        // what was archived before a switch still goes when due (#101).
+        let archive_deleted = mirroring.and_then(|m| m.archive_deleted.clone());
         if let Some(m) = mirroring {
-            if let Some(path) = &m.clear_archive {
-                archive_deleted = Some(mirror::delete_archive(path));
-            }
             mirror::clean_archives(&m.plan.copy.dest, m.archive_days, Local::now());
         }
         let opts = JobOptions {
@@ -985,12 +985,16 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
     let archive_not_deleted = done
         .archive_deleted
         .as_ref()
-        .and_then(|a| a.failed.first().map(|(_, why)| (a.failed.len(), why)))
-        .map(|(n, why)| {
+        .filter(|a| a.remaining > 0)
+        .map(|a| {
+            let why = a
+                .error
+                .as_ref()
+                .map_or_else(say::internal, |(_, e)| say::io_failure(e));
             msg!(
                 "mirror.archiveNotDeleted",
-                count = n,
-                why = say::io_failure(why),
+                count = a.remaining,
+                why = why,
                 days = m.archive_days,
             )
         });
@@ -1685,43 +1689,6 @@ mod tests {
         );
         assert!(!expired.exists(), "older than the preset's 30 days");
         assert!(young.exists());
-    }
-
-    /// #101: "delete it at the next run" deletes the whole archive when the run starts.
-    #[test]
-    fn a_pending_archive_deletion_happens_when_the_run_starts() {
-        let dir = tempfile::tempdir().unwrap();
-        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
-        std::fs::create_dir_all(&o).unwrap();
-        std::fs::create_dir_all(&d).unwrap();
-        std::fs::write(o.join("a.mov"), b"a").unwrap();
-        archive_run(&d, 2);
-        let mut p = preset(&o, &d, crate::store::DeletedMode::Delete);
-        p.clear_archive = Some(show(&d));
-        let s = run_mirror(dir.path(), &p);
-        assert!(!d.join(mirror::ARCHIVE_DIR).exists());
-        assert!(s.mirror.unwrap().archive_not_deleted.is_none());
-    }
-
-    /// #101: archived files that can't be deleted are said, with when they go instead.
-    #[test]
-    fn archived_files_that_cant_be_deleted_are_said() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
-        std::fs::create_dir_all(&o).unwrap();
-        std::fs::create_dir_all(&d).unwrap();
-        std::fs::write(o.join("a.mov"), b"a").unwrap();
-        let run = archive_run(&d, 2);
-        std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o555)).unwrap();
-        let mut p = preset(&o, &d, crate::store::DeletedMode::Delete);
-        p.clear_archive = Some(show(&d));
-        let s = run_mirror(dir.path(), &p);
-        std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o755)).unwrap();
-        assert_eq!(
-            s.mirror.unwrap().archive_not_deleted.unwrap(),
-            "1 archived file couldn't be deleted (Permission denied). It's removed once it's 30 days old."
-        );
     }
 
     #[test]

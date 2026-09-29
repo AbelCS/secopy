@@ -17,8 +17,6 @@ pub struct MirrorJob {
     /// The preset's days: archived files older than this go at the start of a run, in Delete
     /// mode too (#101).
     pub archive_days: u32,
-    /// A pending "delete it at the next run" (#101): the destination whose archive goes first.
-    pub clear_archive: Option<std::path::PathBuf>,
 }
 
 /// Plans `preset` now; a missing origin or destination says so, like New copy does. The deep
@@ -51,7 +49,6 @@ pub fn prepare(
         plan: Arc::new(plan),
         name: preset.name.clone(),
         archive_days: preset.deleted.days,
-        clear_archive: preset.clear_archive.as_ref().map(std::path::PathBuf::from),
     })
 }
 

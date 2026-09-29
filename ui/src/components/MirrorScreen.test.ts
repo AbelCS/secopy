@@ -107,6 +107,24 @@ describe("MirrorScreen", () => {
     expect(api.deleteMirrorArchive).not.toHaveBeenCalled();
   });
 
+  test("Keep says the days being saved, when they changed too", async () => {
+    const { api } = show();
+    api.mirrorArchive.mockResolvedValue({ state: "files", files: 1, bytes: 5 });
+    await fireEvent.input(screen.getByRole("spinbutton", { name: "Days to keep" }), { target: { value: "7" } });
+    await switchToDelete();
+    const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
+    within(dialog).getByRole("button", { name: "Keep them 7 days" });
+  });
+
+  test("a new destination in the same save doesn't ask about the old one's archive", async () => {
+    const { api } = show();
+    api.mirrorArchive.mockResolvedValue({ state: "files", files: 1, bytes: 5 });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Destination" }), { target: { value: "/Volumes/Other/Footage" } });
+    await switchToDelete();
+    await waitFor(() => expect(api.editMirrorPreset).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   test("a destination that isn't connected can have its archive deleted at the next run", async () => {
     const { api } = show();
     api.mirrorArchive.mockResolvedValue({ state: "unavailable" });
