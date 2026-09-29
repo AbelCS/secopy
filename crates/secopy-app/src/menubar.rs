@@ -403,6 +403,17 @@ fn toggle_panel(app: &AppHandle, icon: Area) {
     }
     let _ = p.show();
     let _ = p.set_focus();
+    fit_shadow(&p);
+}
+
+/// The native shadow is traced from what the window shows; traced before the page turned
+/// see-through, it's a square. Traced again, it follows the rounded card.
+fn fit_shadow(panel: &tauri::WebviewWindow) {
+    if let Ok(ptr) = panel.ns_window() {
+        // SAFETY: Tauri's own NSWindow for this window, used on the main thread (a tray click).
+        let window = unsafe { &*ptr.cast::<objc2_app_kit::NSWindow>() };
+        window.invalidateShadow();
+    }
 }
 
 fn make_icon(app: &AppHandle, status: &Status) -> tauri::Result<()> {
