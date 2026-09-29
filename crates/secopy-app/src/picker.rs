@@ -25,9 +25,11 @@ pub fn pick_source<R: Runtime>(
         panel.setAllowsMultipleSelection(true);
         panel.setCanCreateDirectories(false);
         panel.setMessage(Some(&NSString::from_str(
-            "Choose a directory, or one or more files",
+            &crate::msg!("dialog.chooseSource").text(),
         )));
-        panel.setPrompt(Some(&NSString::from_str("Choose")));
+        panel.setPrompt(Some(&NSString::from_str(
+            &crate::msg!("dialog.choosePrompt").text(),
+        )));
         let answered = panel.clone();
         let handler = RcBlock::new(move |response: NSModalResponse| {
             let paths = (response == NSModalResponseOK).then(|| {
