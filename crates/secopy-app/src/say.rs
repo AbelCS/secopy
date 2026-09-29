@@ -240,10 +240,12 @@ mod tests {
 
     use crate::message::{Arg, Message};
 
-
     #[test]
     fn a_quota_isnt_a_full_drive() {
-        assert_eq!(io_failure(&failure(io::ErrorKind::QuotaExceeded, "x")).key, "errors.os.quota");
+        assert_eq!(
+            io_failure(&failure(io::ErrorKind::QuotaExceeded, "x")).key,
+            "errors.os.quota"
+        );
     }
 
     fn failure(kind: io::ErrorKind, message: &str) -> IoFailure {

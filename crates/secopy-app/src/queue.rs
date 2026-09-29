@@ -176,12 +176,16 @@ impl<'de> Deserialize<'de> for Entry {
             }
             // A newer Secopy's message this one can't read whole keeps its key (its words
             // show with their placeholders), rather than being dropped and erased on save.
-            Some(m @ serde_json::Value::Object(_)) => serde_json::from_value(m.clone()).ok().or_else(|| {
-                m.get("key").and_then(|k| k.as_str()).map(|key| crate::message::Message {
-                    key: key.to_string(),
-                    args: Default::default(),
+            Some(m @ serde_json::Value::Object(_)) => {
+                serde_json::from_value(m.clone()).ok().or_else(|| {
+                    m.get("key")
+                        .and_then(|k| k.as_str())
+                        .map(|key| crate::message::Message {
+                            key: key.to_string(),
+                            args: Default::default(),
+                        })
                 })
-            }),
+            }
             _ => None,
         };
         let job = match value.get("kind").and_then(|k| k.as_str()) {
@@ -217,13 +221,19 @@ mod tests {
             "kind": "check", "directory": "/A", "lastError": { "key": "errors.future" }
         }))
         .unwrap();
-        assert_eq!(e.last_error.map(|m| m.key), Some("errors.future".to_string()));
+        assert_eq!(
+            e.last_error.map(|m| m.key),
+            Some("errors.future".to_string())
+        );
         let e: Entry = serde_json::from_value(serde_json::json!({
             "kind": "check", "directory": "/A",
             "lastError": { "key": "errors.future", "args": { "x": { "unknown": true } } }
         }))
         .unwrap();
-        assert_eq!(e.last_error.map(|m| m.key), Some("errors.future".to_string()));
+        assert_eq!(
+            e.last_error.map(|m| m.key),
+            Some("errors.future".to_string())
+        );
         let newer = serde_json::json!({
             "kind": "teleport", "where": "Mars",
             "lastError": { "key": "queue.reason.stopped", "args": {} }

@@ -301,7 +301,11 @@ impl Jobs {
                     None if *verify => msg!("menubar.heading.copyingVerifying"),
                     None => msg!("menubar.heading.copying"),
                 };
-                (heading, panel_from(&ready.source, &ready.shown), Some(show(&ready.copy_root)))
+                (
+                    heading,
+                    panel_from(&ready.source, &ready.shown),
+                    Some(show(&ready.copy_root)),
+                )
             }
         })
     }
@@ -1063,7 +1067,6 @@ mod tests {
     use crate::message::En;
     use crate::session::{Change, Session, scan_source};
 
-
     /// Review: the menu bar says where a retry copies from, not "Retry: 3 failed files".
     #[test]
     fn the_panel_names_a_directory_source_by_its_path() {
@@ -1088,7 +1091,10 @@ mod tests {
             checksum_error(Some(&io), None).unwrap(),
             "the mirror's checksum file: Input/output error (os error 5)"
         );
-        assert_eq!(checksum_error(None, Some(&io)).unwrap(), "Input/output error (os error 5)");
+        assert_eq!(
+            checksum_error(None, Some(&io)).unwrap(),
+            "Input/output error (os error 5)"
+        );
         assert!(checksum_error(None, None).is_none());
     }
 

@@ -517,7 +517,6 @@ mod tests {
     use crate::message::En;
     use crate::store::{CopyPresets, DeletedFiles, DeletedMode, MirrorPresetInput, MirrorPresets};
 
-
     /// Review: a section that can't be read is the section, not a preset with no name.
     #[test]
     fn an_unreadable_section_says_which_section() {
@@ -532,7 +531,14 @@ mod tests {
         );
         assert!(view.mirror_presets[0].section);
         let text = r#"{"secopy":1,"copyPresets":[{"source":7}]}"#;
-        let view = plan("x", &contents(text), &CopyPresets::default(), &MirrorPresets::default(), &Settings::default(), &|_| true);
+        let view = plan(
+            "x",
+            &contents(text),
+            &CopyPresets::default(),
+            &MirrorPresets::default(),
+            &Settings::default(),
+            &|_| true,
+        );
         assert!(!view.copy_presets[0].section, "one preset with no name");
     }
 
