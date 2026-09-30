@@ -25,6 +25,7 @@
   import JobProgress from "./components/JobProgress.svelte";
   import CopyPresetsScreen from "./components/CopyPresetsScreen.svelte";
   import ConfirmHost from "./components/ConfirmHost.svelte";
+  import { asking } from "./lib/confirm.svelte";
   import ExportDialog from "./components/ExportDialog.svelte";
   import ImportScreen from "./components/ImportScreen.svelte";
   import QueueScreen from "./components/QueueScreen.svelte";
@@ -475,6 +476,12 @@
     void unlistenOpen.then(() => openedFromFinder());
     // Closing during a copy asks first; if closed anyway, the app stops the copy cleanly.
     const unlisten = api.onCloseRequested(async (prevent) => {
+      // A question is open (the quit question itself, or another): it's answered first, in a
+      // window that stays in front (#113).
+      if (asking.current) {
+        prevent();
+        return;
+      }
       // During a job, with the setting on, Rust hides the window behind the menu bar icon (#80).
       // If that check fails, closing asks as before rather than doing nothing.
       if (await api.hideToMenuBar().catch(() => false)) {

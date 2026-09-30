@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, test, vi } from "vitest";
 import { ask } from "../lib/confirm.svelte";
 import ConfirmHost from "./ConfirmHost.svelte";
+import TwoDialogs from "../test/TwoDialogs.svelte";
 
 describe("ConfirmHost", () => {
   test("a risky question focuses the safe answer; Esc answers no", async () => {
@@ -30,6 +31,15 @@ describe("ConfirmHost", () => {
     expect(await answer).toBe(false);
     expect(behind).not.toHaveBeenCalled();
     window.removeEventListener("keydown", behind);
+  });
+
+  test("with two dialogs open, Esc closes only the one on top", async () => {
+    const onFirst = vi.fn();
+    const onSecond = vi.fn();
+    render(TwoDialogs, { props: { onFirst, onSecond } });
+    await fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(onSecond).toHaveBeenCalledTimes(1);
+    expect(onFirst).not.toHaveBeenCalled();
   });
 
   test("the risky answer says yes; the safe one no", async () => {

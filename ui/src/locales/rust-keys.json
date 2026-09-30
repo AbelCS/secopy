@@ -167,6 +167,7 @@
   "import.problem.details",
   "import.problem.section",
   "import.problem.settings",
+  "import.replaceDeletes",
   "import.replaceShortens",
   "import.setting.checksumFile",
   "import.setting.menuBar",

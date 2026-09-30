@@ -556,10 +556,10 @@ export type PresetImport = {
 	/**  Why it can't be imported. */
 	problem: Message | null,
 	/**
-	 *  What Replace does beyond the preset itself: a mirror with fewer days removes archived
-	 *  files at its next run (#113).
+	 *  What Replace does beyond the preset itself (#113): a mirror in Delete mode deletes
+	 *  what's removed from the origin; with fewer days, its next run removes archived files.
 	 */
-	replaceNote: Message | null,
+	replaceNotes: Message[],
 	/**  It stands for the file's whole list of presets, which can't be read. */
 	section: boolean,
 };

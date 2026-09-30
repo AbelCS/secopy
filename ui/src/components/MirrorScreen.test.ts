@@ -146,6 +146,20 @@ describe("MirrorScreen", () => {
     expect(api.mirrorArchive).toHaveBeenCalledTimes(2);
   });
 
+  test("a slow, older look at the archive doesn't replace a newer one", async () => {
+    const presets = [mirrorPreset(), mirrorPreset({ id: "m2", name: "Photos → Backup", destination: "/Volumes/Backup/Photos" })];
+    let slow: (v: ReturnType<typeof held>) => void = () => {};
+    const { api } = show(presets, (api) => api.mirrorArchive.mockReturnValueOnce(new Promise((r) => (slow = r))));
+    await fireEvent.click(screen.getByRole("button", { name: "Photos → Backup" }));
+    api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null }));
+    await fireEvent.click(screen.getByRole("button", { name: "Footage → NAS" }));
+    const archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText("Empty");
+    slow(held());
+    await new Promise((r) => setTimeout(r, 0));
+    archive.getByText("Empty");
+  });
+
   test("a deletion pending for the next run is shown", async () => {
     show([mirrorPreset({ deleted: { mode: "delete", days: 30 }, clearArchive: "/Volumes/Media/Footage" })], (api) =>
       api.mirrorArchive.mockResolvedValue(held()),
