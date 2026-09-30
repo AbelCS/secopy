@@ -3128,6 +3128,27 @@ mod tests {
         let _ = o;
     }
 
+    /// QA review (#113): switching back to Archive keeps the archive, so a pending deletion
+    /// goes.
+    #[test]
+    fn a_pending_archive_deletion_is_dropped_when_switched_back_to_archive() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, o, d) = mirror_state(dir.path());
+        let mut input = state.mirror_presets()[0].input();
+        input.deleted.mode = crate::store::DeletedMode::Delete;
+        state.edit_mirror_preset(&id, input.clone()).unwrap();
+        state.clear_mirror_archive_next_run(&id).unwrap();
+        let run = archived(&d);
+        input.deleted.mode = crate::store::DeletedMode::Archive;
+        let presets = state.edit_mirror_preset(&id, input).unwrap();
+        assert_eq!(presets[0].clear_archive, None);
+        state.preview_mirror(&id, &|_, _| {}).unwrap();
+        state.run_mirror(&id, Sink::default()).unwrap();
+        state.jobs.wait();
+        assert!(run.exists(), "the archive stays");
+        let _ = o;
+    }
+
     /// Review of #101: the pending deletion is done once: when its flag can't be saved as
     /// done, nothing is deleted and it stays pending.
     #[test]
@@ -3657,7 +3678,7 @@ mod tests {
         let a = with_presets(dir.path());
         let text = r#"{"secopy":1,"settings":{"writeChecksumFile":false},
             "copyPresets":[{"name":"DJI","source":"","includeFolder":true,"extensions":null}],
-            "mirrorPresets":[{"name":"M","origin":"/a","destination":"/b","deleted":{"mode":"delete","days":0},"deepCheck":false}]}"#;
+            "mirrorPresets":[{"name":"M","origin":"/a","destination":"/b","deleted":{"mode":"delete","days":30},"deepCheck":false}]}"#;
         let file = dir.path().join("mixed.secopy");
         std::fs::write(&file, text).unwrap();
         a.open_import(&file).unwrap();
