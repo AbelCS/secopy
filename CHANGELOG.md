@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.17.1](https://github.com/AbelCS/secopy/compare/v0.17.0...v0.17.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **app:** a pending archive deletion ends with Archive mode, and a day is the least ([8e7cf5b](https://github.com/AbelCS/secopy/commit/8e7cf5b8d14ef75d00f1827f363ec70422136433)), closes [#113](https://github.com/AbelCS/secopy/issues/113)
+* **core:** a destination directory that can't be read stops the mirror's removals ([0a2f008](https://github.com/AbelCS/secopy/commit/0a2f00833880d1d91cf49035718af6defa2d4704)), closes [#114](https://github.com/AbelCS/secopy/issues/114)
+* **core:** a mirror renames a directory spelled otherwise, once ([51247e7](https://github.com/AbelCS/secopy/commit/51247e725244667d2a429c42d6291e992c153691)), closes [#114](https://github.com/AbelCS/secopy/issues/114)
+* **core:** a removal that can't be looked at is a failure, not "already gone" ([7ac0fe3](https://github.com/AbelCS/secopy/commit/7ac0fe339586e2fa9227de2c59e1a8116a4e80f4)), closes [#114](https://github.com/AbelCS/secopy/issues/114)
+* **core:** files under an origin link are never removed from the backup ([e178b49](https://github.com/AbelCS/secopy/commit/e178b4988f3c7af473f37dacd60e0bac0e3b1dd4)), closes [#114](https://github.com/AbelCS/secopy/issues/114)
+* **core:** review fixes for the mirror's checksum file and renames ([c147766](https://github.com/AbelCS/secopy/commit/c147766fd88e6670a16c2d4152ef13a9004d1c91)), closes [#114](https://github.com/AbelCS/secopy/issues/114)
+* **core:** the mirror's checksum file records what a run verified, even if it wasn't clean ([cba303f](https://github.com/AbelCS/secopy/commit/cba303f1b3aca7a1c89a84445ab8bb785f164aff)), closes [#114](https://github.com/AbelCS/secopy/issues/114)
+* **ui:** Delete archive… deletes the archive it showed, and only after the edit is saved ([bdb2d23](https://github.com/AbelCS/secopy/commit/bdb2d2356d25c2ae733c483ce150111094c67e76)), closes [#113](https://github.com/AbelCS/secopy/issues/113)
+* **ui:** importing a mirror with fewer days says what its next run removes ([5acf261](https://github.com/AbelCS/secopy/commit/5acf26102d0bc2c5f164fc0fdebb5d0e76cb08c6)), closes [#113](https://github.com/AbelCS/secopy/issues/113)
+* **ui:** questions before risky actions answer no on Return and Esc ([1d95549](https://github.com/AbelCS/secopy/commit/1d95549addc84465a07690a59d017d5bc9398151)), closes [#113](https://github.com/AbelCS/secopy/issues/113)
+* **ui:** review fixes for the confirmations and the mirror archive ([6b2e598](https://github.com/AbelCS/secopy/commit/6b2e598bd314e5aa928f5e8b5d8e17ad8a7c8c6a)), closes [#113](https://github.com/AbelCS/secopy/issues/113)
+
 ## [0.17.0](https://github.com/AbelCS/secopy/compare/v0.16.1...v0.17.0) (2026-09-30)
 
 
