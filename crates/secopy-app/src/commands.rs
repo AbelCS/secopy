@@ -954,11 +954,11 @@ fn failure_reason(s: &SummaryView) -> Message {
     if s.dir_errors > 0 {
         return msg!("queue.reason.dirs", count = s.dir_errors);
     }
-    if let Some(note) = s
-        .mirror
-        .as_ref()
-        .and_then(|m| m.archive_not_deleted.clone())
-    {
+    if let Some(note) = s.mirror.as_ref().and_then(|m| {
+        m.archive_not_deleted
+            .clone()
+            .or_else(|| m.archive_not_cleaned.clone())
+    }) {
         return note;
     }
     if let Some(e) = &s.checksum_error {

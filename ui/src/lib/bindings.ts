@@ -485,6 +485,8 @@ export type MirrorSummaryView_Deserialize = {
 	nothingRemoved: Message | null,
 	/**  Archived files the user asked to delete that couldn't be (#101), and when they go. */
 	archiveNotDeleted?: Message | null,
+	/**  Expired archived files the run's clean-up couldn't remove, and why (#136). */
+	archiveNotCleaned?: Message | null,
 };
 
 /**  What a mirror did besides copying (FR-52). */
@@ -503,6 +505,8 @@ export type MirrorSummaryView_Serialize = {
 	nothingRemoved: Message | null,
 	/**  Archived files the user asked to delete that couldn't be (#101), and when they go. */
 	archiveNotDeleted?: Message | null,
+	/**  Expired archived files the run's clean-up couldn't remove, and why (#136). */
+	archiveNotCleaned?: Message | null,
 };
 
 export type OnFailure = "continue" | "stop";

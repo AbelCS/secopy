@@ -430,3 +430,36 @@ fn a_mirror_report_says_when_its_checksum_file_failed() {
     let text = std::fs::read_to_string(report.path()).unwrap();
     assert!(!text.contains("Result:       complete"), "{text}");
 }
+
+/// QA review (#136): expired archived files the clean-up couldn't remove are said, and the
+/// run isn't a success.
+#[test]
+fn a_mirror_says_when_expired_archive_files_stay() {
+    let dir = tempfile::tempdir().unwrap();
+    let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+    fs::create_dir_all(&o).unwrap();
+    fs::create_dir_all(&d).unwrap();
+    fs::write(o.join("a.mov"), b"a").unwrap();
+    let old =
+        secopy_core::mirror::archive_dir(&d, chrono::Local::now() - chrono::Duration::days(40));
+    fs::create_dir_all(&old).unwrap();
+    let stuck = old.join("gone.mov");
+    fs::write(&stuck, b"g").unwrap();
+    let c = std::ffi::CString::new(stuck.to_str().unwrap()).unwrap();
+    // SAFETY: a NUL-terminated path; UF_IMMUTABLE makes its removal fail.
+    unsafe { libc::chflags(c.as_ptr(), libc::UF_IMMUTABLE as _) };
+    let run = cli()
+        .args(["--mirror", "--to"])
+        .arg(&d)
+        .arg(&o)
+        .output()
+        .unwrap();
+    // SAFETY: as above; cleared so the test directory can be removed.
+    unsafe { libc::chflags(c.as_ptr(), 0) };
+    assert_eq!(run.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&run.stderr).contains("NOT removed"),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+}

@@ -245,6 +245,27 @@ pub fn removal(e: &RemovalError) -> Message {
     }
 }
 
+/// What a run's clean-up of expired archived files left, and why (#136); `None` when it all
+/// went.
+pub fn archive_not_cleaned(done: &secopy_core::mirror::ArchiveDeleted) -> Option<Message> {
+    let why = || {
+        done.error
+            .as_ref()
+            .map_or_else(internal, |(_, e)| io_failure(e))
+    };
+    if done.remaining > 0 {
+        Some(msg!(
+            "mirror.archiveNotCleaned",
+            count = done.remaining,
+            why = why()
+        ))
+    } else if done.error.is_some() {
+        Some(msg!("mirror.archiveNotCleanedAll", why = why()))
+    } else {
+        None
+    }
+}
+
 /// What an archive deletion left behind (#101), and when it goes instead; `None` when it all
 /// went. An archive that couldn't be read says so without a count.
 pub fn archive_not_deleted(

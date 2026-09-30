@@ -29,6 +29,7 @@ export function headline(s: SummaryView): string {
     if (m && m.removalFailures.length > 0) return t("summary.headline.notRemoved", { count: m.removalFailures.length });
     if (s.dirErrors > 0) return t("summary.headline.dirErrors", { count: s.dirErrors });
     if (m?.archiveNotDeleted) return t("summary.headline.archiveNotDeleted");
+    if (m?.archiveNotCleaned) return t("summary.headline.archiveNotCleaned");
     if (s.checksumError) return t("summary.headline.checksumFailed");
     if (s.durabilityError) return t("summary.headline.notDurable");
   }
