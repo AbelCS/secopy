@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.17.6](https://github.com/AbelCS/secopy/compare/v0.17.5...v0.17.6) (2026-09-30)
+
+
+### Bug Fixes
+
+* **app:** a file from a newer Secopy is left as it is, not set aside ([46e2f46](https://github.com/AbelCS/secopy/commit/46e2f461503ff12306e1d8b6e848544b8178a78e)), closes [#137](https://github.com/AbelCS/secopy/issues/137)
+* **app:** a queued copy with settings this version doesn't know is kept whole ([a06eab0](https://github.com/AbelCS/secopy/commit/a06eab069ef50e911bc55ef8f0791ece293d222f)), closes [#137](https://github.com/AbelCS/secopy/issues/137)
+* **app:** an archive is deleted without holding the lock the window's commands take ([bee433c](https://github.com/AbelCS/secopy/commit/bee433c03dd22ba4f62e8f0ab4930a42b344424f)), closes [#134](https://github.com/AbelCS/secopy/issues/134)
+* **app:** everyone waiting for a job waits for its end ([527f083](https://github.com/AbelCS/secopy/commit/527f083f05587a10012845a9076e89c81743ba4e)), closes [#134](https://github.com/AbelCS/secopy/issues/134)
+* **app:** nothing starts or is queued while a new pick is scanned ([6138e21](https://github.com/AbelCS/secopy/commit/6138e210b3051a002113a05010df7d6924bb36b2)), closes [#137](https://github.com/AbelCS/secopy/issues/137)
+* **app:** review fixes for the mirror's preparing step, job threads and undo ([8c92403](https://github.com/AbelCS/secopy/commit/8c924032f434c2bb8ac2e07666f81636381b64d3)), closes [#134](https://github.com/AbelCS/secopy/issues/134)
+* **app:** Start and Verify's Start check and start under the queue's lock ([3f79c44](https://github.com/AbelCS/secopy/commit/3f79c44baff9161b3033bdf85fc9a91ee8c79da5)), closes [#134](https://github.com/AbelCS/secopy/issues/134)
+* **app:** the Mac stays awake for a whole job and a preview's comparison ([16f360c](https://github.com/AbelCS/secopy/commit/16f360c3a362a2a04808d71ea325d4597c00e14f)), closes [#134](https://github.com/AbelCS/secopy/issues/134)
+* **cli:** a mirror's dry run counts files that will fail apart ([3f22019](https://github.com/AbelCS/secopy/commit/3f22019a91201eec4ed340dae881dd82fd928c6b)), closes [#137](https://github.com/AbelCS/secopy/issues/137)
+* **core:** a mirror that doesn't fit is refused before it starts ([fb074e4](https://github.com/AbelCS/secopy/commit/fb074e45215f58ca08440c24b622f5afc17c5556)), closes [#135](https://github.com/AbelCS/secopy/issues/135)
+* **core:** a removed file never replaces one already archived ([6d7229d](https://github.com/AbelCS/secopy/commit/6d7229d610ac7fe1d4601f977a0244c1b2f7ff97)), closes [#136](https://github.com/AbelCS/secopy/issues/136)
+* **core:** an archive run's name holds its time zone ([de67a25](https://github.com/AbelCS/secopy/commit/de67a25f21f0dc2be8eb0bb828144244e5e3cf82)), closes [#136](https://github.com/AbelCS/secopy/issues/136)
+* **core:** review fixes for the archive clean-up, names and moves ([4c8ebae](https://github.com/AbelCS/secopy/commit/4c8ebae60d9d4aebc2eb388882ba34a4a694e836)), closes [#136](https://github.com/AbelCS/secopy/issues/136)
+* **core:** the report says when no checksum file was written because nothing was copied ([b6934c2](https://github.com/AbelCS/secopy/commit/b6934c22d94359e3e81535a42dd5f0fd67f5fef0)), closes [#135](https://github.com/AbelCS/secopy/issues/135)
+* **core:** the space check counts each file in whole allocation blocks ([a700c91](https://github.com/AbelCS/secopy/commit/a700c9117c2f0b2fc1461df8c38ea1f897d490af)), closes [#135](https://github.com/AbelCS/secopy/issues/135)
+* expired archived files that can't be removed are said, and the run isn't Complete ([82e2230](https://github.com/AbelCS/secopy/commit/82e22306eee7b4d846db795f7767d869ff1fab29)), closes [#136](https://github.com/AbelCS/secopy/issues/136)
+* special files are listed as skipped, not skipped without a word ([63a00e7](https://github.com/AbelCS/secopy/commit/63a00e706c15f1506375b676fb00c925795629a7)), closes [#135](https://github.com/AbelCS/secopy/issues/135)
+* **ui:** a job added from New copy isn't added again if clearing after it failed ([6e3fee9](https://github.com/AbelCS/secopy/commit/6e3fee9c88a62de0120636a8aad3f6dd605372b0)), closes [#138](https://github.com/AbelCS/secopy/issues/138)
+* **ui:** New copy shows the newest view, not the last answer to arrive ([87b9dd6](https://github.com/AbelCS/secopy/commit/87b9dd6a191e53f515965d1f8648ce78fddd0a13)), closes [#138](https://github.com/AbelCS/secopy/issues/138)
+* **ui:** review fixes for New copy's newest view and Add to queue ([63e88bc](https://github.com/AbelCS/secopy/commit/63e88bc2b954f704f40c3113471ae45d5c0b3629)), closes [#138](https://github.com/AbelCS/secopy/issues/138)
+* undo says when it can't remove the checksum file ([e651891](https://github.com/AbelCS/secopy/commit/e651891af7a7280178e5ee56cc3919a24b8fc71d)), closes [#134](https://github.com/AbelCS/secopy/issues/134)
+
 ## [0.17.5](https://github.com/AbelCS/secopy/compare/v0.17.4...v0.17.5) (2026-09-30)
 
 
