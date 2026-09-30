@@ -606,6 +606,9 @@ impl Job {
     }
 
     fn run(&self, sink: &impl ProgressSink, reports_dir: &Path) {
+        // The whole job, not only its copy: a mirror's removals, Cancel and remove, and the
+        // report too (#134).
+        let _awake = secopy_core::awake::KeepAwake::new();
         match &self.work {
             Work::Check(plan) => self.run_check(plan, sink, reports_dir),
             Work::Copy { ready, .. } => self.run_copy(ready, sink, reports_dir),
@@ -1699,6 +1702,47 @@ mod tests {
         .unwrap();
         jobs.wait();
         jobs.summary().unwrap()
+    }
+
+    /// QA review (#134): the Mac stays awake for the whole job, a mirror's removals too, not
+    /// only while files are copied.
+    #[test]
+    fn the_mac_stays_awake_while_a_mirror_removes() {
+        #[derive(Clone, Default)]
+        struct Awake(Arc<Mutex<Vec<(JobPhase, usize)>>>);
+        impl ProgressSink for Awake {
+            fn send(&self, view: ProgressView) {
+                let held = secopy_core::awake::held_here();
+                self.0.lock().unwrap().push((view.phase, held));
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        std::fs::create_dir_all(&o).unwrap();
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(o.join("a.mov"), b"a").unwrap();
+        std::fs::write(d.join("gone.mov"), b"g").unwrap();
+        std::fs::write(d.join("a.mov"), b"old").unwrap();
+        let preset = preset(&o, &d, crate::store::DeletedMode::Archive);
+        let job = crate::mirrors::prepare(&preset, &JobControl::new(), &|_, _| {}).unwrap();
+        let jobs = Jobs::new(dir.path().join("reports"));
+        let sink = Awake::default();
+        jobs.start(
+            job.ready(),
+            true,
+            JobSettings::for_mirror(&job, Local::now()),
+            sink.clone(),
+        )
+        .unwrap();
+        jobs.wait();
+        let seen = sink.0.lock().unwrap().clone();
+        let removing: Vec<usize> = seen
+            .iter()
+            .filter(|(p, _)| *p == JobPhase::Removing)
+            .map(|(_, held)| *held)
+            .collect();
+        assert!(!removing.is_empty(), "{seen:?}");
+        assert!(removing.iter().all(|&held| held > 0), "{seen:?}");
     }
 
     /// An archive run directory `days_ago` old, holding one file.

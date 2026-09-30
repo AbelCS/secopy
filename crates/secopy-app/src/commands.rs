@@ -1341,7 +1341,11 @@ impl AppState {
             .get(id)
             .cloned()
             .ok_or_else(preset_gone)?;
-        let job = self.plan_mirror(&preset, on_compared)?;
+        // A Paranoid preview reads every file on both sides: awake until it's done (#134).
+        let job = {
+            let _awake = secopy_core::awake::KeepAwake::new();
+            self.plan_mirror(&preset, on_compared)?
+        };
         let plan = &job.plan;
         let sum = |new: bool| {
             let files: Vec<u64> = plan
