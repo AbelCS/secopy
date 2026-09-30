@@ -14,6 +14,7 @@
     Settings,
   } from "../lib/bindings";
   import { baseName, formatBytes, messageOf } from "../lib/format";
+  import { newest } from "../lib/session";
   import type { Snippet } from "svelte";
   import ActionBar from "../lib/ui/ActionBar.svelte";
   import AppShell from "../lib/ui/AppShell.svelte";
@@ -103,14 +104,16 @@
   let queueing = false;
   /** The view a job was added from: not added again until New copy changes, even when
    *  clearing after it failed (#138). */
-  let queuedAt: number | null = null;
+  const queued: { at: number | null } = { at: null };
 
   async function addToQueue() {
-    if (queueing || queuedAt === view.revision) return;
+    if (queueing || queued.at === view.revision) return;
     queueing = true;
+    // The view the job is added from, as it was when asked (#138).
+    const from = view.revision;
     try {
       const queue = await api.addToQueue(verify);
-      queuedAt = view.revision;
+      queued.at = from;
       onQueued?.(queue);
       queuedNote = t("copy.queued", { count: queue.jobs.length });
       setTimeout(() => (queuedNote = null), 3000);
@@ -167,7 +170,7 @@
     try {
       const next = await call();
       // The newest view, not the last to arrive: answers can come back out of order (#138).
-      if (!next.stale && next.revision >= view.revision) view = next;
+      view = newest(view, next);
       setError(null);
     } catch (e) {
       setError(messageOf(e));
@@ -191,7 +194,7 @@
 
   function presetsApplied(result: CopyPresetsView) {
     onPresets(result.presets);
-    view = result.session;
+    view = newest(view, result.session);
   }
 
   function chooseRecent(menu: HTMLSelectElement) {
