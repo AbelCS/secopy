@@ -357,6 +357,17 @@ describe("Setup", () => {
     within(screen.getByRole("group", { name: "Source" })).getByText("1,284 files · 212.4 GB");
   });
 
+  test("a job added once isn't added again when New copy couldn't clear after it (#138)", async () => {
+    const { api } = setup(readyView());
+    api.clearSource.mockRejectedValue(new Error("busy"));
+    const add = screen.getByRole("button", { name: "Add to queue" });
+    await fireEvent.click(add);
+    await waitFor(() => expect(api.clearSource).toHaveBeenCalledTimes(1));
+    await screen.findByText("busy");
+    await fireEvent.click(add);
+    expect(api.addToQueue).toHaveBeenCalledTimes(1);
+  });
+
   test("answers that arrive out of order show the newest, not the last (#138)", async () => {
     const { api } = setup(readyView(), undefined, { recent: ["/Volumes/A", "/Volumes/B"] });
     let answerA: (v: SessionView) => void = () => {};
