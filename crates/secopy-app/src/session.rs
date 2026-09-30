@@ -460,19 +460,26 @@ impl Session {
     }
 
     /// Checks the destination again (#112): false if what Start would do changed since the
-    /// screen showed it (files there or gone, another drive), so it isn't started unseen.
+    /// screen showed it (files there, gone or rewritten, another drive), so it isn't started
+    /// unseen.
     pub fn still_as_shown(&mut self) -> bool {
-        let shape = |plan: &Plan| {
+        let shape = |s: &Self| {
+            let plan = s.plan.as_ref()?;
             let files: Vec<(PathBuf, secopy_core::plan::Action)> = plan
                 .files
                 .iter()
                 .map(|f| (f.final_rel().to_path_buf(), f.action.clone()))
                 .collect();
-            (plan.dest.clone(), plan.fs.device, files)
+            // The files already there, by size and date: another version isn't the one shown.
+            let there = match &s.checked {
+                Some(Ok(pf)) => pf.conflicts.clone(),
+                _ => Vec::new(),
+            };
+            Some((plan.dest.clone(), plan.fs.device, files, there))
         };
-        let before = self.plan.as_ref().map(shape);
+        let before = shape(self);
         self.recheck();
-        before == self.plan.as_ref().map(shape)
+        before == shape(self)
     }
 
     /// What a job starts with; `None` while anything blocks Start.
@@ -1233,6 +1240,20 @@ mod tests {
         );
         plan.fs.free_bytes = needed;
         assert!(plan_view(&plan).purgeable.is_none());
+    }
+
+    #[test]
+    fn a_file_to_overwrite_rewritten_since_it_was_shown_stops_start() {
+        let f = fixture();
+        write(&f.dest, &[("CARD/A001.mov", b"other content")]);
+        let mut s = Session::new();
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        s.set_destination(Some(f.dest.clone()));
+        s.set_policy(ConflictPolicy::Overwrite);
+        assert!(s.still_as_shown(), "nothing changed");
+        // Another app saves a new version at the same path: not the file that was shown.
+        write(&f.dest, &[("CARD/A001.mov", b"a newer version")]);
+        assert!(!s.still_as_shown());
     }
 
     #[test]
