@@ -465,6 +465,7 @@ pub fn run(
                 status,
                 in_checksum_file: true,
                 elapsed: began.elapsed(),
+                landed_as: None,
             };
             outcomes
                 .lock()

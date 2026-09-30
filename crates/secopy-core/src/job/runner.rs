@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering::Relaxed};
 use std::sync::{Arc, Mutex, mpsc};
@@ -377,10 +378,16 @@ impl<'a> Runner<'a> {
     ) -> FileOutcome {
         let file = &self.plan.files[idx];
         let ok = matches!(status, FileStatus::Copied | FileStatus::Verified);
+        let final_rel = landed.unwrap_or_else(|| file.final_rel().to_path_buf());
+        let landed_as = ok
+            .then(|| fs::symlink_metadata(self.plan.dest.join(&final_rel)).ok())
+            .flatten()
+            .map(|m| (m.dev(), m.ino()));
         FileOutcome {
             id: idx,
             rel: file.entry.rel.clone(),
-            final_rel: landed.unwrap_or_else(|| file.final_rel().to_path_buf()),
+            final_rel,
+            landed_as,
             size: file.entry.size,
             hash,
             in_checksum_file: ok
