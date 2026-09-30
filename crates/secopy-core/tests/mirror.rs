@@ -897,3 +897,37 @@ fn a_checksum_file_with_bad_lines_is_set_aside_not_shortened() {
         "not a checksum line\n"
     );
 }
+
+/// QA review (#114): a directory spelled in another letter case is renamed too, once: the
+/// next run finds nothing to rename.
+#[test]
+fn a_directory_spelled_otherwise_is_renamed_once() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("clips/a.mov", b"a")]);
+    write(&d, &[("Clips/a.mov", b"a")]);
+    let t = fs::metadata(o.join("clips/a.mov"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    fs::File::options()
+        .write(true)
+        .open(d.join("Clips/a.mov"))
+        .unwrap()
+        .set_modified(t)
+        .unwrap();
+    if !o.join("CLIPS/a.mov").exists() {
+        return; // a case-sensitive volume: nothing to rename
+    }
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let (_, finished) = run(&p, None);
+    assert_eq!(finished.unwrap().renamed.len(), 1);
+    let names: Vec<_> = fs::read_dir(&d)
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| !n.starts_with('.'))
+        .collect();
+    assert_eq!(names, ["clips"]);
+    let again = mirror::plan(&o, &d, &opts()).unwrap();
+    assert!(again.renames.is_empty(), "{:?}", again.renames);
+}
