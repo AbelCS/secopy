@@ -381,6 +381,11 @@ export type ImportDone_Serialize = {
 /**  What the Import screen shows: nothing is changed by making it. */
 export type ImportView = {
 	fileName: string,
+	/**
+	 *  "Made by Secopy 0.1.0; this is 0.17.6.": only when the file says, and it's another
+	 *  version (#149).
+	 */
+	madeBy: Message | null,
 	/**  `None`: the file has no settings. */
 	settings: SettingsImport | null,
 	copyPresets: PresetImport[],
@@ -748,6 +753,10 @@ export type SettingsImport = {
 	/**  "Write the checksum file: on → off"; empty when they're the same as yours. */
 	changes: Message[],
 	problem: Message | null,
+	/**  Settings in the file this Secopy doesn't know, as the file names them: left out. */
+	notImported: string[],
+	/**  Settings the file lacks, which take their defaults. */
+	defaulted: Message[],
 };
 
 export type SmallFilesView = {

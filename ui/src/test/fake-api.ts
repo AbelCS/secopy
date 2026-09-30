@@ -254,7 +254,8 @@ export function queueView(over: Partial<QueueView> = {}): QueueView {
 export function importView(over: Partial<ImportView> = {}): ImportView {
   return {
     fileName: "Team presets.secopy",
-    settings: { changes: [raw("Write the checksum file: on → off")], problem: null },
+    madeBy: null,
+    settings: { changes: [raw("Write the checksum file: on → off")], problem: null, notImported: [], defaulted: [] },
     copyPresets: [
       { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, replaceNotes: [], section: false },
       { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null, replaceNotes: [], section: false },

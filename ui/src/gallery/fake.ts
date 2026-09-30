@@ -208,10 +208,11 @@ const ok =
  *  connected, and a preset that can't come in. */
 export const importView: ImportView = {
   fileName: "Team presets.secopy",
+  madeBy: { key: "import.madeBy", args: { theirs: "0.19.0", ours: "0.17.6" } },
   settings: { changes: [
       { key: "import.change", args: { setting: { key: "import.setting.checksumFile", args: {} }, from: { key: "import.on", args: {} }, to: { key: "import.off", args: {} } } },
       { key: "import.change", args: { setting: { key: "import.setting.notify", args: {} }, from: { key: "import.on", args: {} }, to: { key: "import.off", args: {} } } },
-    ], problem: null },
+    ], problem: null, notImported: ["pauseOnBattery"], defaulted: [] },
   copyPresets: [
     { name: "Sony FX3", paths: ["/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, replaceNotes: [], section: false },
     { name: "DJI Mini 4", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI Mini 4", missing: ["/Volumes/DJI/DCIM"], problem: null, replaceNotes: [], section: false },
