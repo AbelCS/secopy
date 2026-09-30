@@ -78,6 +78,25 @@ pub(crate) struct QueueRun {
     pub job_started: bool,
     /// The thread running the queue, joined at quit.
     pub thread: Option<std::thread::JoinHandle<()>>,
+    /// A mirror's archive is being deleted outside this lock, before its job or on its own:
+    /// nothing else starts meanwhile, and the window doesn't wait on the lock (#134).
+    pub preparing: bool,
+}
+
+impl QueueRun {
+    /// The queue runs, or an archive is being deleted: nothing else may start.
+    pub fn busy(&self) -> bool {
+        self.running || self.preparing
+    }
+}
+
+/// Clears `QueueRun::preparing` when dropped, whatever happens meanwhile.
+struct Preparing<'a>(&'a Mutex<QueueRun>);
+
+impl Drop for Preparing<'_> {
+    fn drop(&mut self) {
+        lock(self.0).preparing = false;
+    }
 }
 
 impl AppState {
@@ -321,7 +340,7 @@ impl AppState {
 
     /// Starts the job with the current settings and remembers the destination (B7).
     pub fn start(&self, verify: bool, sink: impl ProgressSink) -> Result<(), Message> {
-        if lock(&self.queue_run).running {
+        if lock(&self.queue_run).busy() {
             return Err(msg!("errors.queue.running"));
         }
         let (ready, dest) = {
@@ -479,7 +498,7 @@ impl AppState {
 
     /// A copy or the queue is running.
     pub fn busy(&self) -> bool {
-        self.jobs.is_running() || lock(&self.queue_run).running
+        self.jobs.is_running() || lock(&self.queue_run).busy()
     }
 
     /// Whether closing the window should hide it behind the menu bar icon (#80). Takes the
@@ -535,7 +554,7 @@ impl AppState {
     /// Marks the queue as running, so starting it again is refused before any thread starts.
     pub fn claim_queue_run(&self) -> Result<(), Message> {
         let mut run = lock(&self.queue_run);
-        if run.running || self.jobs.is_running() {
+        if run.busy() || self.jobs.is_running() {
             return Err(msg!("errors.queue.busy"));
         }
         run.running = true;
@@ -825,21 +844,29 @@ impl AppState {
         sink: &impl QueueSink,
         mirror: Option<&str>,
     ) -> (QueueResult, Option<Message>, Option<JobHandle>) {
+        let cancelled = || {
+            (
+                QueueResult::Cancelled,
+                Some(msg!("queue.reason.cancelled")),
+                None,
+            )
+        };
+        if lock(&self.queue_run).cancelled {
+            return cancelled();
+        }
+        // The archive, if its deletion is pending, is deleted outside the lock `cancel` and the
+        // window's commands take (#134): the queue is running, so nothing else starts meanwhile.
+        if let (Some(id), Work::Copy { settings, .. }) = (mirror, &mut work)
+            && let Some(m) = settings.mirror.as_mut()
+        {
+            m.archive_deleted = self.pending_archive_deletion(id);
+        }
         {
             // A cancel during the checks stops the job before it starts: the check and the
             // start happen under the lock `cancel` takes.
             let mut run = lock(&self.queue_run);
             if run.cancelled {
-                return (
-                    QueueResult::Cancelled,
-                    Some(msg!("queue.reason.cancelled")),
-                    None,
-                );
-            }
-            if let (Some(id), Work::Copy { settings, .. }) = (mirror, &mut work)
-                && let Some(m) = settings.mirror.as_mut()
-            {
-                m.archive_deleted = self.pending_archive_deletion(id);
+                return cancelled();
             }
             // The checks passed: the window shows this job's Copying screen from here.
             sink.send(started);
@@ -1280,17 +1307,21 @@ impl AppState {
         if preset.destination != shown {
             return Err(msg!("errors.mirror.archiveMoved"));
         }
-        // Held throughout, so the queue can't start in the middle (`claim_queue_run`).
-        let run = lock(&self.queue_run);
-        if run.running || self.jobs.is_running() {
-            return Err(msg!("errors.mirror.archiveBusy"));
-        }
         let destination = Path::new(&preset.destination);
-        if !destination.is_dir() {
-            return Err(crate::session::gone(destination));
+        {
+            let mut run = lock(&self.queue_run);
+            if run.busy() || self.jobs.is_running() {
+                return Err(msg!("errors.mirror.archiveBusy"));
+            }
+            if !destination.is_dir() {
+                return Err(crate::session::gone(destination));
+            }
+            run.preparing = true;
         }
+        // Outside the lock: nothing starts meanwhile (`preparing`), and the window's commands
+        // don't wait on it (#134).
+        let _preparing = Preparing(&self.queue_run);
         let done = secopy_core::mirror::delete_archive(destination);
-        drop(run);
         Ok(ArchiveDeletedView {
             removed: count(done.removed),
             not_deleted: crate::say::archive_not_deleted(&done, preset.deleted.days),
@@ -1432,30 +1463,35 @@ impl AppState {
     /// Start on the preview (FR-47): preset `id`'s plan as it was previewed, through the job
     /// runner; a preview runs once.
     pub fn run_mirror(&self, id: &str, sink: impl ProgressSink) -> Result<(), Message> {
-        // Held to the start, so the queue can't start between the archive deletion and the job.
-        let run = lock(&self.queue_run);
-        if run.running {
-            return Err(msg!("errors.queue.busy"));
-        }
-        let mut preview = lock(&self.preview);
-        let (previewed, job) = match preview.as_ref() {
-            Some((preset, job)) if preset.id == id => (preset.clone(), job.clone()),
-            _ => return Err(msg!("errors.mirror.previewFirst")),
+        let job = {
+            let mut run = lock(&self.queue_run);
+            if run.busy() {
+                return Err(msg!("errors.queue.busy"));
+            }
+            let mut preview = lock(&self.preview);
+            let (previewed, job) = match preview.as_ref() {
+                Some((preset, job)) if preset.id == id => (preset.clone(), job.clone()),
+                _ => return Err(msg!("errors.mirror.previewFirst")),
+            };
+            if lock(&self.mirrors).get(id) != Some(&previewed) {
+                *preview = None;
+                return Err(msg!("errors.mirror.changedSincePreview"));
+            }
+            if self.jobs.is_running() {
+                return Err(msg!("errors.job.alreadyRunning"));
+            }
+            // Until the job starts, nothing else can: the archive may be deleted first, and
+            // that happens outside this lock, so the window doesn't wait on it (#134).
+            run.preparing = true;
+            job
         };
-        if lock(&self.mirrors).get(id) != Some(&previewed) {
-            *preview = None;
-            return Err(msg!("errors.mirror.changedSincePreview"));
-        }
-        if self.jobs.is_running() {
-            return Err(msg!("errors.job.alreadyRunning"));
-        }
+        let _preparing = Preparing(&self.queue_run);
         let mut settings = JobSettings::for_mirror(&job, chrono::Local::now());
         if let Some(m) = settings.mirror.as_mut() {
             m.archive_deleted = self.pending_archive_deletion(id);
         }
         self.jobs.start(job.ready(), true, settings, sink)?;
-        *preview = None;
-        drop(run);
+        *lock(&self.preview) = None;
         Ok(())
     }
 
@@ -1476,7 +1512,7 @@ impl AppState {
 
     /// Verify's Start: runs the plan made for `path`, once.
     pub fn start_check(&self, path: &str, sink: impl ProgressSink) -> Result<(), Message> {
-        if lock(&self.queue_run).running {
+        if lock(&self.queue_run).busy() {
             return Err(msg!("errors.queue.busy"));
         }
         let planned = lock(&self.checking).take();
@@ -2006,7 +2042,7 @@ impl AppState {
     pub fn apply_import(&self, choices: &ImportChoices) -> Result<ImportDone, Message> {
         // Held throughout, so the queue can't start in the middle (`claim_queue_run`).
         let run = lock(&self.queue_run);
-        if run.running || self.jobs.is_running() {
+        if run.busy() || self.jobs.is_running() {
             return Err(import_waits());
         }
         let Pending { contents, seen } = lock(&self.importing)
@@ -3155,6 +3191,24 @@ mod tests {
         assert_eq!((done.removed, done.not_deleted), (1, None));
         assert!(!d.join(secopy_core::mirror::ARCHIVE_DIR).exists());
         assert!(d.join("x.mov").exists(), "only the archive");
+    }
+
+    /// QA review (#134): an archive is deleted outside the queue's lock (the window doesn't
+    /// wait on it); meanwhile nothing else starts, as while a job runs.
+    #[test]
+    fn nothing_starts_while_an_archive_is_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        archived(&d);
+        lock(&state.queue_run).preparing = true;
+        assert!(state.busy());
+        assert!(state.claim_queue_run().is_err());
+        assert!(state.delete_mirror_archive(&id, &show(&d)).is_err());
+        assert!(state.start(true, Sink::default()).is_err());
+        lock(&state.queue_run).preparing = false;
+        assert!(!state.busy());
+        state.delete_mirror_archive(&id, &show(&d)).unwrap();
+        assert!(!lock(&state.queue_run).preparing, "cleared after");
     }
 
     /// QA review (#113): Delete archive… deletes the archive it showed; the preset's
