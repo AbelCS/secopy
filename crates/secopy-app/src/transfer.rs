@@ -235,6 +235,9 @@ pub struct PresetImport {
     pub missing: Vec<String>,
     /// Why it can't be imported.
     pub problem: Option<Message>,
+    /// What Replace does beyond the preset itself: a mirror with fewer days removes archived
+    /// files at its next run (#113).
+    pub replace_note: Option<Message>,
     /// It stands for the file's whole list of presets, which can't be read.
     pub section: bool,
 }
@@ -292,6 +295,7 @@ pub fn plan(
                     paths,
                     name: p.name,
                     problem: None,
+                    replace_note: None,
                     section: false,
                 }
             }
@@ -303,8 +307,13 @@ pub fn plan(
             Err(u) => unreadable(u),
             Ok((p, new_name)) => {
                 let paths = vec![p.origin.clone(), p.destination.clone()];
+                let yours = mirrors.named(&p.name);
+                let replace_note = yours
+                    .filter(|y| p.deleted.days < y.deleted.days)
+                    .map(|_| msg!("import.replaceShortens", count = p.deleted.days));
                 PresetImport {
-                    clash: mirrors.named(&p.name).map(|x| x.name.clone()),
+                    clash: yours.map(|x| x.name.clone()),
+                    replace_note,
                     new_name,
                     missing: paths.iter().filter(|s| !exists(s)).cloned().collect(),
                     paths,
@@ -331,6 +340,7 @@ fn unreadable(u: Unreadable) -> PresetImport {
         clash: None,
         missing: Vec::new(),
         problem: Some(u.why),
+        replace_note: None,
         section: u.section,
     }
 }
@@ -804,6 +814,34 @@ mod tests {
             (p.name.as_str(), p.source.as_str()),
             ("sony fx3", "/Volumes/NEW/CLIP")
         );
+    }
+
+    /// QA review (#113): replacing a mirror with fewer days removes archived files at its next
+    /// run; the preview says so, as the editor does.
+    #[test]
+    fn replacing_a_mirror_with_fewer_days_says_what_goes() {
+        let text = r#"{"secopy":1,"mirrorPresets":[{"name":"footage","origin":"/o","destination":"/d",
+            "deleted":{"mode":"delete","days":7},"deepCheck":false}]}"#;
+        let view = plan(
+            "x.secopy",
+            &contents(text),
+            &CopyPresets::default(),
+            &mirror_presets(),
+            &Settings::default(),
+            &|_| true,
+        );
+        let note = view.mirror_presets[0].replace_note.clone().unwrap();
+        assert_eq!(note.key, "import.replaceShortens");
+        let same = text.replace("\"days\":7", "\"days\":30");
+        let view = plan(
+            "x.secopy",
+            &contents(&same),
+            &CopyPresets::default(),
+            &mirror_presets(),
+            &Settings::default(),
+            &|_| true,
+        );
+        assert_eq!(view.mirror_presets[0].replace_note, None);
     }
 
     #[test]

@@ -639,7 +639,7 @@ describe("App", () => {
     api.pickImportFile.mockResolvedValue("/Users/me/Team.secopy");
     state.menu!("import-file");
     await screen.findByText("Team presets.secopy");
-    const more = [...importView().copyPresets, { name: "GoPro", paths: [], clash: null, newName: "GoPro", missing: [], problem: null, section: false }];
+    const more = [...importView().copyPresets, { name: "GoPro", paths: [], clash: null, newName: "GoPro", missing: [], problem: null, replaceNote: null, section: false }];
     api.openImport.mockResolvedValue(importView({ fileName: "Other.secopy", copyPresets: more.slice(1), settings: null }));
     api.openImport.mockResolvedValueOnce(importView({ fileName: "Other.secopy", copyPresets: [...more, ...more], settings: null }));
     state.menu!("import-file");

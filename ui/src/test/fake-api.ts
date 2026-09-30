@@ -255,9 +255,9 @@ export function importView(over: Partial<ImportView> = {}): ImportView {
     fileName: "Team presets.secopy",
     settings: { changes: [raw("Write the checksum file: on → off")], problem: null },
     copyPresets: [
-      { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, section: false },
-      { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null, section: false },
-      { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can't be read (…)."), section: false },
+      { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, replaceNote: null, section: false },
+      { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null, replaceNote: null, section: false },
+      { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can't be read (…)."), replaceNote: null, section: false },
     ],
     mirrorPresets: [],
     ...over,

@@ -575,6 +575,10 @@
     "clash": "You already have “{name}”",
     "keepBoth": "Keep both, as “{name}”",
     "replace": "Replace yours",
+    "replaceShortens": {
+      "one": "Replacing removes archived files older than {count} day at its next run.",
+      "other": "Replacing removes archived files older than {count} days at its next run."
+    },
     "settings": "Settings",
     "sameSettings": "Same as yours",
     "importSettings": "Import the settings",
