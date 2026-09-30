@@ -11,7 +11,7 @@ function show(presets: MirrorPreset[] = [mirrorPreset()], before?: (api: ReturnT
   const { api } = fakeApi();
   before?.(api);
   const calls = { presets: [] as MirrorPreset[][], preview: [] as MirrorPreviewView[], queue: [] as QueueView[] };
-  render(MirrorScreen, {
+  const result = render(MirrorScreen, {
     props: {
       presets,
       onPresets: (p: MirrorPreset[]) => calls.presets.push(p),
@@ -20,7 +20,8 @@ function show(presets: MirrorPreset[] = [mirrorPreset()], before?: (api: ReturnT
     },
     context: apiContext(api),
   });
-  return { api, calls };
+  const rerender = (props: { presets: MirrorPreset[] }) => result.rerender(props);
+  return { api, calls, rerender };
 }
 
 describe("MirrorScreen", () => {
@@ -78,7 +79,15 @@ describe("MirrorScreen", () => {
     await screen.findByText("The origin and the destination are the same directory.");
   });
 
-  const held = (over = {}) => ({ files: 124, bytes: 38_200_000_000, oldest: "2026-09-12T10:00:00+02:00", connected: true, busy: false, ...over });
+  const held = (over = {}) => ({
+    destination: "/Volumes/Media/Footage",
+    files: 124,
+    bytes: 38_200_000_000,
+    oldest: "2026-09-12T10:00:00+02:00",
+    connected: true,
+    busy: false,
+    ...over,
+  });
 
   test("a saved mirror shows its archive: files, size and oldest run", async () => {
     const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(held()));
@@ -100,7 +109,9 @@ describe("MirrorScreen", () => {
     let archive = within(await screen.findByRole("region", { name: "Archive" }));
     await archive.findByText("Empty");
     expect(archive.getByRole("button", { name: "Delete archive…" })).toHaveProperty("disabled", true);
-    api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null, connected: false }));
+    api.mirrorArchive.mockResolvedValue(
+      held({ destination: "/Volumes/Backup/Photos", files: 0, bytes: 0, oldest: null, connected: false }),
+    );
     await fireEvent.click(screen.getByRole("button", { name: "Photos → Backup" }));
     archive = within(await screen.findByRole("region", { name: "Archive" }));
     await archive.findByText("Destination not connected");
@@ -120,9 +131,27 @@ describe("MirrorScreen", () => {
       "Delete",
       "Keep",
     );
-    await waitFor(() => expect(api.deleteMirrorArchive).toHaveBeenCalledWith("m1"));
+    await waitFor(() => expect(api.deleteMirrorArchive).toHaveBeenCalledWith("m1", "/Volumes/Media/Footage"));
     await archive.findByText("Empty");
     await screen.findByText("Deleted 124 archived files.");
+  });
+
+  test("a new destination shows its own archive, not the old one's", async () => {
+    const { api, rerender } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(held()));
+    const archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText(/124 files/);
+    api.mirrorArchive.mockResolvedValue(held({ destination: "/Volumes/Other", files: 0, bytes: 0, oldest: null }));
+    await rerender({ presets: [mirrorPreset({ destination: "/Volumes/Other" })] });
+    await archive.findByText("Empty");
+    expect(api.mirrorArchive).toHaveBeenCalledTimes(2);
+  });
+
+  test("a deletion pending for the next run is shown", async () => {
+    show([mirrorPreset({ deleted: { mode: "delete", days: 30 }, clearArchive: "/Volumes/Media/Footage" })], (api) =>
+      api.mirrorArchive.mockResolvedValue(held()),
+    );
+    const archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText("Deleted at the next run");
   });
 
   test("while a job runs, the archive can't be deleted", async () => {
@@ -148,23 +177,34 @@ describe("MirrorScreen", () => {
     expect(api.deleteMirrorArchive).not.toHaveBeenCalled();
   });
 
-  test("switching to Delete asks about the archive; Delete them now deletes it, then saves", async () => {
+  test("switching to Delete asks about the archive; Delete them now saves, then deletes it", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ files: 124, bytes: 38_200_000_000, oldest: null, connected: true, busy: false });
+    api.mirrorArchive.mockResolvedValue(held({ oldest: null }));
     api.deleteMirrorArchive.mockResolvedValue({ removed: 124, notDeleted: null });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
     within(dialog).getByText("The archive holds 124 files (38.2 GB) from earlier runs.");
     await fireEvent.click(within(dialog).getByRole("button", { name: "Delete them now" }));
-    await waitFor(() => expect(api.editMirrorPreset).toHaveBeenCalled());
-    expect(api.deleteMirrorArchive).toHaveBeenCalledWith("m1");
-    expect(api.deleteMirrorArchive.mock.invocationCallOrder[0]).toBeLessThan(api.editMirrorPreset.mock.invocationCallOrder[0]);
+    await waitFor(() => expect(api.deleteMirrorArchive).toHaveBeenCalledWith("m1", "/Volumes/Media/Footage"));
+    // Saved first: a save that fails deletes nothing (#113).
+    expect(api.editMirrorPreset.mock.invocationCallOrder[0]).toBeLessThan(api.deleteMirrorArchive.mock.invocationCallOrder[0]);
     await screen.findByText("Deleted 124 archived files.");
+  });
+
+  test("Delete them now deletes nothing when the edit can't be saved", async () => {
+    const { api } = show();
+    api.mirrorArchive.mockResolvedValue(held({ oldest: null }));
+    api.editMirrorPreset.mockRejectedValueOnce(new Error("A mirror named that already exists."));
+    await switchToDelete();
+    const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Delete them now" }));
+    await screen.findByText("A mirror named that already exists.");
+    expect(api.deleteMirrorArchive).not.toHaveBeenCalled();
   });
 
   test("Keep them for the preset's days saves and deletes nothing; Cancel doesn't save", async () => {
     const { api } = show([mirrorPreset({ deleted: { mode: "archive", days: 7 } })]);
-    api.mirrorArchive.mockResolvedValue({ files: 1, bytes: 5, oldest: null, connected: true, busy: false });
+    api.mirrorArchive.mockResolvedValue({ destination: "/Volumes/Media/Footage", files: 1, bytes: 5, oldest: null, connected: true, busy: false });
     await switchToDelete();
     let dialog = await screen.findByRole("dialog", { name: "Files already archived" });
     await fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
@@ -178,7 +218,7 @@ describe("MirrorScreen", () => {
 
   test("Keep says the days being saved, when they changed too", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ files: 1, bytes: 5, oldest: null, connected: true, busy: false });
+    api.mirrorArchive.mockResolvedValue({ destination: "/Volumes/Media/Footage", files: 1, bytes: 5, oldest: null, connected: true, busy: false });
     await fireEvent.input(screen.getByRole("spinbutton", { name: "Days to keep" }), { target: { value: "7" } });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
@@ -187,7 +227,7 @@ describe("MirrorScreen", () => {
 
   test("a new destination in the same save doesn't ask about the old one's archive", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ files: 1, bytes: 5, oldest: null, connected: true, busy: false });
+    api.mirrorArchive.mockResolvedValue({ destination: "/Volumes/Media/Footage", files: 1, bytes: 5, oldest: null, connected: true, busy: false });
     await fireEvent.input(screen.getByRole("textbox", { name: "Destination" }), { target: { value: "/Volumes/Other/Footage" } });
     await switchToDelete();
     await waitFor(() => expect(api.editMirrorPreset).toHaveBeenCalled());
@@ -196,7 +236,7 @@ describe("MirrorScreen", () => {
 
   test("a destination that isn't connected can have its archive deleted at the next run", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ files: 0, bytes: 0, oldest: null, connected: false, busy: false });
+    api.mirrorArchive.mockResolvedValue({ destination: "/Volumes/Media/Footage", files: 0, bytes: 0, oldest: null, connected: false, busy: false });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
     within(dialog).getByText("The destination isn't connected, so its archive can't be checked.");
@@ -208,7 +248,7 @@ describe("MirrorScreen", () => {
 
   test("while a job runs, the archive is deleted at the next run or kept", async () => {
     const { api } = show();
-    api.mirrorArchive.mockResolvedValue({ files: 3, bytes: 5, oldest: null, connected: true, busy: true });
+    api.mirrorArchive.mockResolvedValue({ destination: "/Volumes/Media/Footage", files: 3, bytes: 5, oldest: null, connected: true, busy: true });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
     within(dialog).getByText("A job is running, so the archive can't be deleted now.");

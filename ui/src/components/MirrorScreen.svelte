@@ -98,15 +98,21 @@
   let archive: ArchiveView | null = $state(null);
   const savedId = $derived(selectedId !== NEW && selected ? selected.id : null);
 
+  /** The destination saved for the selected mirror: its archive is the one shown (#113). */
+  const savedDestination = $derived(savedId ? selected!.destination : null);
+
   async function lookAtArchive(id: string) {
     const seen = await api.mirrorArchive(id).catch(() => null);
-    if (savedId === id) archive = seen;
+    if (savedId === id && (!seen || seen.destination === savedDestination)) archive = seen;
   }
 
   $effect(() => {
     archive = null;
-    if (savedId) void lookAtArchive(savedId);
+    if (savedId && savedDestination) void lookAtArchive(savedId);
   });
+
+  /** "Delete it at the next run" is pending for the destination shown (#101). */
+  const pendingDeletion = $derived(!!selected && selected.clearArchive === savedDestination);
 
   const DATE = { day: "numeric", month: "short", year: "numeric" } as const;
   const archiveText = $derived.by(() => {
@@ -133,7 +139,7 @@
     );
     if (!sure) return;
     try {
-      const deleted = await api.deleteMirrorArchive(p.id);
+      const deleted = await api.deleteMirrorArchive(p.id, held.destination);
       said = t("mirror.archive.deleted", { count: deleted.removed });
       error = deleted.notDeleted ? say(deleted.notDeleted) : null;
     } catch (e) {
@@ -173,9 +179,10 @@
         if (archive.files > 0 || !archive.connected) choice = await askAboutArchive(archive, input.deleted.days);
       }
       if (choice === "cancel") return;
-      // The archive of the destination saved so far: deleted before the preset changes.
-      const deleted = choice === "now" ? await api.deleteMirrorArchive(preset.id) : null;
+      // Saved first: an edit that can't be saved deletes nothing (#113). The destination is
+      // the same, so its archive is still the one asked about.
       onPresets(await api.editMirrorPreset(preset.id, input));
+      const deleted = choice === "now" ? await api.deleteMirrorArchive(preset.id, preset.destination) : null;
       if (choice === "nextRun") onPresets(await api.clearMirrorArchiveNextRun(preset.id));
       if (deleted) {
         said = t("mirror.archive.deleted", { count: deleted.removed });
@@ -308,6 +315,7 @@
         <div class="archive">
           <span class="muted archive-text">
             <span>{archiveText}</span>
+            {#if pendingDeletion}<span>{t("mirror.archive.pending")}</span>{/if}
             {#if archive?.busy && archive.files > 0}<span>{t("mirror.archive.busy")}</span>{/if}
           </span>
           <span class="archive-actions">

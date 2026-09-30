@@ -938,6 +938,7 @@
       "oldest": "oldest {date}",
       "empty": "Empty",
       "notConnected": "Destination not connected",
+      "pending": "Deleted at the next run",
       "show": "Show in Finder",
       "busy": "Wait until the job finishes.",
       "confirmTitle": "Delete archive?",
@@ -1087,7 +1088,8 @@
       "gone": "That mirror no longer exists.",
       "presetGone": "The mirror preset no longer exists.",
       "previewFirst": "Preview the mirror first.",
-      "archiveBusy": "Delete the archive when the current job has finished."
+      "archiveBusy": "Delete the archive when the current job has finished.",
+      "archiveMoved": "The mirror's destination changed. Look at its archive again."
     },
     "export": {
       "notAFileName": "That isn't a file name.",

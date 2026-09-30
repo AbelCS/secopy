@@ -42,7 +42,7 @@ export const commands = {
 	/**  What a mirror's archive holds (#101). */
 	mirrorArchive: (id: string) => typedError<ArchiveView, Message>(__TAURI_INVOKE("mirror_archive", { id })),
 	/**  Deletes a mirror's archive now (#101). */
-	deleteMirrorArchive: (id: string) => typedError<ArchiveDeletedView, Message>(__TAURI_INVOKE("delete_mirror_archive", { id })),
+	deleteMirrorArchive: (id: string, destination: string) => typedError<ArchiveDeletedView, Message>(__TAURI_INVOKE("delete_mirror_archive", { id, destination })),
 	/**  Deletes a mirror's archive at its next run (#101). */
 	clearMirrorArchiveNextRun: (id: string) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("clear_mirror_archive_next_run", { id })),
 	exportCopyPreset: (id: string, path: string) => typedError<Message, Message>(__TAURI_INVOKE("export_copy_preset", { id, path })),
@@ -182,6 +182,8 @@ export type ArchiveDeletedView = {
  *  switching it to Delete.
  */
 export type ArchiveView = {
+	/**  The destination looked at; Delete archive… names it back (#113). */
+	destination: string,
 	files: number,
 	bytes: number,
 	/**  When its oldest run was archived (RFC 3339). */
