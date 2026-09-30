@@ -47,7 +47,7 @@ export const session: SessionView = {
     stalePartials: 0,
   },
   conflicts: "keepBoth",
-  plan: { filesToWrite: 106, bytesToWrite: 180_000_000_000, blocker: null, purgeable: null },
+  plan: { filesToWrite: 106, bytesToWrite: 180_000_000_000, overwrites: 0, blocker: null, purgeable: null },
   presetId: "fx3",
   presetChanged: true,
   pickProblem: null,

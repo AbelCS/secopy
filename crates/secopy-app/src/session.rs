@@ -654,6 +654,7 @@ fn plan_view(plan: &Plan) -> PlanView {
     PlanView {
         files_to_write: count(plan.files.iter().filter(|f| f.action.writes()).count()),
         bytes_to_write: plan.bytes_to_write(),
+        overwrites: count(crate::queue::overwrites(plan).len()),
         blocker: plan.blockers().first().map(say::blocker),
         purgeable: plan.purgeable_needed().as_ref().map(say::purgeable),
     }
@@ -1161,6 +1162,8 @@ mod tests {
         let view = s.set_policy(ConflictPolicy::Skip);
         assert_eq!(view.plan.unwrap().files_to_write, 2);
         assert!(s.ready().is_some());
+        let plan = s.set_policy(ConflictPolicy::Overwrite).plan.unwrap();
+        assert_eq!((plan.files_to_write, plan.overwrites), (3, 1));
     }
 
     #[test]

@@ -120,11 +120,13 @@
     if (!destination) return t("copy.status.noDestination");
     if (destination.blocker || view.plan?.blocker) return t("copy.status.blocked");
     if (!view.plan || view.plan.filesToWrite === 0) return t("copy.status.nothing");
-    // Ready: what Start will copy.
-    return t("copy.status.ready", {
+    // Ready: what Start will copy, and what it replaces (#112).
+    const ready = t("copy.status.ready", {
       files: t("copy.files", { count: view.plan.filesToWrite }),
       size: formatBytes(view.plan.bytesToWrite),
     });
+    const replaces = view.plan.overwrites;
+    return replaces > 0 ? ready + t("format.dot") + t("copy.status.replaces", { count: replaces }) : ready;
   });
 
   /** Start's help: the figures and the path the screen shows, and the File menu's shortcut. */

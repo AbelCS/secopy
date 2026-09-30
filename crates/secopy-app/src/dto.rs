@@ -128,6 +128,8 @@ pub struct PlanView {
     pub files_to_write: u32,
     #[specta(type = specta_typescript::Number)]
     pub bytes_to_write: u64,
+    /// Of those, files replaced at the destination (Overwrite): Start says so (#112).
+    pub overwrites: u32,
     /// Not enough space (FR-16).
     pub blocker: Option<Message>,
     /// It fits only once macOS frees purgeable space: a warning, not a block (#108).

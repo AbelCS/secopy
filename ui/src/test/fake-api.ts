@@ -100,7 +100,7 @@ export function readyView(over: Partial<SessionView> = {}): SessionView {
     selectedFiles: 1284,
     selectedBytes: 212_400_000_000,
     destination: destinationView(),
-    plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: null, purgeable: null },
+    plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, overwrites: 0, blocker: null, purgeable: null },
     ...over,
   });
 }
