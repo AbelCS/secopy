@@ -324,8 +324,9 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
     }
     if let Some(dir) = &args.report {
         let meta = job_meta(args, true, started_at);
-        let full = Report::new(&plan.copy, &report, &meta)
-            .with_mirror(mirror::report_part(&finished, archive.is_some()));
+        let mut part = mirror::report_part(&finished, archive.is_some());
+        part.archive_problem = cleaned.left_in_english("clean-up");
+        let full = Report::new(&plan.copy, &report, &meta).with_mirror(part);
         write_report(&full, dir, &report, started_at)?;
     }
     Ok(if report.is_success() && removed_ok && cleaned_ok {

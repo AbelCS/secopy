@@ -558,6 +558,20 @@ fn the_report_has_the_removals_and_their_failures() {
         .with_mirror(mirror::report_part(&Ok(failed), false));
     assert_eq!(bad.result, "1 file couldn't be removed");
     assert!(bad.to_json().contains("Permission denied"));
+    // An archive that kept more than asked (#136): not "complete" in the saved report either.
+    let clean = mirror::Finished {
+        removals: vec![],
+        renamed: vec![],
+    };
+    let mut part = mirror::report_part(&Ok(clean), false);
+    part.archive_problem =
+        Some("2 archived files past 30 days NOT removed: Permission denied".into());
+    let kept = secopy_core::report::Report::new(&p.copy, &report, &meta).with_mirror(part);
+    assert_eq!(kept.result, "archived files not removed as asked");
+    assert!(
+        kept.to_text()
+            .contains("2 archived files past 30 days NOT removed")
+    );
     assert!(
         bad.to_text()
             .contains("Not removed: 1\n  gone.mov: Permission denied"),
@@ -1044,4 +1058,18 @@ fn a_removal_never_replaces_an_archived_file() {
         b"archived by the other run"
     );
     assert_eq!(fs::read(d.join("gone.mov")).unwrap(), b"new version");
+}
+
+/// Review of #136: an archive that can't be looked at is said, not taken for none.
+#[test]
+fn an_archive_that_cant_be_looked_at_is_said() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, _o, d) = pair();
+    let old = mirror::archive_dir(&d, chrono::Local::now() - chrono::Duration::days(40));
+    write(&old, &[("a.mov", b"a")]);
+    fs::set_permissions(&d, fs::Permissions::from_mode(0o000)).unwrap();
+    let cleaned = mirror::clean_archives(&d, 30, chrono::Local::now());
+    fs::set_permissions(&d, fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(cleaned.error.is_some(), "{cleaned:?}");
+    assert!(old.exists());
 }

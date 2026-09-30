@@ -906,7 +906,18 @@ impl Job {
         let report = Report::new(&ready.plan, &job_report, &meta);
         match (&done.removals, self.mirror()) {
             (Some(removals), Some(m)) => {
-                report.with_mirror(mirror::report_part(removals, m.archive.is_some()))
+                let mut part = mirror::report_part(removals, m.archive.is_some());
+                // What the archive kept beyond what was asked (#136).
+                part.archive_problem = done
+                    .archive_deleted
+                    .as_ref()
+                    .and_then(|a| a.left_in_english("deletion"))
+                    .or_else(|| {
+                        done.archive_cleaned
+                            .as_ref()
+                            .and_then(|a| a.left_in_english("clean-up"))
+                    });
+                report.with_mirror(part)
             }
             _ => report,
         }
@@ -1734,6 +1745,10 @@ mod tests {
         assert_eq!(s.outcome, JobOutcome::Failures);
         let said = s.mirror.unwrap().archive_not_cleaned.unwrap();
         assert_eq!(said.key, "mirror.archiveNotCleaned");
+        // The saved report says so too, and not "complete".
+        let text = std::fs::read_to_string(s.report_file.unwrap()).unwrap();
+        assert!(text.contains("Archive clean-up NOT complete"), "{text}");
+        assert!(!text.contains("Result:       complete"), "{text}");
     }
 
     /// An archive run directory `days_ago` old, holding one file.

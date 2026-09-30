@@ -112,6 +112,9 @@ pub struct MirrorPart {
     pub renamed: Vec<(String, String)>,
     /// Why nothing was removed: the copy phase didn't end cleanly.
     pub nothing_removed: Option<String>,
+    /// The archive kept more than asked: expired files, or a deletion, that didn't all go
+    /// (#136).
+    pub archive_problem: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -349,6 +352,8 @@ impl Report {
                 1 => "1 file couldn't be removed".to_string(),
                 n => format!("{n} files couldn't be removed"),
             };
+        } else if self.result == "complete" && part.archive_problem.is_some() {
+            self.result = "archived files not removed as asked".to_string();
         }
         self.mirror = Some(part);
         self
@@ -496,6 +501,9 @@ impl Report {
                 for n in &m.not_removed {
                     let _ = writeln!(t, "  {}: {}", n.path, n.reason);
                 }
+            }
+            if let Some(problem) = &m.archive_problem {
+                let _ = writeln!(t, "{problem}");
             }
             if !m.renamed.is_empty() {
                 let _ = writeln!(t, "Renamed to match the origin: {}", m.renamed.len());
