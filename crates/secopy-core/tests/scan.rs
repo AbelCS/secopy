@@ -338,3 +338,24 @@ fn every_folder_on_the_way_to_a_file_is_listed() {
         rels(["CARD", "CARD/DCIM", "CARD/DCIM/100CANON"].map(PathBuf::from))
     );
 }
+
+/// QA review (#115): a picked file named like Secopy's unfinished copies is Secopy's own:
+/// copied, it would be taken for a leftover and deleted by the next file's copy.
+#[test]
+fn a_picked_file_named_like_an_unfinished_copy_is_skipped() {
+    let dir = tempfile::tempdir().unwrap();
+    write_files(
+        dir.path(),
+        &[(".clip.mov.secopy-partial", b"x"), ("clip.mov", b"c")],
+    );
+    let source = Source::Files(vec![
+        dir.path().join(".clip.mov.secopy-partial"),
+        dir.path().join("clip.mov"),
+    ]);
+    let scan = scan(&source, &ScanOptions::default()).unwrap();
+    assert_eq!(
+        rels(scan.files.iter().map(|f| f.rel.clone())),
+        rels(["clip.mov"].map(PathBuf::from))
+    );
+    assert_eq!(scan.skipped_system, 1);
+}
