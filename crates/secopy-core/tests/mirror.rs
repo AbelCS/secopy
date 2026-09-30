@@ -977,3 +977,21 @@ fn a_directory_spelled_otherwise_is_renamed_once() {
     let again = mirror::plan(&o, &d, &opts()).unwrap();
     assert!(again.renames.is_empty(), "{:?}", again.renames);
 }
+
+/// #118: the archive's summary counts what its deletion removes, links included; a link's
+/// target outside the archive is never touched.
+#[test]
+fn an_archives_links_are_counted_and_deleted_not_followed() {
+    let (dir, _o, d) = pair();
+    let run = mirror::archive_dir(&d, chrono::Local::now());
+    write(&run, &[("a.mov", b"a")]);
+    let outside = dir.path().join("keep.mov");
+    fs::write(&outside, b"keep").unwrap();
+    std::os::unix::fs::symlink(&outside, run.join("link.mov")).unwrap();
+    std::os::unix::fs::symlink(dir.path().join("gone"), run.join("dangling.mov")).unwrap();
+    let summary = mirror::archive_summary(&d).unwrap().unwrap();
+    assert_eq!(summary.files, 3);
+    let deleted = mirror::delete_archive(&d);
+    assert_eq!(deleted.removed, summary.files);
+    assert_eq!(fs::read(&outside).unwrap(), b"keep");
+}
