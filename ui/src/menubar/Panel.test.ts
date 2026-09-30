@@ -89,3 +89,18 @@ describe("Panel", () => {
     screen.getByRole("button", { name: "Pause" });
   });
 });
+
+describe("Panel updates (#117)", () => {
+  test("an older view asked for at opening doesn't replace a newer one pushed meanwhile", async () => {
+    const { api, state } = fakeApi();
+    let answer: (v: PanelView) => void = () => {};
+    api.menubarView.mockReturnValue(new Promise((r) => (answer = r)));
+    render(Panel, { props: { api } });
+    await waitFor(() => expect(state.panelView).not.toBeNull());
+    state.panelView!(running({ ended: { ok: true, text: raw("All 106 files copied and verified") } }));
+    answer(running()); // from before the end
+    await screen.findByText("All 106 files copied and verified");
+    await new Promise((r) => setTimeout(r, 0));
+    screen.getByText("All 106 files copied and verified");
+  });
+});
