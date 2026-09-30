@@ -136,6 +136,9 @@ fn run(args: Args) -> Result<ExitCode, String> {
     for link in &scan.skipped_symlinks {
         eprintln!("skipped symlink: {}", link.display());
     }
+    for special in &scan.skipped_special {
+        eprintln!("skipped special file: {}", special.display());
+    }
     let filter = args
         .ext
         .as_deref()

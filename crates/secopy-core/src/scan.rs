@@ -91,6 +91,8 @@ pub struct Scan {
     pub skipped_system: u64,
     /// Symlinks are never followed or copied (FR-24).
     pub skipped_symlinks: Vec<PathBuf>,
+    /// FIFOs, sockets and devices: not files, never copied; listed like links (#135).
+    pub skipped_special: Vec<PathBuf>,
     pub problems: Vec<ScanProblem>,
     /// Modification time of every source directory, by path relative to the destination.
     pub dir_mtimes: HashMap<PathBuf, SystemTime>,
@@ -309,8 +311,10 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
                     scan.problem(entry.path(), message, kind);
                 }
             }
+        } else {
+            // Sockets, FIFOs and devices: not copied, and said so (#135).
+            scan.skipped_special.push(entry.into_path());
         }
-        // Sockets, FIFOs and devices are ignored.
     }
 
     scan.skipped_system = skipped_system;

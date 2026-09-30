@@ -152,6 +152,12 @@ describe("Setup", () => {
     expect(api.addToQueue).toHaveBeenCalledTimes(1);
   });
 
+  test("special files (a FIFO, a socket) are said to be skipped, with what they are (#135)", () => {
+    setup(readyView({ source: sourceView({ skippedSpecial: 2 }) }));
+    const said = screen.getByText("2 special files skipped");
+    expect(hintOf(said)).toMatch(/FIFO/);
+  });
+
   test("where the files go is shown even when Start is blocked", () => {
     setup(
       readyView({

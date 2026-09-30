@@ -581,6 +581,7 @@ impl Session {
             },
             skipped_system: count(scan.skipped_system),
             skipped_symlinks: count(scan.skipped_symlinks.len()),
+            skipped_special: count(scan.skipped_special.len()),
             problems: scan
                 .problems
                 .iter()

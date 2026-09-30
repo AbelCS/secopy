@@ -84,6 +84,8 @@
         hint: t("copy.systemHint"),
       });
     if (source.skippedSymlinks > 0) parts.push({ text: t("copy.symlinksSkipped", { count: source.skippedSymlinks }) });
+    if (source.skippedSpecial > 0)
+      parts.push({ text: t("copy.specialSkipped", { count: source.skippedSpecial }), hint: t("copy.specialHint") });
     return parts;
   });
   const destination = $derived(view.destination);

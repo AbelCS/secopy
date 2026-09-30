@@ -769,6 +769,8 @@ export type SourceView = {
 	/**  System files skipped (`.DS_Store`, `Thumbs.db`…); hidden files are copied (FR-12). */
 	skippedSystem: number,
 	skippedSymlinks: number,
+	/**  FIFOs, sockets and devices: never copied (#135). */
+	skippedSpecial: number,
 	/**  Things that couldn't be read while scanning, first 20. */
 	problems: Message[],
 	problemCount: number,
