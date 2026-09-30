@@ -19,7 +19,9 @@ pub fn copy_to(src: &Metadata, dst: &File) -> io::Result<()> {
         dst.set_times(times)?;
     }
     use std::os::unix::fs::PermissionsExt;
-    let mode = src.permissions().mode() & 0o777;
+    // Always readable and writable by its owner (#118): verify reads it back, and a source
+    // readable only through its group or others (a share) would give a copy nobody can open.
+    let mode = (src.permissions().mode() & 0o777) | 0o600;
     dst.set_permissions(std::fs::Permissions::from_mode(mode))?;
     Ok(())
 }
@@ -40,4 +42,26 @@ fn with_extra_times(times: FileTimes, src: &Metadata) -> FileTimes {
 /// deepest folders first, since writing into a folder changes its time.
 pub fn set_dir_mtime(dir: &Path, mtime: SystemTime) -> io::Result<()> {
     File::open(dir)?.set_modified(mtime)
+}
+
+#[cfg(test)]
+mod owner_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    /// QA review (#118): a source readable only through its group or others (a share) gives a
+    /// copy its owner can still read and write: verify reads it back, and it can be opened.
+    #[test]
+    fn the_copy_stays_readable_and_writable_by_its_owner() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        let dst = dir.path().join("dst");
+        std::fs::write(&src, b"x").unwrap();
+        std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o044)).unwrap();
+        let meta = std::fs::metadata(&src).unwrap();
+        let out = File::create(&dst).unwrap();
+        copy_to(&meta, &out).unwrap();
+        let mode = std::fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o644);
+    }
 }
