@@ -157,6 +157,8 @@ struct Done {
     mirror_checksum_error: Option<secopy_core::error::IoFailure>,
     /// What deleting the whole archive did, when the user asked for it (#101).
     archive_deleted: Option<mirror::ArchiveDeleted>,
+    /// What the run's clean-up of expired archived files left (#136).
+    archive_cleaned: Option<mirror::ArchiveDeleted>,
     /// A mirror's removals, or why nothing was removed (plan 7).
     removals: Option<Result<mirror::Finished, mirror::NotRemoved>>,
     /// What a cancel with "Also remove the files already copied" removed (#54).
@@ -483,9 +485,9 @@ impl Job {
                 JobOutcome::Cancelled
             } else if c.failed > 0
                 || removal_failed
-                || mirror
-                    .as_ref()
-                    .is_some_and(|m| m.archive_not_deleted.is_some())
+                || mirror.as_ref().is_some_and(|m| {
+                    m.archive_not_deleted.is_some() || m.archive_not_cleaned.is_some()
+                })
                 || !done.report.unread.is_empty()
                 || done.report.checksum_error.is_some()
                 || done.report.durability_error.is_some()
@@ -650,6 +652,7 @@ impl Job {
             next_to_error: None,
             mirror_checksum_error: None,
             archive_deleted: None,
+            archive_cleaned: None,
             removals: None,
             undone: None,
             check,
@@ -704,6 +707,7 @@ impl Job {
             next_to_error: None,
             mirror_checksum_error: None,
             archive_deleted: None,
+            archive_cleaned: None,
             report: checked.job.clone(),
             removals: None,
             undone: None,
@@ -724,9 +728,8 @@ impl Job {
         // Archive runs older than the preset's days go first (FR-49), in Delete mode too:
         // what was archived before a switch still goes when due (#101).
         let archive_deleted = mirroring.and_then(|m| m.archive_deleted.clone());
-        if let Some(m) = mirroring {
-            mirror::clean_archives(&m.plan.copy.dest, m.archive_days, Local::now());
-        }
+        let archive_cleaned = mirroring
+            .map(|m| mirror::clean_archives(&m.plan.copy.dest, m.archive_days, Local::now()));
         let opts = JobOptions {
             verify: self.verify(),
             write_checksum_file: settings.write_checksum_file,
@@ -794,6 +797,7 @@ impl Job {
             next_to_error: None,
             mirror_checksum_error: None,
             archive_deleted: None,
+            archive_cleaned: None,
             report,
             removals,
             undone,
@@ -802,6 +806,7 @@ impl Job {
         };
         done.mirror_checksum_error = mirror_checksum;
         done.archive_deleted = archive_deleted;
+        done.archive_cleaned = archive_cleaned;
         done.report_file = self.save(&done, reports_dir);
         if settings.report_next_to_checksum
             && let Some(checksum) = &done.report.checksum_file
@@ -991,8 +996,13 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
         .archive_deleted
         .as_ref()
         .and_then(|a| say::archive_not_deleted(a, m.archive_days));
+    let archive_not_cleaned = done
+        .archive_cleaned
+        .as_ref()
+        .and_then(say::archive_not_cleaned);
     MirrorSummaryView {
         archive_not_deleted,
+        archive_not_cleaned,
         new: count(done_as(true)),
         updated: count(done_as(false)),
         removed: count(removed),
@@ -1699,6 +1709,31 @@ mod tests {
         .unwrap();
         jobs.wait();
         jobs.summary().unwrap()
+    }
+
+    /// QA review (#136): expired archived files that can't be removed are said, and the run
+    /// isn't Complete: the archive keeps more than the preset asks.
+    #[test]
+    fn a_mirror_says_when_expired_archive_files_stay() {
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        std::fs::create_dir_all(&o).unwrap();
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(o.join("a.mov"), b"a").unwrap();
+        let expired = archive_run(&d, 40);
+        let stuck = expired.join("old.mov");
+        let c = std::ffi::CString::new(stuck.to_str().unwrap()).unwrap();
+        // SAFETY: a NUL-terminated path; UF_IMMUTABLE makes its removal fail.
+        unsafe { libc::chflags(c.as_ptr(), libc::UF_IMMUTABLE as _) };
+        let s = run_mirror(
+            dir.path(),
+            &preset(&o, &d, crate::store::DeletedMode::Archive),
+        );
+        // SAFETY: as above; cleared so the test directory can be removed.
+        unsafe { libc::chflags(c.as_ptr(), 0) };
+        assert_eq!(s.outcome, JobOutcome::Failures);
+        let said = s.mirror.unwrap().archive_not_cleaned.unwrap();
+        assert_eq!(said.key, "mirror.archiveNotCleaned");
     }
 
     /// An archive run directory `days_ago` old, holding one file.

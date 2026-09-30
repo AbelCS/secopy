@@ -285,10 +285,10 @@ fn archives_older_than_the_limit_are_cleaned_up() {
     for p in [&old, &recent] {
         write(p, &[("x.mov", b"x")]);
     }
-    assert_eq!(mirror::clean_archives(&d, 30, now), 1);
+    assert_eq!(mirror::clean_archives(&d, 30, now).removed, 1);
     assert!(!old.exists() && recent.exists());
     // 0 days (a preset saved before they were required) never empties the archive (#113).
-    assert_eq!(mirror::clean_archives(&d, 0, now), 0);
+    assert_eq!(mirror::clean_archives(&d, 0, now).removed, 0);
     assert!(recent.exists());
 }
 
@@ -466,7 +466,10 @@ fn each_run_gets_its_own_archive_directory() {
     assert_ne!(first, second);
     write(&second, &[("x.mov", b"second")]);
     assert_eq!(fs::read(first.join("x.mov")).unwrap(), b"first");
-    assert_eq!(mirror::clean_archives(&d, 30, chrono::Local::now()), 2);
+    assert_eq!(
+        mirror::clean_archives(&d, 30, chrono::Local::now()).removed,
+        2
+    );
 }
 
 /// #58: a `.secopy-archive` that is a link leads outside the destination: cleaning up never
@@ -486,7 +489,10 @@ fn a_linked_archive_is_never_followed() {
         d.join(mirror::ARCHIVE_DIR),
     )
     .unwrap();
-    assert_eq!(mirror::clean_archives(&d, 30, chrono::Local::now()), 0);
+    assert_eq!(
+        mirror::clean_archives(&d, 30, chrono::Local::now()).removed,
+        0
+    );
     assert!(old.join("precious.mov").exists());
     let err = mirror::plan(&o, &d, &opts()).unwrap_err().to_string();
     assert!(err.contains(".secopy-archive"), "{err}");
@@ -994,4 +1000,28 @@ fn an_archives_links_are_counted_and_deleted_not_followed() {
     let deleted = mirror::delete_archive(&d);
     assert_eq!(deleted.removed, summary.files);
     assert_eq!(fs::read(&outside).unwrap(), b"keep");
+}
+
+/// QA review (#136): expired archived files that can't be removed are said, with why, not
+/// left without a word.
+#[test]
+fn archived_files_that_cant_be_cleaned_up_are_said() {
+    let (_dir, _o, d) = pair();
+    let now = chrono::Local::now();
+    let old = mirror::archive_dir(&d, now - chrono::Duration::days(40));
+    write(&old, &[("a.mov", b"a"), ("b.mov", b"b")]);
+    let stuck = old.join("b.mov");
+    let c = std::ffi::CString::new(stuck.to_str().unwrap()).unwrap();
+    // SAFETY: a NUL-terminated path; UF_IMMUTABLE makes its removal fail.
+    unsafe { libc::chflags(c.as_ptr(), libc::UF_IMMUTABLE as _) };
+    let cleaned = mirror::clean_archives(&d, 30, now);
+    // SAFETY: as above; cleared so the test directory can be removed.
+    unsafe { libc::chflags(c.as_ptr(), 0) };
+    assert!(cleaned.remaining >= 1, "{cleaned:?}");
+    assert_eq!(
+        cleaned.removed + cleaned.remaining,
+        2,
+        "every file accounted for"
+    );
+    assert!(cleaned.error.is_some());
 }

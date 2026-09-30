@@ -484,6 +484,9 @@ pub struct MirrorSummaryView {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[specta(optional)]
     pub archive_not_deleted: Option<Message>,
+    /// Expired archived files the run's clean-up couldn't remove, and why (#136).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archive_not_cleaned: Option<Message>,
 }
 
 /// What a mirror's archive holds (#99, #101): shown on the mirror's screen, and asked before

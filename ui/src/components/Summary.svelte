@@ -84,6 +84,9 @@
     {#if summary.mirror?.archiveNotDeleted}
       <Notice tone="warning">{say(summary.mirror.archiveNotDeleted)}</Notice>
     {/if}
+    {#if summary.mirror?.archiveNotCleaned}
+      <Notice tone="warning">{say(summary.mirror.archiveNotCleaned)}</Notice>
+    {/if}
     {#if summary.checksumOff && !summary.mirror && !summary.check}<p class="muted">{t("summary.noChecksumFile")}</p>{/if}
     {#if summary.checksumError}
       <Notice tone="danger">{t("summary.checksumError", { why: say(summary.checksumError) })}</Notice>

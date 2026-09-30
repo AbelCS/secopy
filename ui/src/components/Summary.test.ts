@@ -25,10 +25,23 @@ describe("Summary", () => {
     };
     show(
       summaryView({
-        mirror: { new: 1, updated: 0, removed: 0, archived: false, removalFailures: [], nothingRemoved: null, archiveNotDeleted: note },
+        mirror: { new: 1, updated: 0, removed: 0, archived: false, removalFailures: [], nothingRemoved: null, archiveNotDeleted: note, archiveNotCleaned: null },
       }),
     );
     screen.getByText("2 archived files couldn't be deleted (Permission denied). They're removed once they're 7 days old.");
+  });
+
+  test("a mirror says which old archived files its clean-up couldn't remove (#136)", () => {
+    const note = {
+      key: "mirror.archiveNotCleaned",
+      args: { count: 3, why: { key: "errors.os.permissionDenied", args: {} } },
+    };
+    show(
+      summaryView({
+        mirror: { new: 1, updated: 0, removed: 0, archived: false, removalFailures: [], nothingRemoved: null, archiveNotDeleted: null, archiveNotCleaned: note },
+      }),
+    );
+    screen.getByText("3 archived files past the preset's days couldn't be removed (Permission denied). Secopy tries again at the next run.");
   });
 
   test("a mirror: its headline, why nothing was removed, what couldn't be, and Done", async () => {
