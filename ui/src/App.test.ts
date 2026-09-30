@@ -605,12 +605,25 @@ describe("App", () => {
     await startButton();
     api.pickImportFile.mockResolvedValue("/Users/me/Team.secopy");
     api.openImport.mockResolvedValue(importView());
-    api.applyImport.mockResolvedValue({ message: raw("Imported 1 copy preset."), failed: false, settings: settingsView(), copyPresets: [copyPreset()], mirrorPresets: [] });
+    api.applyImport.mockResolvedValue({ message: raw("Imported 1 copy preset."), failed: false, settings: settingsView(), copyPresets: [copyPreset()], mirrorPresets: [], session: null });
     state.menu!("import-file");
     await screen.findByRole("heading", { level: 1, name: "Import" });
     await fireEvent.click(screen.getByRole("button", { name: "Import" }));
     await screen.findByText("Imported 1 copy preset.");
     expect(screen.queryByRole("heading", { level: 1, name: "Import" })).toBeNull();
+  });
+
+  test("an import that replaced the selected preset shows New copy with the imported one", async () => {
+    const { api, state } = app();
+    await startButton();
+    api.pickImportFile.mockResolvedValue("/Users/me/Team.secopy");
+    api.openImport.mockResolvedValue(importView());
+    const reloaded = readyView({ destination: destinationView({ path: "/Volumes/Imported" }) });
+    api.applyImport.mockResolvedValue({ message: raw("Imported 1 copy preset."), failed: false, settings: settingsView(), copyPresets: [copyPreset()], mirrorPresets: [], session: reloaded });
+    state.menu!("import-file");
+    await screen.findByRole("heading", { level: 1, name: "Import" });
+    await fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    await screen.findByText("/Volumes/Imported");
   });
 
   test("a file opened from Finder while copying says to wait", async () => {

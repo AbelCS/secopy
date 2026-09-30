@@ -2071,12 +2071,20 @@ impl AppState {
         let settings = lock(&self.settings).clone();
         let copy_presets = lock(&self.copy_presets).presets.clone();
         let mirror_presets = lock(&self.mirrors).presets.clone();
+        // The preset New copy has selected, replaced: loaded there as it is now, so a later
+        // Update doesn't put the old one back (#116).
+        let selected = session(self).preset().cloned();
+        let session = selected.and_then(|old| {
+            let new = copy_presets.iter().find(|p| p.id == old.id)?;
+            (*new != old).then(|| self.rescan(Change::CopyPreset(Some(new.clone()))))
+        });
         Ok(ImportDone {
             message,
             failed,
             settings,
             copy_presets,
             mirror_presets,
+            session,
         })
     }
 
@@ -3696,6 +3704,54 @@ mod tests {
             1,
             "saved to disk"
         );
+    }
+
+    /// QA review (#116): Replace on the preset New copy has selected loads the imported one
+    /// there, so a later Update can't put the old one back.
+    #[test]
+    fn replacing_the_selected_preset_loads_the_imported_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let (a, b) = (dir.path().join("A"), dir.path().join("B"));
+        for d in [&a, &b] {
+            fs::create_dir_all(d).unwrap();
+            fs::write(d.join("x.mov"), b"x").unwrap();
+        }
+        let state = AppState::new(dir.path().join("data"));
+        state
+            .create_copy_preset(CopyPresetInput {
+                name: "FX3".into(),
+                source: show(&a),
+                include_folder: true,
+                extensions: None,
+            })
+            .unwrap();
+        let id = lock(&state.copy_presets).presets[0].id.clone();
+        state.select_copy_preset(Some(id)).unwrap();
+        let file = dir.path().join("x.secopy");
+        fs::write(
+            &file,
+            format!(
+                r#"{{"secopy":1,"copyPresets":[{{"name":"fx3","source":"{}","includeFolder":false,"extensions":null}}]}}"#,
+                show(&b)
+            ),
+        )
+        .unwrap();
+        state.open_import(&file).unwrap();
+        let done = state
+            .apply_import(&ImportChoices {
+                settings: false,
+                copy_presets: vec![PresetChoice {
+                    index: 0,
+                    replace: true,
+                }],
+                mirror_presets: vec![],
+            })
+            .unwrap();
+        let view = done.session.expect("New copy reloaded");
+        let source = view.source.unwrap();
+        assert_eq!(source.folder, Some(show(&b)));
+        assert!(source.contents_only, "the imported preset's choice");
+        assert!(!view.preset_changed);
     }
 
     /// #77: opening the Import screen changes nothing.

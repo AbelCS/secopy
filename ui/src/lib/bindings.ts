@@ -362,6 +362,8 @@ export type ImportDone_Deserialize = {
 	settings: Settings,
 	copyPresets: CopyPreset[],
 	mirrorPresets: MirrorPreset_Deserialize[],
+	/**  New copy, reloaded because its selected preset was replaced (#116). */
+	session: SessionView | null,
 };
 
 /**  After Import: what to say, and everything the window shows, as saved (#77). */
@@ -372,6 +374,8 @@ export type ImportDone_Serialize = {
 	settings: Settings,
 	copyPresets: CopyPreset[],
 	mirrorPresets: MirrorPreset_Serialize[],
+	/**  New copy, reloaded because its selected preset was replaced (#116). */
+	session: SessionView | null,
 };
 
 /**  What the Import screen shows: nothing is changed by making it. */

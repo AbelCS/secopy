@@ -585,4 +585,6 @@ pub struct ImportDone {
     pub settings: Settings,
     pub copy_presets: Vec<CopyPreset>,
     pub mirror_presets: Vec<MirrorPreset>,
+    /// New copy, reloaded because its selected preset was replaced (#116).
+    pub session: Option<SessionView>,
 }
