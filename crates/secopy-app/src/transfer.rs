@@ -12,8 +12,8 @@ use specta::Type;
 use crate::message::Message;
 use crate::msg;
 use crate::store::{
-    CopyPreset, CopyPresetInput, CopyPresets, DeletedMode, MirrorPreset, MirrorPresetInput,
-    MirrorPresets, Settings,
+    CopyPreset, CopyPresetInput, CopyPresets, DeletedFiles, DeletedMode, MirrorPreset,
+    MirrorPresetInput, MirrorPresets, Settings,
 };
 
 /// The format this Secopy writes and reads.
@@ -164,6 +164,10 @@ pub fn read(bytes: &[u8]) -> Result<Contents, Message> {
         .filter(|a| !a.is_empty());
     let (mut settings_unknown, mut settings_defaulted) = (Vec::new(), Vec::new());
     let settings = file.remove("settings").map(|v| {
+        // Anything but an object would read as all defaults, none of them listed.
+        if !v.is_object() {
+            return Err(msg!("import.problem.settings"));
+        }
         let read = serde_json::from_value::<Settings>(v.clone())
             .map_err(|_| msg!("import.problem.settings"))?;
         let known = serde_json::to_value(&read).expect("settings serialize");
@@ -176,8 +180,26 @@ pub fn read(bytes: &[u8]) -> Result<Contents, Message> {
     if count(&copies) > MAX_PRESETS || count(&mirrors) > MAX_PRESETS {
         return Err(msg!("errors.import.tooMany", max = MAX_PRESETS));
     }
-    let copy_presets = presets(copies);
-    let mirror_presets = presets(mirrors);
+    // Every key a preset has here, so a newer preset is known as one even when it can't be
+    // read; a new field fails to build until it's here too.
+    let copy_keys = CopyPresetInput {
+        name: String::new(),
+        source: String::new(),
+        include_folder: false,
+        extensions: None,
+    };
+    let mirror_keys = MirrorPresetInput {
+        name: String::new(),
+        origin: String::new(),
+        destination: String::new(),
+        deleted: DeletedFiles {
+            mode: DeletedMode::Archive,
+            days: 0,
+        },
+        deep_check: false,
+    };
+    let copy_presets = presets(copies, &copy_keys);
+    let mirror_presets = presets(mirrors, &mirror_keys);
     if settings.is_none() && copy_presets.is_empty() && mirror_presets.is_empty() {
         return Err(nothing());
     }
@@ -213,7 +235,9 @@ fn unknown_keys(theirs: &Value, ours: &Value) -> Vec<String> {
 /// it, it would do something other than what it did where it was made (#149).
 fn presets<T: serde::de::DeserializeOwned + Serialize>(
     list: Option<Value>,
+    keys: &T,
 ) -> Vec<Result<T, Unreadable>> {
+    let known = serde_json::to_value(keys).expect("presets serialize");
     let items = match list {
         None => return Vec::new(),
         Some(Value::Array(items)) => items,
@@ -234,22 +258,20 @@ fn presets<T: serde::de::DeserializeOwned + Serialize>(
                 .and_then(Value::as_str)
                 .map(|n| n.trim().chars().take(200).collect::<String>())
                 .unwrap_or_default();
-            let read = serde_json::from_value::<T>(item.clone()).map_err(|e| Unreadable {
-                name: name.clone(),
-                why: msg!("import.problem.details", detail = e.to_string()),
-                section: false,
-            })?;
-            let known = serde_json::to_value(&read).expect("presets serialize");
             let unknown = unknown_keys(&item, &known);
-            if unknown.is_empty() {
-                Ok(read)
+            let why = if unknown.is_empty() {
+                match serde_json::from_value::<T>(item) {
+                    Ok(read) => return Ok(read),
+                    Err(e) => msg!("import.problem.details", detail = e.to_string()),
+                }
             } else {
-                Err(Unreadable {
-                    name,
-                    why: msg!("import.problem.newer", keys = unknown.join(", ")),
-                    section: false,
-                })
-            }
+                msg!("import.problem.newer", keys = unknown.join(", "))
+            };
+            Err(Unreadable {
+                name,
+                why,
+                section: false,
+            })
         })
         .collect()
 }
@@ -619,7 +641,7 @@ pub fn settings_changes(from: &Settings, to: &Settings) -> Vec<Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::En;
+    use crate::message::{Arg, En};
     use crate::store::{CopyPresets, DeletedFiles, MirrorPresetInput, MirrorPresets};
 
     /// Review: a section that can't be read is the section, not a preset with no name.
@@ -725,6 +747,55 @@ mod tests {
 
     /// #149: a preset with a setting this Secopy doesn't know (a newer one's) isn't imported
     /// without it: it says so and can't be ticked. Unknown file-level keys are fine.
+    /// #149 review: a newer preset that also lacks a key this Secopy needs still says it needs
+    /// a newer Secopy, and which keys.
+    #[test]
+    fn a_newer_preset_missing_a_key_still_says_newer() {
+        let text = r#"{"secopy":1,"mirrorPresets":[{"name":"M","origin":"/o","destination":"/d",
+            "deleted":{"mode":"archive","days":30},"comparison":"deep"}]}"#;
+        let why = read(text.as_bytes()).unwrap().mirror_presets[0]
+            .as_ref()
+            .unwrap_err()
+            .why
+            .clone();
+        assert_eq!(why.key, "import.problem.newer");
+        assert_eq!(why.args["keys"], Arg::Text("comparison".into()));
+    }
+
+    /// #149 review: settings that aren't an object can't be read (serde would take them all as
+    /// defaults, unlisted).
+    #[test]
+    fn settings_that_arent_an_object_cant_be_read() {
+        for settings in ["[]", "null", "true"] {
+            let text = format!(r#"{{"secopy":1,"settings":{settings}}}"#);
+            let c = read(text.as_bytes()).unwrap();
+            assert_eq!(
+                c.settings.unwrap().unwrap_err().key,
+                "import.problem.settings",
+                "{settings}"
+            );
+        }
+    }
+
+    /// #149: a file this Secopy made says nothing about versions.
+    #[test]
+    fn a_file_from_this_secopy_has_nothing_to_say_about_versions() {
+        let (c, m) = (copy_presets(), mirror_presets());
+        let text = export_text(
+            Some(&Settings::default()),
+            &c.presets,
+            &m.presets,
+            env!("CARGO_PKG_VERSION"),
+            now(),
+        );
+        let read = read(text.as_bytes()).unwrap();
+        assert!(read.settings_unknown.is_empty() && read.settings_defaulted.is_empty());
+        assert!(read.copy_presets.iter().all(Result::is_ok));
+        assert!(read.mirror_presets.iter().all(Result::is_ok));
+        let view = plan("x.secopy", &read, &c, &m, &Settings::default(), &|_| true);
+        assert_eq!(view.made_by, None);
+    }
+
     #[test]
     fn a_preset_with_settings_this_secopy_doesnt_know_isnt_imported() {
         let text = r#"{"secopy":1,"later":true,"copyPresets":[
