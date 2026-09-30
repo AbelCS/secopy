@@ -133,3 +133,14 @@ describe("QueueScreen: help on the buttons", () => {
     expect(helpOf(screen.getByRole("button", { name: "Clear…" }))).toBeNull();
   });
 });
+
+describe("QueueScreen double clicks (#117)", () => {
+  test("a second click while a change is on its way does nothing", async () => {
+    const { api } = show();
+    api.removeFromQueue.mockReturnValue(new Promise(() => {})); // still on its way
+    const remove = screen.getByRole("button", { name: "Remove job 1" });
+    await fireEvent.click(remove);
+    await fireEvent.click(remove);
+    expect(api.removeFromQueue).toHaveBeenCalledTimes(1);
+  });
+});

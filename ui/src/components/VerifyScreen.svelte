@@ -47,13 +47,19 @@
     }
   }
 
+  /** Add to queue on its way: a second click doesn't add the job twice (#117). */
+  let queueing = false;
+
   async function queue() {
-    if (!view) return;
+    if (!view || queueing) return;
+    queueing = true;
     try {
       onQueue(await api.addCheckToQueue(view.directory));
       error = null;
     } catch (e) {
       error = messageOf(e);
+    } finally {
+      queueing = false;
     }
   }
 

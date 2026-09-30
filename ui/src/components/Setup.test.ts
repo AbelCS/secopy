@@ -143,6 +143,15 @@ describe("Setup", () => {
     expect(start()).toHaveProperty("disabled", false);
   });
 
+  test("a double click on Add to queue adds it once (#117)", async () => {
+    const { api } = setup(readyView());
+    api.addToQueue.mockReturnValue(new Promise(() => {}));
+    const add = screen.getByRole("button", { name: "Add to queue" });
+    await fireEvent.click(add);
+    await fireEvent.click(add);
+    expect(api.addToQueue).toHaveBeenCalledTimes(1);
+  });
+
   test("where the files go is shown even when Start is blocked", () => {
     setup(
       readyView({

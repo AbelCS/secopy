@@ -100,7 +100,12 @@
   /** "Added to the queue (3 jobs).", for a few seconds after Add to queue. */
   let queuedNote: string | null = $state(null);
 
+  /** Add to queue on its way: a second click doesn't add the job twice (#117). */
+  let queueing = false;
+
   async function addToQueue() {
+    if (queueing) return;
+    queueing = true;
     try {
       const queue = await api.addToQueue(verify);
       onQueued?.(queue);
@@ -109,6 +114,8 @@
       await update(() => api.clearSource(), (e) => (sourceError = e));
     } catch (e) {
       sourceError = messageOf(e);
+    } finally {
+      queueing = false;
     }
   }
 
