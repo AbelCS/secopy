@@ -38,6 +38,7 @@
     checking = true;
     try {
       view = await api.checkDirectory(path);
+      queuedFor = null; // chosen again: it can be queued again
       error = null;
     } catch (e) {
       view = null;
@@ -47,14 +48,17 @@
     }
   }
 
-  /** Add to queue on its way: a second click doesn't add the job twice (#117). */
+  /** Add to queue on its way, or done for this directory: a second click doesn't add the
+   *  job twice (#117). */
   let queueing = false;
+  let queuedFor: string | null = $state(null);
 
   async function queue() {
-    if (!view || queueing) return;
+    if (!view || queueing || queuedFor === view.directory) return;
     queueing = true;
     try {
       onQueue(await api.addCheckToQueue(view.directory));
+      queuedFor = view.directory;
       error = null;
     } catch (e) {
       error = messageOf(e);
@@ -123,7 +127,7 @@
     <ActionBar>
       {#snippet end()}
         <Button
-          disabled={!ready}
+          disabled={!ready || queuedFor === view?.directory}
           help={t("verify.addToQueueHelp")}
           onclick={queue}>{t("verify.addToQueue")}</Button
         >

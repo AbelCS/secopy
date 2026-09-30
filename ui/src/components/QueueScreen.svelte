@@ -34,14 +34,8 @@
   let error: string | null = $state(null);
   const count = $derived(queue.jobs.length);
 
-  /** A change on its way: jobs are removed and moved by their place, so a second click
-   *  before it comes back would act on another job (#117). */
-  let changing = false;
-
   /** Whether the change worked. */
   async function change(call: () => Promise<QueueView>): Promise<boolean> {
-    if (changing) return false;
-    changing = true;
     try {
       onQueue(await call());
       error = null;
@@ -49,14 +43,26 @@
     } catch (e) {
       error = messageOf(e);
       return false;
+    }
+  }
+
+  /** A removal or move on its way: jobs are addressed by their place, so a second click
+   *  before it comes back would act on another job (#117). */
+  let moving = false;
+
+  async function byPlace(call: () => Promise<QueueView>): Promise<boolean> {
+    if (moving) return false;
+    moving = true;
+    try {
+      return await change(call);
     } finally {
-      changing = false;
+      moving = false;
     }
   }
 
   /** Moves a job and keeps the focus on it, in its new row (for the keyboard and VoiceOver). */
   async function move(from: number, to: number) {
-    if (!(await change(() => api.moveInQueue(from, to)))) return;
+    if (!(await byPlace(() => api.moveInQueue(from, to)))) return;
     await tick();
     const row = document.querySelectorAll<HTMLElement>(".job")[to];
     const buttons = [...(row?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
@@ -111,7 +117,7 @@
             <div class="buttons">
               <Button aria-label={t("queue.moveUp", { number: i + 1 })} disabled={i === 0} onclick={() => move(i, i - 1)}>↑</Button>
               <Button aria-label={t("queue.moveDown", { number: i + 1 })} disabled={i === count - 1} onclick={() => move(i, i + 1)}>↓</Button>
-              <Button aria-label={t("queue.remove", { number: i + 1 })} onclick={() => change(() => api.removeFromQueue(i))}>✕</Button>
+              <Button aria-label={t("queue.remove", { number: i + 1 })} onclick={() => byPlace(() => api.removeFromQueue(i))}>✕</Button>
             </div>
           </li>
         {/each}

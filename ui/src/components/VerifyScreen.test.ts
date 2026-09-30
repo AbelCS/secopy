@@ -66,6 +66,18 @@ describe("VerifyScreen", () => {
     await fireEvent.click(add);
     expect(api.addCheckToQueue).toHaveBeenCalledTimes(1);
   });
+
+  test("once added, the same directory isn't added again by a second click (#117)", async () => {
+    const { api } = show();
+    api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await screen.findByText(/checksum files/);
+    const add = screen.getByRole("button", { name: "Add to queue" });
+    await fireEvent.click(add);
+    await waitFor(() => expect(api.addCheckToQueue).toHaveBeenCalledTimes(1));
+    await fireEvent.click(add);
+    expect(api.addCheckToQueue).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("VerifyScreen: help on the buttons", () => {

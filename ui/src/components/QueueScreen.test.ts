@@ -143,4 +143,12 @@ describe("QueueScreen double clicks (#117)", () => {
     await fireEvent.click(remove);
     expect(api.removeFromQueue).toHaveBeenCalledTimes(1);
   });
+
+  test("the failure policy isn't ignored while a removal is on its way", async () => {
+    const { api } = show();
+    api.removeFromQueue.mockReturnValue(new Promise(() => {}));
+    await fireEvent.click(screen.getByRole("button", { name: "Remove job 1" }));
+    await fireEvent.click(screen.getByRole("radio", { name: "Stop the queue" }));
+    expect(api.setQueueOnFailure).toHaveBeenCalledWith("stop");
+  });
 });

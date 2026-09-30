@@ -245,6 +245,20 @@ describe("JobProgress", () => {
     await screen.findByText("DCIM/C0.mov");
   });
 
+  test("a failed page is asked for again by itself, a few times (#117)", async () => {
+    const { api } = fakeApi();
+    api.finishedPage.mockRejectedValueOnce(new Error("busy"));
+    api.finishedPage.mockImplementation((offset: number, limit: number) =>
+      Promise.resolve(Array.from({ length: Math.min(limit, 3) }, (_, i) => row(offset + i))),
+    );
+    render(JobProgress, {
+      props: { progress: progressView({ phase: "done", filesDone: 3 }) },
+      context: apiContext(api),
+    });
+    await screen.findByText("DCIM/C0.mov", undefined, { timeout: 3000 });
+    expect(api.finishedPage).toHaveBeenCalledTimes(2);
+  });
+
   test("the Status column holds a short word; a failure's reason is on hover", async () => {
     const { api } = fakeApi();
     api.finishedPage.mockResolvedValue([

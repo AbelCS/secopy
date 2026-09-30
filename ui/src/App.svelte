@@ -632,7 +632,7 @@
         onPreview={async (v) => {
           // Only if still here: a long preview may end after you went elsewhere; changes made
           // meanwhile are asked about first (#117).
-          if (screen !== "mirror" || !(await mayLeaveMirror())) return;
+          if (screen !== "mirror" || !(await mayLeaveMirror()) || screen !== "mirror") return;
           mirrorPreview = v;
           screen = "mirror-preview";
         }}

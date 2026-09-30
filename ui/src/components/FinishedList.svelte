@@ -44,6 +44,9 @@
    * update, not in a loop.
    */
   const asked = new Map<number, number>();
+  /** Failed requests by page: asked again a second later, a few times (#117). */
+  const failures = new Map<number, number>();
+  let retry = $state(0);
 
   const count = $derived(failedOnly ? failedTotal : total);
   const height = $derived(Math.min(HEIGHT, Math.max(1, count) * ROW));
@@ -60,6 +63,7 @@
     // Fetch the pages the visible rows need; incomplete pages again as more files finish.
     const only = failedOnly;
     const now = updated;
+    void retry;
     const wanted = new Set(visible.map((v) => Math.floor(v.index / PAGE)));
     for (const page of wanted) {
       const have = pages.get(page);
@@ -71,8 +75,14 @@
           if (only !== failedOnly) return;
           pages = new Map(pages).set(page, rows);
         },
-        // Asked again when the list next needs it, not left blank for good (#117).
-        () => asked.delete(page),
+        // Asked again, not left blank for good (#117): by itself a few times, then when the
+        // list next needs it.
+        () => {
+          asked.delete(page);
+          const n = (failures.get(page) ?? 0) + 1;
+          failures.set(page, n);
+          if (n <= 3) setTimeout(() => retry++, 1000);
+        },
       );
     }
   });
