@@ -15,8 +15,8 @@ The window has three tabs, **Copy**, **Mirror** and **Verify**, plus **Queue** a
 Drop a directory or files on **From**, or press **Choose…** (⌘O).
 
 - **A directory** is copied with everything inside it, keeping its structure and file dates.
-  **Include the "…" directory** copies the directory itself (the files land in
-  `destination/CLIP/…`); turn it off to copy only what's inside it.
+  By default only what's inside it is copied; **Include the "…" directory** copies the
+  directory itself (the files land in `destination/CLIP/…`).
 - **Files** picked one by one are copied side by side into the destination.
 - **Hidden files are copied** (cameras hide some of their own). Files computers leave behind,
   like `.DS_Store`, `._*` or `Thumbs.db`, are never copied; their count is shown, so nothing

@@ -64,7 +64,8 @@ impl Default for Session {
             next_filter: ExtensionFilter::All,
             picked: None,
             preset: None,
-            include_folder: true,
+            // #152: what's inside the directory, unless Include the directory is ticked.
+            include_folder: false,
             pick_problem: None,
             source: None,
             filter: ExtensionFilter::All,
@@ -174,7 +175,7 @@ impl Session {
         match change {
             Change::Pick(paths) => {
                 self.picked = Some(paths);
-                self.include_folder = self.preset.as_ref().is_none_or(|p| p.include_folder);
+                self.include_folder = self.preset.as_ref().is_some_and(|p| p.include_folder);
             }
             Change::PickAs {
                 paths,
@@ -822,11 +823,7 @@ mod tests {
 
     fn pick(session: &mut Session, paths: &[PathBuf], contents_only: bool) -> SessionView {
         apply(session, Change::Pick(paths.to_vec()));
-        if contents_only {
-            apply(session, Change::IncludeFolder(false))
-        } else {
-            session.view()
-        }
+        apply(session, Change::IncludeFolder(!contents_only))
     }
 
     /// A preset loading `source` (empty: whatever is picked).
@@ -1144,6 +1141,17 @@ mod tests {
             view.pick_problem.en().as_deref(),
             Some("Pick one directory, or only files — not both.")
         );
+    }
+
+    /// #152: a pick copies what's inside the directory unless Include the directory is ticked.
+    #[test]
+    fn a_pick_starts_without_the_directory() {
+        let f = fixture();
+        let mut s = Session::new();
+        let view = apply(&mut s, Change::Pick(vec![f.card.clone()]));
+        assert!(view.source.unwrap().contents_only);
+        let view = s.set_destination(Some(f.dest.clone()));
+        assert_eq!(view.destination.unwrap().copy_root, show(&f.dest));
     }
 
     #[test]

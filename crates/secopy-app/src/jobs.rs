@@ -1207,7 +1207,10 @@ mod tests {
         fs::create_dir_all(&dest).unwrap();
         let mut session = Session::new();
         let pending = session
-            .begin(Change::Pick(vec![card.clone()]))
+            .begin(Change::PickAs {
+                paths: vec![card.clone()],
+                include_folder: true,
+            })
             .ok()
             .unwrap();
         let scanned = scan_source(&pending.source);
@@ -1351,7 +1354,10 @@ mod tests {
         fs::set_permissions(card.join("locked"), fs::Permissions::from_mode(0o000)).unwrap();
         let mut session = Session::new();
         let pending = session
-            .begin(Change::Pick(vec![card.clone()]))
+            .begin(Change::PickAs {
+                paths: vec![card.clone()],
+                include_folder: true,
+            })
             .ok()
             .unwrap();
         let scanned = scan_source(&pending.source);

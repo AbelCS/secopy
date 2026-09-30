@@ -39,7 +39,7 @@
   const start = {
     name: preset?.name ?? "",
     source: preset?.source ?? "",
-    includeFolder: preset?.includeFolder ?? true,
+    includeFolder: preset?.includeFolder ?? false,
     all: preset ? preset.extensions === null : true,
     types: preset?.extensions ?? [],
   };

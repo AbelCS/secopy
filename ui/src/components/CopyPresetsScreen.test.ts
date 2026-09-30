@@ -160,7 +160,7 @@ describe("CopyPresetsScreen", () => {
       expect(api.createCopyPreset).toHaveBeenCalledWith({
         name: "GoPro",
         source: "/Volumes/GOPRO/DCIM",
-        includeFolder: true,
+        includeFolder: false,
         extensions: null,
       }),
     );
