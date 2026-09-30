@@ -26,6 +26,7 @@ const session: SessionView = {
     selectedExtensions: ["mp4"],
     skippedSystem: 4,
     skippedSymlinks: 0,
+    skippedSpecial: 0,
     problems: [],
     problemCount: 0,
   },

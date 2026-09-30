@@ -57,6 +57,8 @@ pub struct SourceView {
     /// System files skipped (`.DS_Store`, `Thumbs.db`…); hidden files are copied (FR-12).
     pub skipped_system: u32,
     pub skipped_symlinks: u32,
+    /// FIFOs, sockets and devices: never copied (#135).
+    pub skipped_special: u32,
     /// Things that couldn't be read while scanning, first 20.
     pub problems: Vec<Message>,
     pub problem_count: u32,
