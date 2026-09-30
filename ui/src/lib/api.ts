@@ -114,7 +114,9 @@ export const tauriApi = {
   deleteMirrorPreset: (id: string): Promise<MirrorPreset[]> => unwrap(commands.deleteMirrorPreset(id)),
   /** What a mirror's archive holds (#101), asked before switching it to Delete. */
   mirrorArchive: (id: string): Promise<ArchiveView> => unwrap(commands.mirrorArchive(id)),
-  deleteMirrorArchive: (id: string): Promise<ArchiveDeletedView> => unwrap(commands.deleteMirrorArchive(id)),
+  /** `destination`: the one whose archive was shown; the app refuses if the mirror's changed. */
+  deleteMirrorArchive: (id: string, destination: string): Promise<ArchiveDeletedView> =>
+    unwrap(commands.deleteMirrorArchive(id, destination)),
   clearMirrorArchiveNextRun: (id: string): Promise<MirrorPreset[]> => unwrap(commands.clearMirrorArchiveNextRun(id)),
   /** What a preset would do now; the preview's Start then runs exactly this (FR-47). */
   previewMirror: (id: string, onCompared: (c: ComparedView) => void): Promise<MirrorPreviewView> => {

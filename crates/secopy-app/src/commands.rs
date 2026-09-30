@@ -1254,6 +1254,7 @@ impl AppState {
         let summary = secopy_core::mirror::archive_summary(Path::new(&preset.destination));
         let held = summary.as_ref().ok().copied().flatten();
         Ok(ArchiveView {
+            destination: preset.destination.clone(),
             files: held.map_or(0, |s| count(s.files)),
             bytes: held.map_or(0, |s| s.bytes),
             oldest: held.and_then(|s| s.oldest).map(|t| t.to_rfc3339()),
@@ -1264,11 +1265,20 @@ impl AppState {
 
     /// "Delete them now" (#101): the whole archive of mirror `id`'s destination; never while a
     /// job or the queue runs. What can't be deleted goes once it reaches the preset's days.
-    pub fn delete_mirror_archive(&self, id: &str) -> Result<ArchiveDeletedView, Message> {
+    /// `shown` is the destination the user saw: if the preset's changed since, nothing is
+    /// deleted (#113).
+    pub fn delete_mirror_archive(
+        &self,
+        id: &str,
+        shown: &str,
+    ) -> Result<ArchiveDeletedView, Message> {
         let preset = lock(&self.mirrors)
             .get(id)
             .cloned()
             .ok_or_else(preset_gone)?;
+        if preset.destination != shown {
+            return Err(msg!("errors.mirror.archiveMoved"));
+        }
         // Held throughout, so the queue can't start in the middle (`claim_queue_run`).
         let run = lock(&self.queue_run);
         if run.running || self.jobs.is_running() {
@@ -1628,8 +1638,12 @@ pub async fn mirror_archive(app: AppHandle, id: String) -> Result<ArchiveView, M
 pub async fn delete_mirror_archive(
     app: AppHandle,
     id: String,
+    destination: String,
 ) -> Result<ArchiveDeletedView, Message> {
-    blocking(app, move |state| state.delete_mirror_archive(&id)).await?
+    blocking(app, move |state| {
+        state.delete_mirror_archive(&id, &destination)
+    })
+    .await?
 }
 
 /// Deletes a mirror's archive at its next run (#101).
@@ -3098,14 +3112,39 @@ mod tests {
         archived(&d);
         lock(&state.queue_run).running = true;
         assert_eq!(
-            state.delete_mirror_archive(&id).unwrap_err(),
+            state.delete_mirror_archive(&id, &show(&d)).unwrap_err(),
             "Delete the archive when the current job has finished."
         );
         lock(&state.queue_run).running = false;
-        let done = state.delete_mirror_archive(&id).unwrap();
+        let done = state.delete_mirror_archive(&id, &show(&d)).unwrap();
         assert_eq!((done.removed, done.not_deleted), (1, None));
         assert!(!d.join(secopy_core::mirror::ARCHIVE_DIR).exists());
         assert!(d.join("x.mov").exists(), "only the archive");
+    }
+
+    /// QA review (#113): Delete archive… deletes the archive it showed; the preset's
+    /// destination changed since, it refuses.
+    #[test]
+    fn deleting_an_archive_names_the_destination_shown() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        let run = archived(&d);
+        let shown = state.mirror_archive(&id).unwrap();
+        assert_eq!(shown.destination, show(&d));
+        let b = dir.path().join("b");
+        fs::create_dir_all(&b).unwrap();
+        let b_run = archived(&b);
+        let mut input = state.mirror_presets()[0].input();
+        input.destination = show(&b);
+        state.edit_mirror_preset(&id, input).unwrap();
+        assert_eq!(
+            state
+                .delete_mirror_archive(&id, &shown.destination)
+                .unwrap_err()
+                .key,
+            "errors.mirror.archiveMoved"
+        );
+        assert!(run.exists() && b_run.exists(), "nothing deleted");
     }
 
     /// Review of #101: a pending deletion goes with the destination it was asked for.

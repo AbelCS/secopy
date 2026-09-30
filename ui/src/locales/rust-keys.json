@@ -80,6 +80,7 @@
   "errors.job.retrySourceGone",
   "errors.legacy",
   "errors.mirror.archiveBusy",
+  "errors.mirror.archiveMoved",
   "errors.mirror.archiveNotDir",
   "errors.mirror.changedSincePreview",
   "errors.mirror.destinationInOrigin",

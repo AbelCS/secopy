@@ -493,6 +493,8 @@ pub struct MirrorSummaryView {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchiveView {
+    /// The destination looked at; Delete archive… names it back (#113).
+    pub destination: String,
     pub files: u32,
     #[specta(type = specta_typescript::Number)]
     pub bytes: u64,
