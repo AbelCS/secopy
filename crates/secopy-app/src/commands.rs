@@ -2560,7 +2560,10 @@ mod tests {
             .set_modified(t)
             .unwrap();
         let state = AppState::new(dir.path().join("data"));
-        state.rescan(Change::Pick(vec![card]));
+        state.rescan(Change::PickAs {
+            paths: vec![card],
+            include_folder: true,
+        });
         let shown = state
             .session
             .lock()

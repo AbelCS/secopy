@@ -50,7 +50,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Write an **xxHash64 checksum file** to the destination for every job.
 - **Filter by extension** when the source is a directory.
 - Choose between copying **the folder itself** (`SOURCE/…`) or **only its contents** (`…`),
-  with one checkbox: "Include the “SOURCE” folder", on by default.
+  with one checkbox: "Include the “SOURCE” folder", off by default (#152).
 - Copy hidden files too (a camera can mark its own files hidden); skip only the files
   computers leave on a card, such as `.DS_Store` and `Thumbs.db`.
 - Get close to the throughput of the slower of the two devices.
@@ -113,7 +113,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 │ │ /Volumes/CARD_A/DCIM                        [ Choose… ]   │ │
 │ │ 1,284 files · 212.4 GB · 37 system files skipped          │ │
 │ └──────────────────────────────────────────────────────────┘ │
-│   [✓] Include the "DCIM" folder                               │
+│   [ ] Include the "DCIM" folder                               │
 │                                                               │
 │   File types   [✓ .mov 1,020 · 208 GB] [✓ .wav 240 · 4.1 GB]  │
 │                [  .xml 24 · 2 MB]  [✓ (no extension) 0]  All ▾│
@@ -283,7 +283,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-1 | The user can pick **one directory** as source via the native picker or drag and drop. | M |
 | FR-2 | The user can pick **one or more files** as source via the same native picker (multi-select) or drag and drop. Files dropped from different folders are allowed. | M |
 | FR-3 | After a source is picked, the app scans it in the background. It shows file count and total size, and updates them live as filters change. The UI stays responsive during the scan, and the scan can be cancelled by picking another source. | M |
-| FR-4 | For a directory source, the user chooses between: **(a) Copy the folder itself.** Copy root = `DEST/<SOURCE_NAME>/`. **(b) Copy only its contents.** Copy root = `DEST/`. One checkbox, "Include the “<SOURCE_NAME>” folder": on is (a), off is (b). The resulting path is previewed. Default: (a). | M |
+| FR-4 | For a directory source, the user chooses between: **(a) Copy the folder itself.** Copy root = `DEST/<SOURCE_NAME>/`. **(b) Copy only its contents.** Copy root = `DEST/`. One checkbox, "Include the “<SOURCE_NAME>” folder": on is (a), off is (b). The resulting path is previewed. Default: (b) (#152; a preset keeps its own choice). | M |
 | FR-5 | For a file-set source, the files are copied flat into `DEST/`. Directory structure is not recreated. | M |
 | FR-6 | Directory sources are copied **recursively**, keeping the relative directory structure. Empty directories are recreated. | M |
 
@@ -614,3 +614,4 @@ The stack meets these constraints:
 | 2026-09-30 | **App state and CLI, lower-risk items** (#137, QA review P2): a settings, presets or queue file from a newer Secopy is left as it is (not set aside), the defaults are used and nothing is saved over it; a queued copy with keys this version doesn't know is kept whole as a job for a newer Secopy; nothing starts or is queued while a pick is scanned; the CLI's mirror dry run counts files that will fail apart. Mirror presets stay editable while a job runs (switching to Delete then offers "at the next run"): a pending archive deletion ends when the destination changes (#101), so a queued mirror can't delete another destination's archive. |
 | 2026-09-30 | **UI, lower-risk items** (#138, QA review P2): each New copy view carries a revision made under the session's lock, and the window keeps the newest (answers can arrive out of order); a job added from New copy isn't added again until New copy changes. Accepted risks from the QA review, not fixed: another app writing into the destination during a job, a wrong clock when a mirror run was archived, a case-sensitive origin with names differing only in case, a file reappearing in the origin mid-run, SMB understating large allocation units. |
 | 2026-09-30 | **Import across versions** (#149): the file's `app` version is only for the words ("Made by Secopy 0.19.0; this is 0.17.6."); what imports is decided by the keys. A higher `secopy` format is refused whole, as before. Unknown settings are left out and listed; missing ones take their defaults and are listed. A preset with a key this Secopy doesn't know (nested ones too) isn't imported: without it, it would copy or mirror differently than where it was made. |
+| 2026-09-30 | **Include the directory off by default** (#152): a pick copies what's inside the directory; ticking the box copies the directory itself. A preset keeps its own choice; a new preset starts off. |

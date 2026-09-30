@@ -433,7 +433,13 @@ mod tests {
         std::fs::create_dir_all(dest.join("CLIP")).unwrap();
         std::fs::write(dest.join("CLIP/a.mp4"), b"older").unwrap();
         let mut s = Session::new();
-        apply(&mut s, Change::Pick(vec![clip.clone()]));
+        apply(
+            &mut s,
+            Change::PickAs {
+                paths: vec![clip.clone()],
+                include_folder: true,
+            },
+        );
         s.set_destination(Some(dest.clone()));
         s.set_policy(ConflictPolicy::Overwrite);
         let job = s.copy_job(true).unwrap();
