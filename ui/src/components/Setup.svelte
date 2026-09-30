@@ -101,12 +101,16 @@
 
   /** Add to queue on its way: a second click doesn't add the job twice (#117). */
   let queueing = false;
+  /** The view a job was added from: not added again until New copy changes, even when
+   *  clearing after it failed (#138). */
+  let queuedAt: number | null = null;
 
   async function addToQueue() {
-    if (queueing) return;
+    if (queueing || queuedAt === view.revision) return;
     queueing = true;
     try {
       const queue = await api.addToQueue(verify);
+      queuedAt = view.revision;
       onQueued?.(queue);
       queuedNote = t("copy.queued", { count: queue.jobs.length });
       setTimeout(() => (queuedNote = null), 3000);
