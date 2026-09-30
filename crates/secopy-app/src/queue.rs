@@ -114,10 +114,14 @@ use crate::session::{Change, Ready, Session, scan_source};
 /// `job` as New copy would build it now: scanned and checked at its turn (spec Q3).
 pub fn prepare(job: &CopyJob) -> Result<Ready, crate::message::Message> {
     let mut s = Session::new();
-    let mut view = apply(&mut s, Change::Pick(job.sources.clone()));
-    if view.pick_problem.is_none() && !job.include_folder {
-        view = apply(&mut s, Change::IncludeFolder(false));
-    }
+    // One scan, with the job's choice (#118): not the folder itself, then again without it.
+    let view = apply(
+        &mut s,
+        Change::PickAs {
+            paths: job.sources.clone(),
+            include_folder: job.include_folder,
+        },
+    );
     if let Some(problem) = view.pick_problem {
         return Err(problem);
     }

@@ -31,7 +31,7 @@
   {#each extensions as ext (ext.key)}
     <Chip
       label={ext.key === null ? t("copy.noExtension") : `.${ext.key}`}
-      meta="{formatCount(ext.files)} · {formatBytes(ext.bytes)}"
+      meta="{formatCount(ext.files)}{t('format.dot')}{formatBytes(ext.bytes)}"
       selected={isOn(ext.key)}
       onToggle={() => toggle(ext.key)}
     />

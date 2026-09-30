@@ -79,6 +79,11 @@ impl Default for Session {
 pub enum Change {
     /// A new pick: a drop or Choose….
     Pick(Vec<PathBuf>),
+    /// A pick with its "Include the folder" choice already made: a queued job, scanned once.
+    PickAs {
+        paths: Vec<PathBuf>,
+        include_folder: bool,
+    },
     /// The "Include the folder" checkbox; keeps this run's file types.
     IncludeFolder(bool),
     /// A copy preset selected, or `None`.
@@ -164,6 +169,13 @@ impl Session {
             Change::Pick(paths) => {
                 self.picked = Some(paths);
                 self.include_folder = self.preset.as_ref().is_none_or(|p| p.include_folder);
+            }
+            Change::PickAs {
+                paths,
+                include_folder,
+            } => {
+                self.picked = Some(paths);
+                self.include_folder = include_folder;
             }
             Change::IncludeFolder(include) => self.include_folder = include,
             Change::CopyPreset(preset) => {

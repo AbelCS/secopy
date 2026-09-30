@@ -605,11 +605,7 @@ fn source(text: &str) -> Result<String, Message> {
     if text.is_empty() {
         return Ok(String::new());
     }
-    if !text.starts_with('/') {
-        return Err(msg!("errors.field.source.notFull"));
-    }
-    let trimmed = text.trim_end_matches('/');
-    Ok(if trimmed.is_empty() { "/" } else { trimmed }.to_string())
+    full_path(text).ok_or_else(|| msg!("errors.field.source.notFull"))
 }
 
 /// On disk: the data next to a version number.

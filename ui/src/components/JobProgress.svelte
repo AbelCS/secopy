@@ -196,7 +196,7 @@
         <span class="overall">
           <strong>{work === 0 && progress.phase !== "done" ? formatPercent(0, 1) : formatPercent(workDone, work)}</strong>
           {#if progress.phase !== "done"}
-            ·
+            {t("format.dot").trim()}
             {#if timeLeft === null}
               <span>{t("progress.estimating")}</span>
             {:else}
