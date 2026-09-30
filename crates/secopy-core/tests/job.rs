@@ -1479,3 +1479,27 @@ fn undo_keeps_a_copy_edited_in_place() {
     undo(&plan, &report, None);
     assert_eq!(fs::read(&copy).unwrap(), b"HELLO", "kept");
 }
+
+/// QA review (#134): a checksum file undo can't remove is said, not hidden: it lists files
+/// that are gone.
+#[test]
+fn undo_says_when_the_checksum_file_stays() {
+    let f = fixture();
+    let plan = plan(&f.src, &f.dest);
+    let (report, _) = run(&plan, &opts(true));
+    let checksum = report.checksum_file.clone().expect("a checksum file");
+    let c = std::ffi::CString::new(checksum.to_str().unwrap()).unwrap();
+    // SAFETY: a NUL-terminated path; UF_IMMUTABLE makes its removal fail.
+    unsafe { libc::chflags(c.as_ptr(), libc::UF_IMMUTABLE as _) };
+    let undone = undo(&plan, &report, None);
+    // SAFETY: as above; cleared so the test directory can be removed.
+    unsafe { libc::chflags(c.as_ptr(), 0) };
+    let name = checksum.file_name().unwrap();
+    assert!(
+        undone
+            .failed
+            .iter()
+            .any(|(p, _)| p.file_name() == Some(name)),
+        "{undone:?}"
+    );
+}
