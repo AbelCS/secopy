@@ -338,7 +338,11 @@
 
   async function finish() {
     const done = (await run(() => api.jobSummary())) ?? null;
-    if (!done) return;
+    if (!done) {
+      // Back to the job's section with the reason, not stuck on Done (#117).
+      screen = checkRunning ? "verify" : mirrorRunning ? "mirror" : "setup";
+      return;
+    }
     if (done.check) {
       verifySummary = done;
       screen = "verify-summary";
