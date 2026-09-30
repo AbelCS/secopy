@@ -35,7 +35,7 @@ const session: SessionView = {
     path: "/Volumes/V001/Day01",
     copyRoot: "/Volumes/V001/Day01/CLIP",
     blocker: null,
-    freeBytes: 1_800_000_000_000,
+    availableBytes: 1_800_000_000_000,
     fsKind: "apfs",
     fsName: null,
     existingItems: 12,

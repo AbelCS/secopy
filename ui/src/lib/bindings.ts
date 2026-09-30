@@ -283,7 +283,7 @@ export type DestinationView = {
 	/**  Stops the job (FR-16); Start stays disabled. */
 	blocker: Message | null,
 	/**  Available, counting purgeable space, as Finder shows it (#108). */
-	freeBytes: number,
+	availableBytes: number,
 	/**
 	 *  The destination's file system as a code: `apfs`, `hfs`, `exfat`, `fat32`, `ntfs`,
 	 *  `smb`, `nfs`, or `other` (then `fs_name` says which).
@@ -680,7 +680,7 @@ export type QueueView = {
 
 /**  A queued job as the Queue screen shows it (plan 6). */
 export type QueuedJobView = {
-	/**  "copy", "mirror", or "unknown" for a job a newer Secopy wrote. */
+	/**  "copy", "mirror", "check", or "unknown" for a job a newer Secopy wrote. */
 	kind: string,
 	verify: boolean,
 	/**  The source as shown ("3 files" for several). */
@@ -753,7 +753,7 @@ export type SourceView = {
 	isFolder: boolean,
 	/**  Copy only what's inside the folder (FR-4b) instead of the folder itself. */
 	contentsOnly: boolean,
-	/**  The picked folder, to scan again when "folder itself / only what's inside" changes. */
+	/**  The picked directory: its name labels "Include the … directory". */
 	folder: string | null,
 	/**
 	 *  The failed files of the last job ("Retry"): nothing to choose but the

@@ -385,10 +385,9 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
     }
 }
 
-/// Makes the job durable: one fsync per directory for the renames, then one
-/// drive-cache flush for the whole volume (RFD §7.4).
-/// Makes the new names and the drive's cache durable. `Some` when the device reported an
-/// error doing so: the destination can't confirm the files are on disk.
+/// Makes the job durable (RFD §7.4): one fsync per directory for the new names, then one
+/// drive-cache flush for the whole volume. `Some` when the device reported an error doing so:
+/// the destination can't confirm the files are on disk.
 fn make_durable(dest: &Path, dirs: &[DirEntry], device: u64) -> Option<IoFailure> {
     // Another drive at the destination's path (the job's was pulled out): nothing it can
     // confirm is this job's (#115).

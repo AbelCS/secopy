@@ -444,11 +444,10 @@ impl Job {
 
     /// The summary once the job has ended; `None` while it runs.
     fn summary(&self) -> Option<SummaryView> {
-        let job = self;
-        let done = lock(&job.done);
+        let done = lock(&self.done);
         let done = done.as_ref()?;
-        let report = job.report(done);
-        let outcomes = lock(&job.outcomes);
+        let report = self.report(done);
+        let outcomes = lock(&self.outcomes);
         let c = &report.counts;
         let mirror = self.mirror().map(|m| mirror_summary(m, done, &outcomes));
         let check = match (self.check_plan(), &done.check) {
@@ -500,7 +499,7 @@ impl Job {
                 _ if done.panicked => Some(say::internal()),
                 fatal => fatal.as_ref().map(say::fatal),
             },
-            verify: job.verify(),
+            verify: self.verify(),
             files: count(c.files),
             copied: count(c.copied),
             verified: count(c.verified),
@@ -551,15 +550,15 @@ impl Job {
                 .take(FAILURES_SHOWN)
                 .collect(),
             finished: count(outcomes.len()),
-            copy_root: show(job.root()),
+            copy_root: show(self.root()),
             checksum_file: done.report.checksum_file.as_deref().map(show),
             checksum_error: checksum_error(
                 done.mirror_checksum_error.as_ref(),
                 done.report.checksum_error.as_ref(),
             ),
             // A check writes no checksum file: none was turned off.
-            checksum_off: job.copy().is_some()
-                && !job.settings().is_some_and(|s| s.write_checksum_file),
+            checksum_off: self.copy().is_some()
+                && !self.settings().is_some_and(|s| s.write_checksum_file),
             report_file: done.report_file.as_deref().ok().map(show),
             report_errors: done
                 .report_file
@@ -581,13 +580,12 @@ impl Job {
 
     /// "Save report…": the text report at `path` and the JSON next to it (FR-35).
     fn save_report(&self, path: &Path) -> Result<(), Message> {
-        let job = self;
-        let done = lock(&job.done);
+        let done = lock(&self.done);
         let done = done.as_ref().ok_or_else(|| msg!("errors.report.running"))?;
         if done.panicked {
             return Err(no_report());
         }
-        let report = job.report(done);
+        let report = self.report(done);
         // The JSON goes next to the text the save panel named: never over a file of the
         // user's (#116), only over a Secopy report.
         let json = path.with_extension("json");
@@ -722,7 +720,7 @@ impl Job {
     fn run_copy(&self, ready: &Ready, sink: &impl ProgressSink, reports_dir: &Path) {
         let settings = self.settings().expect("a copy has settings");
         let mirroring = settings.mirror.as_ref();
-        // Archive runs older than the preset keeps them go first (FR-49), in Delete mode too:
+        // Archive runs older than the preset's days go first (FR-49), in Delete mode too:
         // what was archived before a switch still goes when due (#101).
         let archive_deleted = mirroring.and_then(|m| m.archive_deleted.clone());
         if let Some(m) = mirroring {
@@ -1038,8 +1036,8 @@ fn checksum_error(
     }
 }
 
-/// One row of the finished list; `check` for a check's files (intact, changed, missing).
-/// A finished file as a row; `check` is the plan when the job is a check.
+/// A finished file as a row of the finished list; `check` is the plan when the job is a check
+/// (its files are intact, changed or missing).
 fn row(o: &FileOutcome, check: Option<&CheckPlan>) -> FinishedRow {
     let (status, mut reason) = match &o.status {
         FileStatus::Copied => (RowStatus::Copied, None),

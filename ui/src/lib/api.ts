@@ -159,7 +159,8 @@ export const tauriApi = {
   /** Secopy → Settings… (⌘,). */
   onOpenSettings: (handler: () => void): Promise<() => void> => listen("open-settings", handler),
   /** Menu items the window handles: "choose-source", "choose-destination", "start-copy",
-   * "cancel-copy" (File), "show-copy", "show-mirror", "show-queue" (View). */
+   * "cancel-copy", "export-file", "import-file" (File), "show-copy", "show-mirror",
+   * "show-verify", "show-queue" (View). */
   onMenu: (handler: (item: string) => void): Promise<() => void> => listen<string>("menu", (e) => handler(e.payload)),
   /** Which File menu items apply. */
   setMenuState: (setup: boolean, canStart: boolean, copying: boolean, busy: boolean): Promise<void> =>

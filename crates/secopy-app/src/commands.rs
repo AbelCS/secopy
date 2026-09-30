@@ -1425,8 +1425,8 @@ impl AppState {
             .collect()
     }
 
-    /// Start on the preview: the previewed plan, through the job runner (FR-47).
-    /// Runs the preview of preset `id`, as it was previewed; a preview runs once.
+    /// Start on the preview (FR-47): preset `id`'s plan as it was previewed, through the job
+    /// runner; a preview runs once.
     pub fn run_mirror(&self, id: &str, sink: impl ProgressSink) -> Result<(), Message> {
         // Held to the start, so the queue can't start between the archive deletion and the job.
         let run = lock(&self.queue_run);
@@ -2008,11 +2008,11 @@ impl AppState {
         let Pending { contents, seen } = lock(&self.importing)
             .take()
             .ok_or_else(|| msg!("errors.import.noFile"))?;
-        let now = (
-            lock(&self.copy_presets).clone(),
-            lock(&self.mirrors).clone(),
-            lock(&self.settings).clone(),
-        );
+        // One lock at a time: a guard in a tuple lives to the end of the statement.
+        let copies = lock(&self.copy_presets).clone();
+        let mirrors = lock(&self.mirrors).clone();
+        let settings = lock(&self.settings).clone();
+        let now = (copies, mirrors, settings);
         if now != seen {
             return Err(import_changed());
         }
