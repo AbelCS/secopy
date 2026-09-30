@@ -1167,6 +1167,7 @@
     },
     "report": {
       "dir": "{path}: {why}",
+      "jsonTaken": "{path} is already there and isn't a Secopy report. Choose another name.",
       "nextToChecksum": "next to the checksum file: {why}",
       "noJob": "That job has no report.",
       "none": "Secopy hit an internal error before the job ended, so there is no report.",
