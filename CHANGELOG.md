@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.2](https://github.com/AbelCS/secopy/compare/v0.17.1...v0.17.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* **core:** a destination gone before the final flush is a durability error ([e38e1ab](https://github.com/AbelCS/secopy/commit/e38e1abfdb5d728bf66cf63f246ccade8b8a7bb9)), closes [#115](https://github.com/AbelCS/secopy/issues/115)
+* **core:** a picked file named like an unfinished copy is skipped as Secopy's own ([901adf6](https://github.com/AbelCS/secopy/commit/901adf63d68737a116aae674f88bad820034994e)), closes [#115](https://github.com/AbelCS/secopy/issues/115)
+* **core:** a replaced file's old version that can't be put back is named ([25af787](https://github.com/AbelCS/secopy/commit/25af7874bec4ddf6bb11a8eed6ebd80b54375f02)), closes [#115](https://github.com/AbelCS/secopy/issues/115)
+* **core:** every folder on the way to a file gets its date back and is made durable ([66616c0](https://github.com/AbelCS/secopy/commit/66616c03edf03d29114c50f5dcecd922b0713af9)), closes [#115](https://github.com/AbelCS/secopy/issues/115)
+* **core:** review fixes for undo and durability ([7d0d4b0](https://github.com/AbelCS/secopy/commit/7d0d4b088d4a9ea090261861eb3477d8792a9947)), closes [#115](https://github.com/AbelCS/secopy/issues/115)
+* **core:** undo removes a copy only while it's the same file (device and inode) ([2dfc3b5](https://github.com/AbelCS/secopy/commit/2dfc3b57e9b92f44dbeb0d22f060930a384edd3d)), closes [#115](https://github.com/AbelCS/secopy/issues/115)
+
 ## [0.17.1](https://github.com/AbelCS/secopy/compare/v0.17.0...v0.17.1) (2026-09-30)
 
 
