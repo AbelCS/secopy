@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.4](https://github.com/AbelCS/secopy/compare/v0.17.3...v0.17.4) (2026-09-30)
+
+
+### Bug Fixes
+
+* **ui:** a double click doesn't remove two queued jobs or add one twice ([9dbc3bc](https://github.com/AbelCS/secopy/commit/9dbc3bc82ac2db59294edf09f5e7b0ba5a924a93)), closes [#117](https://github.com/AbelCS/secopy/issues/117)
+* **ui:** a job shows 0 %, not 100 %, before its first figures ([1d280e0](https://github.com/AbelCS/secopy/commit/1d280e0a670252761882ffb5a133982d83bf2ed9)), closes [#117](https://github.com/AbelCS/secopy/issues/117)
+* **ui:** a page of the finished list that failed to load is asked for again ([3f98888](https://github.com/AbelCS/secopy/commit/3f9888873d28f4ba5fb37e1e5291f591e4713c4a)), closes [#117](https://github.com/AbelCS/secopy/issues/117)
+* **ui:** a summary that can't be loaded goes back to the job's section with why ([88e9436](https://github.com/AbelCS/secopy/commit/88e94369ed6da1707923d995e3442dcb684d6177)), closes [#117](https://github.com/AbelCS/secopy/issues/117)
+* **ui:** review fixes for the queue, Verify, a preview's end and the finished list ([e129b27](https://github.com/AbelCS/secopy/commit/e129b27ff8377e513addc5cec18d38a5470c7800)), closes [#117](https://github.com/AbelCS/secopy/issues/117)
+* **ui:** Tab stays inside a dialog ([bb04d80](https://github.com/AbelCS/secopy/commit/bb04d800dbf8cce5ab7ffd2075c76be0f005770d)), closes [#117](https://github.com/AbelCS/secopy/issues/117)
+* **ui:** the menu bar panel never shows an older view over a newer one ([3fa5a53](https://github.com/AbelCS/secopy/commit/3fa5a53900d3afe334b7d68e7970c215eb9b03e8)), closes [#117](https://github.com/AbelCS/secopy/issues/117)
+* **ui:** unsaved mirror edits are asked about before leaving for a tab, the menu or a preview ([8e474f0](https://github.com/AbelCS/secopy/commit/8e474f09971466e30d76fd3ff0c70c333054780c)), closes [#117](https://github.com/AbelCS/secopy/issues/117)
+
 ## [0.17.3](https://github.com/AbelCS/secopy/compare/v0.17.2...v0.17.3) (2026-09-30)
 
 
