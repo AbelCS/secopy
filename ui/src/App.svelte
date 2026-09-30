@@ -7,6 +7,7 @@
   import { finishingMessage, notStarted, quitQuestion, stopMessage, type JobKind } from "./lib/stopping";
   import { t } from "./lib/i18n";
   import { say } from "./lib/message";
+  import { newest } from "./lib/session";
   import { notificationFor, queueNotification } from "./lib/summaryText";
   import type {
     CopyPreset,
@@ -273,7 +274,7 @@
     copyPresets = done.copyPresets;
     mirrorPresets = done.mirrorPresets;
     // The selected preset was replaced: New copy shows the imported one (#116).
-    if (done.session) view = done.session;
+    if (done.session) view = newest(view, done.session);
     importing = null;
     screen = importBack;
     if (done.failed) error = say(done.message);
@@ -318,7 +319,7 @@
     if (started === undefined) {
       screen = "setup";
       // Start checks the destination again: show it as it is now, with the reason (#112).
-      view = await api.sessionView().catch(() => view);
+      view = newest(view, await api.sessionView().catch(() => view));
     } else recent = (await run(() => api.recentDestinations())) ?? recent;
   }
 
@@ -473,7 +474,7 @@
       if (start.lastPreset) {
         const id = start.lastPreset;
         void run(() => api.selectCopyPreset(id)).then((next) => {
-          if (next) view = next;
+          if (next) view = newest(view, next);
         });
       }
     });
