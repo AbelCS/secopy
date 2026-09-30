@@ -194,7 +194,7 @@
     <Section title={t("progress.title")}>
       {#snippet aside()}
         <span class="overall">
-          <strong>{formatPercent(workDone, work)}</strong>
+          <strong>{work === 0 && progress.phase !== "done" ? formatPercent(0, 1) : formatPercent(workDone, work)}</strong>
           {#if progress.phase !== "done"}
             ·
             {#if timeLeft === null}
@@ -206,12 +206,12 @@
         </span>
       {/snippet}
       {#if check}
-        <ProgressBar label={t("progress.bar.checked")} done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} />
+        <ProgressBar label={t("progress.bar.checked")} done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} finished={progress.phase === "done"} />
       {:else}
-        <ProgressBar label={t("progress.bar.copied")} done={progress.copiedBytes} total={progress.totalBytes} speed={copySpeed} />
+        <ProgressBar label={t("progress.bar.copied")} done={progress.copiedBytes} total={progress.totalBytes} speed={copySpeed} finished={progress.phase === "done"} />
       {/if}
       {#if progress.verify && !check}
-        <ProgressBar label={t("progress.bar.verified")} done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} />
+        <ProgressBar label={t("progress.bar.verified")} done={progress.verifiedBytes} total={progress.totalBytes} speed={verifySpeed} finished={progress.phase === "done"} />
       {/if}
       {#if progress.phase === "removing" && progress.undoing}
         <p class="muted">{t("progress.undoing")}</p>

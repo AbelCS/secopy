@@ -393,3 +393,13 @@ describe("JobProgress: help on the buttons", () => {
     expect(helpOf(screen.getByRole("button", { name: "Cancel" }))).toBeNull();
   });
 });
+
+describe("JobProgress before its first figures (#117)", () => {
+  test("a total not known yet shows nothing done, not 100 %", () => {
+    const { container } = show(progressView({ totalBytes: 0, copiedBytes: 0, verifiedBytes: 0, phase: "copying" }));
+    expect(screen.getByText(/^0(\.0)?\s%$/)).toBeTruthy();
+    for (const bar of container.querySelectorAll("[role=progressbar]")) {
+      expect(bar.getAttribute("aria-valuenow")).toBe("0");
+    }
+  });
+});
