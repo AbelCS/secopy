@@ -43,6 +43,16 @@ describe("App", () => {
     await screen.findByText(/All 1,284 files copied and verified/);
   });
 
+  test("a summary that can't be loaded goes back with the reason, not stuck on Done (#117)", async () => {
+    const { api, state } = app();
+    await fireEvent.click(await startButton());
+    await screen.findByRole("heading", { name: "Copying & verifying" });
+    api.jobSummary.mockRejectedValueOnce(new Error("There is no report yet."));
+    state.progress!(progressView({ phase: "done" }));
+    await screen.findByText("There is no report yet.");
+    await screen.findByRole("heading", { level: 1, name: "New copy" });
+  });
+
   test("a job that can't start goes back to setup with the reason", async () => {
     const { api } = app();
     api.startJob.mockRejectedValueOnce(new Error("Nothing to copy, or something blocks the copy."));
