@@ -496,8 +496,9 @@ impl MirrorPresets {
             .ok_or_else(|| msg!("errors.mirror.gone"))?;
         preset.name = input.name;
         preset.origin = input.origin;
-        // A pending archive deletion belongs to the destination it was asked for (#101).
-        if preset.destination != input.destination {
+        // A pending archive deletion belongs to the destination it was asked for (#101), and
+        // to Delete mode: back to Archive, the archive is kept (#113).
+        if preset.destination != input.destination || input.deleted.mode == DeletedMode::Archive {
             preset.clear_archive = None;
         }
         preset.destination = input.destination;
@@ -560,7 +561,7 @@ impl MirrorPresets {
         if o.starts_with(d) {
             return Err(msg!("errors.field.origin.inDestination"));
         }
-        if input.deleted.mode == DeletedMode::Archive && input.deleted.days == 0 {
+        if input.deleted.days == 0 {
             return Err(msg!("errors.field.days.tooFew"));
         }
         if input.deleted.days > MAX_ARCHIVE_DAYS {
@@ -1102,8 +1103,21 @@ mod tests {
             deep_check: false,
         };
         assert_eq!(
-            MirrorPresets::normalized(mirror).unwrap_err(),
+            MirrorPresets::normalized(mirror.clone()).unwrap_err(),
             "Keep archived files for at most 36,500 days."
+        );
+        // In Delete mode the days are how long what's already archived stays: 0 would empty
+        // the archive at the next run without asking (#113).
+        let delete_now = MirrorPresetInput {
+            deleted: DeletedFiles {
+                mode: DeletedMode::Delete,
+                days: 0,
+            },
+            ..mirror
+        };
+        assert_eq!(
+            MirrorPresets::normalized(delete_now).unwrap_err().key,
+            "errors.field.days.tooFew"
         );
     }
 

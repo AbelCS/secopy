@@ -811,7 +811,7 @@ mod tests {
         let before = mirror_presets();
         let id = before.presets[0].id.clone();
         let text = r#"{"secopy":1,"mirrorPresets":[{"name":"FOOTAGE","origin":"/Volumes/SSD/Footage",
-            "destination":"/Volumes/NAS/Footage","deleted":{"mode":"delete","days":0},"deepCheck":false}]}"#;
+            "destination":"/Volumes/NAS/Footage","deleted":{"mode":"delete","days":30},"deepCheck":false}]}"#;
         let (after, n) = apply_mirrors(
             &contents(text),
             &[PresetChoice {

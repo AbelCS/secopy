@@ -287,6 +287,9 @@ fn archives_older_than_the_limit_are_cleaned_up() {
     }
     assert_eq!(mirror::clean_archives(&d, 30, now), 1);
     assert!(!old.exists() && recent.exists());
+    // 0 days (a preset saved before they were required) never empties the archive (#113).
+    assert_eq!(mirror::clean_archives(&d, 0, now), 0);
+    assert!(recent.exists());
 }
 
 /// Final review 1: a directory the scan couldn't read isn't "deleted in the origin".

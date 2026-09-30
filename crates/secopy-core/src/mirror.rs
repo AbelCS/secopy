@@ -756,6 +756,11 @@ fn archived_at(name: &str) -> Option<chrono::DateTime<chrono::Local>> {
 
 /// Removes archive run directories older than `days` (named by `archive_dir`).
 pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chrono::Local>) -> u32 {
+    // 0 isn't a limit: presets need at least a day, and an old one saved with 0 would empty
+    // the archive without anyone asking (#113).
+    if days == 0 {
+        return 0;
+    }
     let limit = now - chrono::Duration::days(i64::from(days));
     let root = destination.join(ARCHIVE_DIR);
     // Only a real directory: a link could lead anywhere outside the destination.
