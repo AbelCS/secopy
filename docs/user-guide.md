@@ -194,6 +194,10 @@ and presets that can't be imported, with why. A preset whose name you already ha
 as **Keep both** ("Name (2)") unless you choose **Replace yours**; replacing a mirror with
 fewer archive days says what its next run removes. Nothing is imported while a job runs.
 
+A file from another version of Secopy says which one made it. Settings this Secopy doesn't
+know are left out, and settings the file lacks are set to their defaults; both are listed. A
+preset with a setting this Secopy doesn't know can't be imported: update Secopy first.
+
 ![Import](images/import.png)
 
 ## Settings

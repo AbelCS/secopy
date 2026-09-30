@@ -101,6 +101,7 @@
 
   {#if banner}{@render banner()}{/if}
   <p class="file mono">{view.fileName}</p>
+  {#if view.madeBy}<p class="file">{say(view.madeBy)}</p>{/if}
 
   {#if view.settings}
     <Section title={t("import.settings")}>
@@ -111,6 +112,10 @@
       {:else}
         <Checkbox label={t("import.importSettings")} checked={settingsOn} onChange={(on) => (settingsOn = on)} />
         <ul class="changes">{#each view.settings.changes as c, i (i)}<li>{say(c)}</li>{/each}</ul>
+      {/if}
+      {#if !view.settings.problem}
+        {#each view.settings.defaulted as d, i (i)}<p class="note">{t("import.defaulted", { setting: say(d) })}</p>{/each}
+        {#each view.settings.notImported as setting (setting)}<p class="note">{t("import.notImported", { setting })}</p>{/each}
       {/if}
     </Section>
   {/if}

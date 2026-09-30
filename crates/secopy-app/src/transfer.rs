@@ -33,7 +33,14 @@ pub fn nothing() -> Message {
 /// A file's contents: each preset read on its own, so one bad preset doesn't block the rest.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Contents {
+    /// The version of Secopy that wrote the file, if it says.
+    pub app: Option<String>,
     pub settings: Option<Result<Settings, Message>>,
+    /// Settings in the file this Secopy doesn't know (a newer one's): left out (#149).
+    pub settings_unknown: Vec<String>,
+    /// Settings this Secopy has that the file lacks (an older one's): they take their
+    /// defaults (#149).
+    pub settings_defaulted: Vec<String>,
     pub copy_presets: Vec<Result<CopyPresetInput, Unreadable>>,
     pub mirror_presets: Vec<Result<MirrorPresetInput, Unreadable>>,
 }
@@ -134,8 +141,9 @@ pub fn read_file(path: &Path) -> Result<Contents, Message> {
 }
 
 /// Reads a file's bytes. Strict about what it is (a Secopy file of a format this Secopy
-/// knows), lenient inside: unknown fields are ignored, and a preset that can't be read is
-/// kept as [`Unreadable`] next to the others.
+/// knows), lenient inside: a preset that can't be read, or has a setting this Secopy doesn't
+/// know, is kept as [`Unreadable`] next to the others; settings it doesn't know are left out,
+/// and ones the file lacks take their defaults, each listed (#149).
 pub fn read(bytes: &[u8]) -> Result<Contents, Message> {
     // serde_json stops at 128 levels of nesting: a hostile file is an error, not a crash.
     let value: Value = serde_json::from_slice(bytes).map_err(|_| not_secopy())?;
@@ -149,8 +157,19 @@ pub fn read(bytes: &[u8]) -> Result<Contents, Message> {
     if format > u64::from(FORMAT) {
         return Err(msg!("errors.import.newer", format = format.to_string()));
     }
+    let app = file
+        .get("app")
+        .and_then(Value::as_str)
+        .map(|a| a.trim().chars().take(40).collect::<String>())
+        .filter(|a| !a.is_empty());
+    let (mut settings_unknown, mut settings_defaulted) = (Vec::new(), Vec::new());
     let settings = file.remove("settings").map(|v| {
-        serde_json::from_value::<Settings>(v).map_err(|_| msg!("import.problem.settings"))
+        let read = serde_json::from_value::<Settings>(v.clone())
+            .map_err(|_| msg!("import.problem.settings"))?;
+        let known = serde_json::to_value(&read).expect("settings serialize");
+        settings_unknown = unknown_keys(&v, &known);
+        settings_defaulted = unknown_keys(&known, &v);
+        Ok(read)
     });
     let (copies, mirrors) = (file.remove("copyPresets"), file.remove("mirrorPresets"));
     let count = |list: &Option<Value>| list.as_ref().and_then(Value::as_array).map_or(0, Vec::len);
@@ -163,15 +182,38 @@ pub fn read(bytes: &[u8]) -> Result<Contents, Message> {
         return Err(nothing());
     }
     Ok(Contents {
+        app,
         settings,
+        settings_unknown,
+        settings_defaulted,
         copy_presets,
         mirror_presets,
     })
 }
 
+/// The keys of `theirs` that `ours` lacks, nested ones as `outer.inner`, in `theirs`' order.
+fn unknown_keys(theirs: &Value, ours: &Value) -> Vec<String> {
+    let (Value::Object(theirs), Value::Object(ours)) = (theirs, ours) else {
+        return Vec::new();
+    };
+    theirs
+        .iter()
+        .flat_map(|(key, value)| match ours.get(key) {
+            None => vec![key.clone()],
+            Some(known) => unknown_keys(value, known)
+                .into_iter()
+                .map(|inner| format!("{key}.{inner}"))
+                .collect(),
+        })
+        .collect()
+}
+
 /// Each entry of a preset list, read on its own. One with no name gets an empty one (the UI
-/// says "no name").
-fn presets<T: serde::de::DeserializeOwned>(list: Option<Value>) -> Vec<Result<T, Unreadable>> {
+/// says "no name"). One with a setting this Secopy doesn't know isn't read: imported without
+/// it, it would do something other than what it did where it was made (#149).
+fn presets<T: serde::de::DeserializeOwned + Serialize>(
+    list: Option<Value>,
+) -> Vec<Result<T, Unreadable>> {
     let items = match list {
         None => return Vec::new(),
         Some(Value::Array(items)) => items,
@@ -192,11 +234,22 @@ fn presets<T: serde::de::DeserializeOwned>(list: Option<Value>) -> Vec<Result<T,
                 .and_then(Value::as_str)
                 .map(|n| n.trim().chars().take(200).collect::<String>())
                 .unwrap_or_default();
-            serde_json::from_value::<T>(item).map_err(|e| Unreadable {
-                name,
+            let read = serde_json::from_value::<T>(item.clone()).map_err(|e| Unreadable {
+                name: name.clone(),
                 why: msg!("import.problem.details", detail = e.to_string()),
                 section: false,
-            })
+            })?;
+            let known = serde_json::to_value(&read).expect("presets serialize");
+            let unknown = unknown_keys(&item, &known);
+            if unknown.is_empty() {
+                Ok(read)
+            } else {
+                Err(Unreadable {
+                    name,
+                    why: msg!("import.problem.newer", keys = unknown.join(", ")),
+                    section: false,
+                })
+            }
         })
         .collect()
 }
@@ -206,6 +259,9 @@ fn presets<T: serde::de::DeserializeOwned>(list: Option<Value>) -> Vec<Result<T,
 #[serde(rename_all = "camelCase")]
 pub struct ImportView {
     pub file_name: String,
+    /// "Made by Secopy 0.1.0; this is 0.17.6.": only when the file says, and it's another
+    /// version (#149).
+    pub made_by: Option<Message>,
     /// `None`: the file has no settings.
     pub settings: Option<SettingsImport>,
     pub copy_presets: Vec<PresetImport>,
@@ -218,6 +274,10 @@ pub struct SettingsImport {
     /// "Write the checksum file: on → off"; empty when they're the same as yours.
     pub changes: Vec<Message>,
     pub problem: Option<Message>,
+    /// Settings in the file this Secopy doesn't know, as the file names them: left out.
+    pub not_imported: Vec<String>,
+    /// Settings the file lacks, which take their defaults.
+    pub defaulted: Vec<Message>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -273,12 +333,26 @@ pub fn plan(
         Ok(theirs) => SettingsImport {
             changes: settings_changes(settings, theirs),
             problem: None,
+            not_imported: c.settings_unknown.clone(),
+            defaulted: c
+                .settings_defaulted
+                .iter()
+                .filter_map(|k| setting_label(k))
+                .collect(),
         },
         Err(why) => SettingsImport {
             changes: Vec::new(),
             problem: Some(why.clone()),
+            not_imported: Vec::new(),
+            defaulted: Vec::new(),
         },
     });
+    let ours = env!("CARGO_PKG_VERSION");
+    let made_by = c
+        .app
+        .as_deref()
+        .filter(|theirs| *theirs != ours)
+        .map(|theirs| msg!("import.madeBy", theirs = theirs, ours = ours));
     let copy_presets = copy_rows(c, copy)
         .into_iter()
         .map(|row| match row {
@@ -334,6 +408,7 @@ pub fn plan(
         .collect();
     ImportView {
         file_name: file_name.to_string(),
+        made_by,
         settings,
         copy_presets,
         mirror_presets,
@@ -488,6 +563,18 @@ fn sorted(chosen: &[PresetChoice]) -> Vec<PresetChoice> {
 }
 
 /// Each setting that differs, in the words of the Settings screen.
+/// A setting's name on the Import screen, from its key in the file.
+fn setting_label(key: &str) -> Option<Message> {
+    Some(match key {
+        "writeChecksumFile" => msg!("import.setting.checksumFile"),
+        "showSystemCount" => msg!("import.setting.systemCount"),
+        "reportNextToChecksum" => msg!("import.setting.report"),
+        "notifyWhenDone" => msg!("import.setting.notify"),
+        "keepInMenuBar" => msg!("import.setting.menuBar"),
+        _ => return None,
+    })
+}
+
 pub fn settings_changes(from: &Settings, to: &Settings) -> Vec<Message> {
     let on = |b: bool| {
         if b {
@@ -636,10 +723,56 @@ mod tests {
         assert!(read.mirror_presets.is_empty());
     }
 
+    /// #149: a preset with a setting this Secopy doesn't know (a newer one's) isn't imported
+    /// without it: it says so and can't be ticked. Unknown file-level keys are fine.
     #[test]
-    fn unknown_fields_are_ignored() {
-        let text = r#"{"secopy":1,"later":true,"copyPresets":[{"name":"A","source":"","includeFolder":true,"extensions":null,"colour":"red"}]}"#;
-        assert!(read(text.as_bytes()).unwrap().copy_presets[0].is_ok());
+    fn a_preset_with_settings_this_secopy_doesnt_know_isnt_imported() {
+        let text = r#"{"secopy":1,"later":true,"copyPresets":[
+            {"name":"A","source":"","includeFolder":true,"extensions":null,"colour":"red"},
+            {"name":"B","source":"","includeFolder":true,"extensions":null}]}"#;
+        let c = read(text.as_bytes()).unwrap();
+        let refused = c.copy_presets[0].as_ref().unwrap_err();
+        assert_eq!(refused.name, "A");
+        assert_eq!(refused.why.key, "import.problem.newer");
+        assert!(c.copy_presets[1].is_ok());
+        let nested = r#"{"secopy":1,"mirrorPresets":[{"name":"M","origin":"/o","destination":"/d",
+            "deleted":{"mode":"archive","days":30,"trash":true},"deepCheck":false}]}"#;
+        let c = read(nested.as_bytes()).unwrap();
+        assert_eq!(
+            c.mirror_presets[0].as_ref().unwrap_err().why.key,
+            "import.problem.newer"
+        );
+    }
+
+    /// #149: settings this Secopy doesn't know are left out, and said; settings an older
+    /// Secopy's file lacks take their defaults, and that's said too.
+    #[test]
+    fn settings_say_what_they_leave_out_and_what_takes_its_default() {
+        let text = r#"{"secopy":1,"app":"0.1.0","settings":{"writeChecksumFile":false,
+            "showSystemCount":true,"reportNextToChecksum":false,"notifyWhenDone":true,
+            "turbo":true}}"#;
+        let c = read(text.as_bytes()).unwrap();
+        assert_eq!(c.settings_unknown, ["turbo"]);
+        assert_eq!(c.settings_defaulted, ["keepInMenuBar"]);
+        assert_eq!(c.app.as_deref(), Some("0.1.0"));
+        let view = plan(
+            "x.secopy",
+            &c,
+            &CopyPresets::default(),
+            &MirrorPresets::default(),
+            &Settings::default(),
+            &|_| true,
+        );
+        let s = view.settings.unwrap();
+        assert_eq!(s.not_imported, ["turbo"]);
+        assert_eq!(
+            s.defaulted
+                .iter()
+                .map(|m| m.key.as_str())
+                .collect::<Vec<_>>(),
+            ["import.setting.menuBar"]
+        );
+        assert_eq!(view.made_by.unwrap().key, "import.madeBy");
     }
 
     #[test]

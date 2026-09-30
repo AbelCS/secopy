@@ -607,6 +607,9 @@
       "settings": "{message} The settings weren't imported."
     },
     "change": "{setting}: {from} → {to}",
+    "madeBy": "Made by Secopy {theirs}; this is {ours}.",
+    "notImported": "“{setting}” isn't imported: it's from a newer Secopy.",
+    "defaulted": "{setting}: not in the file, so set to its default.",
     "done": "Imported {what}.",
     "failed": "{what} couldn't be saved: {why}",
     "partly": "Imported {done}. {what} couldn't be saved: {why}",
@@ -619,6 +622,7 @@
     "off": "off",
     "problem": {
       "details": "Its details can't be read ({detail}).",
+      "newer": "Needs a newer Secopy: it has settings this one doesn't know ({keys}).",
       "section": "This part of the file can't be read.",
       "settings": "The settings in this file can't be read."
     },

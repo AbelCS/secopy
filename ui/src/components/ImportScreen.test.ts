@@ -6,7 +6,8 @@ import ImportScreen from "./ImportScreen.svelte";
 
 const view = (over: Partial<ImportView> = {}): ImportView => ({
   fileName: "Team presets.secopy",
-  settings: { changes: [raw("Write the checksum file: on → off")], problem: null },
+  madeBy: null,
+  settings: { changes: [raw("Write the checksum file: on → off")], problem: null, notImported: [], defaulted: [] },
   copyPresets: [
     { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, replaceNotes: [], section: false },
     { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null, replaceNotes: [], section: false },
@@ -56,6 +57,20 @@ describe("ImportScreen", () => {
     screen.getByRole("checkbox", { name: "A mirror preset with no name" });
   });
 
+  test("a file from another Secopy says so, and what its settings leave out or lack", () => {
+    const settings = {
+      changes: [],
+      problem: null,
+      notImported: ["turbo"],
+      defaulted: [{ key: "import.setting.menuBar", args: {} }],
+    };
+    const madeBy = { key: "import.madeBy", args: { theirs: "0.19.0", ours: "0.17.6" } };
+    render(ImportScreen, { props: { view: view({ madeBy, settings }), onImport: vi.fn(), onBack: () => {} } });
+    screen.getByText("Made by Secopy 0.19.0; this is 0.17.6.");
+    screen.getByText("“turbo” isn't imported: it's from a newer Secopy.");
+    screen.getByText("Keep copying in the menu bar: not in the file, so set to its default.");
+  });
+
   test("shows what's in the file, what changes and what clashes", () => {
     render(ImportScreen, { props: { view: view(), onImport: vi.fn(), onBack: () => {} } });
     screen.getByRole("heading", { name: "Import" });
@@ -81,7 +96,7 @@ describe("ImportScreen", () => {
   });
 
   test("settings that are the same as yours can't be ticked; nothing ticked, no Import", async () => {
-    const v = view({ settings: { changes: [], problem: null }, copyPresets: [view().copyPresets[1]] });
+    const v = view({ settings: { changes: [], problem: null, notImported: [], defaulted: [] }, copyPresets: [view().copyPresets[1]] });
     render(ImportScreen, { props: { view: v, onImport: vi.fn(), onBack: () => {} } });
     screen.getByText("Same as yours");
     await fireEvent.click(screen.getByRole("checkbox", { name: "DJI" }));
