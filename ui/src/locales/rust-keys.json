@@ -124,6 +124,7 @@
   "errors.queue.running",
   "errors.queue.setUpFirst",
   "errors.report.dir",
+  "errors.report.jsonTaken",
   "errors.report.nextToChecksum",
   "errors.report.noJob",
   "errors.report.none",

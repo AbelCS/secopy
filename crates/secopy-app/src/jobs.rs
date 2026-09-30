@@ -598,9 +598,17 @@ impl Job {
             return Err(no_report());
         }
         let report = job.report(done);
-        let write = |p: &Path, body: String| fs::write(p, body).map_err(|e| say::io_error(&e));
-        write(path, report.to_text())?;
-        write(&path.with_extension("json"), report.to_json())
+        // The JSON goes next to the text the save panel named: never over a file of the
+        // user's (#116), only over a Secopy report.
+        let json = path.with_extension("json");
+        match fs::read(&json) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Ok(bytes) if is_report(&bytes) => {}
+            _ => return Err(msg!("errors.report.jsonTaken", path = &json)),
+        }
+        // Each through a temporary name, so a failure never leaves half a report.
+        crate::transfer::write_file(path, &report.to_text())?;
+        crate::transfer::write_file(&json, &report.to_json())
     }
 
     fn running(&self) -> bool {
@@ -940,6 +948,12 @@ impl Job {
     }
 }
 
+/// `bytes` is a report Secopy saved: its JSON, with the app's version and a result.
+fn is_report(bytes: &[u8]) -> bool {
+    serde_json::from_slice::<serde_json::Value>(bytes)
+        .is_ok_and(|v| v.get("app_version").is_some() && v.get("result").is_some())
+}
+
 /// A mirror's figures: files copied as new or updated, and its removals.
 fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> MirrorSummaryView {
     let written: std::collections::HashSet<usize> = outcomes
@@ -1236,6 +1250,18 @@ mod tests {
         f.jobs.save_report(&path).unwrap();
         assert!(fs::read_to_string(&path).unwrap().starts_with("Secopy "));
         assert!(path.with_extension("json").is_file());
+        // Again over the same name: the panel asked about the text; the JSON next to it is
+        // Secopy's report, replaced too.
+        f.jobs.save_report(&path).unwrap();
+        // A file of the user's where the JSON would go is never replaced (#116).
+        let other = f.dir.path().join("shoot.txt");
+        fs::write(other.with_extension("json"), b"{\"mine\": true}").unwrap();
+        assert!(f.jobs.save_report(&other).is_err());
+        assert_eq!(
+            fs::read(other.with_extension("json")).unwrap(),
+            b"{\"mine\": true}"
+        );
+        assert!(!other.exists(), "nothing written");
     }
 
     #[test]
