@@ -604,12 +604,14 @@ pub fn report_part(
 }
 
 const STAMP: &str = "%Y-%m-%d %H.%M.%S";
+/// A run's name since #136: with its UTC offset, so its age is right after a time zone change.
+const STAMP_ZONED: &str = "%Y-%m-%d %H.%M.%S %z";
 
 /// This run's archive directory: named by `now`, and never one another run already has
 /// (two runs in the same second get "… (2)"), so nothing archived is ever overwritten.
 pub fn archive_dir(destination: &Path, now: chrono::DateTime<chrono::Local>) -> PathBuf {
     let root = destination.join(ARCHIVE_DIR);
-    let stamp = now.format(STAMP).to_string();
+    let stamp = now.format(STAMP_ZONED).to_string();
     (1u32..)
         .map(|n| match n {
             1 => root.join(&stamp),
@@ -795,10 +797,15 @@ pub fn delete_archive(destination: &Path) -> ArchiveDeleted {
 /// When an archive run directory was made, from its name (`archive_dir`'s, "… (2)" too).
 fn archived_at(name: &str) -> Option<chrono::DateTime<chrono::Local>> {
     let stamp = name.split(" (").next().unwrap_or_default();
+    if let Ok(zoned) = chrono::DateTime::parse_from_str(stamp, STAMP_ZONED) {
+        return Some(zoned.with_timezone(&chrono::Local));
+    }
+    // A name from before (#136): local time; in the repeated hour when clocks go back, the
+    // earlier of the two, not none (it was never cleaned up).
     chrono::NaiveDateTime::parse_from_str(stamp, STAMP)
         .ok()?
         .and_local_timezone(chrono::Local)
-        .single()
+        .earliest()
 }
 
 /// Gives `from` the origin's spelling `to`, one name at a time from the top, so a directory
@@ -961,6 +968,31 @@ pub fn write_checksums(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// QA review (#136): a run's name says its time zone, so its age is right after the Mac's
+    /// changes; names from before (local time) still read.
+    #[test]
+    fn a_runs_name_holds_its_time_zone() {
+        let dir = tempfile::tempdir().unwrap();
+        let now = chrono::Local::now();
+        let run = archive_dir(dir.path(), now);
+        let name = run.file_name().unwrap().to_string_lossy().into_owned();
+        let offset = name.rsplit(' ').next().unwrap();
+        assert!(
+            offset.len() == 5 && (offset.starts_with('+') || offset.starts_with('-')),
+            "{name}"
+        );
+        let read = archived_at(&name).unwrap();
+        assert_eq!(read.timestamp(), now.timestamp());
+        let tokyo = archived_at("2026-01-01 09.00.00 +0900").unwrap();
+        let utc = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z").unwrap();
+        assert_eq!(tokyo.timestamp(), utc.timestamp());
+        assert!(
+            archived_at("2026-01-01 09.00.00").is_some(),
+            "an older name"
+        );
+        assert!(archived_at("2026-01-01 09.00.00 +0900 (2)").is_some());
+    }
 
     /// Review of #114: a rename that gets only part of the way isn't reported as done.
     #[test]
