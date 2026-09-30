@@ -47,5 +47,8 @@ describe("summaryText", () => {
     expect(queueNotification(queue(["complete"], raw("Couldn't save the queue."))).body).toBe(
       "Couldn't save the queue.",
     );
+    expect(queueNotification(queue(["failed", "complete"], raw("Couldn't save the queue."))).body).toBe(
+      "1 job failed · Couldn't save the queue.",
+    );
   });
 });

@@ -603,7 +603,8 @@ impl Job {
         let json = path.with_extension("json");
         match fs::read(&json) {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Ok(bytes) if is_report(&bytes) => {}
+            // Only the pair of the text the panel asked to replace.
+            Ok(bytes) if path.is_file() && is_report(&bytes) => {}
             _ => return Err(msg!("errors.report.jsonTaken", path = &json)),
         }
         // Each through a temporary name, so a failure never leaves half a report.
@@ -1262,6 +1263,12 @@ mod tests {
             b"{\"mine\": true}"
         );
         assert!(!other.exists(), "nothing written");
+        // Another Secopy report where the JSON would go, with no text beside it: not the pair
+        // the panel asked about, so it stays too.
+        let lone = f.dir.path().join("lone.txt");
+        fs::copy(path.with_extension("json"), lone.with_extension("json")).unwrap();
+        assert!(f.jobs.save_report(&lone).is_err());
+        assert!(!lone.exists());
     }
 
     #[test]

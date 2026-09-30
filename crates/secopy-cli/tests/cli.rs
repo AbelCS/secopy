@@ -375,3 +375,58 @@ fn a_mirror_writes_the_report_asked_for() {
         .collect();
     assert_eq!(reports.len(), 1);
 }
+
+/// Review of #116: a source of empty folders is still copied (FR-6); only a file-type filter
+/// that matches nothing is "nothing to copy".
+#[test]
+fn a_source_of_empty_folders_is_copied() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dest) = (dir.path().join("CARD"), dir.path().join("dest"));
+    std::fs::create_dir_all(src.join("DCIM/100CANON")).unwrap();
+    std::fs::create_dir_all(&dest).unwrap();
+    let out = cli()
+        .arg(&src)
+        .args(["--contents", "--to"])
+        .arg(&dest)
+        .output()
+        .unwrap();
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(dest.join("DCIM/100CANON").is_dir());
+}
+
+/// Review of #116: a mirror whose checksum file can't be written doesn't report complete.
+#[test]
+fn a_mirror_report_says_when_its_checksum_file_failed() {
+    let dir = tempfile::tempdir().unwrap();
+    let (o, d, r) = (
+        dir.path().join("o"),
+        dir.path().join("d"),
+        dir.path().join("r"),
+    );
+    for p in [&o, &d, &r] {
+        std::fs::create_dir_all(p).unwrap();
+    }
+    std::fs::write(o.join("a.mov"), b"a").unwrap();
+    std::fs::create_dir_all(d.join(".secopy-checksums.xxh64")).unwrap(); // in the way
+    let out = cli()
+        .args(["--mirror", "--report"])
+        .arg(&r)
+        .arg("--to")
+        .arg(&d)
+        .arg(&o)
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    let report = std::fs::read_dir(&r)
+        .unwrap()
+        .filter_map(Result::ok)
+        .find(|e| e.file_name().to_string_lossy().ends_with("_report.txt"))
+        .unwrap();
+    let text = std::fs::read_to_string(report.path()).unwrap();
+    assert!(!text.contains("Result:       complete"), "{text}");
+}
