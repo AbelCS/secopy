@@ -1489,8 +1489,10 @@ impl AppState {
                 return Err(msg!("errors.job.alreadyRunning"));
             }
             // Until the job starts, nothing else can: the archive may be deleted first, and
-            // that happens outside this lock, so the window doesn't wait on it (#134).
+            // that happens outside this lock, so the window doesn't wait on it (#134). A Cancel
+            // meanwhile stops it before it starts.
             run.preparing = true;
+            run.cancelled = false;
             job
         };
         let _preparing = Preparing(&self.queue_run);
@@ -1498,8 +1500,13 @@ impl AppState {
         if let Some(m) = settings.mirror.as_mut() {
             m.archive_deleted = self.pending_archive_deletion(id);
         }
-        self.jobs.start(job.ready(), true, settings, sink)?;
         *lock(&self.preview) = None;
+        let run = lock(&self.queue_run);
+        if run.cancelled {
+            return Err(msg!("queue.reason.cancelled"));
+        }
+        self.jobs.start(job.ready(), true, settings, sink)?;
+        drop(run);
         Ok(())
     }
 
@@ -3381,6 +3388,31 @@ mod tests {
         state.jobs.wait();
         assert!(!run.exists());
         assert_eq!(state.mirror_presets()[0].clear_archive, None, "done once");
+    }
+
+    /// Review of #134: Cancel while Start is still deleting the archive stops the mirror
+    /// before it starts, instead of reaching no job and letting it start.
+    #[test]
+    fn cancel_while_the_archive_is_deleted_stops_the_mirror_before_it_starts() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        state.clear_mirror_archive_next_run(&id).unwrap();
+        let run = archived(&d);
+        for i in 0..5000 {
+            fs::write(run.join(format!("f{i}")), b"x").unwrap();
+        }
+        state.preview_mirror(&id, &|_, _| {}).unwrap();
+        let started = std::thread::scope(|s| {
+            s.spawn(|| {
+                while !lock(&state.queue_run).preparing {
+                    std::thread::sleep(std::time::Duration::from_micros(200));
+                }
+                state.cancel(false);
+            });
+            state.run_mirror(&id, Sink::default())
+        });
+        assert!(started.is_err(), "cancelled before it started");
+        assert!(!state.jobs.is_running() && state.jobs.summary().is_none());
     }
 
     #[test]
