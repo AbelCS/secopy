@@ -607,7 +607,15 @@ pub fn finish(
         let from = dest.join(rel);
         let now = match fs::symlink_metadata(&from) {
             Ok(meta) => Seen::of(&meta),
-            Err(_) => continue, // already gone
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue, // already gone
+            // It can't be looked at: it stays, and says so (#114).
+            Err(e) => {
+                done.push(Removal {
+                    rel: rel.clone(),
+                    result: Err(RemovalError::Io(e.into())),
+                });
+                continue;
+            }
         };
         // Written since the preview (another app): not the file the preview listed.
         if plan.seen.get(rel) != Some(&now) {
