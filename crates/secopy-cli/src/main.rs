@@ -223,9 +223,7 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
     let deleted = if args.delete {
         Deleted::Delete
     } else {
-        Deleted::Archive {
-            days: args.archive_days,
-        }
+        Deleted::Archive
     };
     let options = MirrorOptions {
         deleted,
@@ -272,7 +270,7 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
         );
     }
     let archive = match deleted {
-        Deleted::Archive { .. } => Some(mirror::archive_dir(args.to(), now)),
+        Deleted::Archive => Some(mirror::archive_dir(args.to(), now)),
         Deleted::Delete => None,
     };
     let opts = JobOptions {

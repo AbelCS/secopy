@@ -14,7 +14,7 @@ use secopy_core::source::{DirMode, Source};
 
 fn opts() -> MirrorOptions {
     MirrorOptions {
-        deleted: Deleted::Archive { days: 30 },
+        deleted: Deleted::Archive,
         deep_check: false,
     }
 }
