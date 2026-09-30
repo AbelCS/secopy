@@ -82,7 +82,7 @@ describe("Setup", () => {
   });
 
   test("files have no folder to include", () => {
-    setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: raw("2 files") }) }));
+    setup(readyView({ source: sourceView({ isFolder: false, folder: null, label: raw("2 files") }) }));
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
@@ -240,7 +240,7 @@ describe("Setup", () => {
   });
 
   test("copying only what's inside still names the folder, and ticking it includes it again", async () => {
-    const { api } = setup(readyView({ source: sourceView({ contentsOnly: true, rootDir: null }) }));
+    const { api } = setup(readyView({ source: sourceView({ contentsOnly: true }) }));
     expect(includeFolder()).toHaveProperty("checked", false);
     await fireEvent.click(includeFolder());
     await waitFor(() => expect(api.setIncludeFolder).toHaveBeenLastCalledWith(true));
@@ -333,7 +333,7 @@ describe("Setup", () => {
   });
 
   test("presets don't apply to files", () => {
-    setup(readyView({ source: sourceView({ isFolder: false, folder: null, rootDir: null, label: raw("2 files") }) }), undefined, {
+    setup(readyView({ source: sourceView({ isFolder: false, folder: null, label: raw("2 files") }) }), undefined, {
       presets: [copyPreset()],
     });
     expect(screen.getByRole("combobox", { name: "Preset" })).toHaveProperty("disabled", true);

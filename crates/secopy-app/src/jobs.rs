@@ -282,11 +282,6 @@ impl Jobs {
         self.job()?.summary()
     }
 
-    /// The current (or last) job's name, for the menu bar: "Copy & Verify · CARD_A → Day01".
-    pub fn label(&self) -> Option<String> {
-        self.job().map(|job| job.label())
-    }
-
     /// The current (or last) job's latest figures, as the progress screen shows them.
     pub fn progress_view(&self) -> Option<ProgressView> {
         self.job().map(|job| {
@@ -316,11 +311,6 @@ impl Jobs {
                 )
             }
         })
-    }
-
-    /// The current job is paused.
-    pub fn is_paused(&self) -> bool {
-        self.job().is_some_and(|job| job.control.is_paused())
     }
 
     /// The current (or last) job is a check (Verify).

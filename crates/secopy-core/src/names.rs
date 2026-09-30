@@ -138,7 +138,7 @@ mod tests {
     }
 
     fn ext4() -> FsInfo {
-        fs(FsKind::Ext4, NameLimit::Bytes(255))
+        fs(FsKind::Other("ext4".into()), NameLimit::Bytes(255))
     }
 
     fn check(name: &str, fs: &FsInfo) -> Result<(), NameProblem> {

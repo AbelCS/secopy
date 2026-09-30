@@ -47,8 +47,6 @@ pub struct SourceView {
     /// The failed files of the last job ("Retry"): nothing to choose but the
     /// destination.
     pub is_retry: bool,
-    /// The folder created for "copy the folder itself", e.g. "CLIP".
-    pub root_dir: Option<String>,
     pub files: u32,
     #[specta(type = specta_typescript::Number)]
     pub bytes: u64,

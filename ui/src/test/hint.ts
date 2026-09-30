@@ -5,7 +5,7 @@ export function hintOf(el: HTMLElement): string | null {
 }
 
 /** What `el` shows, without the explanations its hints hold for hover. */
-export function shown(el: Element): string {
+function shown(el: Element): string {
   const copy = el.cloneNode(true) as Element;
   copy.querySelectorAll("[role='tooltip']").forEach((t) => t.remove());
   return (copy.textContent ?? "").replace(/\s+/g, " ").trim();

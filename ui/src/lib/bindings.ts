@@ -760,8 +760,6 @@ export type SourceView = {
 	 *  destination.
 	 */
 	isRetry: boolean,
-	/**  The folder created for "copy the folder itself", e.g. "CLIP". */
-	rootDir: string | null,
 	files: number,
 	bytes: number,
 	/**  Sorted by bytes, largest first (FR-8). */
