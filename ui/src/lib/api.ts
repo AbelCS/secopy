@@ -6,10 +6,11 @@ import { Channel } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ask, open, save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { getContext, setContext } from "svelte";
+import { ask } from "./confirm.svelte";
 import { dropPoint, isMacOS } from "./drop";
 import {
   commands,
@@ -193,7 +194,7 @@ export const tauriApi = {
   pickReportPath: (suggested: string): Promise<string | null> =>
     save({ defaultPath: suggested, filters: [{ name: t("dialog.textFiles"), extensions: ["txt"] }] }),
   confirm: (message: string, title: string, ok: string, cancel: string): Promise<boolean> =>
-    ask(message, { title, kind: "warning", okLabel: ok, cancelLabel: cancel }),
+    ask(message, title, ok, cancel),
   reveal: (path: string): Promise<void> => revealItemInDir(path),
   /** The window is in front; notifications are only for when it isn't. */
   windowFocused: (): boolean => document.hasFocus(),

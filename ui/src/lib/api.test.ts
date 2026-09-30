@@ -30,3 +30,11 @@ test("with permission, the notification is sent", async () => {
   await tauriApi.notify("t", "b");
   expect(plugin.sendNotification).toHaveBeenCalledWith({ title: "t", body: "b" });
 });
+
+test("questions are asked in the window, not in a system alert (#113)", async () => {
+  const { asking } = await import("./confirm.svelte");
+  const answer = tauriApi.confirm("124 files are deleted.", "Delete archive?", "Delete", "Keep");
+  expect(asking.current?.title).toBe("Delete archive?");
+  asking.current?.answer(false);
+  await expect(answer).resolves.toBe(false);
+});

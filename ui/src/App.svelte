@@ -24,6 +24,7 @@
   } from "./lib/bindings";
   import JobProgress from "./components/JobProgress.svelte";
   import CopyPresetsScreen from "./components/CopyPresetsScreen.svelte";
+  import ConfirmHost from "./components/ConfirmHost.svelte";
   import ExportDialog from "./components/ExportDialog.svelte";
   import ImportScreen from "./components/ImportScreen.svelte";
   import QueueScreen from "./components/QueueScreen.svelte";
@@ -650,6 +651,8 @@
     {/if}
   </div>
 </div>
+
+<ConfirmHost />
 
 {#if exporting}
   <ExportDialog

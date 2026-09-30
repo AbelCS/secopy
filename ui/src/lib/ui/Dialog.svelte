@@ -24,15 +24,18 @@
     return () => before?.focus?.();
   });
 
+  // Caught on the way down, so Esc answers the dialog only: the screen behind doesn't also
+  // close or ask again.
   function onKey(e: KeyboardEvent) {
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       onClose();
     }
   }
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydowncapture={onKey} />
 
 <div class="backdrop">
   <div bind:this={panel} class="dialog" role="dialog" aria-modal="true" aria-labelledby="{id}-title" tabindex="-1">
