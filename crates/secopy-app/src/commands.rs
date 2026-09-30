@@ -352,7 +352,15 @@ impl AppState {
             (ready, s.destination().map(show))
         };
         let settings = JobSettings::from(&*lock(&self.settings));
-        self.jobs.start(ready, verify, settings, sink)?;
+        {
+            // Checked again and started under the lock the queue claims with, so a queue
+            // started meanwhile can't slip in between (#134).
+            let run = lock(&self.queue_run);
+            if run.busy() {
+                return Err(msg!("errors.queue.running"));
+            }
+            self.jobs.start(ready, verify, settings, sink)?;
+        }
         if let Some(dest) = dest {
             self.remember(|r| r.used_destination(&dest));
         }
@@ -1522,6 +1530,11 @@ impl AppState {
         if plan.files.is_empty() {
             *lock(&self.checking) = Some((dir, plan));
             return Err(nothing_to_verify());
+        }
+        // Checked again and started under the queue's lock (#134).
+        let run = lock(&self.queue_run);
+        if run.busy() {
+            return Err(msg!("errors.queue.busy"));
         }
         self.jobs.start_work(Work::Check(plan), sink)
     }
