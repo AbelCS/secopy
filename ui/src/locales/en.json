@@ -313,7 +313,7 @@
     "exportName": "Secopy settings {date}.secopy",
     "warning": {
       "damaged": "{detail}",
-      "newer": "it is from a newer Secopy, version {version}",
+      "newerKept": "{file} is from a newer Secopy (version {version}): it's left as it is, and the defaults are used.",
       "setAside": "{file} couldn't be read ({why}). It was set aside as {aside} in {dir}, and the defaults are used.",
       "notSetAside": "{file} couldn't be read ({why}) or set aside ({error}). The defaults are used."
     }
@@ -1199,7 +1199,8 @@
       "mirror": "Couldn't save the mirror: {why}",
       "preset": "Couldn't save the preset: {why}",
       "queue": "Couldn't save the queue: {why}",
-      "settings": "Couldn't save the settings: {why}"
+      "settings": "Couldn't save the settings: {why}",
+      "newer": "{file} is from a newer Secopy: not saved over"
     },
     "source": {
       "gone": "{path} isn't there any more.",
