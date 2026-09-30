@@ -321,6 +321,11 @@ pub fn plan_watched(
             _ => {}
         }
     }
+    // Not enough space for what it copies, the deep check's too: refused before it starts, as
+    // a copy is (#135).
+    if let Some(blocker) = copy.blockers().into_iter().next() {
+        return Err(PlanError::Blocked(blocker));
+    }
     let planned: Vec<&Path> = copy.files.iter().map(|f| f.entry.rel.as_path()).collect();
     let Extras {
         mut removals,
