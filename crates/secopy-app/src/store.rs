@@ -627,6 +627,8 @@ pub struct Store {
     dir: PathBuf,
     /// One save at a time: saves share the temp-file name.
     saving: Mutex<()>,
+    /// Files a newer Secopy wrote: left as they are, never saved over (#137).
+    newer: Mutex<std::collections::HashSet<String>>,
 }
 
 impl Store {
@@ -634,6 +636,7 @@ impl Store {
         Self {
             dir,
             saving: Mutex::new(()),
+            newer: Mutex::new(std::collections::HashSet::new()),
         }
     }
 
@@ -651,7 +654,19 @@ impl Store {
             }
         };
         let why = match serde_json::from_str::<VersionOnly>(&text) {
-            Ok(v) if v.version > VERSION => msg!("app.warning.newer", version = v.version),
+            // An older Secopy opened after a newer one: its file stays as it is, so the newer
+            // one finds it again, and nothing is saved over it this session (#137).
+            Ok(v) if v.version > VERSION => {
+                crate::lock(&self.newer).insert(name.to_string());
+                return (
+                    T::default(),
+                    Some(msg!(
+                        "app.warning.newerKept",
+                        file = name,
+                        version = v.version
+                    )),
+                );
+            }
             _ => match serde_json::from_str::<Versioned<T>>(&text) {
                 Ok(v) => return (v.data, None),
                 Err(e) => msg!("app.warning.damaged", detail = e.to_string()),
@@ -686,6 +701,9 @@ impl Store {
     /// Writes `name` through a temp file and a rename, so a failed save never leaves half a
     /// file.
     pub fn save<T: Serialize>(&self, name: &str, data: &T) -> Result<(), Message> {
+        if crate::lock(&self.newer).contains(name) {
+            return Err(msg!("errors.save.newer", file = name));
+        }
         let _one_at_a_time = crate::lock(&self.saving);
         let path = self.dir.join(name);
         let failed = |e: io::Error| {
@@ -787,17 +805,25 @@ mod tests {
         assert!(warning.contains(&aside[0]));
     }
 
+    /// QA review (#137): a file from a newer Secopy (an older one opened after it) stays as it
+    /// is, not set aside: going back to the newer Secopy finds it. The defaults are used, and
+    /// nothing is saved over it.
     #[test]
-    fn a_file_from_a_newer_secopy_is_set_aside_too() {
+    fn a_file_from_a_newer_secopy_is_left_as_it_is() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(
-            dir.path().join(SETTINGS),
-            br#"{"version": 2, "writeChecksumFile": false}"#,
-        )
-        .unwrap();
-        let (settings, warning) = Store::new(dir.path().to_path_buf()).load::<Settings>(SETTINGS);
+        let newer = br#"{"version": 2, "writeChecksumFile": false}"#;
+        fs::write(dir.path().join(SETTINGS), newer).unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let (settings, warning) = store.load::<Settings>(SETTINGS);
         assert_eq!(settings, Settings::default());
-        assert!(warning.unwrap().contains("newer Secopy"));
+        assert_eq!(warning.unwrap().key, "app.warning.newerKept");
+        assert!(store.save(SETTINGS, &Settings::default()).is_err());
+        assert_eq!(fs::read(dir.path().join(SETTINGS)).unwrap(), newer);
+        assert_eq!(
+            fs::read_dir(dir.path()).unwrap().count(),
+            1,
+            "nothing set aside"
+        );
     }
 
     #[test]
