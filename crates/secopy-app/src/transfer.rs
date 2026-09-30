@@ -12,8 +12,8 @@ use specta::Type;
 use crate::message::Message;
 use crate::msg;
 use crate::store::{
-    CopyPreset, CopyPresetInput, CopyPresets, MirrorPreset, MirrorPresetInput, MirrorPresets,
-    Settings,
+    CopyPreset, CopyPresetInput, CopyPresets, DeletedMode, MirrorPreset, MirrorPresetInput,
+    MirrorPresets, Settings,
 };
 
 /// The format this Secopy writes and reads.
@@ -235,9 +235,9 @@ pub struct PresetImport {
     pub missing: Vec<String>,
     /// Why it can't be imported.
     pub problem: Option<Message>,
-    /// What Replace does beyond the preset itself: a mirror with fewer days removes archived
-    /// files at its next run (#113).
-    pub replace_note: Option<Message>,
+    /// What Replace does beyond the preset itself (#113): a mirror in Delete mode deletes
+    /// what's removed from the origin; with fewer days, its next run removes archived files.
+    pub replace_notes: Vec<Message>,
     /// It stands for the file's whole list of presets, which can't be read.
     pub section: bool,
 }
@@ -295,7 +295,7 @@ pub fn plan(
                     paths,
                     name: p.name,
                     problem: None,
-                    replace_note: None,
+                    replace_notes: Vec::new(),
                     section: false,
                 }
             }
@@ -308,12 +308,20 @@ pub fn plan(
             Ok((p, new_name)) => {
                 let paths = vec![p.origin.clone(), p.destination.clone()];
                 let yours = mirrors.named(&p.name);
-                let replace_note = yours
-                    .filter(|y| p.deleted.days < y.deleted.days)
-                    .map(|_| msg!("import.replaceShortens", count = p.deleted.days));
+                let mut replace_notes = Vec::new();
+                if let Some(y) = yours {
+                    if p.deleted.mode == DeletedMode::Delete
+                        && y.deleted.mode == DeletedMode::Archive
+                    {
+                        replace_notes.push(msg!("import.replaceDeletes"));
+                    }
+                    if p.deleted.days < y.deleted.days {
+                        replace_notes.push(msg!("import.replaceShortens", count = p.deleted.days));
+                    }
+                }
                 PresetImport {
                     clash: yours.map(|x| x.name.clone()),
-                    replace_note,
+                    replace_notes,
                     new_name,
                     missing: paths.iter().filter(|s| !exists(s)).cloned().collect(),
                     paths,
@@ -340,7 +348,7 @@ fn unreadable(u: Unreadable) -> PresetImport {
         clash: None,
         missing: Vec::new(),
         problem: Some(u.why),
-        replace_note: None,
+        replace_notes: Vec::new(),
         section: u.section,
     }
 }
@@ -525,7 +533,7 @@ pub fn settings_changes(from: &Settings, to: &Settings) -> Vec<Message> {
 mod tests {
     use super::*;
     use crate::message::En;
-    use crate::store::{CopyPresets, DeletedFiles, DeletedMode, MirrorPresetInput, MirrorPresets};
+    use crate::store::{CopyPresets, DeletedFiles, MirrorPresetInput, MirrorPresets};
 
     /// Review: a section that can't be read is the section, not a preset with no name.
     #[test]
@@ -830,8 +838,17 @@ mod tests {
             &Settings::default(),
             &|_| true,
         );
-        let note = view.mirror_presets[0].replace_note.clone().unwrap();
-        assert_eq!(note.key, "import.replaceShortens");
+        let keys = |v: &ImportView| -> Vec<String> {
+            v.mirror_presets[0]
+                .replace_notes
+                .iter()
+                .map(|m| m.key.clone())
+                .collect()
+        };
+        assert_eq!(
+            keys(&view),
+            ["import.replaceDeletes", "import.replaceShortens"]
+        );
         let same = text.replace("\"days\":7", "\"days\":30");
         let view = plan(
             "x.secopy",
@@ -841,7 +858,21 @@ mod tests {
             &Settings::default(),
             &|_| true,
         );
-        assert_eq!(view.mirror_presets[0].replace_note, None);
+        assert_eq!(
+            keys(&view),
+            ["import.replaceDeletes"],
+            "Archive → Delete with the same days: removed files are no longer archived"
+        );
+        let archive = same.replace("\"delete\"", "\"archive\"");
+        let view = plan(
+            "x.secopy",
+            &contents(&archive),
+            &CopyPresets::default(),
+            &mirror_presets(),
+            &Settings::default(),
+            &|_| true,
+        );
+        assert!(keys(&view).is_empty());
     }
 
     #[test]

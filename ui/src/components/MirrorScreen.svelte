@@ -101,9 +101,13 @@
   /** The destination saved for the selected mirror: its archive is the one shown (#113). */
   const savedDestination = $derived(savedId ? selected!.destination : null);
 
+  /** Counts the looks: only the latest one's answer is shown (#113). */
+  let looks = 0;
+
   async function lookAtArchive(id: string) {
+    const look = ++looks;
     const seen = await api.mirrorArchive(id).catch(() => null);
-    if (savedId === id && (!seen || seen.destination === savedDestination)) archive = seen;
+    if (look === looks && savedId === id && (!seen || seen.destination === savedDestination)) archive = seen;
   }
 
   $effect(() => {

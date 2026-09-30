@@ -85,7 +85,9 @@
                 onChange={(v) => (state[i].replace = v)}
               />
               </div>
-              {#if state[i].replace && p.replaceNote}<p class="note warning">{say(p.replaceNote)}</p>{/if}
+              {#if state[i].replace}
+                {#each p.replaceNotes as note, n (n)}<p class="note warning">{say(note)}</p>{/each}
+              {/if}
             {/if}
           </li>
         {/each}

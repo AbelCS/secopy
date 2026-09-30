@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/sve
 import { describe, expect, test, vi } from "vitest";
 import { raw } from "./test/fake-api";
 import App from "./App.svelte";
+import { ask, asking } from "./lib/confirm.svelte";
 import {
   fakeApi,
   copyPreset,
@@ -92,6 +93,18 @@ describe("App", () => {
     prevented = false;
     await state.close!(() => (prevented = true));
     expect(prevented).toBe(false);
+  });
+
+  test("closing while a question is open keeps the window and the question", async () => {
+    const { api, state } = app();
+    await waitFor(() => expect(state.close).not.toBeNull());
+    const answer = ask("Stop the copy?", "Quit?", "Stop and quit", "Keep copying");
+    let prevented = false;
+    await state.close!(() => (prevented = true));
+    expect(prevented).toBe(true);
+    expect(api.hideToMenuBar).not.toHaveBeenCalled();
+    asking.current?.answer(false);
+    await answer;
   });
 
   test("closing when idle doesn't ask", async () => {
@@ -639,7 +652,7 @@ describe("App", () => {
     api.pickImportFile.mockResolvedValue("/Users/me/Team.secopy");
     state.menu!("import-file");
     await screen.findByText("Team presets.secopy");
-    const more = [...importView().copyPresets, { name: "GoPro", paths: [], clash: null, newName: "GoPro", missing: [], problem: null, replaceNote: null, section: false }];
+    const more = [...importView().copyPresets, { name: "GoPro", paths: [], clash: null, newName: "GoPro", missing: [], problem: null, replaceNotes: [], section: false }];
     api.openImport.mockResolvedValue(importView({ fileName: "Other.secopy", copyPresets: more.slice(1), settings: null }));
     api.openImport.mockResolvedValueOnce(importView({ fileName: "Other.secopy", copyPresets: [...more, ...more], settings: null }));
     state.menu!("import-file");

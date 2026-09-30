@@ -575,6 +575,7 @@
     "clash": "You already have “{name}”",
     "keepBoth": "Keep both, as “{name}”",
     "replace": "Replace yours",
+    "replaceDeletes": "Replacing deletes files removed from the origin instead of archiving them.",
     "replaceShortens": {
       "one": "Replacing removes archived files older than {count} day at its next run.",
       "other": "Replacing removes archived files older than {count} days at its next run."

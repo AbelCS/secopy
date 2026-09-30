@@ -1,3 +1,8 @@
+<script module lang="ts">
+  /** Open dialogs, the last one on top: only it answers Esc. */
+  const open: symbol[] = [];
+</script>
+
 <script lang="ts">
   // A question over the screen, for choices a system dialog can't hold (a checkbox). The
   // element marked data-autofocus gets the focus (the safe answer); Esc is `onClose`.
@@ -18,16 +23,22 @@
   const id = $props.id();
   let panel: HTMLElement;
 
+  const me = Symbol();
+
   onMount(() => {
+    open.push(me);
     const before = document.activeElement as HTMLElement | null;
     (panel.querySelector<HTMLElement>("[data-autofocus]") ?? panel).focus();
-    return () => before?.focus?.();
+    return () => {
+      open.splice(open.indexOf(me), 1);
+      before?.focus?.();
+    };
   });
 
   // Caught on the way down, so Esc answers the dialog only: the screen behind doesn't also
-  // close or ask again.
+  // close or ask again, nor does a dialog under this one.
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape") {
+    if (e.key === "Escape" && open.at(-1) === me) {
       e.preventDefault();
       e.stopPropagation();
       onClose();
