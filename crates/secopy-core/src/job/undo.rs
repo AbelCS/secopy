@@ -1,12 +1,11 @@
 //! Undoing a cancelled job (#54): the destination goes back to how it was before it.
 
 use std::fs;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
-use super::{FileStatus, JobReport};
+use super::{FileStatus, JobReport, Landed};
 use crate::plan::{Action, Plan};
 
 /// What `undo` did.
@@ -34,9 +33,9 @@ pub fn undo(plan: &Plan, report: &JobReport, archive: Option<&Path>) -> Undone {
         let landed = plan.dest.join(&o.final_rel);
         // Still the copy this job made? A file saved in its place since (another inode, or
         // another size) isn't ours to undo (#115).
-        if fs::symlink_metadata(&landed).is_ok_and(|m| {
-            m.len() != o.size || o.landed_as.is_some_and(|id| id != (m.dev(), m.ino()))
-        }) {
+        if fs::symlink_metadata(&landed)
+            .is_ok_and(|m| m.len() != o.size || o.landed_as.is_some_and(|l| l != Landed::of(&m)))
+        {
             done.failed.push((
                 o.final_rel.clone(),
                 "It changed since it was copied, so it was kept.".into(),

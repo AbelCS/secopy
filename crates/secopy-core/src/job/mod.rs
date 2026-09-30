@@ -20,7 +20,7 @@ use crate::error::{FatalError, FileError, IoFailure};
 use crate::plan::Plan;
 use crate::scan::{DirEntry, ScanProblem};
 use crate::verify::CacheBypass;
-use crate::{metadata, os};
+use crate::{fsinfo, metadata, os};
 
 pub use crate::control::JobControl;
 pub use progress::{ActiveFile, Phase, Progress};
@@ -114,8 +114,28 @@ pub struct FileOutcome {
     /// Listed in this job's checksum file.
     pub in_checksum_file: bool,
     pub elapsed: Duration,
-    /// The copy's device and inode as it got its name: undo removes only that file (#115).
-    pub landed_as: Option<(u64, u64)>,
+    /// The copy as it got its name: undo removes only that file, unchanged (#115).
+    pub landed_as: Option<Landed>,
+}
+
+/// Which file a copy is, taken from the open copy just before it got its name: the same
+/// device and inode after the rename, and the date the job gave it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Landed {
+    pub dev: u64,
+    pub ino: u64,
+    pub mtime: Option<std::time::SystemTime>,
+}
+
+impl Landed {
+    pub fn of(meta: &std::fs::Metadata) -> Self {
+        use std::os::unix::fs::MetadataExt;
+        Landed {
+            dev: meta.dev(),
+            ino: meta.ino(),
+            mtime: meta.modified().ok(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -269,7 +289,7 @@ pub fn run_job(
     } else {
         (None, None)
     };
-    let durability_error = make_durable(dest, &plan.dirs);
+    let durability_error = make_durable(dest, &plan.dirs, plan.fs.device);
     JobReport {
         not_started: (plan.files.len() - outcomes.len()) as u64,
         outcomes,
@@ -369,7 +389,12 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
 /// drive-cache flush for the whole volume (RFD §7.4).
 /// Makes the new names and the drive's cache durable. `Some` when the device reported an
 /// error doing so: the destination can't confirm the files are on disk.
-fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<IoFailure> {
+fn make_durable(dest: &Path, dirs: &[DirEntry], device: u64) -> Option<IoFailure> {
+    // Another drive at the destination's path (the job's was pulled out): nothing it can
+    // confirm is this job's (#115).
+    if fsinfo::device_id(dest).is_ok_and(|d| d != device) {
+        return Some(std::io::Error::other("the destination's drive changed").into());
+    }
     // Every directory, then the drive's cache, whatever happened before: the first device
     // error is kept. Folders that were never created don't exist, which is no error; the
     // destination itself gone (pulled out) is (#115).
@@ -419,7 +444,10 @@ mod tests {
             rel: "never".into(),
             mtime: None,
         }];
-        assert!(make_durable(dir.path(), &never).is_none());
-        assert!(make_durable(&dir.path().join("gone"), &[]).is_some());
+        let device = crate::fsinfo::device_id(dir.path()).unwrap();
+        assert!(make_durable(dir.path(), &never, device).is_none());
+        assert!(make_durable(&dir.path().join("gone"), &[], device).is_some());
+        // Another drive mounted at the same path: nothing on it is this job's.
+        assert!(make_durable(dir.path(), &[], device + 1).is_some());
     }
 }

@@ -2,14 +2,13 @@
 
 use std::collections::HashSet;
 use std::fs;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering::Relaxed};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Instant;
 
 use super::progress::{Phase, Slot};
-use super::{Event, FileOutcome, FileStatus, JobControl, JobOptions, SkipReason};
+use super::{Event, FileOutcome, FileStatus, JobControl, JobOptions, Landed, SkipReason};
 use crate::copy::{self, Commit, CopyConfig, PartialCopy};
 use crate::error::{FatalError, FileError};
 use crate::fsinfo;
@@ -235,7 +234,11 @@ impl<'a> Runner<'a> {
 
     /// Gives the copy its final name as the plan says; returns where it landed,
     /// relative to the destination.
-    fn commit(&self, file: &PlannedFile, partial: PartialCopy) -> Result<PathBuf, FileError> {
+    fn commit(
+        &self,
+        file: &PlannedFile,
+        partial: PartialCopy,
+    ) -> Result<(PathBuf, Option<Landed>), FileError> {
         let dest = &self.plan.dest;
         let original = dest.join(&file.entry.rel);
         // The old version goes to the archive only once the new one is verified (here).
@@ -260,6 +263,7 @@ impl<'a> Runner<'a> {
             },
             _ => Commit::NoReplace,
         };
+        let identity = partial.landed();
         let landed = match partial.commit(&dest.join(file.final_rel()), how) {
             Ok(landed) => landed,
             Err(e) => {
@@ -275,10 +279,11 @@ impl<'a> Runner<'a> {
                 return Err(e);
             }
         };
-        Ok(landed
+        let rel = landed
             .strip_prefix(dest)
             .map(Path::to_path_buf)
-            .unwrap_or(landed))
+            .unwrap_or(landed);
+        Ok((rel, identity))
     }
 
     pub(super) fn verify_lane(&self, rx: &Mutex<mpsc::Receiver<VerifyTask>>) {
@@ -372,16 +377,15 @@ impl<'a> Runner<'a> {
         idx: usize,
         hash: Option<u64>,
         status: FileStatus,
-        landed: Option<PathBuf>,
+        landed: Option<(PathBuf, Option<Landed>)>,
         started: Instant,
     ) -> FileOutcome {
         let file = &self.plan.files[idx];
         let ok = matches!(status, FileStatus::Copied | FileStatus::Verified);
-        let final_rel = landed.unwrap_or_else(|| file.final_rel().to_path_buf());
-        let landed_as = ok
-            .then(|| fs::symlink_metadata(self.plan.dest.join(&final_rel)).ok())
-            .flatten()
-            .map(|m| (m.dev(), m.ino()));
+        let (final_rel, landed_as) = match landed {
+            Some((rel, identity)) => (rel, identity),
+            None => (file.final_rel().to_path_buf(), None),
+        };
         FileOutcome {
             id: idx,
             rel: file.entry.rel.clone(),
@@ -487,9 +491,20 @@ fn put_back(how: Archived, archived: &Path, original: &Path) -> Option<PathBuf> 
             let _ = fs::remove_file(archived); // the old version is still in place
             None
         }
-        Archived::Moved => fs::rename(archived, original)
-            .err()
-            .map(|_| archived.to_path_buf()),
+        // Never over something that took the name meanwhile: then it stays in the archive.
+        Archived::Moved => {
+            let back = match crate::os::rename_noreplace(archived, original) {
+                Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                    if fs::symlink_metadata(original).is_ok() {
+                        Err(std::io::ErrorKind::AlreadyExists.into())
+                    } else {
+                        fs::rename(archived, original)
+                    }
+                }
+                other => other,
+            };
+            back.err().map(|_| archived.to_path_buf())
+        }
         Archived::Nothing => None,
     }
 }
@@ -544,5 +559,13 @@ mod tests {
         let back = dir.path().join("a.mov");
         assert_eq!(put_back(Archived::Moved, &archived, &back), None);
         assert_eq!(fs::read(&back).unwrap(), b"old");
+        // Something new took the name meanwhile: it isn't replaced; the old version stays.
+        fs::rename(&back, &archived).unwrap();
+        fs::write(&back, b"new").unwrap();
+        assert_eq!(
+            put_back(Archived::Moved, &archived, &back),
+            Some(archived.clone())
+        );
+        assert_eq!(fs::read(&back).unwrap(), b"new");
     }
 }

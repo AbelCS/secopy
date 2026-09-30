@@ -1462,3 +1462,20 @@ fn undo_keeps_a_same_size_file_saved_in_the_copys_place() {
         "{undone:?}"
     );
 }
+
+/// Review of #115: a copy edited in place since (same file, same size, a new date) isn't
+/// the copy either: undo keeps it.
+#[test]
+fn undo_keeps_a_copy_edited_in_place() {
+    use std::io::Write;
+    let f = fixture();
+    let plan = plan(&f.src, &f.dest);
+    let (report, _) = run(&plan, &opts(true));
+    let copy = f.dest.join("CARD/notes.txt");
+    let mut file = fs::File::options().write(true).open(&copy).unwrap();
+    file.write_all(b"HELLO").unwrap(); // same size, same inode
+    file.set_modified(SystemTime::now()).unwrap();
+    drop(file);
+    undo(&plan, &report, None);
+    assert_eq!(fs::read(&copy).unwrap(), b"HELLO", "kept");
+}
