@@ -1440,3 +1440,25 @@ fn only_folders_the_job_created_get_the_sources_dates() {
     assert_eq!(mtime("CARD/DCIM/100CANON"), old);
     assert_ne!(mtime("CARD"), old, "already there: not rewritten");
 }
+
+/// QA review (#115): a file saved in the copy's place since, even with the same size, isn't
+/// the copy: undo keeps it.
+#[test]
+fn undo_keeps_a_same_size_file_saved_in_the_copys_place() {
+    let f = fixture();
+    let plan = plan(&f.src, &f.dest);
+    let (report, _) = run(&plan, &opts(true));
+    let copy = f.dest.join("CARD/A001.mov");
+    let size = fs::metadata(&copy).unwrap().len() as usize;
+    fs::remove_file(&copy).unwrap();
+    fs::write(&copy, vec![b'z'; size]).unwrap(); // another file, same size
+    let undone = undo(&plan, &report, None);
+    assert_eq!(fs::read(&copy).unwrap(), vec![b'z'; size], "kept");
+    assert!(
+        undone
+            .failed
+            .iter()
+            .any(|(p, _)| p == std::path::Path::new("CARD/A001.mov")),
+        "{undone:?}"
+    );
+}

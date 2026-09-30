@@ -114,6 +114,8 @@ pub struct FileOutcome {
     /// Listed in this job's checksum file.
     pub in_checksum_file: bool,
     pub elapsed: Duration,
+    /// The copy's device and inode as it got its name: undo removes only that file (#115).
+    pub landed_as: Option<(u64, u64)>,
 }
 
 #[derive(Debug, Clone)]
