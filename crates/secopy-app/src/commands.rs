@@ -302,14 +302,15 @@ impl AppState {
         Ok(self.copy_presets_view(view))
     }
 
-    /// Applies at once (the next job uses it) and saves.
+    /// Saves, then applies (the next job uses it): settings that can't be saved aren't used
+    /// either (#116).
     pub fn set_settings(&self, settings: Settings) -> Result<Settings, Message> {
         // Held across the save, so the last change in memory is also the last one on disk.
         let mut current = lock(&self.settings);
-        *current = settings.clone();
         self.store
-            .save(SETTINGS, &*current)
+            .save(SETTINGS, &settings)
             .map_err(|e| msg!("errors.save.settings", why = e))?;
+        *current = settings.clone();
         Ok(settings)
     }
 
@@ -2581,6 +2582,28 @@ mod tests {
         let saved = store.load::<CopyPresets>(COPY_PRESETS).0;
         assert_eq!(saved.presets.len(), 16, "no preset lost");
         assert_eq!(saved, *state.copy_presets.lock().unwrap());
+    }
+
+    /// QA review (#116): settings that can't be saved aren't used either: the next job runs
+    /// with what's saved and shown.
+    #[test]
+    fn settings_that_cant_be_saved_arent_used() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("data");
+        let state = AppState::new(data.clone());
+        state.set_settings(Settings::default()).unwrap();
+        fs::set_permissions(&data, fs::Permissions::from_mode(0o500)).unwrap();
+        let off = Settings {
+            write_checksum_file: false,
+            ..Settings::default()
+        };
+        let failed = state.set_settings(off);
+        fs::set_permissions(&data, fs::Permissions::from_mode(0o755)).unwrap();
+        if failed.is_ok() {
+            return; // running as root
+        }
+        assert!(lock(&state.settings).write_checksum_file, "the saved value");
     }
 
     #[test]
