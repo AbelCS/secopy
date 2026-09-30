@@ -45,12 +45,15 @@ Before you can start, Secopy checks and shows:
   local snapshots, caches). It frees it on demand, but not always in time; if it doesn't, the
   copy stops when the disk is full. To free it first, delete the local snapshots in Disk Utility.
 - **Files that will fail:** a name the destination drive doesn't allow (FAT32 and exFAT
-  refuse `: * ? " < > |`, for example), a file too large for FAT32's 4 GB limit, or something
-  in the way. You can start anyway; those files are listed as failed. Names are never changed.
+  refuse `: * ? " < > |`, for example), a file too large for FAT32's 4 GB limit, something
+  in the way, two names that are one file on the drive, or a file that would land on a source
+  file. You can start anyway; those files are listed as failed. Names are never changed.
 - **Files already there.** Identical files (same size and date) are skipped and counted as
   "already at the destination, not checked". For files that **differ**, choose once:
   **Keep both** (the new copy is named `name (1).ext`), **Overwrite** (the old file is
-  replaced only once the new one is complete and verified) or **Skip**.
+  replaced only once the new one is complete and verified) or **Skip**. The choice is for the
+  files shown: another source or destination starts again with Keep both. With Overwrite,
+  Start's status says how many files it replaces.
 
 ### Copy or Copy & Verify
 
@@ -60,7 +63,9 @@ Before you can start, Secopy checks and shows:
 - **Copy** doesn't read back, which is faster; the checksum file is still written from the
   source.
 
-Press **Start** (⌘↩), or **Add to queue** to run it later.
+Press **Start** (⌘↩), or **Add to queue** to run it later. Start checks the destination
+again first; if it changed since (files added or gone, another drive), it doesn't start and
+shows it as it is now.
 
 ## While it copies
 
@@ -154,7 +159,9 @@ is repaired.
 **Add to queue** on Copy, Mirror or Verify saves the job as it's set up. On the Queue screen,
 reorder jobs with the arrows, remove them, and choose what happens **if a job fails**:
 continue with the next job or stop the queue. **Start** runs them one after another; each is
-checked when its turn comes, and one that can't start fails with its reason. The Mac stays
+checked when its turn comes, and one that can't start fails with its reason. A copy set to
+Overwrite replaces only the files it listed when it was queued; if others differ at its turn
+(another card with the same names), it doesn't start. The Mac stays
 awake for the whole run, and one notification says how it went.
 
 At the end, every job has its result and its own summary. Jobs that completed leave the
