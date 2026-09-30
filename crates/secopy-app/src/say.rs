@@ -68,6 +68,7 @@ pub fn file_error(e: &FileError) -> Message {
         FileError::InvalidName(p) => name_problem(p),
         FileError::TooLarge { limit } => msg!("errors.file.tooLarge", size = Size(*limit)),
         FileError::InTheWay { path } => msg!("errors.file.inTheWay", path = path),
+        FileError::InSource => msg!("errors.file.inSource"),
         FileError::SourceChanged => msg!("errors.file.sourceChanged"),
         FileError::Changed { expected, actual } => {
             msg!("errors.file.changed", expected = expected, actual = actual)

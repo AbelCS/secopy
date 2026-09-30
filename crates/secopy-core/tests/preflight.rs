@@ -161,3 +161,45 @@ fn loose_files_report_each_parent_folder_once() {
     let roots: Vec<PathBuf> = pf.source_roots.into_iter().map(|r| r.path).collect();
     assert_eq!(roots, vec![dir.path().join("x"), dir.path().join("y")]);
 }
+
+#[test]
+fn a_source_file_is_never_a_target() {
+    // Contents of SSD/X into SSD: X/a.mov would land on the source's own a.mov (#112).
+    let dir = tempfile::tempdir().unwrap();
+    let ssd = dir.path().join("SSD");
+    let x = ssd.join("X");
+    write_files(&x, &[("a.mov", b"only copy"), ("X/a.mov", b"another")]);
+    let source = Source::Directory {
+        path: x.clone(),
+        mode: DirMode::ContentsOnly,
+    };
+    let sel = scan(&source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    let pf = preflight(&source, &sel, &ssd).unwrap();
+    let id = sel
+        .files
+        .iter()
+        .position(|f| f.rel == Path::new("X/a.mov"))
+        .unwrap();
+    assert!(
+        pf.file_problems
+            .iter()
+            .any(|p| p.id == id && p.kind == ProblemKind::InSource),
+        "{:?}",
+        pf.file_problems
+    );
+    assert!(pf.conflicts.iter().all(|c| c.id != id));
+
+    // A file picked from the destination itself.
+    let picked = ssd.join("b.mov");
+    fs::write(&picked, b"b").unwrap();
+    let source = Source::Files(vec![picked]);
+    let sel = scan(&source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    let pf = preflight(&source, &sel, &ssd).unwrap();
+    assert_eq!(pf.file_problems.len(), 1);
+    assert_eq!(pf.file_problems[0].kind, ProblemKind::InSource);
+    assert!(pf.conflicts.is_empty());
+}

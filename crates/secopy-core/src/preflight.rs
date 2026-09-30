@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::fs::{self, Metadata};
 use std::io;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -66,6 +67,8 @@ pub enum ProblemKind {
     InTheWay {
         path: PathBuf,
     },
+    /// It would land on a source file: never written, so the source can't be replaced (#112).
+    InSource,
 }
 
 impl ProblemKind {
@@ -76,6 +79,7 @@ impl ProblemKind {
             ProblemKind::TooLarge { limit } => FileError::TooLarge { limit: *limit },
             ProblemKind::NameClash => FileError::NameClash,
             ProblemKind::InTheWay { path } => FileError::InTheWay { path: path.clone() },
+            ProblemKind::InSource => FileError::InSource,
         }
     }
 }
@@ -134,7 +138,7 @@ pub fn preflight(source: &Source, sel: &Selection, dest: &Path) -> Result<Prefli
         return Err(Blocker::DestInsideSource);
     }
     let fs = fsinfo::fs_info(dest).map_err(|e| Blocker::DestNotWritable(e.into()))?;
-    let checked = check_files(sel, dest, &fs);
+    let checked = check_files(sel, dest, &fs, &Sources::of(source));
     Ok(Preflight {
         dest: dest.to_path_buf(),
         fs,
@@ -187,7 +191,46 @@ struct Checked {
     checksum_omissions: Vec<usize>,
 }
 
-fn check_files(sel: &Selection, dest: &Path, fs: &FsInfo) -> Checked {
+/// The source, by device and inode, so a destination file can be recognised as one of its
+/// files whatever its path's case, Unicode form or links.
+struct Sources {
+    /// A directory source: every file under it.
+    dir: Option<(u64, u64)>,
+    /// Picked files.
+    files: HashSet<(u64, u64)>,
+}
+
+impl Sources {
+    fn of(source: &Source) -> Self {
+        let id = |p: &Path| fs::metadata(p).ok().map(|m| (m.dev(), m.ino()));
+        match source {
+            Source::Directory { path, .. } => Sources {
+                dir: id(path),
+                files: HashSet::new(),
+            },
+            Source::Files(files) => Sources {
+                dir: None,
+                files: files.iter().filter_map(|f| id(f)).collect(),
+            },
+        }
+    }
+
+    /// `existing` (at `path`, under `dest`) is a source file.
+    fn has(&self, path: &Path, existing: &Metadata, dest: &Path) -> bool {
+        if self.files.contains(&(existing.dev(), existing.ino())) {
+            return true;
+        }
+        let Some(dir) = self.dir else { return false };
+        // Is one of its directories under the destination the source directory? (Above it,
+        // the source would hold the destination: blocked already.)
+        path.ancestors()
+            .skip(1)
+            .take_while(|a| a.starts_with(dest))
+            .any(|a| fs::metadata(a).is_ok_and(|m| (m.dev(), m.ino()) == dir))
+    }
+}
+
+fn check_files(sel: &Selection, dest: &Path, fs: &FsInfo, sources: &Sources) -> Checked {
     let mut out = Checked::default();
     let mut seen = HashSet::new();
     for (id, entry) in sel.files.iter().enumerate() {
@@ -204,6 +247,9 @@ fn check_files(sel: &Selection, dest: &Path, fs: &FsInfo) -> Checked {
             Some(ProblemKind::TooLarge { limit })
         } else {
             match fs::symlink_metadata(&final_path) {
+                Ok(meta) if meta.is_file() && sources.has(&final_path, &meta, dest) => {
+                    Some(ProblemKind::InSource)
+                }
                 Ok(meta) if meta.is_file() => {
                     out.conflicts.push(Conflict {
                         id,
@@ -297,7 +343,7 @@ mod tests {
             files,
             ..Selection::default()
         };
-        check_files(&sel, dir.path(), fs)
+        check_files(&sel, dir.path(), fs, &Sources::of(&Source::Files(vec![])))
             .problems
             .into_iter()
             .map(|p| (p.id, p.kind))

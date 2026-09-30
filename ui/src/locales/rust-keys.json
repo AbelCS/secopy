@@ -47,6 +47,7 @@
   "errors.file.changed",
   "errors.file.changedWhileRead",
   "errors.file.hashMismatch",
+  "errors.file.inSource",
   "errors.file.inTheWay",
   "errors.file.isDirectory",
   "errors.file.isLink",
