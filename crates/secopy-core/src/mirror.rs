@@ -313,9 +313,7 @@ pub fn plan_watched(
         mut remove_dirs,
         mut renames,
         destination_files,
-    } = extras(destination, &planned, &|rel| {
-        fs::symlink_metadata(origin.join(rel)).is_ok()
-    });
+    } = extras(destination, &planned, &|rel| in_origin(origin, rel));
     let guard = if let Some(first) = scanned.problems.first() {
         // What couldn't be read would look deleted in the origin.
         removals.clear();
@@ -603,7 +601,7 @@ pub fn finish(
     let mut done = Vec::new();
     for rel in &plan.removals {
         // Back in the origin since the plan: it stays.
-        if fs::symlink_metadata(plan.origin.join(rel)).is_ok() {
+        if in_origin(&plan.origin, rel) {
             continue;
         }
         let from = dest.join(rel);
@@ -752,6 +750,24 @@ fn archived_at(name: &str) -> Option<chrono::DateTime<chrono::Local>> {
         .ok()?
         .and_local_timezone(chrono::Local)
         .single()
+}
+
+/// `rel` is in the origin, or that can't be told, so it isn't removed from the backup: a link
+/// on its way (never followed: what's under it may be on a disk that's unplugged, #114) or a
+/// directory that can't be read. Checked one name at a time, so no link is followed.
+fn in_origin(origin: &Path, rel: &Path) -> bool {
+    let names: Vec<_> = rel.components().collect();
+    let mut at = origin.to_path_buf();
+    for (i, name) in names.iter().enumerate() {
+        at.push(name);
+        match fs::symlink_metadata(&at) {
+            Ok(meta) if i + 1 < names.len() && meta.file_type().is_symlink() => return true,
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return false,
+            Err(_) => return true,
+        }
+    }
+    true
 }
 
 /// Removes archive run directories older than `days` (named by `archive_dir`).
