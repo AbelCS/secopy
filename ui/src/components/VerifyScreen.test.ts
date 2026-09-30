@@ -54,6 +54,18 @@ describe("VerifyScreen", () => {
     await waitFor(() => expect(calls.queue).toHaveLength(1));
     expect(api.addCheckToQueue).toHaveBeenCalledWith("/Volumes/Backup/Day01");
   });
+
+  test("a double click on Add to queue adds it once (#117)", async () => {
+    const { api } = show();
+    api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await screen.findByText(/checksum files/);
+    api.addCheckToQueue.mockReturnValue(new Promise(() => {}));
+    const add = screen.getByRole("button", { name: "Add to queue" });
+    await fireEvent.click(add);
+    await fireEvent.click(add);
+    expect(api.addCheckToQueue).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("VerifyScreen: help on the buttons", () => {

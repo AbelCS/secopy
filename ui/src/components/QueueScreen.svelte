@@ -34,8 +34,14 @@
   let error: string | null = $state(null);
   const count = $derived(queue.jobs.length);
 
+  /** A change on its way: jobs are removed and moved by their place, so a second click
+   *  before it comes back would act on another job (#117). */
+  let changing = false;
+
   /** Whether the change worked. */
   async function change(call: () => Promise<QueueView>): Promise<boolean> {
+    if (changing) return false;
+    changing = true;
     try {
       onQueue(await call());
       error = null;
@@ -43,6 +49,8 @@
     } catch (e) {
       error = messageOf(e);
       return false;
+    } finally {
+      changing = false;
     }
   }
 
