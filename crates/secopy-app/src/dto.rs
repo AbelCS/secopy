@@ -16,6 +16,10 @@ use crate::store::{CopyPreset, MirrorPreset, Settings};
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionView {
+    /// How new this view is: made under the session's lock, a higher one is newer. The window
+    /// shows the newest, not the last to arrive (#138).
+    #[specta(type = specta_typescript::Number)]
+    pub revision: u64,
     pub source: Option<SourceView>,
     /// Files and bytes the extension filter keeps.
     pub selected_files: u32,

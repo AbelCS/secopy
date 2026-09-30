@@ -357,6 +357,23 @@ describe("Setup", () => {
     within(screen.getByRole("group", { name: "Source" })).getByText("1,284 files · 212.4 GB");
   });
 
+  test("answers that arrive out of order show the newest, not the last (#138)", async () => {
+    const { api } = setup(readyView(), undefined, { recent: ["/Volumes/A", "/Volumes/B"] });
+    let answerA: (v: SessionView) => void = () => {};
+    api.setDestination.mockReturnValueOnce(new Promise((r) => (answerA = r)));
+    api.setDestination.mockResolvedValueOnce(
+      readyView({ revision: 3, destination: destinationView({ path: "/Volumes/B" }) }),
+    );
+    const menu = screen.getByLabelText("Recent destinations");
+    const shown = () => to().getAllByText(/^\/Volumes\/[AB]$/).find((e) => e.tagName === "P")?.textContent;
+    await fireEvent.change(menu, { target: { value: "/Volumes/A" } });
+    await fireEvent.change(menu, { target: { value: "/Volumes/B" } });
+    await waitFor(() => expect(shown()).toBe("/Volumes/B"));
+    answerA(readyView({ revision: 2, destination: destinationView({ path: "/Volumes/A" }) }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(shown()).toBe("/Volumes/B");
+  });
+
   test("a recent destination can be chosen again", async () => {
     const { api } = setup(readyView(), undefined, { recent: ["/Volumes/RAID/Day01"] });
     await fireEvent.change(screen.getByLabelText("Recent destinations"), {
