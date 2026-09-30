@@ -426,6 +426,10 @@ impl Report {
             (None, None) if self.checksum_off && !check => {
                 let _ = writeln!(t, "Checksum file: off (not written)");
             }
+            // Nothing was copied, so there's nothing to list: said, not left out (#135).
+            (None, None) if !check && c.copied + c.verified == 0 => {
+                let _ = writeln!(t, "Checksum file: none (nothing copied)");
+            }
             (None, None) => {}
         }
         if let Some(e) = &self.durability_error {

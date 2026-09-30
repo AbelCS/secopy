@@ -161,3 +161,40 @@ fn reports_are_saved_next_to_the_checksum_file_and_never_overwritten() {
     );
     assert_eq!(fs::read_to_string(&text).unwrap(), r.to_text());
 }
+
+/// QA review (#135): with nothing copied (every file already there) no checksum file is
+/// written, and the report says so instead of nothing.
+#[test]
+fn a_report_says_when_no_checksum_file_was_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    let dest = dir.path().join("dest");
+    write_files(&src, &[("a.mov", b"a")]);
+    std::fs::create_dir_all(&dest).unwrap();
+    let source = Source::Directory {
+        path: src,
+        mode: DirMode::FolderItself,
+    };
+    let job = |dest: &Path| {
+        let sel = scan(&source, &ScanOptions::default())
+            .unwrap()
+            .select(&ExtensionFilter::All);
+        let pf = preflight(&source, &sel, dest).unwrap();
+        let plan = Plan::resolve(&sel, &pf, DiffersPolicy::KeepBoth);
+        let report = run_job(&plan, &JobOptions::default(), &JobControl::new(), &|_| {});
+        let meta = JobMeta {
+            app_version: "0".into(),
+            source: "CARD".into(),
+            verify: true,
+            started: Local::now(),
+            finished: Local::now(),
+        };
+        Report::new(&plan, &report, &meta).to_text()
+    };
+    job(&dest); // copies it
+    let again = job(&dest); // already there: nothing copied
+    assert!(
+        again.contains("Checksum file: none (nothing copied)"),
+        "{again}"
+    );
+}
