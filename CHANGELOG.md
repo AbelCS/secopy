@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.17.0](https://github.com/AbelCS/secopy/compare/v0.16.1...v0.17.0) (2026-09-30)
+
+
+### Features
+
+* **ui:** Start's status says how many files it replaces ([b7252f6](https://github.com/AbelCS/secopy/commit/b7252f6638dc6e53e7f7b935b039207e993320d1)), closes [#112](https://github.com/AbelCS/secopy/issues/112)
+
+
+### Bug Fixes
+
+* **app:** a queued copy overwrites only the files shown when it was queued ([8b3830e](https://github.com/AbelCS/secopy/commit/8b3830ec9fed033688378f51ee866513eac0f183)), closes [#112](https://github.com/AbelCS/secopy/issues/112)
+* **app:** Start also refuses when a file to overwrite was rewritten since ([b45ad06](https://github.com/AbelCS/secopy/commit/b45ad0629a4aa5b5e8a76aa90e9ea0f51456cb69)), closes [#112](https://github.com/AbelCS/secopy/issues/112)
+* **app:** Start checks the destination again and refuses if it changed ([688f810](https://github.com/AbelCS/secopy/commit/688f8100807e464b28ffe636d3fc23782cf19fe0)), closes [#112](https://github.com/AbelCS/secopy/issues/112)
+* **app:** the choice for files that differ resets when what is copied changes ([a320018](https://github.com/AbelCS/secopy/commit/a320018c9ceecadbf7e039a040c7d9be085fb873)), closes [#112](https://github.com/AbelCS/secopy/issues/112)
+* **core:** a source file is never a copy's target ([95e3faf](https://github.com/AbelCS/secopy/commit/95e3fafd1cc521b9e13d0e91ad762fb2a024403b)), closes [#112](https://github.com/AbelCS/secopy/issues/112)
+* **core:** names that differ only in Unicode form clash ([ddd5006](https://github.com/AbelCS/secopy/commit/ddd50064086d36481a616b3f599c5938f51acaad)), closes [#112](https://github.com/AbelCS/secopy/issues/112)
+
 ## [0.16.1](https://github.com/AbelCS/secopy/compare/v0.16.0...v0.16.1) (2026-09-29)
 
 
