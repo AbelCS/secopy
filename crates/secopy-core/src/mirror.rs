@@ -582,6 +582,7 @@ pub fn report_part(
         not_removed: Vec::new(),
         renamed: Vec::new(),
         nothing_removed: None,
+        archive_problem: None,
     };
     match finished {
         Ok(f) => {
@@ -754,6 +755,23 @@ fn files_under(dir: &Path) -> u64 {
         .count() as u64
 }
 
+impl ArchiveDeleted {
+    /// For a report, in English: what `what` (a clean-up, a deletion) left in the archive, and
+    /// why; `None` when it all went (#136).
+    pub fn left_in_english(&self, what: &str) -> Option<String> {
+        if self.remaining == 0 && self.error.is_none() {
+            return None;
+        }
+        let why = self.error.as_ref().map_or_else(String::new, |(path, e)| {
+            format!(": {}: {e}", path.display())
+        });
+        Some(format!(
+            "Archive {what} NOT complete: {} file(s) left{why}",
+            self.remaining
+        ))
+    }
+}
+
 /// Deletes `destination`'s whole archive (#101), when the user asks: only inside a real
 /// `.secopy-archive` directory, never through a link. Each run directory goes with
 /// `remove_dir_all`, which never follows a link, even one swapped in while it works. What
@@ -799,22 +817,27 @@ fn archived_at(name: &str) -> Option<chrono::DateTime<chrono::Local>> {
         return Some(zoned.with_timezone(&chrono::Local));
     }
     // A name from before (#136): local time; in the repeated hour when clocks go back, the
-    // earlier of the two, not none (it was never cleaned up).
+    // later of the two, so it's never removed early (it used to be never removed at all).
     chrono::NaiveDateTime::parse_from_str(stamp, STAMP)
         .ok()?
         .and_local_timezone(chrono::Local)
-        .earliest()
+        .latest()
 }
 
 /// Moves `from` to `to`, never over something there: another run in the same second may have
 /// archived a file under that name (#136).
 fn move_new(from: &Path, to: &Path) -> std::io::Result<()> {
     match crate::os::rename_noreplace(from, to) {
+        // No exclusive rename here (exFAT): the name is taken first, atomically, by creating
+        // it; only then is the file moved over that empty placeholder of its own.
         Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-            if fs::symlink_metadata(to).is_ok() {
-                return Err(std::io::ErrorKind::AlreadyExists.into());
-            }
-            fs::rename(from, to)
+            fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(to)?;
+            fs::rename(from, to).inspect_err(|_| {
+                let _ = fs::remove_file(to);
+            })
         }
         other => other,
     }
@@ -878,9 +901,16 @@ pub fn clean_archives(
     }
     let limit = now - chrono::Duration::days(i64::from(days));
     let root = destination.join(ARCHIVE_DIR);
-    // Only a real directory: a link could lead anywhere outside the destination.
-    if !fs::symlink_metadata(&root).is_ok_and(|m| m.is_dir()) {
-        return done;
+    // Only a real directory: a link could lead anywhere outside the destination. None is no
+    // error; one that can't be looked at is (#136).
+    match fs::symlink_metadata(&root) {
+        Ok(meta) if meta.is_dir() => {}
+        Ok(_) => return done,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return done,
+        Err(e) => {
+            done.error = Some((root, e.into()));
+            return done;
+        }
     }
     let entries = match fs::read_dir(&root) {
         Ok(entries) => entries,
@@ -889,10 +919,15 @@ pub fn clean_archives(
             return done;
         }
     };
-    for e in entries
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
-    {
+    for e in entries {
+        let e = match e.and_then(|e| e.file_type().map(|t| (e, t))) {
+            Ok((e, t)) if t.is_dir() => e,
+            Ok(_) => continue,
+            Err(err) => {
+                done.error.get_or_insert((root.clone(), err.into()));
+                continue;
+            }
+        };
         if !archived_at(&e.file_name().to_string_lossy()).is_some_and(|t| t < limit) {
             continue;
         }
