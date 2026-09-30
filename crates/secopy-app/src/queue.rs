@@ -167,6 +167,24 @@ fn why_not(view: &SessionView) -> crate::message::Message {
         .unwrap_or_else(|| crate::msg!("queue.reason.nothingToCopy"))
 }
 
+/// Every key a queued copy has in this version, with the entry's own.
+fn only_known_copy_keys(value: &serde_json::Value) -> bool {
+    const KNOWN: [&str; 9] = [
+        "kind",
+        "lastError",
+        "sources",
+        "includeFolder",
+        "extensions",
+        "destination",
+        "conflicts",
+        "verify",
+        "overwrite",
+    ];
+    value
+        .as_object()
+        .is_some_and(|o| o.keys().all(|k| KNOWN.contains(&k.as_str())))
+}
+
 impl Serialize for Entry {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use serde::ser::Error;
@@ -214,6 +232,9 @@ impl<'de> Deserialize<'de> for Entry {
             _ => None,
         };
         let job = match value.get("kind").and_then(|k| k.as_str()) {
+            // A setting this version doesn't know (a newer Secopy's): kept whole, never run or
+            // saved without it (#137).
+            Some("copy") if !only_known_copy_keys(&value) => QueuedJob::Unknown(value),
             Some("copy") => serde_json::from_value::<CopyJob>(value.clone())
                 .map(QueuedJob::Copy)
                 .unwrap_or(QueuedJob::Unknown(value)),
@@ -240,6 +261,30 @@ mod tests {
 
     /// Review: a last error from a newer Secopy keeps at least its key; a job a newer
     /// Secopy wrote keeps its last error through a save.
+    /// QA review (#137): a copy a newer Secopy queued with a setting this one doesn't know
+    /// isn't run without it, nor saved without it: it's kept as it was, for the newer one.
+    #[test]
+    fn a_copy_with_settings_this_version_doesnt_know_is_kept_whole() {
+        let entry = serde_json::json!({
+            "kind": "copy", "sources": ["/A"], "includeFolder": true, "extensions": null,
+            "destination": "/B", "conflicts": "keepBoth", "verify": true, "lastError": null,
+            "throttle": 50
+        });
+        let read: Entry = serde_json::from_value(entry.clone()).unwrap();
+        assert!(matches!(read.job, QueuedJob::Unknown(_)));
+        assert_eq!(serde_json::to_value(&read).unwrap(), entry);
+        let known = serde_json::json!({
+            "kind": "copy", "sources": ["/A"], "includeFolder": true, "extensions": null,
+            "destination": "/B", "conflicts": "keepBoth", "verify": true, "lastError": null,
+            "overwrite": ["a.mov"]
+        });
+        let read: Entry = serde_json::from_value(known).unwrap();
+        assert!(matches!(read.job, QueuedJob::Copy(_)));
+        // Every key this version saves is one it knows: a new CopyJob field goes on the list.
+        let saved = serde_json::to_value(&read).unwrap();
+        assert!(only_known_copy_keys(&saved), "{saved}");
+    }
+
     #[test]
     fn newer_last_errors_are_kept() {
         let e: Entry = serde_json::from_value(serde_json::json!({
