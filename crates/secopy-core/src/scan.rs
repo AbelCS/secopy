@@ -210,6 +210,12 @@ fn scan_files(paths: &[PathBuf]) -> Scan {
             Ok(meta) if meta.file_type().is_symlink() => scan.skipped_symlinks.push(path.clone()),
             Ok(meta) if meta.is_file() => {
                 let name = path.file_name().expect("a regular file has a file name");
+                // Secopy's own unfinished copy: copied, the next copy would take it for a
+                // leftover and delete it (#115).
+                if crate::system::is_secopy_partial(&name.to_string_lossy()) {
+                    scan.skipped_system += 1;
+                    continue;
+                }
                 scan.push_file(path.clone(), PathBuf::from(name), &meta);
             }
             Ok(_) => scan.problem(path, "not a regular file", ScanProblemKind::NotAFile),

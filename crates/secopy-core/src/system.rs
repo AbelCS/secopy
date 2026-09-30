@@ -27,6 +27,12 @@ const NAMES: &[&str] = &[
     "desktop.ini",
 ];
 
+/// Secopy's own unfinished copies: `.name.secopy-partial`, `.secopy-<hash>.partial`.
+pub fn is_secopy_partial(name: &str) -> bool {
+    (name.starts_with('.') && name.ends_with(".secopy-partial"))
+        || (name.starts_with(".secopy-") && name.ends_with(".partial"))
+}
+
 /// Whether `name` is a system file or directory to skip. `._*` files are AppleDouble data
 /// macOS writes next to files on FAT and exFAT; `.secopy-partial` files are Secopy's own
 /// unfinished copies.
@@ -34,8 +40,7 @@ pub fn is_system_file(name: &OsStr) -> bool {
     let name = name.to_string_lossy();
     NAMES.iter().any(|n| n.eq_ignore_ascii_case(&name))
         || name.starts_with("._")
-        || (name.starts_with('.') && name.ends_with(".secopy-partial"))
-        || (name.starts_with(".secopy-") && name.ends_with(".partial"))
+        || is_secopy_partial(&name)
         // A mirror's checksum file set aside (#114): Secopy's own, never an extra file.
         || name.starts_with(".secopy-checksums.xxh64.damaged-")
 }
