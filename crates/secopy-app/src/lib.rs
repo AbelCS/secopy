@@ -66,6 +66,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::set_filter,
             commands::set_destination,
             commands::set_conflicts,
+            commands::session_view,
             commands::start_job,
             commands::pause_job,
             commands::resume_job,

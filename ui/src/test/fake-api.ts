@@ -289,6 +289,7 @@ export function fakeApi(session: SessionView = sessionView()) {
     scanSource: vi.fn(answer),
     setIncludeFolder: vi.fn((_include: boolean) => answer()),
     clearSource: vi.fn(answer),
+    sessionView: vi.fn(answer),
     setFilter: vi.fn(answer),
     setDestination: vi.fn(answer),
     setConflicts: vi.fn(answer),

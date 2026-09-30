@@ -75,6 +75,7 @@
   "errors.internal",
   "errors.job.alreadyRunning",
   "errors.job.cantStart",
+  "errors.job.changed",
   "errors.job.noneFailed",
   "errors.job.retrySourceGone",
   "errors.legacy",

@@ -69,6 +69,7 @@ export const tauriApi = {
     unwrap(commands.setDestination(path)),
   setConflicts: (policy: ConflictPolicy): Promise<SessionView> =>
     unwrap(commands.setConflicts(policy)),
+  sessionView: (): Promise<SessionView> => unwrap(commands.sessionView()),
 
   startJob: (verify: boolean, onProgress: (p: ProgressView) => void): Promise<null> => {
     const channel = new Channel<ProgressView>();

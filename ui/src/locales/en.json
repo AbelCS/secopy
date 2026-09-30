@@ -1132,6 +1132,7 @@
     "job": {
       "alreadyRunning": "A copy is already running.",
       "cantStart": "Nothing to copy, or something blocks the copy.",
+      "changed": "The destination changed. Check and press Start again.",
       "noneFailed": "No files failed.",
       "retrySourceGone": "The source isn't there any more ({path}). Connect the source again to retry."
     },

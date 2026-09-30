@@ -313,13 +313,21 @@ impl AppState {
         Ok(settings)
     }
 
+    /// New copy as it is now: after Start refused because the destination changed.
+    pub fn session_view(&self) -> SessionView {
+        session(self).view()
+    }
+
     /// Starts the job with the current settings and remembers the destination (B7).
     pub fn start(&self, verify: bool, sink: impl ProgressSink) -> Result<(), Message> {
         if lock(&self.queue_run).running {
             return Err(msg!("errors.queue.running"));
         }
         let (ready, dest) = {
-            let s = session(self);
+            let mut s = session(self);
+            if !s.still_as_shown() {
+                return Err(msg!("errors.job.changed"));
+            }
             let ready = s.ready().ok_or_else(|| msg!("errors.job.cantStart"))?;
             (ready, s.destination().map(show))
         };
@@ -1082,6 +1090,13 @@ pub async fn set_destination(app: AppHandle, path: Option<String>) -> Result<Ses
         session(state).set_destination(path.map(PathBuf::from))
     })
     .await
+}
+
+/// New copy as it is now (#112).
+#[tauri::command]
+#[specta::specta]
+pub async fn session_view(app: AppHandle) -> Result<SessionView, Message> {
+    blocking(app, |state| state.session_view()).await
 }
 
 #[tauri::command]
@@ -2438,6 +2453,48 @@ mod tests {
             state.save_copy_preset_as("One file".into()).unwrap_err(),
             "A preset saves a directory as its source; pick a directory first."
         );
+    }
+
+    #[test]
+    fn start_checks_the_destination_again_and_refuses_if_it_changed() {
+        // Copied, then the destination emptied (or another drive with its name): Start from the
+        // same screen would "skip" everything as already there (#112).
+        let dir = tempfile::tempdir().unwrap();
+        let card = dir.path().join("CARD");
+        fs::create_dir_all(&card).unwrap();
+        fs::write(card.join("a.mov"), b"a").unwrap();
+        let dest = dir.path().join("dest");
+        fs::create_dir_all(dest.join("CARD")).unwrap();
+        fs::write(dest.join("CARD/a.mov"), b"a").unwrap();
+        let t = fs::metadata(card.join("a.mov"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        fs::File::options()
+            .write(true)
+            .open(dest.join("CARD/a.mov"))
+            .unwrap()
+            .set_modified(t)
+            .unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        state.rescan(Change::Pick(vec![card]));
+        let shown = state
+            .session
+            .lock()
+            .unwrap()
+            .set_destination(Some(dest.clone()));
+        assert_eq!(shown.destination.unwrap().identical, 1);
+        fs::remove_file(dest.join("CARD/a.mov")).unwrap();
+        assert_eq!(
+            state.start(true, Sink::default()).unwrap_err().key,
+            "errors.job.changed"
+        );
+        let fresh = state.session_view();
+        assert_eq!(fresh.destination.unwrap().identical, 0);
+        // Now what the screen shows is what Start does.
+        state.start(true, Sink::default()).unwrap();
+        state.jobs.wait();
+        assert_eq!(fs::read(dest.join("CARD/a.mov")).unwrap(), b"a");
     }
 
     #[test]

@@ -304,8 +304,11 @@
         if (p.phase === "done") void finish();
       }),
     );
-    if (started === undefined) screen = "setup";
-    else recent = (await run(() => api.recentDestinations())) ?? recent;
+    if (started === undefined) {
+      screen = "setup";
+      // Start checks the destination again: show it as it is now, with the reason (#112).
+      view = await api.sessionView().catch(() => view);
+    } else recent = (await run(() => api.recentDestinations())) ?? recent;
   }
 
   /** Settings or Copy presets, over a section's screen; never during a copy. */

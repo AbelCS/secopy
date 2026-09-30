@@ -77,6 +77,8 @@ export const commands = {
 	setFilter: (selected: (string | null)[] | null) => typedError<SessionView, Message>(__TAURI_INVOKE("set_filter", { selected })),
 	setDestination: (path: string | null) => typedError<SessionView, Message>(__TAURI_INVOKE("set_destination", { path })),
 	setConflicts: (policy: ConflictPolicy) => typedError<SessionView, Message>(__TAURI_INVOKE("set_conflicts", { policy })),
+	/**  New copy as it is now (#112). */
+	sessionView: () => typedError<SessionView, Message>(__TAURI_INVOKE("session_view")),
 	/**  Starts copying what the main window shows; progress arrives on `on_progress`. */
 	startJob: (verify: boolean, onProgress: Channel<ProgressView>) => typedError<null, Message>(__TAURI_INVOKE("start_job", { verify, onProgress })),
 	pauseJob: () => __TAURI_INVOKE<void>("pause_job"),
