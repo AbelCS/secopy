@@ -60,8 +60,13 @@ pub fn undo(plan: &Plan, report: &JobReport, archive: Option<&Path>) -> Undone {
             done.failed.push((o.final_rel.clone(), e.to_string()));
         }
     }
-    if let Some(checksum) = &report.checksum_file {
-        let _ = fs::remove_file(checksum);
+    // Said when it stays (#134): it would list files that are gone.
+    if let Some(checksum) = &report.checksum_file
+        && let Err(e) = fs::remove_file(checksum)
+        && e.kind() != std::io::ErrorKind::NotFound
+    {
+        let rel = checksum.strip_prefix(&plan.dest).unwrap_or(checksum);
+        done.failed.push((rel.to_path_buf(), e.to_string()));
     }
     // Deepest first; only if empty now.
     let mut dirs: Vec<&PathBuf> = report.created_dirs.iter().collect();

@@ -770,7 +770,11 @@ impl Job {
             view.undoing = true;
             sink.send(view);
             let undone = undo(plan, &report, mirroring.and_then(|m| m.archive.as_deref()));
-            report.checksum_file = None;
+            // Gone with the copies, unless it couldn't be removed: then the summary still
+            // shows it (#134).
+            if report.checksum_file.as_ref().is_some_and(|c| !c.exists()) {
+                report.checksum_file = None;
+            }
             undone
         });
         // A mirror removes what's gone from its origin, only after a clean copy phase.
