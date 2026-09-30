@@ -764,3 +764,36 @@ fn an_unreadable_checksum_file_is_kept() {
     assert!(result.is_err());
     assert_eq!(fs::read(&sums).unwrap(), b"0000000000000001  old.mov\n");
 }
+
+/// QA review (#114): a folder moved to another disk, left as a link. Links aren't followed, so
+/// what's under it can't be told apart from deleted: with that disk unplugged, its backup stays.
+#[test]
+fn files_under_an_origin_link_are_never_removed() {
+    let (dir, o, d) = pair();
+    let other = dir.path().join("Other");
+    write(&o, &[("a.mov", b"a")]);
+    write(&other, &[("x.mov", b"x")]);
+    std::os::unix::fs::symlink(&other, o.join("Old")).unwrap();
+    write(
+        &d,
+        &[("a.mov", b"a"), ("Old/x.mov", b"x"), ("gone.mov", b"g")],
+    );
+    let delete = MirrorOptions {
+        deleted: Deleted::Delete,
+        ..opts()
+    };
+    let online = mirror::plan(&o, &d, &delete).unwrap();
+    assert_eq!(online.removals, vec![std::path::PathBuf::from("gone.mov")]);
+    fs::remove_dir_all(&other).unwrap(); // the other disk is unplugged
+    let offline = mirror::plan(&o, &d, &delete).unwrap();
+    assert_eq!(offline.removals, vec![std::path::PathBuf::from("gone.mov")]);
+    let report = run_job(
+        &offline.copy,
+        &JobOptions::default(),
+        &JobControl::new(),
+        &|_| {},
+    );
+    mirror::finish(&offline, &report, None).unwrap();
+    assert!(d.join("Old/x.mov").exists());
+    assert!(!d.join("gone.mov").exists());
+}
