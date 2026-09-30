@@ -73,7 +73,7 @@ impl JobSettings {
     /// A mirror job: no checksum file (it would be part of the mirror), its removals after.
     pub fn for_mirror(job: &MirrorJob, now: DateTime<Local>) -> Self {
         let archive = match job.plan.options.deleted {
-            Deleted::Archive { .. } => Some(mirror::archive_dir(&job.plan.copy.dest, now)),
+            Deleted::Archive => Some(mirror::archive_dir(&job.plan.copy.dest, now)),
             Deleted::Delete => None,
         };
         Self {

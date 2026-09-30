@@ -1413,7 +1413,7 @@ impl AppState {
             changed_bytes,
             removed_files: count(plan.removals.len()),
             archive_days: match plan.options.deleted {
-                secopy_core::mirror::Deleted::Archive { days } => Some(days),
+                secopy_core::mirror::Deleted::Archive => Some(job.archive_days),
                 secopy_core::mirror::Deleted::Delete => None,
             },
             failing: count(failing),
