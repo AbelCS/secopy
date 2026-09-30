@@ -15,10 +15,21 @@ pub struct KeepAwake {
     _not_send: PhantomData<*const ()>,
 }
 
+thread_local! {
+    /// Requests held on this thread: a job's own thread says whether it keeps the Mac awake.
+    static HELD: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many requests this thread holds now.
+pub fn held_here() -> usize {
+    HELD.with(std::cell::Cell::get)
+}
+
 impl KeepAwake {
     /// An IOKit assertion that prevents idle sleep (what `caffeinate -i` does); it ends
     /// with this process if it crashes.
     pub fn new() -> Self {
+        HELD.with(|h| h.set(h.get() + 1));
         Self {
             assertion: iokit::prevent_idle_sleep(REASON),
             _not_send: PhantomData,
@@ -39,6 +50,7 @@ impl Default for KeepAwake {
 
 impl Drop for KeepAwake {
     fn drop(&mut self) {
+        HELD.with(|h| h.set(h.get().saturating_sub(1)));
         if let Some(id) = self.assertion {
             iokit::release(id);
         }
