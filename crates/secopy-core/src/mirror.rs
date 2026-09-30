@@ -844,24 +844,42 @@ pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chron
     removed
 }
 
-/// The mirror's checksum file, after a clean run (plan 8): the previous one, with this run's
-/// copied and updated files, the deep check's equal files, removals dropped and renames moved.
+/// The mirror's checksum file (plan 8): the previous one, with this run's copied and updated
+/// files and the deep check's equal files; after a clean run (`finished`), removals dropped and
+/// renames moved. A run that isn't clean still records what it verified (#114), so Verify
+/// doesn't call those files changed. Not after an undo: the destination is back as it was.
 pub fn write_checksums(
     plan: &MirrorPlan,
     report: &JobReport,
-    finished: &Finished,
+    finished: Option<&Finished>,
 ) -> std::io::Result<()> {
     use crate::job::FileStatus;
     let dest = &plan.copy.dest;
     let path = dest.join(crate::check::MIRROR_CHECKSUMS);
     // The previous file; one that is there but can't be read is kept, never replaced.
     let mut sums: std::collections::BTreeMap<PathBuf, u64> = match fs::read_to_string(&path) {
-        Ok(text) => crate::check::parse(&text).0.into_iter().collect(),
+        Ok(text) => {
+            let (entries, bad) = crate::check::parse(&text);
+            // Lines that can't be read aren't dropped silently: that file is kept aside.
+            if !bad.is_empty() {
+                let stamp = chrono::Local::now().format("%Y-%m-%d %H.%M.%S");
+                let aside = path.with_file_name(format!(
+                    "{}.damaged-{stamp}",
+                    crate::check::MIRROR_CHECKSUMS
+                ));
+                fs::rename(&path, aside)?;
+            }
+            entries.into_iter().collect()
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Default::default(),
         Err(e) => return Err(e),
     };
+    let (renamed, removals) = match finished {
+        Some(f) => (f.renamed.as_slice(), f.removals.as_slice()),
+        None => (&[][..], &[][..]),
+    };
     // Renames first: a renamed file this run also updated keeps the new hash below.
-    for (from, to) in &finished.renamed {
+    for (from, to) in renamed {
         if let Some(hash) = sums.remove(from) {
             sums.insert(to.clone(), hash);
         }
@@ -874,7 +892,7 @@ pub fn write_checksums(
             sums.insert(o.final_rel.clone(), hash);
         }
     }
-    for r in finished.removals.iter().filter(|r| r.result.is_ok()) {
+    for r in removals.iter().filter(|r| r.result.is_ok()) {
         sums.remove(&r.rel);
     }
     // Files no longer in the destination (removed by hand, or gone) leave it too.

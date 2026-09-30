@@ -293,14 +293,18 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
             if !finished.renamed.is_empty() {
                 println!("renamed to match the origin: {}", finished.renamed.len());
             }
-            if let Err(e) = mirror::write_checksums(&plan, &report, &finished) {
-                println!("checksum file NOT written: {e}");
+            if let Err(e) = mirror::write_checksums(&plan, &report, Some(&finished)) {
+                eprintln!("checksum file NOT written: {e}");
                 ok = false;
             }
             ok
         }
         Err(why) => {
             println!("{why}");
+            // What was verified is recorded anyway (#114).
+            if let Err(e) = mirror::write_checksums(&plan, &report, None) {
+                eprintln!("checksum file NOT written: {e}");
+            }
             false
         }
     };
