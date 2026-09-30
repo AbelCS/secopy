@@ -53,6 +53,8 @@ pub enum FileError {
     TooLarge { limit: u64 },
     #[error("something is in the way at {}", path.display())]
     InTheWay { path: PathBuf },
+    #[error("it would land on a source file")]
+    InSource,
     #[error("the source file changed while it was copied")]
     SourceChanged,
     #[error("changed since it was copied (expected {expected}, found {actual})")]
