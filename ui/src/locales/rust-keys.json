@@ -225,6 +225,8 @@
   "menubar.title.paused",
   "menubar.title.removing",
   "menubar.title.starting",
+  "mirror.archiveNotCleaned",
+  "mirror.archiveNotCleanedAll",
   "mirror.archiveNotDeleted",
   "mirror.archiveNotDeletedAll",
   "mirror.guard.destinationUnread",

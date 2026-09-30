@@ -3210,6 +3210,7 @@ dependencies = [
  "block2",
  "chrono",
  "glob",
+ "libc",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
@@ -3234,6 +3235,7 @@ dependencies = [
  "chrono",
  "clap",
  "ctrlc",
+ "libc",
  "secopy-core",
  "tempfile",
 ]

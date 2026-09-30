@@ -256,7 +256,21 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
     }
     let now = Local::now();
     // Archived files older than --archive-days go first, with --delete too (#101).
-    mirror::clean_archives(args.to(), args.archive_days, now);
+    let cleaned = mirror::clean_archives(args.to(), args.archive_days, now);
+    // Said, and not a success: the archive keeps more than asked (#136).
+    let cleaned_ok = cleaned.remaining == 0 && cleaned.error.is_none();
+    if !cleaned_ok {
+        let why = cleaned
+            .error
+            .as_ref()
+            .map_or_else(String::new, |(path, e)| {
+                format!(" ({}: {e})", path.display())
+            });
+        eprintln!(
+            "archived files past --archive-days NOT removed: {}{why}",
+            cleaned.remaining
+        );
+    }
     let archive = match deleted {
         Deleted::Archive { .. } => Some(mirror::archive_dir(args.to(), now)),
         Deleted::Delete => None,
@@ -319,7 +333,7 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
             .with_mirror(mirror::report_part(&finished, archive.is_some()));
         write_report(&full, dir, &report, started_at)?;
     }
-    Ok(if report.is_success() && removed_ok {
+    Ok(if report.is_success() && removed_ok && cleaned_ok {
         ExitCode::SUCCESS
     } else {
         ExitCode::from(1)

@@ -844,33 +844,51 @@ fn in_origin(origin: &Path, rel: &Path) -> bool {
     true
 }
 
-/// Removes archive run directories older than `days` (named by `archive_dir`).
-pub fn clean_archives(destination: &Path, days: u32, now: chrono::DateTime<chrono::Local>) -> u32 {
+/// Removes archive run directories older than `days` (named by `archive_dir`): the files
+/// removed, the files left in runs that couldn't be removed, and why the first wasn't (#136).
+pub fn clean_archives(
+    destination: &Path,
+    days: u32,
+    now: chrono::DateTime<chrono::Local>,
+) -> ArchiveDeleted {
+    let mut done = ArchiveDeleted::default();
     // 0 isn't a limit: presets need at least a day, and an old one saved with 0 would empty
     // the archive without anyone asking (#113).
     if days == 0 {
-        return 0;
+        return done;
     }
     let limit = now - chrono::Duration::days(i64::from(days));
     let root = destination.join(ARCHIVE_DIR);
     // Only a real directory: a link could lead anywhere outside the destination.
     if !fs::symlink_metadata(&root).is_ok_and(|m| m.is_dir()) {
-        return 0;
+        return done;
     }
-    let Ok(entries) = fs::read_dir(&root) else {
-        return 0;
+    let entries = match fs::read_dir(&root) {
+        Ok(entries) => entries,
+        Err(e) => {
+            done.error = Some((root, e.into()));
+            return done;
+        }
     };
-    let mut removed = 0;
     for e in entries
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
     {
-        let old = archived_at(&e.file_name().to_string_lossy()).is_some_and(|t| t < limit);
-        if old && fs::remove_dir_all(e.path()).is_ok() {
-            removed += 1;
+        if !archived_at(&e.file_name().to_string_lossy()).is_some_and(|t| t < limit) {
+            continue;
+        }
+        let run = e.path();
+        let before = files_under(&run);
+        if let Err(err) = fs::remove_dir_all(&run) {
+            let left = files_under(&run);
+            done.removed += before.saturating_sub(left);
+            done.remaining += left;
+            done.error.get_or_insert((run, err.into()));
+        } else {
+            done.removed += before;
         }
     }
-    removed
+    done
 }
 
 /// The mirror's checksum file (plan 8): the previous one, with this run's copied and updated

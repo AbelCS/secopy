@@ -98,7 +98,8 @@
         "one": "All {count} file copied",
         "other": "All {count} files copied"
       },
-      "archiveNotDeleted": "Archived files couldn't all be deleted"
+      "archiveNotDeleted": "Archived files couldn't all be deleted",
+      "archiveNotCleaned": "Old archived files couldn't all be removed"
     },
     "stats": {
       "files": {
@@ -971,7 +972,12 @@
       },
       "delete": "Delete archive…"
     },
-    "archiveNotDeletedAll": "The archive couldn't be deleted ({why}). What's in it is removed once it's {days} days old."
+    "archiveNotDeletedAll": "The archive couldn't be deleted ({why}). What's in it is removed once it's {days} days old.",
+    "archiveNotCleaned": {
+      "one": "{count} archived file past the preset's days couldn't be removed ({why}). Secopy tries again at the next run.",
+      "other": "{count} archived files past the preset's days couldn't be removed ({why}). Secopy tries again at the next run."
+    },
+    "archiveNotCleanedAll": "The archive couldn't be cleaned up ({why}). Secopy tries again at the next run."
   },
   "menubar": {
     "removing": "Removing files…",
