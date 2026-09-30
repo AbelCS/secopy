@@ -166,8 +166,16 @@ impl Plan {
     }
 
     /// Bytes the job needs free: the bytes to write and the margin. 0 when nothing is written.
+    /// Each file in whole allocation blocks, as it takes them on disk (#135).
     fn space_needed(&self) -> u64 {
-        match self.bytes_to_write() {
+        let block = self.fs.block_size.max(1);
+        let on_disk: u64 = self
+            .files
+            .iter()
+            .filter(|f| f.action.writes())
+            .map(|f| f.entry.size.div_ceil(block).saturating_mul(block))
+            .fold(0, u64::saturating_add);
+        match on_disk {
             0 => 0,
             bytes => bytes.saturating_add(space_margin(bytes)),
         }

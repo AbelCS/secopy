@@ -331,6 +331,7 @@ mod tests {
             case_sensitive,
             free_bytes: u64::MAX,
             available_bytes: u64::MAX,
+            block_size: 1,
             max_file_size: Some(FAT_MAX_FILE_SIZE),
             name_limit: NameLimit::Utf16Units(255),
             device: 0,

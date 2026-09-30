@@ -1246,6 +1246,7 @@ mod tests {
         pick(&mut s, std::slice::from_ref(&f.card), false);
         s.set_destination(Some(f.dest.clone()));
         let mut plan = s.plan.clone().expect("a plan");
+        plan.fs.block_size = 1; // the bytes themselves, for the figures below
         let needed = plan.bytes_to_write() + secopy_core::plan::space_margin(plan.bytes_to_write());
         plan.fs.free_bytes = needed - 1;
         plan.fs.available_bytes = needed;

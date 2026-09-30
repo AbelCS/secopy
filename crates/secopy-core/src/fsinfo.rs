@@ -43,6 +43,8 @@ pub struct FsInfo {
     /// on demand: its figure for data the user asks to store, what Finder and Disk Utility
     /// show. Never less than `free_bytes`.
     pub available_bytes: u64,
+    /// The allocation unit (`f_frsize`): a file takes whole blocks, a cluster on exFAT (#135).
+    pub block_size: u64,
     pub max_file_size: Option<u64>,
     pub name_limit: NameLimit,
     /// Identifies the volume; a change means it was unplugged or remounted (FR-21).
@@ -94,10 +96,11 @@ impl FsKind {
 /// removes a hidden file, so an error here also means `dir` is not writable.
 pub fn fs_info(dir: &Path) -> io::Result<FsInfo> {
     let kind = sys::fs_kind(dir)?;
-    let free_bytes = sys::free_bytes(dir)?;
+    let (free_bytes, block_size) = sys::free_bytes(dir)?;
     Ok(FsInfo {
         case_sensitive: probe_case_sensitive(dir)?,
         free_bytes,
+        block_size,
         available_bytes: available(free_bytes, sys::important_usage_bytes(dir)),
         max_file_size: kind.max_file_size(),
         name_limit: kind.name_limit(),
@@ -155,7 +158,8 @@ mod sys {
         Ok(FsKind::from_name(&name.to_string_lossy()))
     }
 
-    pub fn free_bytes(dir: &Path) -> io::Result<u64> {
+    /// Bytes free now, and the allocation unit.
+    pub fn free_bytes(dir: &Path) -> io::Result<(u64, u64)> {
         let c = c_path(dir)?;
         // SAFETY: an all-zero `statvfs` is a valid value to be overwritten.
         let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
@@ -163,7 +167,7 @@ mod sys {
         if unsafe { libc::statvfs(c.as_ptr(), &mut st) } != 0 {
             return Err(io::Error::last_os_error());
         }
-        Ok(u64::from(st.f_bavail) * st.f_frsize)
+        Ok((u64::from(st.f_bavail) * st.f_frsize, st.f_frsize.max(1)))
     }
 
     /// `NSURLVolumeAvailableCapacityForImportantUsageKey`: Apple's figure for data stored at
