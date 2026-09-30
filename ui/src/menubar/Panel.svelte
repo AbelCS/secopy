@@ -26,11 +26,18 @@
   }
 
   onMount(() => {
-    void api.menubarView().then((v) => {
+    // Updates first; the view asked for at opening only if none came meanwhile: it may be
+    // older than one pushed while it was on its way (#117).
+    let pushed = false;
+    const unlisten = api.onPanelView((v) => {
+      pushed = true;
+      loaded = true;
       show(v);
+    });
+    void api.menubarView().then((v) => {
+      if (!pushed) show(v);
       loaded = true;
     });
-    const unlisten = api.onPanelView(show);
     return () => void unlisten.then((stop) => stop());
   });
 
