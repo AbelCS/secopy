@@ -242,10 +242,12 @@ pub fn due(last: Option<Instant>, now: Instant, end: bool) -> bool {
 
 /// A queue ended: cancelled when the user stopped it; complete only when every job was, and
 /// there was one.
-pub fn queue_outcome(complete: u32, count: u32, cancelled: bool) -> JobOutcome {
+/// `saved`: the queue file was saved; if not, finished jobs could run again after a relaunch,
+/// so it isn't Complete (#116).
+pub fn queue_outcome(complete: u32, count: u32, cancelled: bool, saved: bool) -> JobOutcome {
     if cancelled {
         JobOutcome::Cancelled
-    } else if count > 0 && complete == count {
+    } else if count > 0 && complete == count && saved {
         JobOutcome::Complete
     } else {
         JobOutcome::Failures
@@ -619,7 +621,12 @@ pub fn queue_event(app: &AppHandle, e: &QueueEvent) {
                 update(
                     app,
                     &Status::Finished {
-                        outcome: queue_outcome(summary.complete, summary.count, cancelled),
+                        outcome: queue_outcome(
+                            summary.complete,
+                            summary.count,
+                            cancelled,
+                            summary.save_error.is_none(),
+                        ),
                         why: None,
                     },
                 );
@@ -773,10 +780,13 @@ mod tests {
 
     #[test]
     fn a_queue_is_complete_only_when_every_job_is() {
-        assert_eq!(queue_outcome(3, 3, false), JobOutcome::Complete);
-        assert_eq!(queue_outcome(2, 3, false), JobOutcome::Failures);
-        assert_eq!(queue_outcome(0, 0, false), JobOutcome::Failures);
-        assert_eq!(queue_outcome(1, 3, true), JobOutcome::Cancelled);
+        assert_eq!(queue_outcome(3, 3, false, true), JobOutcome::Complete);
+        assert_eq!(queue_outcome(2, 3, false, true), JobOutcome::Failures);
+        assert_eq!(queue_outcome(0, 0, false, true), JobOutcome::Failures);
+        assert_eq!(queue_outcome(1, 3, true, true), JobOutcome::Cancelled);
+        // Every job complete, but the queue couldn't be saved: finished jobs could run again
+        // after a relaunch, so it isn't a ✓ (#116).
+        assert_eq!(queue_outcome(3, 3, false, false), JobOutcome::Failures);
     }
 
     #[test]
