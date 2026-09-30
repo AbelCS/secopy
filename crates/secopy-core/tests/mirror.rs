@@ -995,3 +995,46 @@ fn an_archives_links_are_counted_and_deleted_not_followed() {
     assert_eq!(deleted.removed, summary.files);
     assert_eq!(fs::read(&outside).unwrap(), b"keep");
 }
+
+/// Review of #135: a mirror that doesn't fit is refused before it starts, as a copy is
+/// (it started, filled the disk and stopped). On a small disk image.
+#[test]
+fn a_mirror_that_doesnt_fit_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let image = dir.path().join("small.dmg");
+    let made = std::process::Command::new("hdiutil")
+        .args([
+            "create", "-size", "5m", "-fs", "HFS+", "-volname", "SMALL", "-quiet",
+        ])
+        .arg(&image)
+        .status();
+    let mount = dir.path().join("mnt");
+    fs::create_dir_all(&mount).unwrap();
+    let attached = made.is_ok_and(|s| s.success())
+        && std::process::Command::new("hdiutil")
+            .args(["attach", "-nobrowse", "-quiet", "-mountpoint"])
+            .arg(&mount)
+            .arg(&image)
+            .status()
+            .is_ok_and(|s| s.success());
+    if !attached {
+        return; // no disk images here
+    }
+    let o = dir.path().join("origin");
+    write(&o, &[("big.mov", &vec![1u8; 20 << 20])]);
+    let planned = mirror::plan(&o, &mount, &opts());
+    let _ = std::process::Command::new("hdiutil")
+        .args(["detach", "-quiet"])
+        .arg(&mount)
+        .status();
+    assert!(
+        matches!(
+            planned,
+            Err(mirror::PlanError::Blocked(
+                secopy_core::preflight::Blocker::NotEnoughSpace { .. }
+            ))
+        ),
+        "{:?}",
+        planned.err()
+    );
+}
