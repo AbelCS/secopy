@@ -239,9 +239,19 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
     println!("~ changed: {}", plan.changes.len() - new);
     let how = if args.delete { "deleted" } else { "archived" };
     println!("- removed: {} ({how})", plan.removals.len());
+    // Files that will fail aren't unchanged (#137).
+    let failing = plan
+        .copy
+        .files
+        .iter()
+        .filter(|f| matches!(f.action, secopy_core::plan::Action::Fail(_)))
+        .count();
+    if failing > 0 {
+        println!("! will fail: {failing}");
+    }
     println!(
         "= unchanged: {}",
-        plan.copy.files.len() - plan.changes.len()
+        plan.copy.files.len() - plan.changes.len() - failing
     );
     if let Some(guard) = &plan.guard {
         println!("guard: {guard}");

@@ -463,3 +463,22 @@ fn a_mirror_says_when_expired_archive_files_stay() {
         String::from_utf8_lossy(&run.stderr)
     );
 }
+
+/// QA review (#137): a mirror's dry run counts files that will fail apart, not as unchanged.
+#[test]
+fn a_mirror_dry_run_counts_files_that_will_fail() {
+    let dir = tempfile::tempdir().unwrap();
+    let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+    fs::create_dir_all(&o).unwrap();
+    fs::create_dir_all(d.join("x.mov")).unwrap(); // a directory where the file goes
+    fs::write(o.join("x.mov"), b"x").unwrap();
+    let out = cli()
+        .args(["--mirror", "--dry-run", "--to"])
+        .arg(&d)
+        .arg(&o)
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("! will fail: 1"), "{text}");
+    assert!(text.contains("= unchanged: 0"), "{text}");
+}
