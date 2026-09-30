@@ -148,6 +148,14 @@ fn run(args: Args) -> Result<ExitCode, String> {
         fmt_bytes(selection.total_bytes),
         scan.skipped_system
     );
+    // Nothing matches (an --ext typo, an empty source): not a success a script could take
+    // for one (#116).
+    if selection.files.is_empty() {
+        return Err(format!(
+            "nothing to copy: none of the {} files match",
+            scan.files.len()
+        ));
+    }
     let pf = preflight(&source, &selection, args.to()).map_err(|e| e.to_string())?;
     let plan = Plan::resolve(&selection, &pf, args.on_conflict.into());
     print_preflight(&pf, &plan);
@@ -164,31 +172,13 @@ fn run(args: Args) -> Result<ExitCode, String> {
     let report = run_with_progress(&plan, &opts)?;
     print_summary(&report, plan.bytes_to_write());
     if let Some(dir) = &args.report {
-        let meta = JobMeta {
-            app_version: env!("CARGO_PKG_VERSION").to_string(),
-            source: args
-                .sources
-                .iter()
-                .map(|p| p.display().to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
-            verify: args.verify,
-            started: started_at,
-            finished: Local::now(),
-        };
-        // Named like the checksum file, so the two are easy to pair up.
-        let stem = match &report.checksum_file {
-            Some(path) => path
-                .file_stem()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned(),
-            None => checksum_file::file_name(started_at).replace(".xxh64", ""),
-        };
-        let (text, _) = Report::new(&plan, &report, &meta)
-            .write(dir, &stem)
-            .map_err(|e| format!("report not written: {e}"))?;
-        println!("report: {}", text.display());
+        let meta = job_meta(&args, args.verify, started_at);
+        write_report(
+            &Report::new(&plan, &report, &meta),
+            dir,
+            &report,
+            started_at,
+        )?;
     }
     Ok(if report.is_success() {
         ExitCode::SUCCESS
@@ -274,9 +264,11 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
         archive_replaced: archive.clone(),
         ..JobOptions::default()
     };
+    let started_at = now;
     let report = run_with_progress(&plan.copy, &opts)?;
     print_summary(&report, plan.copy.bytes_to_write());
-    let removed_ok = match mirror::finish(&plan, &report, archive.as_deref()) {
+    let finished = mirror::finish(&plan, &report, archive.as_deref());
+    let removed_ok = match &finished {
         Ok(finished) => {
             let removals = &finished.removals;
             let mut ok = true;
@@ -293,7 +285,7 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
             if !finished.renamed.is_empty() {
                 println!("renamed to match the origin: {}", finished.renamed.len());
             }
-            if let Err(e) = mirror::write_checksums(&plan, &report, Some(&finished)) {
+            if let Err(e) = mirror::write_checksums(&plan, &report, Some(finished)) {
                 eprintln!("checksum file NOT written: {e}");
                 ok = false;
             }
@@ -308,11 +300,55 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
             false
         }
     };
+    if let Some(dir) = &args.report {
+        let meta = job_meta(args, true, started_at);
+        let full = Report::new(&plan.copy, &report, &meta)
+            .with_mirror(mirror::report_part(&finished, archive.is_some()));
+        write_report(&full, dir, &report, started_at)?;
+    }
     Ok(if report.is_success() && removed_ok {
         ExitCode::SUCCESS
     } else {
         ExitCode::from(1)
     })
+}
+
+/// What a report says about the run.
+fn job_meta(args: &Args, verify: bool, started: chrono::DateTime<Local>) -> JobMeta {
+    JobMeta {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        source: args
+            .sources
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+        verify,
+        started,
+        finished: Local::now(),
+    }
+}
+
+/// `--report`: the report in `dir`, named like the checksum file so the two pair up.
+fn write_report(
+    full: &Report,
+    dir: &Path,
+    report: &JobReport,
+    started: chrono::DateTime<Local>,
+) -> Result<(), String> {
+    let stem = match &report.checksum_file {
+        Some(path) => path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned(),
+        None => checksum_file::file_name(started).replace(".xxh64", ""),
+    };
+    let (text, _) = full
+        .write(dir, &stem)
+        .map_err(|e| format!("report not written: {e}"))?;
+    println!("report: {}", text.display());
+    Ok(())
 }
 
 /// One directory → directory source; otherwise only files are allowed (RFD Q6).

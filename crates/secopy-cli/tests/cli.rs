@@ -320,3 +320,58 @@ fn a_mirror_with_delete_still_removes_expired_archives() {
     );
     assert!(!old.exists(), "older than the default 30 days");
 }
+
+/// QA review (#116): nothing to copy isn't a success (a script would take it for one), and
+/// nothing is created.
+#[test]
+fn nothing_to_copy_is_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dest) = (dir.path().join("CARD"), dir.path().join("dest"));
+    std::fs::create_dir_all(&src).unwrap();
+    std::fs::create_dir_all(&dest).unwrap();
+    std::fs::write(src.join("a.mov"), b"a").unwrap();
+    let out = cli()
+        .arg(&src)
+        .args(["--ext", "mvo", "--to"])
+        .arg(&dest)
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("nothing to copy"));
+    assert!(!dest.join("CARD").exists());
+}
+
+/// QA review (#116): --report works for a mirror too.
+#[test]
+fn a_mirror_writes_the_report_asked_for() {
+    let dir = tempfile::tempdir().unwrap();
+    let (o, d, r) = (
+        dir.path().join("o"),
+        dir.path().join("d"),
+        dir.path().join("r"),
+    );
+    for p in [&o, &d, &r] {
+        std::fs::create_dir_all(p).unwrap();
+    }
+    std::fs::write(o.join("a.mov"), b"a").unwrap();
+    let out = cli()
+        .args(["--mirror", "--report"])
+        .arg(&r)
+        .arg("--to")
+        .arg(&d)
+        .arg(&o)
+        .output()
+        .unwrap();
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let reports: Vec<_> = std::fs::read_dir(&r)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_name().to_string_lossy().ends_with("_report.txt"))
+        .collect();
+    assert_eq!(reports.len(), 1);
+}
