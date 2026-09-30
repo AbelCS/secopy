@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.0](https://github.com/AbelCS/secopy/compare/v0.17.6...v0.18.0) (2026-09-30)
+
+
+### Features
+
+* **app:** import says what differs between Secopy versions ([c86b56b](https://github.com/AbelCS/secopy/commit/c86b56b648727fdae641ee927d6997457a970519)), closes [#149](https://github.com/AbelCS/secopy/issues/149)
+
+
+### Bug Fixes
+
+* **app:** review fixes for import across versions ([88bb4c0](https://github.com/AbelCS/secopy/commit/88bb4c0fef79da278c0be43ec66ce2c9fddcdcee))
+
 ## [0.17.6](https://github.com/AbelCS/secopy/compare/v0.17.5...v0.17.6) (2026-09-30)
 
 
