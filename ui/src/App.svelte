@@ -265,6 +265,8 @@
     settings = done.settings;
     copyPresets = done.copyPresets;
     mirrorPresets = done.mirrorPresets;
+    // The selected preset was replaced: New copy shows the imported one (#116).
+    if (done.session) view = done.session;
     importing = null;
     screen = importBack;
     if (done.failed) error = say(done.message);
