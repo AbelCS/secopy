@@ -251,14 +251,16 @@ pub fn run_job(
         .into_inner()
         .expect("outcomes lock poisoned");
     let fatal = runner.fatal.into_inner().expect("fatal lock poisoned");
-    let created_dirs = runner.made_dirs.into_inner().expect("dirs lock poisoned");
+    let mut created_dirs = runner.made_dirs.into_inner().expect("dirs lock poisoned");
     let mut removed_partials = runner.removed_partials.load(Relaxed);
     let mut dir_errors = Vec::new();
     if !control.is_stopped() && fatal.is_none() {
         // Before the folder times: removing a file changes its folder's time.
         removed_partials += remove_leftover_partials(plan);
-        dir_errors = create_empty_dirs(plan);
-        restore_dir_mtimes(plan);
+        let (made, errors) = create_empty_dirs(plan);
+        created_dirs.extend(made);
+        dir_errors = errors;
+        restore_dir_mtimes(plan, &created_dirs);
     }
     let (checksum_file, checksum_error) = if opts.write_checksum_file {
         write_checksum(dest, &outcomes)
@@ -298,8 +300,9 @@ fn remove_leftover_partials(plan: &Plan) -> u64 {
 }
 
 /// Source folders with no files in the plan are created at the end (FR-6). Folders with
-/// files were created when their first file started. Returns the ones that couldn't be.
-fn create_empty_dirs(plan: &Plan) -> Vec<(PathBuf, IoFailure)> {
+/// files were created when their first file started. Returns the folders made, and the ones
+/// that couldn't be.
+fn create_empty_dirs(plan: &Plan) -> (Vec<PathBuf>, Vec<(PathBuf, IoFailure)>) {
     let mut with_files = HashSet::new();
     for file in &plan.files {
         for dir in file.entry.rel.ancestors().skip(1) {
@@ -308,24 +311,39 @@ fn create_empty_dirs(plan: &Plan) -> Vec<(PathBuf, IoFailure)> {
             }
         }
     }
-    plan.dirs
+    let mut made = Vec::new();
+    let mut errors = Vec::new();
+    for dir in plan
+        .dirs
         .iter()
         .filter(|d| !with_files.contains(d.rel.as_path()))
-        .filter_map(|dir| {
-            fs::create_dir_all(plan.dest.join(&dir.rel))
-                .err()
-                .map(|e| (dir.rel.clone(), e.into()))
-        })
-        .collect()
+    {
+        let path = plan.dest.join(&dir.rel);
+        let missing: Vec<PathBuf> = path
+            .ancestors()
+            .take_while(|d| fs::symlink_metadata(d).is_err())
+            .map(Path::to_path_buf)
+            .collect();
+        match fs::create_dir_all(&path) {
+            Ok(()) => made.extend(missing),
+            Err(e) => errors.push((dir.rel.clone(), e.into())),
+        }
+    }
+    (made, errors)
 }
 
-/// Deepest folders first: setting a folder's time doesn't change its parent's (FR-19).
-fn restore_dir_mtimes(plan: &Plan) {
+/// Deepest folders first: setting a folder's time doesn't change its parent's (FR-19). Only
+/// folders this job created: one already at the destination keeps its own (#115).
+fn restore_dir_mtimes(plan: &Plan, created: &[PathBuf]) {
+    let created: HashSet<&Path> = created.iter().map(PathBuf::as_path).collect();
     let mut dirs: Vec<&DirEntry> = plan.dirs.iter().collect();
     dirs.sort_by_key(|d| std::cmp::Reverse(d.rel.components().count()));
     for dir in dirs {
-        if let Some(mtime) = dir.mtime {
-            let _ = metadata::set_dir_mtime(&plan.dest.join(&dir.rel), mtime);
+        let path = plan.dest.join(&dir.rel);
+        if let Some(mtime) = dir.mtime
+            && created.contains(path.as_path())
+        {
+            let _ = metadata::set_dir_mtime(&path, mtime);
         }
     }
 }
