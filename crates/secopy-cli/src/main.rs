@@ -148,9 +148,9 @@ fn run(args: Args) -> Result<ExitCode, String> {
         fmt_bytes(selection.total_bytes),
         scan.skipped_system
     );
-    // Nothing matches (an --ext typo, an empty source): not a success a script could take
-    // for one (#116).
-    if selection.files.is_empty() {
+    // Nothing matches (an --ext typo) or nothing at all: not a success a script could take for
+    // one (#116). Empty folders alone are still copied (FR-6).
+    if selection.files.is_empty() && (filter.is_active() || selection.dirs.is_empty()) {
         return Err(format!(
             "nothing to copy: none of the {} files match",
             scan.files.len()
@@ -265,9 +265,10 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
         ..JobOptions::default()
     };
     let started_at = now;
-    let report = run_with_progress(&plan.copy, &opts)?;
+    let mut report = run_with_progress(&plan.copy, &opts)?;
     print_summary(&report, plan.copy.bytes_to_write());
     let finished = mirror::finish(&plan, &report, archive.as_deref());
+    let mut checksums_failed = None;
     let removed_ok = match &finished {
         Ok(finished) => {
             let removals = &finished.removals;
@@ -287,6 +288,7 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
             }
             if let Err(e) = mirror::write_checksums(&plan, &report, Some(finished)) {
                 eprintln!("checksum file NOT written: {e}");
+                checksums_failed = Some(e);
                 ok = false;
             }
             ok
@@ -296,10 +298,18 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
             // What was verified is recorded anyway (#114).
             if let Err(e) = mirror::write_checksums(&plan, &report, None) {
                 eprintln!("checksum file NOT written: {e}");
+                checksums_failed = Some(e);
             }
             false
         }
     };
+    // The report says so too, as the app's does (#116).
+    if let Some(e) = checksums_failed {
+        report.checksum_error = Some(secopy_core::error::IoFailure {
+            kind: e.kind(),
+            message: format!("the mirror's checksum file: {e}"),
+        });
+    }
     if let Some(dir) = &args.report {
         let meta = job_meta(args, true, started_at);
         let full = Report::new(&plan.copy, &report, &meta)

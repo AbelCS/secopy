@@ -61,10 +61,7 @@ export function queueNotification(s: QueueSummaryView): { title: string; body: s
     [count("notRun"), "notify.queue.notRun"],
   ] as const;
   const said = parts.filter(([n]) => n > 0).map(([n, key]) => t(key, { count: n }));
-  const body = s.saveError
-    ? say(s.saveError)
-    : said.length > 0
-      ? said.join(t("format.dot"))
-      : t("notify.queue.allFinished");
+  if (s.saveError) said.push(say(s.saveError));
+  const body = said.length > 0 ? said.join(t("format.dot")) : t("notify.queue.allFinished");
   return { title, body };
 }
