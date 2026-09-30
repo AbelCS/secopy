@@ -896,6 +896,52 @@ fn a_checksum_file_with_bad_lines_is_set_aside_not_shortened() {
         fs::read_to_string(d.join(&aside[0])).unwrap(),
         "not a checksum line\n"
     );
+    // Set aside twice in the same second: both kept.
+    fs::write(d.join(".secopy-checksums.xxh64"), "still not one\n").unwrap();
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let (report, finished) = run(&p, None);
+    mirror::write_checksums(&p, &report, Some(&finished.unwrap())).unwrap();
+    let count = || {
+        fs::read_dir(&d)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with(".secopy-checksums.xxh64.damaged-")
+            })
+            .count()
+    };
+    assert_eq!(count(), 2);
+    // Secopy's own: a later run in Delete mode doesn't remove it as an extra file.
+    let delete = MirrorOptions {
+        deleted: Deleted::Delete,
+        ..opts()
+    };
+    let later = mirror::plan(&o, &d, &delete).unwrap();
+    assert!(later.removals.is_empty(), "{:?}", later.removals);
+}
+
+/// Review of #114: an entry for a file that can't be looked at stays in the checksum file.
+#[test]
+fn a_checksum_entry_for_a_file_that_cant_be_looked_at_stays() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), ("locked/old.mov", b"o")]);
+    write(&d, &[("locked/old.mov", b"o")]);
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    fs::write(
+        d.join(".secopy-checksums.xxh64"),
+        "0000000000000007  locked/old.mov\n",
+    )
+    .unwrap();
+    let (report, _) = run(&p, None);
+    fs::set_permissions(d.join("locked"), fs::Permissions::from_mode(0o000)).unwrap();
+    let written = mirror::write_checksums(&p, &report, None);
+    fs::set_permissions(d.join("locked"), fs::Permissions::from_mode(0o755)).unwrap();
+    written.unwrap();
+    let text = fs::read_to_string(d.join(".secopy-checksums.xxh64")).unwrap();
+    assert!(text.contains("locked/old.mov"), "{text}");
 }
 
 /// QA review (#114): a directory spelled in another letter case is renamed too, once: the

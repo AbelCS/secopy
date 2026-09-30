@@ -36,6 +36,8 @@ pub fn is_system_file(name: &OsStr) -> bool {
         || name.starts_with("._")
         || (name.starts_with('.') && name.ends_with(".secopy-partial"))
         || (name.starts_with(".secopy-") && name.ends_with(".partial"))
+        // A mirror's checksum file set aside (#114): Secopy's own, never an extra file.
+        || name.starts_with(".secopy-checksums.xxh64.damaged-")
 }
 
 #[cfg(test)]
