@@ -25,7 +25,8 @@
     onDone: () => void;
   } = $props();
 
-  const ok = $derived(summary.complete === summary.count);
+  // A queue that couldn't be saved could run finished jobs again: not a ✓ (#116).
+  const ok = $derived(summary.complete === summary.count && !summary.saveError);
   const word: Record<QueueResult, string> = {
     complete: t("queue.result.complete"),
     failed: t("queue.result.failed"),

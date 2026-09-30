@@ -66,6 +66,21 @@ describe("QueueSummary", () => {
     expect(screen.getByRole("list")).toBeTruthy();
   });
 
+  test("every job complete but the queue not saved isn't a ✓ (#116)", () => {
+    const { container } = render(QueueSummary, {
+      props: {
+        summary: {
+          complete: 1, count: 1, millis: 1000,
+          results: [{ job: queuedJob(), result: "complete", reason: null, summary: null }],
+          saveError: raw("Couldn't save the queue: permission denied"),
+        },
+        onOpen: () => {},
+        onDone: () => {},
+      },
+    });
+    expect(container.querySelector("h2.ok")).toBeNull();
+  });
+
   test("a queued mirror whose preset was deleted says so", () => {
     render(QueueSummary, {
       props: {

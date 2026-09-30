@@ -289,6 +289,14 @@
         "one": "{count} job failed",
         "other": "{count} jobs failed"
       },
+      "cancelled": {
+        "one": "{count} cancelled",
+        "other": "{count} cancelled"
+      },
+      "notRun": {
+        "one": "{count} not run",
+        "other": "{count} not run"
+      },
       "allFinished": "Every job finished."
     }
   },

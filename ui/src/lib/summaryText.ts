@@ -3,6 +3,7 @@ import type { QueueSummaryView, SummaryView } from "./bindings";
 import { formatBytes, formatDuration, formatSpeed } from "./format";
 import { t } from "./i18n";
 import { headline } from "./headline";
+import { say } from "./message";
 
 import type { Stat } from "./ui/Stats.svelte";
 
@@ -51,9 +52,18 @@ export function notificationFor(s: SummaryView): { title: string; body: string }
 /** The notification when a queue run ends (FR-43). */
 export function queueNotification(s: QueueSummaryView): { title: string; body: string } {
   const title = t("notify.queue.title", { complete: s.complete, count: s.count });
-  const failed = s.results.filter((r) => r.result === "failed").length;
-  return {
-    title,
-    body: failed > 0 ? t("notify.queue.failed", { count: failed }) : t("notify.queue.allFinished"),
-  };
+  const count = (r: QueueSummaryView["results"][number]["result"]) => s.results.filter((x) => x.result === r).length;
+  // "Every job finished." only when each is complete; otherwise what wasn't (#116).
+  const parts = [
+    [count("failed"), "notify.queue.failed"],
+    [count("cancelled"), "notify.queue.cancelled"],
+    [count("notRun"), "notify.queue.notRun"],
+  ] as const;
+  const said = parts.filter(([n]) => n > 0).map(([n, key]) => t(key, { count: n }));
+  const body = s.saveError
+    ? say(s.saveError)
+    : said.length > 0
+      ? said.join(t("format.dot"))
+      : t("notify.queue.allFinished");
+  return { title, body };
 }
