@@ -153,6 +153,12 @@ pub enum Guard {
         count: usize,
         first: ScanProblem,
     },
+    /// Directories in the destination couldn't be read: what they hold is unknown, so nothing
+    /// is removed (#114).
+    DestinationUnread {
+        count: usize,
+        first: PathBuf,
+    },
     EmptyOrigin,
     TooMany {
         removals: u64,
@@ -172,6 +178,15 @@ impl std::fmt::Display for Guard {
                 },
                 first.path.display(),
                 first.message
+            ),
+            Guard::DestinationUnread { count, first } => write!(
+                f,
+                "{} in the destination couldn't be read ({}). Nothing is removed from the destination this run.",
+                match count {
+                    1 => "1 directory".to_string(),
+                    n => format!("{n} directories"),
+                },
+                first.display()
             ),
             Guard::EmptyOrigin => f.write_str(
                 "The origin has no files: every file in the destination would be removed.",
@@ -313,6 +328,7 @@ pub fn plan_watched(
         mut remove_dirs,
         mut renames,
         destination_files,
+        unread,
     } = extras(destination, &planned, &|rel| in_origin(origin, rel));
     let guard = if let Some(first) = scanned.problems.first() {
         // What couldn't be read would look deleted in the origin.
@@ -321,6 +337,15 @@ pub fn plan_watched(
         renames.clear();
         Some(Guard::Unread {
             count: scanned.problems.len(),
+            first: first.clone(),
+        })
+    } else if let Some(first) = unread.first() {
+        // What the destination couldn't show can't be weighed against the origin (#114).
+        removals.clear();
+        remove_dirs.clear();
+        renames.clear();
+        Some(Guard::DestinationUnread {
+            count: unread.len(),
             first: first.clone(),
         })
     } else {
@@ -404,6 +429,8 @@ struct Extras {
     remove_dirs: Vec<PathBuf>,
     renames: Vec<(PathBuf, PathBuf)>,
     destination_files: u64,
+    /// Directories that couldn't be read, relative to the destination.
+    unread: Vec<PathBuf>,
 }
 
 /// Files to remove, directories to remove (deepest first), names spelled otherwise, and the
@@ -430,7 +457,16 @@ fn extras(destination: &Path, planned: &[&Path], origin_has: &dyn Fn(&Path) -> b
                 && !is_system_file(e.file_name())
                 && !is_nas_file(e.file_name())
         });
-    for entry in walk.filter_map(Result::ok) {
+    let mut unread = Vec::new();
+    for entry in walk {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(e) => {
+                let at = e.path().unwrap_or(destination);
+                unread.push(at.strip_prefix(destination).unwrap_or(at).to_path_buf());
+                continue;
+            }
+        };
         let Ok(rel) = entry.path().strip_prefix(destination) else {
             continue;
         };
@@ -474,6 +510,7 @@ fn extras(destination: &Path, planned: &[&Path], origin_has: &dyn Fn(&Path) -> b
         remove_dirs: dirs,
         renames,
         destination_files: count,
+        unread,
     }
 }
 
