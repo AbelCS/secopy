@@ -164,7 +164,8 @@
     else checking++;
     try {
       const next = await call();
-      if (!next.stale) view = next;
+      // The newest view, not the last to arrive: answers can come back out of order (#138).
+      if (!next.stale && next.revision >= view.revision) view = next;
       setError(null);
     } catch (e) {
       setError(messageOf(e));

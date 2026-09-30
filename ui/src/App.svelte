@@ -148,6 +148,7 @@
   /** Saved files that couldn't be read, shown once. */
   let warnings: string[] = $state([]);
   let view: SessionView = $state({
+    revision: 0,
     source: null,
     selectedFiles: 0,
     selectedBytes: 0,

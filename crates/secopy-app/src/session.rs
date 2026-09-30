@@ -52,6 +52,8 @@ pub struct Session {
     policy: ConflictPolicy,
     checked: Option<Result<Preflight, Blocker>>,
     plan: Option<Plan>,
+    /// Views made so far: each says how new it is (#138).
+    views: std::sync::atomic::AtomicU64,
 }
 
 impl Default for Session {
@@ -71,6 +73,7 @@ impl Default for Session {
             policy: ConflictPolicy::default(),
             checked: None,
             plan: None,
+            views: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }
@@ -130,9 +133,12 @@ impl Session {
     /// counting up, so a scan begun before stays stale.
     pub fn restart(&mut self) {
         let generation = self.generation + 1;
+        let views = self.views.load(std::sync::atomic::Ordering::Relaxed);
         *self = Session {
             generation,
             source_generation: generation,
+            // Still counting up: the window keeps showing the newest (#138).
+            views: std::sync::atomic::AtomicU64::new(views),
             ..Session::new()
         };
     }
@@ -535,6 +541,10 @@ impl Session {
     pub fn view(&self) -> SessionView {
         let selection = self.selection.as_ref();
         SessionView {
+            revision: self
+                .views
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                + 1,
             source: self.source.as_ref().map(|p| self.source_view(p)),
             selected_files: selection.map_or(0, |s| count(s.files.len())),
             selected_bytes: selection.map_or(0, |s| s.total_bytes),
@@ -1239,6 +1249,18 @@ mod tests {
         let _pending = s.begin(Change::Pick(vec![f.card.clone()])).ok().unwrap();
         assert!(s.ready().is_none());
         assert!(s.copy_job(true).is_none());
+    }
+
+    /// QA review (#138): each view says how new it is, so the window shows the newest, not
+    /// the last to arrive.
+    #[test]
+    fn each_view_is_newer_than_the_last() {
+        let f = fixture();
+        let mut s = Session::new();
+        let a = s.set_destination(Some(f.dest.clone())).revision;
+        let b = s.set_destination(Some(f.card.clone())).revision;
+        assert!(b > a);
+        assert!(s.view().revision > b);
     }
 
     #[test]
