@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.3](https://github.com/AbelCS/secopy/compare/v0.17.2...v0.17.3) (2026-09-30)
+
+
+### Bug Fixes
+
+* **app:** importing over the selected copy preset loads the imported one ([5e743fb](https://github.com/AbelCS/secopy/commit/5e743fb45e567656e53e17a6b4d390fc0d69da7e)), closes [#116](https://github.com/AbelCS/secopy/issues/116)
+* **app:** Save report… never replaces a file of the user's with its JSON ([6631f0b](https://github.com/AbelCS/secopy/commit/6631f0b6917536b152f538c8e8850d6b31294d3a)), closes [#116](https://github.com/AbelCS/secopy/issues/116)
+* **app:** settings that can't be saved aren't used either ([931d9df](https://github.com/AbelCS/secopy/commit/931d9df3819e3b1a1be0d17f9eedaf944d1c85b2)), closes [#116](https://github.com/AbelCS/secopy/issues/116)
+* **cli:** nothing to copy is an error, and --report works for a mirror ([2375a62](https://github.com/AbelCS/secopy/commit/2375a62850f81902fcc203c8c770b5be477b6124)), closes [#116](https://github.com/AbelCS/secopy/issues/116)
+* **core:** a report whose name is taken gets a free one, not lost ([82e8db6](https://github.com/AbelCS/secopy/commit/82e8db618aee12c8bf57c7141695a399c69d99c2)), closes [#116](https://github.com/AbelCS/secopy/issues/116)
+* review fixes for reports, the CLI and the queue notification ([a5fa92d](https://github.com/AbelCS/secopy/commit/a5fa92d12649392775fc8896cdd588cc8d33b248)), closes [#116](https://github.com/AbelCS/secopy/issues/116)
+* **ui:** a job's notification says when its report couldn't be saved ([4327e66](https://github.com/AbelCS/secopy/commit/4327e662e23c57efa071e17e67514493bedb8e96)), closes [#116](https://github.com/AbelCS/secopy/issues/116)
+* **ui:** a queue says every job finished only when each is complete and it was saved ([890f67f](https://github.com/AbelCS/secopy/commit/890f67f6c2da7a40628c8dc50ad09309299c9442)), closes [#116](https://github.com/AbelCS/secopy/issues/116)
+
 ## [0.17.2](https://github.com/AbelCS/secopy/compare/v0.17.1...v0.17.2) (2026-09-30)
 
 
