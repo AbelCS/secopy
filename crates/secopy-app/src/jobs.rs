@@ -224,17 +224,27 @@ impl Jobs {
             remove_copied: AtomicBool::new(false),
             done: Mutex::new(None),
         });
-        *current = Some(job.clone());
+        let previous = current.replace(job.clone());
         let reports_dir = self.reports_dir.clone();
-        let handle = std::thread::spawn(move || {
+        let spawned = std::thread::Builder::new().spawn(move || {
             // A bug mustn't leave the window on the Copying screen: the job ends, stopped.
             let ran = std::panic::catch_unwind(AssertUnwindSafe(|| job.run(&sink, &reports_dir)));
             if ran.is_err() {
                 job.end_after_panic(&sink);
             }
         });
-        *lock(&self.thread) = Some(handle);
-        Ok(())
+        match spawned {
+            Ok(handle) => {
+                *lock(&self.thread) = Some(handle);
+                Ok(())
+            }
+            // No thread, no job: one left as running would be waited for forever (#134).
+            Err(e) => {
+                *current = previous;
+                eprintln!("Secopy: the job's thread couldn't start: {e}");
+                Err(say::internal())
+            }
+        }
     }
 
     pub fn is_running(&self) -> bool {
@@ -772,7 +782,11 @@ impl Job {
             let undone = undo(plan, &report, mirroring.and_then(|m| m.archive.as_deref()));
             // Gone with the copies, unless it couldn't be removed: then the summary still
             // shows it (#134).
-            if report.checksum_file.as_ref().is_some_and(|c| !c.exists()) {
+            if report
+                .checksum_file
+                .as_ref()
+                .is_some_and(|c| matches!(c.try_exists(), Ok(false)))
+            {
                 report.checksum_file = None;
             }
             undone

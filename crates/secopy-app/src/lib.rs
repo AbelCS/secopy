@@ -222,6 +222,10 @@ pub fn run() {
                 let state = app.state::<AppState>();
                 state.remember(|_| {}); // writes the window size
                 state.cancel(false); // quitting keeps the files already copied
+                // An archive being deleted before a mirror or on its own: finished first (#134).
+                while lock(&state.queue_run).preparing {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
                 state.jobs.wait();
                 let thread = lock(&state.queue_run).thread.take();
                 if let Some(thread) = thread {
