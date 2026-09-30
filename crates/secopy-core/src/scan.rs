@@ -148,9 +148,12 @@ impl Scan {
         if !filter.is_active() {
             dirs.extend(self.empty_dirs.iter().cloned());
         }
+        // Every folder on the way, so each gets its date back and is made durable (#115).
         for f in &files {
-            if let Some(parent) = f.rel.parent().filter(|p| !p.as_os_str().is_empty()) {
-                dirs.insert(parent.to_path_buf());
+            for dir in f.rel.ancestors().skip(1) {
+                if dir.as_os_str().is_empty() || !dirs.insert(dir.to_path_buf()) {
+                    break;
+                }
             }
         }
         let total_bytes = files.iter().map(|f| f.size).sum();

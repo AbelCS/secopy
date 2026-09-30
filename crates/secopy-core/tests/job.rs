@@ -3,7 +3,7 @@ mod common;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use common::{pattern, read_tree, write_files};
 use secopy_core::copy::CopyConfig;
@@ -1410,4 +1410,33 @@ fn an_archived_file_is_never_overwritten() {
         b"archived before"
     );
     assert_eq!(fs::read(dest.join("clip.mov")).unwrap(), b"old");
+}
+
+/// QA review (#115): folders the job created get the source's dates; a folder that was
+/// already at the destination keeps its own.
+#[test]
+fn only_folders_the_job_created_get_the_sources_dates() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    fs::create_dir_all(src.join("DCIM/100CANON")).unwrap();
+    fs::write(src.join("DCIM/100CANON/a.jpg"), b"a").unwrap();
+    let old = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_000);
+    for d in ["", "DCIM", "DCIM/100CANON"] {
+        fs::File::open(src.join(d))
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+    }
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(dest.join("CARD")).unwrap(); // already there
+    let (report, _) = run(&plan(&src, &dest), &opts(true));
+    assert!(report.is_success(), "{report:?}");
+    let mtime = |p: &str| fs::metadata(dest.join(p)).unwrap().modified().unwrap();
+    assert_eq!(
+        mtime("CARD/DCIM"),
+        old,
+        "created on the way: the source's date"
+    );
+    assert_eq!(mtime("CARD/DCIM/100CANON"), old);
+    assert_ne!(mtime("CARD"), old, "already there: not rewritten");
 }

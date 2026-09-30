@@ -324,3 +324,17 @@ fn subset_keeps_only_the_given_files_and_their_folders() {
         rels(["CARD", "CARD/clips"].map(PathBuf::from))
     );
 }
+
+/// QA review (#115): every folder on the way to a file is listed, so it gets its date back
+/// and is made durable: DCIM, not only DCIM/100CANON.
+#[test]
+fn every_folder_on_the_way_to_a_file_is_listed() {
+    let dir = tempfile::tempdir().unwrap();
+    let card = dir.path().join("CARD");
+    write_files(&card, &[("DCIM/100CANON/IMG_0001.JPG", b"x")]);
+    let sel = scan_card(&card, DirMode::FolderItself, false).select(&ExtensionFilter::All);
+    assert_eq!(
+        rels(sel.dirs.iter().map(|d| d.rel.clone())),
+        rels(["CARD", "CARD/DCIM", "CARD/DCIM/100CANON"].map(PathBuf::from))
+    );
+}
