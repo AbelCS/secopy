@@ -776,9 +776,10 @@ impl Job {
                 sink.send(view);
             }
             let finished = mirror::finish(&m.plan, &report, m.archive.as_deref());
-            // The mirror's checksum file, only after a run that ended cleanly (plan 8).
-            if let Ok(finished) = &finished
-                && let Err(e) = mirror::write_checksums(&m.plan, &report, finished)
+            // The mirror's checksum file: with the removals after a clean run (plan 8), with what
+            // was verified after any other (#114), and not after an undo.
+            if undone.is_none()
+                && let Err(e) = mirror::write_checksums(&m.plan, &report, finished.as_ref().ok())
             {
                 // The report says whose checksum file it was, in English; the UI in its words.
                 report.checksum_error = Some(secopy_core::error::IoFailure {

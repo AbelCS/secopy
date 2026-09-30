@@ -629,7 +629,7 @@ fn a_mirror_keeps_a_checksum_file_a_check_can_use() {
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     let (report, finished) = run(&p, None);
     let finished = finished.unwrap();
-    mirror::write_checksums(&p, &report, &finished).unwrap();
+    mirror::write_checksums(&p, &report, Some(&finished)).unwrap();
     let text = fs::read_to_string(d.join(secopy_core::check::MIRROR_CHECKSUMS)).unwrap();
     let (entries, bad) = secopy_core::check::parse(&text);
     assert!(bad.is_empty());
@@ -728,7 +728,7 @@ fn the_checksum_file_follows_renames_and_drops_gone_files() {
     .unwrap();
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     let (report, finished) = run(&p, None);
-    mirror::write_checksums(&p, &report, &finished.unwrap()).unwrap();
+    mirror::write_checksums(&p, &report, Some(&finished.unwrap())).unwrap();
     let r = check_of(&d);
     assert!(r.is_intact(), "{:?} {:?}", r.job.outcomes, r.problems);
 }
@@ -743,7 +743,7 @@ fn the_temporary_file_is_never_written_through_a_link() {
     std::os::unix::fs::symlink(&victim, d.join(".secopy-checksums.partial")).unwrap();
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     let (report, finished) = run(&p, None);
-    mirror::write_checksums(&p, &report, &finished.unwrap()).unwrap();
+    mirror::write_checksums(&p, &report, Some(&finished.unwrap())).unwrap();
     assert_eq!(fs::read(&victim).unwrap(), b"keep me");
     assert!(check_of(&d).is_intact());
 }
@@ -759,7 +759,7 @@ fn an_unreadable_checksum_file_is_kept() {
     fs::set_permissions(&sums, fs::Permissions::from_mode(0o000)).unwrap();
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     let (report, finished) = run(&p, None);
-    let result = mirror::write_checksums(&p, &report, &finished.unwrap());
+    let result = mirror::write_checksums(&p, &report, Some(&finished.unwrap()));
     fs::set_permissions(&sums, fs::Permissions::from_mode(0o644)).unwrap();
     assert!(result.is_err());
     assert_eq!(fs::read(&sums).unwrap(), b"0000000000000001  old.mov\n");
@@ -846,4 +846,54 @@ fn an_unreadable_destination_directory_removes_nothing_and_says_so() {
         p.guard,
         Some(mirror::Guard::DestinationUnread { count: 1, .. })
     ));
+}
+
+/// QA review (#114): a run that isn't clean still records the files it wrote and verified, so
+/// Verify doesn't call them changed; the old hash of an updated file doesn't stay.
+#[test]
+fn a_run_that_isnt_clean_still_records_what_it_verified() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"new version"), ("b.mov", b"b")]);
+    write(&d, &[("a.mov", b"old")]);
+    let first = mirror::plan(&o, &d, &opts()).unwrap();
+    fs::write(
+        d.join(".secopy-checksums.xxh64"),
+        "0000000000000001  a.mov\n",
+    )
+    .unwrap();
+    fs::remove_file(o.join("b.mov")).unwrap(); // gone before the run: it fails
+    let (report, finished) = run(&first, None);
+    assert!(finished.is_err(), "not clean");
+    mirror::write_checksums(&first, &report, None).unwrap();
+    let text = fs::read_to_string(d.join(".secopy-checksums.xxh64")).unwrap();
+    let (sums, _) = secopy_core::check::parse(&text);
+    let a = sums
+        .iter()
+        .find(|(p, _)| p == std::path::Path::new("a.mov"))
+        .unwrap()
+        .1;
+    assert_ne!(a, 1, "the new version's hash, not the old one");
+}
+
+/// QA review (#114): lines of the previous checksum file that can't be read aren't dropped
+/// silently: that file is set aside, next to the new one.
+#[test]
+fn a_checksum_file_with_bad_lines_is_set_aside_not_shortened() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    fs::write(d.join(".secopy-checksums.xxh64"), "not a checksum line\n").unwrap();
+    let (report, finished) = run(&p, None);
+    mirror::write_checksums(&p, &report, Some(&finished.unwrap())).unwrap();
+    let aside: Vec<_> = fs::read_dir(&d)
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with(".secopy-checksums.xxh64.damaged-"))
+        .collect();
+    assert_eq!(aside.len(), 1, "{aside:?}");
+    assert_eq!(
+        fs::read_to_string(d.join(&aside[0])).unwrap(),
+        "not a checksum line\n"
+    );
 }
