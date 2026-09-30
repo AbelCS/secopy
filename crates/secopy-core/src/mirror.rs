@@ -808,8 +808,11 @@ fn respell(dest: &Path, from: &Path, to: &Path) -> bool {
     let mut parent = dest.to_path_buf();
     for (a, b) in from.iter().zip(&to) {
         let (x, y) = (parent.join(a), parent.join(b));
-        if a != b && same_file::is_same_file(&x, &y).unwrap_or(false) && fs::rename(&x, &y).is_ok()
-        {
+        if a != b && same_file::is_same_file(&x, &y).unwrap_or(false) {
+            // Part of the way isn't renamed: it's reported only once it's spelled as asked.
+            if fs::rename(&x, &y).is_err() {
+                return false;
+            }
             changed = true;
         }
         parent = y;
@@ -883,10 +886,16 @@ pub fn write_checksums(
             // Lines that can't be read aren't dropped silently: that file is kept aside.
             if !bad.is_empty() {
                 let stamp = chrono::Local::now().format("%Y-%m-%d %H.%M.%S");
-                let aside = path.with_file_name(format!(
-                    "{}.damaged-{stamp}",
-                    crate::check::MIRROR_CHECKSUMS
-                ));
+                let aside = (1..)
+                    .map(|n| {
+                        let name = crate::check::MIRROR_CHECKSUMS;
+                        dest.join(match n {
+                            1 => format!("{name}.damaged-{stamp}"),
+                            n => format!("{name}.damaged-{stamp} ({n})"),
+                        })
+                    })
+                    .find(|p| fs::symlink_metadata(p).is_err())
+                    .expect("a free name");
                 fs::rename(&path, aside)?;
             }
             entries.into_iter().collect()
@@ -916,7 +925,11 @@ pub fn write_checksums(
         sums.remove(&r.rel);
     }
     // Files no longer in the destination (removed by hand, or gone) leave it too.
-    sums.retain(|rel, _| fs::symlink_metadata(dest.join(rel)).is_ok_and(|m| m.is_file()));
+    // One that can't be looked at stays: gone isn't known (#114).
+    sums.retain(|rel, _| match fs::symlink_metadata(dest.join(rel)) {
+        Ok(meta) => meta.is_file(),
+        Err(e) => e.kind() != std::io::ErrorKind::NotFound,
+    });
     let entries: Vec<(PathBuf, u64)> = sums.into_iter().collect();
     crate::checksum_file::write_replacing(&path, &entries)
 }
@@ -924,6 +937,30 @@ pub fn write_checksums(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Review of #114: a rename that gets only part of the way isn't reported as done.
+    #[test]
+    fn a_rename_that_fails_part_way_is_not_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("Clips")).unwrap();
+        let file = dir.path().join("Clips/A.mov");
+        fs::write(&file, b"a").unwrap();
+        if !dir.path().join("clips/a.mov").exists() {
+            return; // a case-sensitive volume
+        }
+        let c = crate::os::c_path(&file).unwrap();
+        // SAFETY: `c` is a NUL-terminated path; UF_IMMUTABLE makes the rename of the file fail.
+        unsafe { libc::chflags(c.as_ptr(), libc::UF_IMMUTABLE as _) };
+        let done = respell(
+            dir.path(),
+            Path::new("Clips/A.mov"),
+            Path::new("clips/a.mov"),
+        );
+        let c = crate::os::c_path(&dir.path().join("clips/A.mov")).unwrap();
+        // SAFETY: as above; the flag is cleared so the directory can be removed.
+        unsafe { libc::chflags(c.as_ptr(), 0) };
+        assert!(!done);
+    }
 
     /// Final review 3: an origin that doesn't resolve other Unicode forms (an SMB share) still
     /// has the file the destination spells in NFD.
