@@ -38,10 +38,21 @@
   // Caught on the way down, so Esc answers the dialog only: the screen behind doesn't also
   // close or ask again, nor does a dialog under this one.
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape" && open.at(-1) === me) {
+    if (open.at(-1) !== me) return;
+    if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
       onClose();
+    } else if (e.key === "Tab") {
+      // Focus goes round the dialog's own controls, never to the screen behind (#117).
+      const inside = [
+        ...panel.querySelectorAll<HTMLElement>("button, input, select, textarea, [tabindex]:not([tabindex='-1'])"),
+      ].filter((el) => !el.hasAttribute("disabled"));
+      if (inside.length === 0) return;
+      const at = inside.indexOf(document.activeElement as HTMLElement);
+      const next = e.shiftKey ? (at <= 0 ? inside.length - 1 : at - 1) : at === inside.length - 1 ? 0 : at + 1;
+      e.preventDefault();
+      inside[next].focus();
     }
   }
 </script>

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, test, vi } from "vitest";
-import { ask } from "../lib/confirm.svelte";
+import { ask, asking } from "../lib/confirm.svelte";
 import ConfirmHost from "./ConfirmHost.svelte";
 import TwoDialogs from "../test/TwoDialogs.svelte";
 
@@ -40,6 +40,21 @@ describe("ConfirmHost", () => {
     await fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(onSecond).toHaveBeenCalledTimes(1);
     expect(onFirst).not.toHaveBeenCalled();
+  });
+
+  test("Tab stays in the question: it doesn't reach the screen behind (#117)", async () => {
+    render(ConfirmHost);
+    const answer = ask("Clear the queue?", "Clear", "Clear", "Keep");
+    const dialog = await screen.findByRole("dialog");
+    const [keep, clear] = within(dialog).getAllByRole("button");
+    expect(document.activeElement).toBe(keep);
+    clear.focus();
+    await fireEvent.keyDown(clear, { key: "Tab" });
+    expect(document.activeElement).toBe(keep);
+    await fireEvent.keyDown(keep, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(clear);
+    asking.current?.answer(false);
+    await answer;
   });
 
   test("the risky answer says yes; the safe one no", async () => {
