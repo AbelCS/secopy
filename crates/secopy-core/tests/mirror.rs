@@ -1025,3 +1025,23 @@ fn archived_files_that_cant_be_cleaned_up_are_said() {
     );
     assert!(cleaned.error.is_some());
 }
+
+/// QA review (#136): two runs in the same second (the CLI and the app) can share a run
+/// directory; moving a removed file there never replaces one archived already.
+#[test]
+fn a_removal_never_replaces_an_archived_file() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    write(&d, &[("a.mov", b"a"), ("gone.mov", b"new version")]);
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    let run = mirror::archive_dir(&d, chrono::Local::now());
+    write(&run, &[("gone.mov", b"archived by the other run")]);
+    let report = run_job(&p.copy, &JobOptions::default(), &JobControl::new(), &|_| {});
+    let finished = mirror::finish(&p, &report, Some(&run)).unwrap();
+    assert!(finished.removals[0].result.is_err());
+    assert_eq!(
+        fs::read(run.join("gone.mov")).unwrap(),
+        b"archived by the other run"
+    );
+    assert_eq!(fs::read(d.join("gone.mov")).unwrap(), b"new version");
+}

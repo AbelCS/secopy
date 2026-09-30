@@ -669,7 +669,7 @@ pub fn finish(
                 let to = root.join(rel);
                 to.parent()
                     .map_or(Ok(()), fs::create_dir_all)
-                    .and_then(|()| fs::rename(&from, &to))
+                    .and_then(|()| move_new(&from, &to))
             }
             None => fs::remove_file(&from),
         };
@@ -801,6 +801,20 @@ fn archived_at(name: &str) -> Option<chrono::DateTime<chrono::Local>> {
         .ok()?
         .and_local_timezone(chrono::Local)
         .earliest()
+}
+
+/// Moves `from` to `to`, never over something there: another run in the same second may have
+/// archived a file under that name (#136).
+fn move_new(from: &Path, to: &Path) -> std::io::Result<()> {
+    match crate::os::rename_noreplace(from, to) {
+        Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+            if fs::symlink_metadata(to).is_ok() {
+                return Err(std::io::ErrorKind::AlreadyExists.into());
+            }
+            fs::rename(from, to)
+        }
+        other => other,
+    }
 }
 
 /// Gives `from` the origin's spelling `to`, one name at a time from the top, so a directory
