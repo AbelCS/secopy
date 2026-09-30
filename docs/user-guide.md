@@ -132,10 +132,13 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
   says "Deleted at the next run", and switching back to Archive cancels it. Files that can't be
   deleted are listed, and go when they're due. Changing the destination at the same time leaves
   the old destination's archive as it is: it's no longer this mirror's.
-- If a run looks wrong (the origin is empty, can't be fully read, or more than half of the
-  backup would be removed), Secopy asks first; in the queue, such a run doesn't start.
+- If a run looks wrong (the origin is empty, the origin or the destination can't be fully
+  read, or more than half of the backup would be removed), Secopy asks first; in the queue,
+  such a run doesn't start.
+- Links in the origin aren't followed, and what's under one is never removed from the backup:
+  a folder moved to another disk and left as a link keeps its backup while that disk is away.
 - The destination keeps a checksum file of its own, `.secopy-checksums.xxh64`, so the backup
-  can be verified.
+  can be verified. Every run records the files it verified, even one that didn't end cleanly.
 - **Archive** (under the editor): files, size and oldest run in the destination's
   `.secopy-archive`. **Show in Finder** opens it; **Delete archive…** deletes it, after asking.
   Not while a job runs. Every question before something that can't be undone has the safe
