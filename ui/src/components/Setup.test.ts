@@ -2,11 +2,12 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/sve
 import { describe, expect, test, vi } from "vitest";
 import { raw } from "../test/fake-api";
 import { apiContext } from "../lib/api";
-import type { CopyPreset, QueueView, SessionView, Settings } from "../lib/bindings";
+import type { CopyPreset, CopyPresetsView, QueueView, SessionView, Settings } from "../lib/bindings";
 import {
   destinationView,
   fakeApi,
   copyPreset,
+  queueView,
   readyView,
   sessionView,
   settingsView,
@@ -355,6 +356,41 @@ describe("Setup", () => {
   test("the hidden count follows the setting", () => {
     setup(readyView(), undefined, { settings: settingsView({ showSystemCount: false }) });
     within(screen.getByRole("group", { name: "Source" })).getByText("1,284 files · 212.4 GB");
+  });
+
+  test("a setup changed while the job was being added can still be added after (#138)", async () => {
+    const { api } = setup(readyView({ revision: 1 }));
+    let added: (q: QueueView) => void = () => {};
+    api.addToQueue.mockReturnValueOnce(new Promise((r) => (added = r)));
+    api.clearSource.mockRejectedValue(new Error("busy"));
+    api.setFilter.mockResolvedValueOnce(readyView({ revision: 2 }));
+    await fireEvent.click(screen.getByRole("button", { name: "Add to queue" }));
+    await fireEvent.click(screen.getByRole("button", { name: "None" }));
+    await waitFor(() => expect(api.setFilter).toHaveBeenCalled());
+    added(queueView());
+    await screen.findByText("busy");
+    await fireEvent.click(screen.getByRole("button", { name: "Add to queue" }));
+    await waitFor(() => expect(api.addToQueue).toHaveBeenCalledTimes(2));
+  });
+
+  test("a preset's Update answering late doesn't replace a newer view (#138)", async () => {
+    const view = readyView({ presetId: "fx3", presetChanged: true, revision: 1 });
+    const { api } = setup(view, undefined, {
+      presets: [copyPreset()],
+      recent: ["/Volumes/B"],
+    });
+    let answer: (v: CopyPresetsView) => void = () => {};
+    api.updateCopyPreset.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    api.setDestination.mockResolvedValueOnce(
+      readyView({ revision: 3, destination: destinationView({ path: "/Volumes/B" }) }),
+    );
+    await fireEvent.click(screen.getByRole("button", { name: "Update" }));
+    await fireEvent.change(screen.getByLabelText("Recent destinations"), { target: { value: "/Volumes/B" } });
+    const shown = () => to().getAllByText(/^\/Volumes\/(B|RAID\/Day01)$/).find((e) => e.tagName === "P")?.textContent;
+    await waitFor(() => expect(shown()).toBe("/Volumes/B"));
+    answer({ presets: [copyPreset()], session: readyView({ revision: 2 }) });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(shown()).toBe("/Volumes/B");
   });
 
   test("a job added once isn't added again when New copy couldn't clear after it (#138)", async () => {
