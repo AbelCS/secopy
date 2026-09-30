@@ -8,9 +8,9 @@ const view = (over: Partial<ImportView> = {}): ImportView => ({
   fileName: "Team presets.secopy",
   settings: { changes: [raw("Write the checksum file: on → off")], problem: null },
   copyPresets: [
-    { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, section: false },
-    { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null, section: false },
-    { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can't be read (…)."), section: false },
+    { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, replaceNote: null, section: false },
+    { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null, replaceNote: null, section: false },
+    { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can't be read (…)."), replaceNote: null, section: false },
   ],
   mirrorPresets: [],
   ...over,
@@ -18,7 +18,7 @@ const view = (over: Partial<ImportView> = {}): ImportView => ({
 
 describe("ImportScreen", () => {
   test("a list of presets that can't be read is named as the list", () => {
-    const section = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("This part of the file can't be read."), section: true };
+    const section = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("This part of the file can't be read."), replaceNote: null, section: true };
     render(ImportScreen, {
       props: { view: view({ copyPresets: [section], mirrorPresets: [section] }), onImport: vi.fn(), onBack: () => {} },
     });
@@ -26,8 +26,25 @@ describe("ImportScreen", () => {
     screen.getByRole("checkbox", { name: "The mirror presets" });
   });
 
+  test("replacing a mirror with fewer days says what its next run removes", async () => {
+    const mirror = {
+      name: "Footage",
+      paths: ["/o", "/d"],
+      clash: "Footage",
+      newName: "Footage (2)",
+      missing: [],
+      problem: null,
+      replaceNote: raw("Replacing removes archived files older than 7 days at its next run."),
+      section: false,
+    };
+    render(ImportScreen, { props: { view: view({ copyPresets: [], mirrorPresets: [mirror] }), onImport: vi.fn(), onBack: () => {} } });
+    expect(screen.queryByText(/Replacing removes/)).toBeNull();
+    await fireEvent.click(screen.getByRole("radio", { name: "Replace yours" }));
+    screen.getByText("Replacing removes archived files older than 7 days at its next run.");
+  });
+
   test("a preset with no name in the file says so", () => {
-    const unnamed = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("Its details can't be read."), section: false };
+    const unnamed = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("Its details can't be read."), replaceNote: null, section: false };
     render(ImportScreen, {
       props: { view: view({ copyPresets: [unnamed], mirrorPresets: [unnamed] }), onImport: vi.fn(), onBack: () => {} },
     });
@@ -90,8 +107,8 @@ describe("ImportScreen", () => {
   test("a preset renamed only because the file has its name twice says its new name", () => {
     const v = view({
       copyPresets: [
-        { name: "A", paths: [], clash: null, newName: "A", missing: [], problem: null, section: false },
-        { name: "a", paths: [], clash: null, newName: "a (2)", missing: [], problem: null, section: false },
+        { name: "A", paths: [], clash: null, newName: "A", missing: [], problem: null, replaceNote: null, section: false },
+        { name: "a", paths: [], clash: null, newName: "a (2)", missing: [], problem: null, replaceNote: null, section: false },
       ],
     });
     render(ImportScreen, { props: { view: v, onImport: vi.fn(), onBack: () => {} } });

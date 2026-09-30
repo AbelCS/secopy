@@ -85,6 +85,7 @@
                 onChange={(v) => (state[i].replace = v)}
               />
               </div>
+              {#if state[i].replace && p.replaceNote}<p class="note warning">{say(p.replaceNote)}</p>{/if}
             {/if}
           </li>
         {/each}
@@ -151,6 +152,10 @@
 
   .problem {
     color: var(--danger);
+  }
+
+  .warning {
+    color: var(--warning);
   }
 
   .choice {
