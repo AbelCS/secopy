@@ -127,6 +127,7 @@ mod tests {
             case_sensitive: false,
             free_bytes: 0,
             available_bytes: 0,
+            block_size: 1,
             max_file_size: None,
             name_limit,
             device: 0,

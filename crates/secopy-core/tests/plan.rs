@@ -26,6 +26,7 @@ fn fs_with(free_bytes: u64) -> FsInfo {
         case_sensitive: false,
         free_bytes,
         available_bytes: free_bytes,
+        block_size: 1,
         max_file_size: None,
         name_limit: NameLimit::Utf16Units(255),
         device: 1,
@@ -201,6 +202,28 @@ fn purgeable_space_counts_but_is_flagged() {
     pf.fs.free_bytes = needed;
     let plan = Plan::resolve(&sel, &pf, DiffersPolicy::KeepBoth);
     assert_eq!(plan.purgeable_needed(), None);
+}
+
+/// QA review (#135): each file takes whole allocation blocks: on exFAT with 128 KiB clusters,
+/// many small files need far more than their bytes.
+#[test]
+fn space_counts_whole_blocks() {
+    let dir = tempfile::tempdir().unwrap();
+    let (sel, mut pf) = setup(dir.path());
+    pf.fs.block_size = 128 << 10;
+    // Keep both writes new.mov (100 bytes) and clip.mov (300 bytes): one block each.
+    let blocks = 2 * (128 << 10);
+    let needed = blocks + space_margin(blocks);
+    pf.fs.free_bytes = needed - 1;
+    pf.fs.available_bytes = needed - 1;
+    let plan = Plan::resolve(&sel, &pf, DiffersPolicy::KeepBoth);
+    assert_eq!(
+        plan.blockers(),
+        vec![Blocker::NotEnoughSpace {
+            needed,
+            available: needed - 1
+        }]
+    );
 }
 
 #[test]
