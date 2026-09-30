@@ -5,7 +5,7 @@
 | **State** | Discussion |
 | **Created** | 2026-09-26 |
 | **Updated** | 2026-09-27 (decisions in §14) |
-| **Author** | abelcsz@gmail.com |
+| **Author** | Abel Castro |
 | **Stack** | Tauri 2 · Rust engine · Svelte UI |
 
 ---
