@@ -66,10 +66,14 @@
       const expected = Math.min(PAGE, count - page * PAGE);
       if ((have && have.length >= expected) || asked.get(page) === now) continue;
       asked.set(page, now);
-      (fetchPage ?? api.finishedPage)(page * PAGE, PAGE, only).then((rows) => {
-        if (only !== failedOnly) return;
-        pages = new Map(pages).set(page, rows);
-      });
+      (fetchPage ?? api.finishedPage)(page * PAGE, PAGE, only).then(
+        (rows) => {
+          if (only !== failedOnly) return;
+          pages = new Map(pages).set(page, rows);
+        },
+        // Asked again when the list next needs it, not left blank for good (#117).
+        () => asked.delete(page),
+      );
     }
   });
 
