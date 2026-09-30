@@ -78,6 +78,7 @@ export function destinationView(over: Partial<DestinationView> = {}): Destinatio
 
 export function sessionView(over: Partial<SessionView> = {}): SessionView {
   return {
+    revision: 1,
     source: null,
     selectedFiles: 0,
     selectedBytes: 0,

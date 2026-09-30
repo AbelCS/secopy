@@ -707,6 +707,11 @@ export type RowStatus = "copied" | "verified" | "skipped" | "failed" |
  *  UI never has to combine partial answers.
  */
 export type SessionView = {
+	/**
+	 *  How new this view is: made under the session's lock, a higher one is newer. The window
+	 *  shows the newest, not the last to arrive (#138).
+	 */
+	revision: number,
 	source: SourceView | null,
 	/**  Files and bytes the extension filter keeps. */
 	selectedFiles: number,

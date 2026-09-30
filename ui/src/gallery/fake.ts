@@ -11,6 +11,7 @@ export const copyPresets: CopyPreset[] = [
 export const settings: Settings = { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true };
 
 const session: SessionView = {
+  revision: 1,
   source: {
     label: raw("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"),
     isFolder: true,
