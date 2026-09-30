@@ -118,8 +118,8 @@ pub fn prepare(job: &CopyJob) -> Result<Ready, crate::message::Message> {
         return Err(problem);
     }
     s.set_filter(job.extensions.clone());
-    s.set_policy(job.conflicts);
-    let view = s.set_destination(Some(job.destination.clone()));
+    s.set_destination(Some(job.destination.clone()));
+    let view = s.set_policy(job.conflicts);
     s.ready().ok_or_else(|| why_not(&view))
 }
 
@@ -313,8 +313,8 @@ mod tests {
         apply(&mut s, Change::Pick(vec![clip.clone()]));
         apply(&mut s, Change::IncludeFolder(false));
         s.set_filter(Some(vec![Some("mp4".into())]));
-        s.set_policy(ConflictPolicy::Skip);
         s.set_destination(Some(dest.clone()));
+        s.set_policy(ConflictPolicy::Skip);
         assert_eq!(
             s.copy_job(false),
             Some(CopyJob {
