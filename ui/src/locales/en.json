@@ -278,7 +278,8 @@
   },
   "notify": {
     "job": {
-      "title": "{mark} {headline}"
+      "title": "{mark} {headline}",
+      "reportNotSaved": "Report not saved"
     },
     "queue": {
       "title": {

@@ -28,6 +28,11 @@ describe("summaryText", () => {
     expect(notificationFor(summaryView({ outcome: "failures", failed: 3 })).title).toBe("✗ 3 files failed");
   });
 
+  test("a report that couldn't be saved is in the notification too (#116)", () => {
+    const n = notificationFor(summaryView({ reportErrors: [raw("disk full")] }));
+    expect(n.body).toBe("Report not saved · 1,284 files · 212.4 GB written");
+  });
+
   test("the queue's notification says every job finished only when each is complete (#116)", () => {
     const queue = (results: QueueResult[], saveError: QueueSummaryView["saveError"] = null): QueueSummaryView => ({
       complete: results.filter((r) => r === "complete").length,
