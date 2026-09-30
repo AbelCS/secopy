@@ -148,5 +148,16 @@ fn reports_are_saved_next_to_the_checksum_file_and_never_overwritten() {
         format!("{stem}_report.json")
     );
     assert_eq!(fs::read_to_string(&text).unwrap(), r.to_text());
-    assert!(r.write_next_to(&checksum).is_err());
+    // Another report with that name (two jobs in the same second, #116): a free name, and the
+    // first one stays.
+    let (again, again_json) = r.write_next_to(&checksum).unwrap();
+    assert_eq!(
+        again.file_name().unwrap().to_string_lossy(),
+        format!("{stem}_report (2).txt")
+    );
+    assert_eq!(
+        again_json.file_name().unwrap().to_string_lossy(),
+        format!("{stem}_report (2).json")
+    );
+    assert_eq!(fs::read_to_string(&text).unwrap(), r.to_text());
 }

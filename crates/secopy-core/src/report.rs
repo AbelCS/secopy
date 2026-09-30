@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
@@ -544,13 +544,29 @@ impl Report {
         self.write(checksum_file.parent().unwrap_or(Path::new(".")), &stem)
     }
 
-    /// Saves `<dir>/<stem>_report.txt` and `.json`. Never overwrites.
+    /// Saves `<dir>/<stem>_report.txt` and `.json`. Never overwrites: with those names taken
+    /// (two jobs in the same second, #116), `<stem>_report (2).txt` and so on.
     pub fn write(&self, dir: &Path, stem: &str) -> io::Result<(PathBuf, PathBuf)> {
-        let text = dir.join(format!("{stem}_report.txt"));
-        let json = dir.join(format!("{stem}_report.json"));
-        write_new(&text, &self.to_text())?;
-        write_new(&json, &self.to_json())?;
-        Ok((text, json))
+        for n in 1u32.. {
+            let name = match n {
+                1 => format!("{stem}_report"),
+                n => format!("{stem}_report ({n})"),
+            };
+            let (text, json) = (
+                dir.join(format!("{name}.txt")),
+                dir.join(format!("{name}.json")),
+            );
+            if fs::symlink_metadata(&json).is_ok() {
+                continue;
+            }
+            match write_new(&text, &self.to_text()) {
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+                other => other?,
+            }
+            write_new(&json, &self.to_json())?;
+            return Ok((text, json));
+        }
+        unreachable!("some name is free")
     }
 }
 
