@@ -134,8 +134,14 @@
   /** The job of the queue summary whose own summary is open. */
   let openedJob: number | null = $state(null);
 
-  function go(next: "copy" | "mirror" | "verify" | "queue") {
+  /** The mirror screen with changes that aren't saved: asked about before leaving it (#117). */
+  async function mayLeaveMirror(): Promise<boolean> {
+    return screen !== "mirror" || !mirrorsScreen || (await mirrorsScreen.mayLeave());
+  }
+
+  async function go(next: "copy" | "mirror" | "verify" | "queue") {
     if (!showTabs) return;
+    if (next !== "mirror" && !(await mayLeaveMirror())) return;
     screen =
       next === "queue" ? "queue" : next === "mirror" ? mirrorScreen : next === "verify" ? verifyScreen : copyScreen;
   }
@@ -316,9 +322,10 @@
   }
 
   /** Settings or Copy presets, over a section's screen; never during a copy. */
-  function open(next: "settings" | "copy-presets") {
+  async function open(next: "settings" | "copy-presets") {
     const sections: Screen[] = ["setup", "summary", "queue", "mirror", "mirror-summary", "verify", "verify-summary"];
     if (!sections.includes(screen)) return;
+    if (!(await mayLeaveMirror())) return;
     back = screen as typeof back;
     screen = next;
   }
@@ -618,9 +625,10 @@
         presets={mirrorPresets}
         {banner}
         onPresets={(p) => (mirrorPresets = p)}
-        onPreview={(v) => {
-          // Only if still here: a long preview may end after you went elsewhere.
-          if (screen !== "mirror") return;
+        onPreview={async (v) => {
+          // Only if still here: a long preview may end after you went elsewhere; changes made
+          // meanwhile are asked about first (#117).
+          if (screen !== "mirror" || !(await mayLeaveMirror())) return;
           mirrorPreview = v;
           screen = "mirror-preview";
         }}

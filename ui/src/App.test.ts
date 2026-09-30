@@ -225,6 +225,24 @@ describe("App", () => {
     );
   });
 
+  test("unsaved mirror edits are asked about before going to another tab or the menu's", async () => {
+    const { api, state } = app();
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-mirror");
+    const destination = await screen.findByRole("textbox", { name: "Destination" });
+    await fireEvent.input(destination, { target: { value: "/Volumes/Other" } });
+    api.confirm.mockResolvedValue(false); // Keep editing
+    state.menu!("show-copy");
+    await waitFor(() => expect(api.confirm).toHaveBeenCalledTimes(1));
+    await fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(api.confirm).toHaveBeenCalledTimes(2));
+    expect((screen.getByRole("textbox", { name: "Destination" }) as HTMLInputElement).value).toBe("/Volumes/Other");
+    api.confirm.mockResolvedValue(true); // Discard
+    state.menu!("show-copy");
+    await screen.findByRole("heading", { level: 1, name: "New copy" });
+  });
+
   test("quitting while files are removed says Secopy finishes that first", async () => {
     const { api, state } = app();
     await startButton();
