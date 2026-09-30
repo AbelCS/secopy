@@ -554,7 +554,6 @@ impl Session {
             contents_only,
             folder,
             is_retry: picked.is_retry,
-            root_dir: scan.root_dir.as_deref().map(show),
             files: count(scan.files.len()),
             bytes: scan.files.iter().map(|f| f.size).sum(),
             extensions,
@@ -836,7 +835,10 @@ mod tests {
         let view = apply(&mut s, Change::CopyPreset(Some(preset(&clip, None))));
         let src = view.source.unwrap();
         assert_eq!(src.label, show(&clip));
-        assert_eq!(src.root_dir.as_deref(), Some("CLIP"));
+        assert_eq!(
+            s.source.as_ref().unwrap().scan.root_dir.as_deref(),
+            Some(Path::new("CLIP"))
+        );
         assert_eq!(src.files, 3);
         assert_eq!(view.preset_id.as_deref(), Some("fx3"));
         assert!(!view.preset_changed && view.pick_problem.is_none());
@@ -1077,7 +1079,10 @@ mod tests {
         let view = pick(&mut s, std::slice::from_ref(&f.card), false);
         let src = view.source.unwrap();
         assert!(src.is_folder && !src.contents_only && !src.is_retry);
-        assert_eq!(src.root_dir.as_deref(), Some("CARD"));
+        assert_eq!(
+            s.source.as_ref().unwrap().scan.root_dir.as_deref(),
+            Some(Path::new("CARD"))
+        );
         assert_eq!(src.folder, Some(show(&f.card)));
         assert_eq!((src.files, src.bytes), (3, 17));
         let keys: Vec<_> = src.extensions.iter().map(|e| e.key.as_deref()).collect();

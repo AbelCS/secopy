@@ -11,9 +11,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub enum FsKind {
     Apfs,
     HfsPlus,
-    Ext4,
-    Btrfs,
-    Xfs,
     Ntfs,
     ReFs,
     ExFat,
@@ -253,6 +250,9 @@ mod tests {
         assert_eq!(fat.max_file_size(), Some(FAT_MAX_FILE_SIZE));
         assert!(!FsKind::from_name("apfs").has_windows_names());
         assert_eq!(FsKind::from_name("apfs").max_file_size(), None);
-        assert_eq!(FsKind::Ext4.name_limit(), NameLimit::Bytes(255));
+        assert_eq!(
+            FsKind::Other("ext4".into()).name_limit(),
+            NameLimit::Bytes(255)
+        );
     }
 }

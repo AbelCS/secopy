@@ -42,7 +42,6 @@ export function sourceView(over: Partial<SourceView> = {}): SourceView {
     contentsOnly: false,
     folder: "/Volumes/CARD/DCIM",
     isRetry: false,
-    rootDir: "DCIM",
     files: 1284,
     bytes: 212_400_000_000,
     extensions: [
