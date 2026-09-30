@@ -526,6 +526,8 @@ export type PanelView = {
 export type PlanView = {
 	filesToWrite: number,
 	bytesToWrite: number,
+	/**  Of those, files replaced at the destination (Overwrite): Start says so (#112). */
+	overwrites: number,
 	/**  Not enough space (FR-16). */
 	blocker: Message | null,
 	/**  It fits only once macOS frees purgeable space: a warning, not a block (#108). */

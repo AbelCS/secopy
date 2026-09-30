@@ -117,7 +117,7 @@ describe("Setup", () => {
   test("not enough space blocks Start", () => {
     setup(
       readyView({
-        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: raw("Not enough free space"), purgeable: null },
+        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, overwrites: 0, blocker: raw("Not enough free space"), purgeable: null },
       }),
     );
     expect(screen.getByRole("alert").textContent).toBe("Not enough free space");
@@ -130,6 +130,7 @@ describe("Setup", () => {
         plan: {
           filesToWrite: 1284,
           bytesToWrite: 212_400_000_000,
+          overwrites: 0,
           blocker: null,
           purgeable: raw("Needs purgeable space: 47.9 GB needed, 29.3 GB free now"),
         },
@@ -145,11 +146,21 @@ describe("Setup", () => {
   test("where the files go is shown even when Start is blocked", () => {
     setup(
       readyView({
-        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, blocker: raw("Not enough free space"), purgeable: null },
+        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, overwrites: 0, blocker: raw("Not enough free space"), purgeable: null },
       }),
     );
     to().getByText("Files go to");
     to().getByText("/Volumes/RAID/Day01/DCIM");
+  });
+
+  test("Start's status says how many files it replaces", () => {
+    setup(
+      readyView({
+        conflicts: "overwrite",
+        plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, overwrites: 3, blocker: null, purgeable: null },
+      }),
+    );
+    screen.getByText("1,284 files · 212.4 GB · replaces 3 files");
   });
 
   test("a non-empty copy root is a warning, not a block", () => {

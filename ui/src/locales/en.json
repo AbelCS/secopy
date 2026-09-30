@@ -366,7 +366,11 @@
       "noDestination": "Choose where to copy to.",
       "blocked": "Something above blocks the copy.",
       "nothing": "Nothing to copy.",
-      "ready": "{files} · {size}"
+      "ready": "{files} · {size}",
+      "replaces": {
+        "one": "replaces {count} file",
+        "other": "replaces {count} files"
+      }
     },
     "start": {
       "help": "Copies {files} ({size}) to {path} (⌘↩).",
