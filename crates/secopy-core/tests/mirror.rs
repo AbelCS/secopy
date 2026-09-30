@@ -821,3 +821,29 @@ fn a_removal_that_cant_be_looked_at_is_a_failure() {
     assert!(removals[0].result.is_err());
     assert!(d.join("sub/gone.mov").exists());
 }
+
+/// QA review (#114): a destination directory that can't be read hides what's in it, so the
+/// plan can't know what to remove: nothing is, and the plan says why.
+#[test]
+fn an_unreadable_destination_directory_removes_nothing_and_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    write(
+        &d,
+        &[
+            ("a.mov", b"a"),
+            ("gone.mov", b"g"),
+            ("locked/old.mov", b"o"),
+        ],
+    );
+    fs::set_permissions(d.join("locked"), fs::Permissions::from_mode(0o000)).unwrap();
+    let p = mirror::plan(&o, &d, &opts());
+    fs::set_permissions(d.join("locked"), fs::Permissions::from_mode(0o755)).unwrap();
+    let p = p.unwrap();
+    assert!(p.removals.is_empty());
+    assert!(matches!(
+        p.guard,
+        Some(mirror::Guard::DestinationUnread { count: 1, .. })
+    ));
+}

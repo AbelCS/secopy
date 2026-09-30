@@ -196,6 +196,11 @@ pub fn guard(g: &Guard) -> Message {
             path = &first.path,
             why = scan_why(&first.kind),
         ),
+        Guard::DestinationUnread { count, first } => msg!(
+            "mirror.guard.destinationUnread",
+            count = *count,
+            path = first,
+        ),
         Guard::EmptyOrigin => msg!("mirror.guard.emptyOrigin"),
         Guard::TooMany { removals, files } => {
             msg!("mirror.guard.tooMany", removals = *removals, files = *files)

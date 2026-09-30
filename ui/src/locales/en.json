@@ -892,6 +892,10 @@
         "one": "{count} item in the origin couldn't be read ({path}: {why}). Nothing is removed from the destination this run.",
         "other": "{count} items in the origin couldn't be read ({path}: {why}). Nothing is removed from the destination this run."
       },
+      "destinationUnread": {
+        "one": "{count} directory in the destination couldn't be read ({path}). Nothing is removed from the destination this run.",
+        "other": "{count} directories in the destination couldn't be read ({path}). Nothing is removed from the destination this run."
+      },
       "emptyOrigin": "The origin has no files: every file in the destination would be removed.",
       "tooMany": "{removals} of the destination's {files} files would be removed."
     },
