@@ -7,6 +7,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use unicode_normalization::UnicodeNormalization;
+
 use crate::copy::partial_path;
 use crate::error::{FileError, IoFailure};
 use crate::fsinfo::{self, FsInfo};
@@ -243,16 +245,21 @@ fn conflict_kind(entry: &ScanEntry, existing: &Metadata) -> ConflictKind {
     }
 }
 
-/// Paths that land on the same destination file. Compared on raw bytes, not lossy UTF-8,
-/// and ignoring case only where the file system does. Unicode normalization (NFC vs NFD
-/// on APFS) isn't predicted; the no-replace commit catches it.
+/// Paths that land on the same destination file: the same in Unicode's composed form (NFC),
+/// as APFS and HFS+ treat them on every volume (#112), ignoring case only where the file
+/// system does. Names that aren't UTF-8 are compared on raw bytes.
 pub(crate) fn clash_key(rel: &Path, case_sensitive: bool) -> Vec<u8> {
     let bytes = rel.as_os_str().as_encoded_bytes();
-    if case_sensitive {
-        return bytes.to_vec();
-    }
     match std::str::from_utf8(bytes) {
-        Ok(text) => text.to_lowercase().into_bytes(),
+        Ok(text) => {
+            let composed: String = text.nfc().collect();
+            if case_sensitive {
+                composed.into_bytes()
+            } else {
+                composed.to_lowercase().into_bytes()
+            }
+        }
+        Err(_) if case_sensitive => bytes.to_vec(),
         Err(_) => bytes.to_ascii_lowercase(),
     }
 }
@@ -328,6 +335,18 @@ mod tests {
             vec![(1, ProblemKind::NameClash)]
         );
         assert_eq!(problems(files(), &fat(true)), vec![]);
+    }
+
+    #[test]
+    fn names_differing_in_unicode_form_only_clash_on_every_drive() {
+        // "café" composed (NFC) and decomposed (NFD): one name on APFS and HFS+ (#112).
+        let files = || vec![entry("caf\u{e9}.mov", 1), entry("cafe\u{301}.mov", 1)];
+        for case_sensitive in [false, true] {
+            assert_eq!(
+                problems(files(), &fat(case_sensitive)),
+                vec![(1, ProblemKind::NameClash)]
+            );
+        }
     }
 
     #[test]
