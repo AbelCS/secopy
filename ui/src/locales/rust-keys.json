@@ -1,6 +1,6 @@
 [
   "app.warning.damaged",
-  "app.warning.newer",
+  "app.warning.newerKept",
   "app.warning.notSetAside",
   "app.warning.setAside",
   "copy.pick.mixed",
@@ -132,6 +132,7 @@
   "errors.report.running",
   "errors.save.file",
   "errors.save.mirror",
+  "errors.save.newer",
   "errors.save.preset",
   "errors.save.queue",
   "errors.save.settings",
