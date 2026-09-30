@@ -459,6 +459,22 @@ impl Session {
         self.view()
     }
 
+    /// Checks the destination again (#112): false if what Start would do changed since the
+    /// screen showed it (files there or gone, another drive), so it isn't started unseen.
+    pub fn still_as_shown(&mut self) -> bool {
+        let shape = |plan: &Plan| {
+            let files: Vec<(PathBuf, secopy_core::plan::Action)> = plan
+                .files
+                .iter()
+                .map(|f| (f.final_rel().to_path_buf(), f.action.clone()))
+                .collect();
+            (plan.dest.clone(), plan.fs.device, files)
+        };
+        let before = self.plan.as_ref().map(shape);
+        self.recheck();
+        before == self.plan.as_ref().map(shape)
+    }
+
     /// What a job starts with; `None` while anything blocks Start.
     pub fn ready(&self) -> Option<Ready> {
         let picked = self.source.as_ref()?;

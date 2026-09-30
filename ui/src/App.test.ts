@@ -5,6 +5,7 @@ import App from "./App.svelte";
 import {
   fakeApi,
   copyPreset,
+  destinationView,
   progressView,
   readyView,
   sessionView,
@@ -47,6 +48,18 @@ describe("App", () => {
     await fireEvent.click(await startButton());
     await screen.findByText("Nothing to copy, or something blocks the copy.");
     await startButton();
+  });
+
+  test("Start refused because the destination changed shows it as it is now", async () => {
+    const { api } = app();
+    const now = readyView({
+      destination: destinationView({ path: "/Volumes/RAID/Other", copyRoot: "/Volumes/RAID/Other/DCIM" }),
+    });
+    api.sessionView.mockResolvedValueOnce(now);
+    api.startJob.mockRejectedValueOnce(new Error("The destination changed. Check and press Start again."));
+    await fireEvent.click(await startButton());
+    await screen.findByText("The destination changed. Check and press Start again.");
+    await screen.findByText("/Volumes/RAID/Other");
   });
 
   test("Retry goes back to setup with the failed files", async () => {
