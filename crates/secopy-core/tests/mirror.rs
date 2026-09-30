@@ -797,3 +797,27 @@ fn files_under_an_origin_link_are_never_removed() {
     assert!(d.join("Old/x.mov").exists());
     assert!(!d.join("gone.mov").exists());
 }
+
+/// QA review (#114): a file that can't be looked at when it's due isn't "already gone": it
+/// stays, and the removal is listed as failed.
+#[test]
+fn a_removal_that_cant_be_looked_at_is_a_failure() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    write(&d, &[("a.mov", b"a"), ("sub/gone.mov", b"g")]);
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    assert_eq!(p.removals, vec![std::path::PathBuf::from("sub/gone.mov")]);
+    let report = run_job(&p.copy, &JobOptions::default(), &JobControl::new(), &|_| {});
+    fs::set_permissions(d.join("sub"), fs::Permissions::from_mode(0o000)).unwrap();
+    let finished = mirror::finish(
+        &p,
+        &report,
+        Some(&mirror::archive_dir(&d, chrono::Local::now())),
+    );
+    fs::set_permissions(d.join("sub"), fs::Permissions::from_mode(0o755)).unwrap();
+    let removals = finished.unwrap().removals;
+    assert_eq!(removals.len(), 1);
+    assert!(removals[0].result.is_err());
+    assert!(d.join("sub/gone.mov").exists());
+}
