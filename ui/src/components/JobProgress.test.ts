@@ -226,6 +226,25 @@ describe("JobProgress", () => {
     await waitFor(() => expect(api.finishedPage).toHaveBeenCalledWith(4900, 100, false));
   });
 
+  test("a page that failed to load is asked for again, not left blank (#117)", async () => {
+    const { api } = fakeApi();
+    api.finishedPage.mockRejectedValueOnce(new Error("busy"));
+    api.finishedPage.mockImplementation((offset: number, limit: number) =>
+      Promise.resolve(Array.from({ length: limit }, (_, i) => row(offset + i))),
+    );
+    const { container } = render(JobProgress, {
+      props: { progress: progressView({ filesDone: 1000 }) },
+      context: apiContext(api),
+    });
+    await waitFor(() => expect(api.finishedPage).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 0)); // the failure is in
+    const viewport = container.querySelector(".viewport") as HTMLElement;
+    viewport.scrollTop = 28 * 3; // still the first page
+    await fireEvent.scroll(viewport);
+    await waitFor(() => expect(api.finishedPage).toHaveBeenCalledTimes(2));
+    await screen.findByText("DCIM/C0.mov");
+  });
+
   test("the Status column holds a short word; a failure's reason is on hover", async () => {
     const { api } = fakeApi();
     api.finishedPage.mockResolvedValue([
