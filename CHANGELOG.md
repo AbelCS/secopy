@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.17.5](https://github.com/AbelCS/secopy/compare/v0.17.4...v0.17.5) (2026-09-30)
+
+
+### Bug Fixes
+
+* **app:** quitting after Cancel and remove still removes the copies ([a1ba2a0](https://github.com/AbelCS/secopy/commit/a1ba2a05c26afe5b323f86c8e9c490f3db3ae9e1)), closes [#118](https://github.com/AbelCS/secopy/issues/118)
+* **core:** a copy gets only its owner's read bit added; read-only stays read-only ([1eb9bc1](https://github.com/AbelCS/secopy/commit/1eb9bc12b728252f2a0a9050df9bd4316cc1bbe4)), closes [#118](https://github.com/AbelCS/secopy/issues/118)
+* **core:** a copy stays readable and writable by its owner ([2171148](https://github.com/AbelCS/secopy/commit/2171148ba6d6cd604c0abadc8882236a0a8e0c30)), closes [#118](https://github.com/AbelCS/secopy/issues/118)
+* **core:** a small file that grows while it's read isn't read into memory without end ([3fbc0d0](https://github.com/AbelCS/secopy/commit/3fbc0d08fded1a207f65c50deb45e4b4073b4a4d)), closes [#118](https://github.com/AbelCS/secopy/issues/118)
+
 ## [0.17.4](https://github.com/AbelCS/secopy/compare/v0.17.3...v0.17.4) (2026-09-30)
 
 
