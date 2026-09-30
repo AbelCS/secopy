@@ -684,8 +684,6 @@ mod tests {
         assert_eq!(quit_action(false), Quit::Now);
     }
 
-    /// The UI's bindings must match the Rust commands. Set `SECOPY_UPDATE_BINDINGS=1` to
-    /// rewrite them after changing a command or a DTO.
     #[test]
     fn the_saved_window_size_is_kept_within_the_minimum_and_the_screen() {
         use super::window_size;
@@ -723,6 +721,8 @@ mod tests {
         assert_eq!(conf["identifier"], "com.latecommits.secopy");
     }
 
+    /// The UI's bindings must match the Rust commands. Set `SECOPY_UPDATE_BINDINGS=1` to
+    /// rewrite them after changing a command or a DTO.
     #[test]
     fn ui_bindings_are_up_to_date() {
         let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ui/src/lib/bindings.ts");

@@ -471,7 +471,6 @@ fn root_is_there(path: &Path, device: u64) -> bool {
         && fsinfo::device_id(path).is_ok_and(|d| d == device)
 }
 
-/// Moves the file a verified copy is about to replace into the archive (mirror, FR-48).
 /// How the old version was kept in the archive.
 enum Archived {
     /// Already gone: nothing to keep.
@@ -509,6 +508,7 @@ fn put_back(how: Archived, archived: &Path, original: &Path) -> Option<PathBuf> 
     }
 }
 
+/// Moves the file a verified copy is about to replace into the archive (mirror, FR-48).
 fn archive_old(old: &Path, to: &Path) -> Result<Archived, FileError> {
     if fs::symlink_metadata(old).is_err() {
         return Ok(Archived::Nothing);

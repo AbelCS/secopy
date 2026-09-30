@@ -185,10 +185,10 @@
   // changes nothing here doesn't send it again.
   const onSetup = $derived(screen === "setup");
   const canStart = $derived(onSetup && setupReady);
-  // A mirror's removals can't be cancelled, as on the progress screen.
   // Any job or the queue, even when Cancel can't stop it now (a mirror's removals) or between
   // a queue's jobs: Import… waits for all of it (#83).
   const jobRuns = $derived(screen === "progress" || queueRun !== null);
+  // A mirror's removals can't be cancelled, as on the progress screen.
   const cancellable = $derived.by(
     () => screen === "progress" && progress?.phase !== "done" && progress?.phase !== "removing",
   );

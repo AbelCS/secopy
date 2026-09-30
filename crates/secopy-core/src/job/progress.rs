@@ -33,7 +33,7 @@ pub struct Progress {
     pub total_bytes: u64,
     /// Finished files, including skipped and failed ones.
     pub files_done: u64,
-    /// Files skipped because they were already at the destination (FR-17).
+    /// Files skipped: already at the destination, or differing with Skip chosen (FR-17).
     pub files_skipped: u64,
     pub copied_bytes: u64,
     pub verified_bytes: u64,

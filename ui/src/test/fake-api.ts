@@ -63,7 +63,7 @@ export function destinationView(over: Partial<DestinationView> = {}): Destinatio
     path: "/Volumes/RAID/Day01",
     copyRoot: "/Volumes/RAID/Day01/DCIM",
     blocker: null,
-    freeBytes: 1_800_000_000_000,
+    availableBytes: 1_800_000_000_000,
     fsKind: "apfs",
     fsName: null,
     existingItems: null,

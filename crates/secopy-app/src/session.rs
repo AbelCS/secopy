@@ -121,7 +121,6 @@ impl Session {
         Self::default()
     }
 
-    /// One folder → a folder source; otherwise only files (RFD Q6).
     /// Starts afresh, as after a panic while the session was held. The generation keeps
     /// counting up, so a scan begun before stays stale.
     pub fn restart(&mut self) {
@@ -133,6 +132,7 @@ impl Session {
         };
     }
 
+    /// One folder → a folder source; otherwise only files (RFD Q6).
     pub fn source_for(paths: &[PathBuf], contents_only: bool) -> Result<Source, Message> {
         match paths {
             [] => Err(msg!("copy.pick.nothing")),
@@ -585,7 +585,7 @@ impl Session {
             path: show(dest),
             copy_root: show(&copy_root),
             blocker: None,
-            free_bytes: 0,
+            available_bytes: 0,
             fs_kind: String::new(),
             fs_name: None,
             existing_items: existing_items(&copy_root),
@@ -601,7 +601,7 @@ impl Session {
                     .selection
                     .as_ref()
                     .expect("checked implies a selection");
-                view.free_bytes = pf.fs.available_bytes;
+                view.available_bytes = pf.fs.available_bytes;
                 (view.fs_kind, view.fs_name) = fs_code(&pf.fs.kind);
                 view.problems = pf
                     .file_problems
@@ -626,7 +626,7 @@ impl Session {
             // No source yet: show what the destination is, or why it can't be used.
             None => match fsinfo::fs_info(dest) {
                 Ok(info) => {
-                    view.free_bytes = info.available_bytes;
+                    view.available_bytes = info.available_bytes;
                     (view.fs_kind, view.fs_name) = fs_code(&info.kind);
                 }
                 Err(_) if !dest.is_dir() => {
@@ -1266,7 +1266,7 @@ mod tests {
         let f = fixture();
         let mut s = Session::new();
         let dest = s.set_destination(Some(f.dest.clone())).destination.unwrap();
-        assert!(dest.free_bytes > 0 && dest.blocker.is_none());
+        assert!(dest.available_bytes > 0 && dest.blocker.is_none());
         let missing = s
             .set_destination(Some(f.dest.join("nope")))
             .destination

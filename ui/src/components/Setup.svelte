@@ -96,7 +96,6 @@
       view.plan.filesToWrite > 0,
   );
 
-  /** Why Start can't be used yet, or where the files will go. */
   /** "Added to the queue (3 jobs).", for a few seconds after Add to queue. */
   let queuedNote: string | null = $state(null);
 
@@ -119,6 +118,7 @@
     }
   }
 
+  /** Why Start can't be used yet, or what it will copy. */
   const startStatus = $derived.by(() => {
     if (queuedNote) return queuedNote;
     if (scanning > 0) return t("copy.status.scanning");
@@ -203,8 +203,6 @@
   export function startIfReady() {
     if (canStart) onStart();
   }
-
-  /** The last part of a path: "/Volumes/CARD/DCIM" → "DCIM". */
 
   export async function chooseSource() {
     const paths = await api.pickSource();
@@ -329,7 +327,7 @@
         <div>
           <p class="path mono">{destination.path}</p>
           {#if !destination.blocker}
-            <p class="muted">{t("copy.free", { size: formatBytes(destination.freeBytes), kind: fsName(destination) })}</p>
+            <p class="muted">{t("copy.free", { size: formatBytes(destination.availableBytes), kind: fsName(destination) })}</p>
           {/if}
         </div>
       {:else}
@@ -384,8 +382,6 @@
 </AppShell>
 
 <style>
-
-
   p {
     margin: 0;
   }

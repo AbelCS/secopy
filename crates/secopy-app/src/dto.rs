@@ -42,7 +42,7 @@ pub struct SourceView {
     pub is_folder: bool,
     /// Copy only what's inside the folder (FR-4b) instead of the folder itself.
     pub contents_only: bool,
-    /// The picked folder, to scan again when "folder itself / only what's inside" changes.
+    /// The picked directory: its name labels "Include the … directory".
     pub folder: Option<String>,
     /// The failed files of the last job ("Retry"): nothing to choose but the
     /// destination.
@@ -84,7 +84,7 @@ pub struct DestinationView {
     pub blocker: Option<Message>,
     /// Available, counting purgeable space, as Finder shows it (#108).
     #[specta(type = specta_typescript::Number)]
-    pub free_bytes: u64,
+    pub available_bytes: u64,
     /// The destination's file system as a code: `apfs`, `hfs`, `exfat`, `fat32`, `ntfs`,
     /// `smb`, `nfs`, or `other` (then `fs_name` says which).
     pub fs_kind: String,
@@ -383,7 +383,7 @@ pub struct CopyPresetsView {
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QueuedJobView {
-    /// "copy", "mirror", or "unknown" for a job a newer Secopy wrote.
+    /// "copy", "mirror", "check", or "unknown" for a job a newer Secopy wrote.
     pub kind: String,
     pub verify: bool,
     /// The source as shown ("3 files" for several).
