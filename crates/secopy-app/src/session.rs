@@ -496,6 +496,10 @@ impl Session {
 
     /// What a job starts with; `None` while anything blocks Start.
     pub fn ready(&self) -> Option<Ready> {
+        // A pick being scanned: nothing yet, not the old source's plan (#137).
+        if self.scan_pending() {
+            return None;
+        }
         let picked = self.source.as_ref()?;
         let plan = self.plan.as_ref()?;
         (plan.blockers().is_empty() && !plan.files.is_empty()).then(|| Ready {
@@ -1220,6 +1224,20 @@ mod tests {
         assert_eq!(s.set_filter(None).conflicts, ConflictPolicy::KeepBoth);
         overwrite(&mut s);
         assert_eq!(s.clear_source().conflicts, ConflictPolicy::KeepBoth);
+    }
+
+    /// QA review (#137): while a new pick is scanned, there's nothing to start or queue: the
+    /// old source's plan with the new pick's settings would be a job nobody set up.
+    #[test]
+    fn nothing_starts_or_queues_while_a_scan_runs() {
+        let f = fixture();
+        let mut s = Session::new();
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        s.set_destination(Some(f.dest.clone()));
+        assert!(s.ready().is_some());
+        let _pending = s.begin(Change::Pick(vec![f.card.clone()])).ok().unwrap();
+        assert!(s.ready().is_none());
+        assert!(s.copy_job(true).is_none());
     }
 
     #[test]
