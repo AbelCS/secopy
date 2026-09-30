@@ -719,9 +719,10 @@ pub fn archive_summary(destination: &Path) -> std::io::Result<Option<ArchiveSumm
             .filter_map(|e| archived_at(&e.file_name().to_string_lossy()))
             .min(),
     };
+    // Counted as `delete_archive` counts what it removes: everything but directories.
     for entry in WalkDir::new(&root).follow_links(false) {
         let entry = entry.map_err(std::io::Error::from)?;
-        if entry.file_type().is_file() {
+        if !entry.file_type().is_dir() {
             summary.files += 1;
             summary.bytes += entry.metadata().map_err(std::io::Error::from)?.len();
         }

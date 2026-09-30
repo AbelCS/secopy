@@ -266,7 +266,7 @@
         <div>
           <p class="path mono">{say(source.label)}</p>
           <p class="muted">
-            {#each sourceSummary as part, i (i)}{#if i > 0}{" · "}{/if}{#if part.hint}<Hint text={part.hint}
+            {#each sourceSummary as part, i (i)}{#if i > 0}{t("format.dot")}{/if}{#if part.hint}<Hint text={part.hint}
                   >{part.text}</Hint
                 >{:else}{part.text}{/if}{/each}
           </p>
