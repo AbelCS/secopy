@@ -681,9 +681,7 @@ pub fn finish(
     }
     let mut renamed = Vec::new();
     for (from, to) in &plan.renames {
-        let (a, b) = (dest.join(from), dest.join(to));
-        // Only the spelling of one file; never onto another one.
-        if same_file::is_same_file(&a, &b).unwrap_or(false) && fs::rename(&a, &b).is_ok() {
+        if respell(dest, from, to) {
             renamed.push((from.clone(), to.clone()));
         }
     }
@@ -795,6 +793,28 @@ fn archived_at(name: &str) -> Option<chrono::DateTime<chrono::Local>> {
         .ok()?
         .and_local_timezone(chrono::Local)
         .single()
+}
+
+/// Gives `from` the origin's spelling `to`, one name at a time from the top, so a directory
+/// spelled otherwise is renamed too (#114): renaming the file alone left it as it was, and
+/// every run reported it again. Only the spelling of the same file, never onto another one.
+/// True if a name changed.
+fn respell(dest: &Path, from: &Path, to: &Path) -> bool {
+    let (from, to): (Vec<_>, Vec<_>) = (from.components().collect(), to.components().collect());
+    if from.len() != to.len() {
+        return false;
+    }
+    let mut changed = false;
+    let mut parent = dest.to_path_buf();
+    for (a, b) in from.iter().zip(&to) {
+        let (x, y) = (parent.join(a), parent.join(b));
+        if a != b && same_file::is_same_file(&x, &y).unwrap_or(false) && fs::rename(&x, &y).is_ok()
+        {
+            changed = true;
+        }
+        parent = y;
+    }
+    changed
 }
 
 /// `rel` is in the origin, or that can't be told, so it isn't removed from the backup: a link
