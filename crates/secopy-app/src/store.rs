@@ -427,7 +427,7 @@ pub struct DeletedFiles {
 impl From<&DeletedFiles> for secopy_core::mirror::Deleted {
     fn from(d: &DeletedFiles) -> Self {
         match d.mode {
-            DeletedMode::Archive => Self::Archive { days: d.days },
+            DeletedMode::Archive => Self::Archive,
             DeletedMode::Delete => Self::Delete,
         }
     }

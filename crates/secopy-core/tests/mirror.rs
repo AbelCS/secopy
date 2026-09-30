@@ -26,7 +26,7 @@ fn same_time(a: &Path, b: &Path) {
 
 fn opts() -> MirrorOptions {
     MirrorOptions {
-        deleted: Deleted::Archive { days: 30 },
+        deleted: Deleted::Archive,
         deep_check: false,
     }
 }

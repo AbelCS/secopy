@@ -22,10 +22,8 @@ pub const ARCHIVE_DIR: &str = ".secopy-archive";
 /// What happens to files deleted in the origin (FR-44).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Deleted {
-    /// Moved to the destination's archive, kept `days` days.
-    Archive {
-        days: u32,
-    },
+    /// Moved to the destination's archive (kept for the preset's days: `clean_archives`).
+    Archive,
     Delete,
 }
 
@@ -263,7 +261,7 @@ pub fn plan_watched(
     }
     nested(origin, destination)?;
     // Archiving into a link could put (and later clean up) files anywhere.
-    if let Deleted::Archive { .. } = options.deleted
+    if let Deleted::Archive = options.deleted
         && fs::symlink_metadata(destination.join(ARCHIVE_DIR)).is_ok_and(|m| !m.is_dir())
     {
         return Err(PlanError::ArchiveNotDir);
