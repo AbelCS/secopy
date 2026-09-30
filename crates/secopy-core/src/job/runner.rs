@@ -264,14 +264,13 @@ impl<'a> Runner<'a> {
             Ok(landed) => landed,
             Err(e) => {
                 // Not replaced: the old version stays where it was, not only in the archive.
-                match archived {
-                    Some((Archived::Linked, to)) => {
-                        let _ = fs::remove_file(to);
-                    }
-                    Some((Archived::Moved, to)) => {
-                        let _ = fs::rename(to, &original);
-                    }
-                    _ => {}
+                if let Some((how, to)) = archived
+                    && let Some(kept) = put_back(how, &to, &original)
+                {
+                    return Err(FileError::KeptInArchive {
+                        error: Box::new(e),
+                        archived: kept,
+                    });
                 }
                 return Err(e);
             }
@@ -480,6 +479,21 @@ enum Archived {
     Moved,
 }
 
+/// After a failed replace, the old version goes back where it was. `Some` with where it is
+/// when it can't be put back (#115): moved to the archive, it's only there now.
+fn put_back(how: Archived, archived: &Path, original: &Path) -> Option<PathBuf> {
+    match how {
+        Archived::Linked => {
+            let _ = fs::remove_file(archived); // the old version is still in place
+            None
+        }
+        Archived::Moved => fs::rename(archived, original)
+            .err()
+            .map(|_| archived.to_path_buf()),
+        Archived::Nothing => None,
+    }
+}
+
 fn archive_old(old: &Path, to: &Path) -> Result<Archived, FileError> {
     if fs::symlink_metadata(old).is_err() {
         return Ok(Archived::Nothing);
@@ -509,5 +523,26 @@ fn changed_since_scan(entry: &crate::scan::ScanEntry) -> bool {
                 || (entry.mtime.is_some() && meta.modified().ok() != entry.mtime)
         }
         Err(_) => true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// QA review (#115): an old version moved to the archive that can't be put back stays
+    /// there, and the error says where: it's no longer where it was.
+    #[test]
+    fn an_old_version_that_cant_be_put_back_is_named() {
+        let dir = tempfile::tempdir().unwrap();
+        let archived = dir.path().join("archive/a.mov");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, b"old").unwrap();
+        let original = dir.path().join("gone/a.mov"); // its folder is gone: no way back
+        let kept = put_back(Archived::Moved, &archived, &original);
+        assert_eq!(kept, Some(archived.clone()));
+        let back = dir.path().join("a.mov");
+        assert_eq!(put_back(Archived::Moved, &archived, &back), None);
+        assert_eq!(fs::read(&back).unwrap(), b"old");
     }
 }

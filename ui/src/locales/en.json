@@ -1042,6 +1042,7 @@
       "tooLarge": "The file is larger than the destination drive allows ({size})",
       "inTheWay": "Something is in the way at {path}",
       "inSource": "It would land on a source file",
+      "keptInArchive": "{why}; the previous version is in the archive: {path}",
       "sourceChanged": "The source file changed while it was copied",
       "changed": "Changed since it was copied (expected {expected}, found {actual})",
       "missing": "Missing",
