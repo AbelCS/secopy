@@ -257,7 +257,8 @@ impl Jobs {
     /// `remove_copied` (#54).
     pub fn cancel(&self, remove_copied: bool) {
         if let Some(job) = self.job() {
-            job.remove_copied.store(remove_copied, Relaxed);
+            // Once asked, the removal stays asked: quitting cancels again without it (#118).
+            job.remove_copied.fetch_or(remove_copied, Relaxed);
             job.control.cancel();
         }
     }
@@ -1364,6 +1365,29 @@ mod tests {
             "never goes back: {small:?}"
         );
         assert_eq!(small.last(), Some(&(40, 40)));
+    }
+
+    /// QA review (#118): quitting after "Cancel and remove" (which cancels without) doesn't
+    /// drop the removal the user asked for.
+    #[test]
+    fn a_later_cancel_keeps_the_removal_asked_for() {
+        let f = fixture(200, 50_000);
+        f.jobs
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                Collect::default(),
+            )
+            .unwrap();
+        while f.jobs.finished_page(0, 1, false).is_empty() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        f.jobs.pause();
+        f.jobs.cancel(true);
+        f.jobs.cancel(false); // quitting
+        f.jobs.wait();
+        assert!(f.jobs.summary().unwrap().undone.is_some());
     }
 
     /// #54: Cancel with "Also remove the files already copied".
