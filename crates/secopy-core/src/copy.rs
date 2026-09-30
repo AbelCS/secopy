@@ -268,7 +268,10 @@ fn copy_small(
 ) -> Result<(u64, u64), FileError> {
     control.checkpoint()?;
     let mut buf = Vec::with_capacity(len as usize);
+    // One byte past its size at most: enough to tell a file that grew since the scan (it
+    // fails as changed), without reading it into memory without end (#118).
     reader
+        .take(len + 1)
         .read_to_end(&mut buf)
         .map_err(FileError::read_source)?;
     writer.write_all(&buf).map_err(FileError::write_dest)?;
@@ -351,4 +354,23 @@ fn read_full(r: &mut impl Read, buf: &mut [u8]) -> io::Result<usize> {
         }
     }
     Ok(filled)
+}
+
+#[cfg(test)]
+mod small_tests {
+    use super::*;
+
+    /// QA review (#118): a small file that grew since the scan (a recording in progress) is
+    /// read one byte past its size, enough to tell it changed, not into memory without end.
+    #[test]
+    fn a_small_file_that_grew_is_read_one_byte_past_its_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("growing");
+        std::fs::write(&src, vec![7u8; 100_000]).unwrap();
+        let mut reader = File::open(&src).unwrap();
+        let mut writer = File::create(dir.path().join("copy")).unwrap();
+        let (_, read) =
+            copy_small(&mut reader, &mut writer, 10, &|_| {}, &JobControl::new()).unwrap();
+        assert_eq!(read, 11);
+    }
 }
