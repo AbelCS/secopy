@@ -263,11 +263,19 @@ impl Jobs {
         }
     }
 
-    /// Waits for the job's thread to end (after a cancel, or at quit).
+    /// Waits for the job's thread to end (after a cancel, or at quit). Another caller may hold
+    /// the thread already (the queue, and quitting): then until the job has ended (#134).
     pub fn wait(&self) {
         let handle = lock(&self.thread).take();
-        if let Some(handle) = handle {
-            let _ = handle.join();
+        match handle {
+            Some(handle) => {
+                let _ = handle.join();
+            }
+            None => {
+                while self.job().is_some_and(|job| job.running()) {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+            }
         }
     }
 
@@ -1391,6 +1399,32 @@ mod tests {
         f.jobs.cancel(false); // quitting
         f.jobs.wait();
         assert!(f.jobs.summary().unwrap().undone.is_some());
+    }
+
+    /// QA review (#134): two waiting for the same job (the queue and quitting) both wait for
+    /// its end: the second used to return at once, before the job had a summary.
+    #[test]
+    fn everyone_waiting_for_a_job_waits_for_its_end() {
+        let f = fixture(200, 50_000);
+        f.jobs
+            .start(
+                f.session.ready().unwrap(),
+                true,
+                JobSettings::default(),
+                Collect::default(),
+            )
+            .unwrap();
+        f.jobs.pause();
+        std::thread::scope(|s| {
+            s.spawn(|| f.jobs.wait());
+            std::thread::sleep(std::time::Duration::from_millis(50)); // it holds the thread
+            s.spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                f.jobs.cancel(false);
+            });
+            f.jobs.wait();
+            assert!(f.jobs.summary().is_some(), "ended when wait returned");
+        });
     }
 
     /// #54: Cancel with "Also remove the files already copied".
