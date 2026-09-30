@@ -42,9 +42,10 @@ export function summaryStats(s: SummaryView): Stat[] {
 
 export function notificationFor(s: SummaryView): { title: string; body: string } {
   const mark = s.outcome === "complete" ? "✓" : "✗";
-  const body = summaryStats(s)
+  // A report that couldn't be saved comes first: the proof is missing (#116).
+  const lost = s.reportErrors.length > 0 ? [t("notify.job.reportNotSaved")] : [];
+  const body = [...lost, ...summaryStats(s).map((i) => (typeof i === "string" ? i : i.text))]
     .slice(0, 3)
-    .map((i) => (typeof i === "string" ? i : i.text))
     .join(t("format.dot"));
   return { title: t("notify.job.title", { mark, headline: headline(s) }), body };
 }
