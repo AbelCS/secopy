@@ -128,7 +128,8 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
 - **Switching from Archive to Delete** asks what to do with what's already archived: **Delete
   them now**, or **Keep them** for the preset's days (runs keep removing them when due). If
   the destination isn't connected, or a job is running, you can choose **Delete it at the next
-  run** instead: the next run deletes the archive before copying anything. Files that can't be
+  run** instead: the next run deletes the archive before copying anything; the Archive section
+  says "Deleted at the next run", and switching back to Archive cancels it. Files that can't be
   deleted are listed, and go when they're due. Changing the destination at the same time leaves
   the old destination's archive as it is: it's no longer this mirror's.
 - If a run looks wrong (the origin is empty, can't be fully read, or more than half of the
@@ -137,7 +138,8 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
   can be verified.
 - **Archive** (under the editor): files, size and oldest run in the destination's
   `.secopy-archive`. **Show in Finder** opens it; **Delete archive…** deletes it, after asking.
-  Not while a job runs.
+  Not while a job runs. Every question before something that can't be undone has the safe
+  answer first: Return and Esc never delete.
 
 ## Verify
 
@@ -186,8 +188,8 @@ be exported from its own screen. The queue and recent destinations are never exp
 **File › Import…** (or opening a `.secopy` file from Finder) shows what the file holds before
 anything changes: settings that differ, each preset with its paths, paths not on this Mac,
 and presets that can't be imported, with why. A preset whose name you already have is added
-as **Keep both** ("Name (2)") unless you choose **Replace yours**. Nothing is imported while a
-job runs.
+as **Keep both** ("Name (2)") unless you choose **Replace yours**; replacing a mirror with
+fewer archive days says what its next run removes. Nothing is imported while a job runs.
 
 ![Import](images/import.png)
 
