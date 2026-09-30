@@ -51,6 +51,7 @@
   "errors.file.inTheWay",
   "errors.file.isDirectory",
   "errors.file.isLink",
+  "errors.file.keptInArchive",
   "errors.file.missing",
   "errors.file.nameClash",
   "errors.file.notAFile",

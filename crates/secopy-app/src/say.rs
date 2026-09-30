@@ -69,6 +69,11 @@ pub fn file_error(e: &FileError) -> Message {
         FileError::TooLarge { limit } => msg!("errors.file.tooLarge", size = Size(*limit)),
         FileError::InTheWay { path } => msg!("errors.file.inTheWay", path = path),
         FileError::InSource => msg!("errors.file.inSource"),
+        FileError::KeptInArchive { error, archived } => msg!(
+            "errors.file.keptInArchive",
+            why = file_error(error),
+            path = archived,
+        ),
         FileError::SourceChanged => msg!("errors.file.sourceChanged"),
         FileError::Changed { expected, actual } => {
             msg!("errors.file.changed", expected = expected, actual = actual)
@@ -365,6 +370,13 @@ mod tests {
             path: PathBuf::from("/Volumes/A/x"),
         });
         assert_eq!(text(&m, "path"), "/Volumes/A/x");
+        let m = file_error(&FileError::KeptInArchive {
+            error: Box::new(FileError::AlreadyExists),
+            archived: PathBuf::from("/B/.secopy-archive/run/a.mov"),
+        });
+        assert_eq!(m.key, "errors.file.keptInArchive");
+        assert_eq!(nested(&m, "why").key, "errors.file.alreadyExists");
+        assert_eq!(text(&m, "path"), "/B/.secopy-archive/run/a.mov");
         assert_eq!(
             file_error(&FileError::TooLarge {
                 limit: 4_294_967_295
