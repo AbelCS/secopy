@@ -364,6 +364,11 @@
       "one": "{count} symlink skipped",
       "other": "{count} symlinks skipped"
     },
+    "specialSkipped": {
+      "one": "{count} special file skipped",
+      "other": "{count} special files skipped"
+    },
+    "specialHint": "Not files with data: a FIFO, a socket or a device. Never copied.",
     "queued": {
       "one": "Added to the queue ({count} job).",
       "other": "Added to the queue ({count} jobs)."

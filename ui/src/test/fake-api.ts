@@ -52,6 +52,7 @@ export function sourceView(over: Partial<SourceView> = {}): SourceView {
     selectedExtensions: null,
     skippedSystem: 37,
     skippedSymlinks: 0,
+    skippedSpecial: 0,
     problems: [],
     problemCount: 0,
     ...over,

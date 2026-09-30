@@ -359,3 +359,19 @@ fn a_picked_file_named_like_an_unfinished_copy_is_skipped() {
     );
     assert_eq!(scan.skipped_system, 1);
 }
+
+/// QA review (#135): special files (a FIFO, a socket, a device) aren't copied, like links,
+/// and are listed, not skipped without a word.
+#[test]
+fn special_files_are_listed_as_skipped() {
+    let dir = tempfile::tempdir().unwrap();
+    let card = dir.path().join("CARD");
+    write_files(&card, &[("a.mov", b"a")]);
+    let fifo = card.join("pipe");
+    let c = std::ffi::CString::new(fifo.to_str().unwrap()).unwrap();
+    // SAFETY: a NUL-terminated path.
+    assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o644) }, 0);
+    let scan = scan_card(&card, DirMode::FolderItself, false);
+    assert_eq!(scan.skipped_special, vec![fifo]);
+    assert_eq!(scan.files.len(), 1);
+}
