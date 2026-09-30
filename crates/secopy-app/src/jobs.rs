@@ -1587,6 +1587,7 @@ mod tests {
                 destination: dest,
                 conflicts: crate::dto::ConflictPolicy::KeepBoth,
                 verify: false,
+                overwrite: vec![],
             })
             .ok()
             .unwrap()

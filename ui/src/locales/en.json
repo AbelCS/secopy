@@ -744,6 +744,7 @@
       "internal": "Secopy hit an internal error; the queue stopped.",
       "newer": "Needs a newer Secopy.",
       "nothingToCopy": "Nothing to copy.",
+      "overwriteChanged": "Files to overwrite changed. Queue it again.",
       "notRemoved": {
         "one": "{count} file couldn't be removed.",
         "other": "{count} files couldn't be removed."

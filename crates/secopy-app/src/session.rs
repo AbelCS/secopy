@@ -373,6 +373,7 @@ impl Session {
             destination: self.dest.clone()?,
             conflicts: self.policy,
             verify,
+            overwrite: crate::queue::overwrites(self.plan.as_ref()?),
         })
     }
 

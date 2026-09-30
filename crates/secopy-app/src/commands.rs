@@ -2569,6 +2569,7 @@ mod tests {
                 destination: dest.clone(),
                 conflicts: ConflictPolicy::KeepBoth,
                 verify: true,
+                overwrite: vec![],
             });
         }
         state

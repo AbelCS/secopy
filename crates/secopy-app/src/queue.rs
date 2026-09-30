@@ -20,6 +20,10 @@ pub struct CopyJob {
     pub destination: PathBuf,
     pub conflicts: ConflictPolicy,
     pub verify: bool,
+    /// With Overwrite, the files it replaces as shown when it was queued, relative to the
+    /// destination: at its turn it replaces no other (#112).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub overwrite: Vec<PathBuf>,
 }
 
 /// A queued job; kinds this version doesn't know are kept as they were written.
@@ -120,7 +124,24 @@ pub fn prepare(job: &CopyJob) -> Result<Ready, crate::message::Message> {
     s.set_filter(job.extensions.clone());
     s.set_destination(Some(job.destination.clone()));
     let view = s.set_policy(job.conflicts);
-    s.ready().ok_or_else(|| why_not(&view))
+    let ready = s.ready().ok_or_else(|| why_not(&view))?;
+    // Nobody is there to confirm other files, e.g. another card with the same names (#112).
+    if overwrites(&ready.plan)
+        .iter()
+        .any(|rel| !job.overwrite.contains(rel))
+    {
+        return Err(crate::msg!("queue.reason.overwriteChanged"));
+    }
+    Ok(ready)
+}
+
+/// The files `plan` replaces, relative to its destination.
+pub fn overwrites(plan: &secopy_core::plan::Plan) -> Vec<PathBuf> {
+    plan.files
+        .iter()
+        .filter(|f| f.action == secopy_core::plan::Action::Overwrite)
+        .map(|f| f.entry.rel.clone())
+        .collect()
 }
 
 /// Applies `change` and runs the scan it needs, like the commands do.
@@ -324,6 +345,7 @@ mod tests {
                 destination: dest,
                 conflicts: ConflictPolicy::Skip,
                 verify: false,
+                overwrite: vec![],
             })
         );
     }
@@ -340,6 +362,7 @@ mod tests {
             destination: dest,
             conflicts: ConflictPolicy::KeepBoth,
             verify: true,
+            overwrite: vec![],
         };
         assert_eq!(prepare(&job).unwrap().plan.files.len(), 2);
         std::fs::write(clip.join("b.mp4"), b"b").unwrap();
@@ -355,6 +378,36 @@ mod tests {
     }
 
     #[test]
+    fn a_queued_copy_overwrites_only_the_files_shown() {
+        let dir = tempfile::tempdir().unwrap();
+        let (clip, dest) = card(dir.path());
+        std::fs::create_dir_all(dest.join("CLIP")).unwrap();
+        std::fs::write(dest.join("CLIP/a.mp4"), b"older").unwrap();
+        let mut s = Session::new();
+        apply(&mut s, Change::Pick(vec![clip.clone()]));
+        s.set_destination(Some(dest.clone()));
+        s.set_policy(ConflictPolicy::Overwrite);
+        let job = s.copy_job(true).unwrap();
+        assert_eq!(job.overwrite, vec![PathBuf::from("CLIP/a.mp4")]);
+        assert!(prepare(&job).is_ok());
+        // At its turn another file differs (another card): nobody saw it, so it doesn't start.
+        std::fs::write(dest.join("CLIP/a.xml"), b"older").unwrap();
+        assert_eq!(
+            prepare(&job).err().map(|m| m.key),
+            Some("queue.reason.overwriteChanged".to_string())
+        );
+        // A job queued before this list existed has none: it doesn't overwrite either.
+        let old = CopyJob {
+            overwrite: vec![],
+            ..job
+        };
+        assert_eq!(
+            prepare(&old).err().map(|m| m.key),
+            Some("queue.reason.overwriteChanged".to_string())
+        );
+    }
+
+    #[test]
     fn a_job_that_cant_start_says_why() {
         let dir = tempfile::tempdir().unwrap();
         let (clip, dest) = card(dir.path());
@@ -365,6 +418,7 @@ mod tests {
             destination: dest.clone(),
             conflicts: ConflictPolicy::KeepBoth,
             verify: true,
+            overwrite: vec![],
         };
         assert!(
             prepare(&gone)
@@ -395,6 +449,7 @@ mod tests {
             destination: PathBuf::from("/Volumes/V001/Day01"),
             conflicts: ConflictPolicy::KeepBoth,
             verify: true,
+            overwrite: vec![],
         }
     }
 
