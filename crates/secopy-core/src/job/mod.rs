@@ -369,14 +369,16 @@ fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Op
 /// error doing so: the destination can't confirm the files are on disk.
 fn make_durable(dest: &Path, dirs: &[DirEntry]) -> Option<IoFailure> {
     // Every directory, then the drive's cache, whatever happened before: the first device
-    // error is kept. Folders that were never created don't exist, which is no error.
+    // error is kept. Folders that were never created don't exist, which is no error; the
+    // destination itself gone (pulled out) is (#115).
     let problems: Vec<Option<IoFailure>> = dirs
         .iter()
-        .map(|d| dest.join(&d.rel))
-        .chain([dest.to_path_buf()])
-        .map(|dir| match fs::File::open(&dir) {
+        .map(|d| (dest.join(&d.rel), false))
+        .chain([(dest.to_path_buf(), true)])
+        .map(|(dir, root)| match fs::File::open(&dir) {
             Ok(f) => durability_problem(os::sync_file(&f)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound && !root => None,
+            Err(e) if root => Some(e.into()),
             Err(e) => durability_problem(Err(e)),
         })
         .collect();
@@ -404,5 +406,18 @@ mod tests {
         assert!(durability_problem(Err(err(libc::ENOTSUP))).is_none());
         assert!(durability_problem(Err(err(libc::EINVAL))).is_none());
         assert!(durability_problem(Ok(())).is_none());
+    }
+
+    /// QA review (#115): a destination that's gone (pulled out) can't confirm anything; a
+    /// folder that was never created is no error.
+    #[test]
+    fn a_destination_gone_before_the_flush_is_a_durability_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let never = [DirEntry {
+            rel: "never".into(),
+            mtime: None,
+        }];
+        assert!(make_durable(dir.path(), &never).is_none());
+        assert!(make_durable(&dir.path().join("gone"), &[]).is_some());
     }
 }
