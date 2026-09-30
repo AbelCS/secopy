@@ -10,15 +10,18 @@
     done,
     total,
     speed = null,
+    finished = false,
   }: {
     label: string;
     done: number;
     total: number;
     /** Bytes per second; `null` until it is known. */
     speed?: number | null;
+    /** The job ended: a total of 0 is then all done; before, it isn't known yet (#117). */
+    finished?: boolean;
   } = $props();
 
-  const fraction = $derived(total === 0 ? 1 : Math.min(1, done / total));
+  const fraction = $derived(total === 0 ? (finished ? 1 : 0) : Math.min(1, done / total));
 </script>
 
 <div class="bar-row">
