@@ -177,6 +177,7 @@ impl Session {
                 self.preset = preset;
             }
         }
+        self.forget_choice();
         self.generation += 1;
         let Some(paths) = self.picked.clone() else {
             self.source_generation = self.generation;
@@ -409,6 +410,7 @@ impl Session {
         });
         self.filter = ExtensionFilter::All;
         self.pick_problem = None;
+        self.forget_choice();
         self.selection = Some(selection);
         self.recheck();
         self.view()
@@ -421,6 +423,7 @@ impl Session {
         self.pick_problem = None;
         self.source = None;
         self.filter = ExtensionFilter::All;
+        self.forget_choice();
         self.recompute();
         self.view()
     }
@@ -431,14 +434,22 @@ impl Session {
             None => ExtensionFilter::All,
             Some(keys) => ExtensionFilter::Only(keys.into_iter().collect::<BTreeSet<_>>()),
         };
+        self.forget_choice();
         self.recompute();
         self.view()
     }
 
     pub fn set_destination(&mut self, dest: Option<PathBuf>) -> SessionView {
         self.dest = dest;
+        self.forget_choice();
         self.recheck();
         self.view()
+    }
+
+    /// The choice for files that differ answers for the files shown (#112): other files, or
+    /// another destination, get Keep both until it's chosen again.
+    fn forget_choice(&mut self) {
+        self.policy = ConflictPolicy::default();
     }
 
     pub fn set_policy(&mut self, policy: ConflictPolicy) -> SessionView {
@@ -1133,6 +1144,38 @@ mod tests {
         let view = s.set_policy(ConflictPolicy::Skip);
         assert_eq!(view.plan.unwrap().files_to_write, 2);
         assert!(s.ready().is_some());
+    }
+
+    #[test]
+    fn the_choice_for_files_that_differ_resets_when_what_is_copied_changes() {
+        let f = fixture();
+        write(&f.dest, &[("CARD/A001.mov", b"other content")]);
+        let other = f.dest.join("other");
+        fs::create_dir_all(&other).unwrap();
+        let mut s = Session::new();
+        let overwrite = |s: &mut Session| {
+            s.set_policy(ConflictPolicy::Overwrite);
+        };
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        s.set_destination(Some(f.dest.clone()));
+        // The choice answers for the files shown; other files get it again.
+        overwrite(&mut s);
+        let view = s.set_destination(Some(other.clone()));
+        assert_eq!(view.conflicts, ConflictPolicy::KeepBoth);
+        overwrite(&mut s);
+        assert_eq!(
+            pick(&mut s, std::slice::from_ref(&f.card), false).conflicts,
+            ConflictPolicy::KeepBoth
+        );
+        overwrite(&mut s);
+        assert_eq!(
+            apply(&mut s, Change::IncludeFolder(false)).conflicts,
+            ConflictPolicy::KeepBoth
+        );
+        overwrite(&mut s);
+        assert_eq!(s.set_filter(None).conflicts, ConflictPolicy::KeepBoth);
+        overwrite(&mut s);
+        assert_eq!(s.clear_source().conflicts, ConflictPolicy::KeepBoth);
     }
 
     #[test]
