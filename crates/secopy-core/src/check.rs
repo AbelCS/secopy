@@ -230,6 +230,8 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
         } else if !is_system_file(entry.file_name())
             && !(name.starts_with("secopy_")
                 && (name.ends_with("_report.txt") || name.ends_with("_report.json")))
+            // An ASC MHL history (#154) is the copy's proof, not media.
+            && !rel.components().any(|c| c.as_os_str() == crate::mhl::FOLDER)
         {
             others.push(rel);
         }
