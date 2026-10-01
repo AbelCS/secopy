@@ -23,7 +23,7 @@ use crate::verify::CacheBypass;
 use crate::{fsinfo, metadata, os};
 
 pub use crate::control::JobControl;
-pub use progress::{ActiveFile, Phase, Progress};
+pub use progress::{ActiveFile, Phase, Progress, Recording};
 use runner::{Queue, Runner, VERIFY_QUEUE_PER_LANE, VerifyTask};
 pub use undo::{Undone, undo};
 
@@ -46,6 +46,8 @@ pub struct JobOptions {
     /// Mirror (plan 7): an `Overwrite` file's old version is moved here, keeping its
     /// relative path, right before its verified copy replaces it.
     pub archive_replaced: Option<PathBuf>,
+    /// Record an ASC MHL history once the copy is durable (#154); `None` writes none.
+    pub mhl: Option<crate::mhl::MhlJob>,
     #[doc(hidden)]
     pub hooks: Hooks,
 }
@@ -65,6 +67,7 @@ impl Default for JobOptions {
             keep_awake: true,
             progress_interval: Duration::from_millis(50),
             archive_replaced: None,
+            mhl: None,
             hooks: Hooks::default(),
         }
     }
@@ -169,6 +172,14 @@ pub struct JobReport {
     pub durability_error: Option<IoFailure>,
     /// Empty directories that couldn't be created, with why (#58).
     pub dir_errors: Vec<(PathBuf, IoFailure)>,
+    /// ASC MHL generations written, deepest first, so `undo` can take them back (#154).
+    pub mhl_written: Vec<crate::mhl::write::Written>,
+    /// ASC MHL couldn't be read or written; nothing of it was left.
+    pub mhl_error: Option<IoFailure>,
+    /// Files that don't match their earlier ASC MHL hash, from the copy root.
+    pub mhl_failed: Vec<PathBuf>,
+    /// ASC MHL wasn't asked for (`JobOptions::mhl`).
+    pub mhl_off: bool,
 }
 
 impl JobReport {
@@ -195,6 +206,8 @@ impl JobReport {
             && self.checksum_error.is_none()
             && self.durability_error.is_none()
             && self.dir_errors.is_empty()
+            && self.mhl_error.is_none()
+            && self.mhl_failed.is_empty()
     }
 }
 
@@ -268,12 +281,10 @@ pub fn run_job(
     });
 
     let bypass_unavailable = runner.bypass_unavailable.load(Relaxed);
-    let outcomes = runner
-        .outcomes
-        .into_inner()
-        .expect("outcomes lock poisoned");
-    let fatal = runner.fatal.into_inner().expect("fatal lock poisoned");
-    let mut created_dirs = runner.made_dirs.into_inner().expect("dirs lock poisoned");
+    let outcomes = std::mem::take(&mut *runner.outcomes.lock().expect("outcomes lock poisoned"));
+    let fatal = runner.fatal.lock().expect("fatal lock poisoned").take();
+    let mut created_dirs =
+        std::mem::take(&mut *runner.made_dirs.lock().expect("dirs lock poisoned"));
     let mut removed_partials = runner.removed_partials.load(Relaxed);
     let mut dir_errors = Vec::new();
     if !control.is_stopped() && fatal.is_none() {
@@ -290,6 +301,23 @@ pub fn run_job(
         (None, None)
     };
     let durability_error = make_durable(dest, &plan.dirs, plan.fs.device);
+    // After the copy is on disk; not for a job that stopped or failed as a whole.
+    let recorded = match &opts.mhl {
+        Some(job) if fatal.is_none() && !control.is_stopped() => {
+            let total = job.plan.to_read_bytes;
+            let last = Mutex::new(None::<Instant>);
+            crate::mhl::run::record(plan, job, &outcomes, control, &|bytes| {
+                *runner.recording.lock().expect("recording lock poisoned") =
+                    Some(Recording { bytes, total });
+                let mut last = last.lock().expect("last lock poisoned");
+                if last.is_none_or(|t| t.elapsed() >= opts.progress_interval) || bytes == total {
+                    *last = Some(Instant::now());
+                    runner.emit_progress();
+                }
+            })
+        }
+        _ => crate::mhl::run::Recorded::default(),
+    };
     JobReport {
         not_started: (plan.files.len() - outcomes.len()) as u64,
         outcomes,
@@ -309,6 +337,10 @@ pub fn run_job(
         unread: plan.unread.clone(),
         durability_error,
         dir_errors,
+        mhl_written: recorded.written,
+        mhl_error: recorded.error,
+        mhl_failed: recorded.failed,
+        mhl_off: opts.mhl.is_none(),
     }
 }
 

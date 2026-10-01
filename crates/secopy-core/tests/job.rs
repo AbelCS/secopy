@@ -285,6 +285,7 @@ fn final_progress_event_is_complete() {
             verified_bytes: total,
             active: vec![],
             paused: false,
+            recording: None,
         }
     );
     let finished = events

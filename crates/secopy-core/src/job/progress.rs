@@ -40,6 +40,15 @@ pub struct Progress {
     pub active: Vec<ActiveFile>,
     /// The job is paused (FR-22); snapshots keep coming so the UI stays live.
     pub paused: bool,
+    /// Reading files already in the destination for ASC MHL, after the copy (#154).
+    pub recording: Option<Recording>,
+}
+
+/// Bytes read of the files ASC MHL records that this job didn't copy.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Recording {
+    pub bytes: u64,
+    pub total: u64,
 }
 
 /// Live state of one in-flight file.
@@ -106,6 +115,7 @@ impl Runner<'_> {
             verified_bytes: verified.min(total_bytes),
             active: files,
             paused: self.control.is_paused(),
+            recording: *self.recording.lock().expect("recording lock poisoned"),
         }
     }
 }
