@@ -593,6 +593,7 @@ fn setting_label(key: &str) -> Option<Message> {
         "reportNextToChecksum" => msg!("import.setting.report"),
         "notifyWhenDone" => msg!("import.setting.notify"),
         "keepInMenuBar" => msg!("import.setting.menuBar"),
+        "writeMhl" => msg!("import.setting.mhl"),
         _ => return None,
     })
 }
@@ -631,6 +632,7 @@ pub fn settings_changes(from: &Settings, to: &Settings) -> Vec<Message> {
             from.keep_in_menu_bar,
             to.keep_in_menu_bar,
         ),
+        (msg!("import.setting.mhl"), from.write_mhl, to.write_mhl),
     ]
     .into_iter()
     .filter(|(_, a, b)| a != b)
@@ -824,7 +826,7 @@ mod tests {
             "turbo":true}}"#;
         let c = read(text.as_bytes()).unwrap();
         assert_eq!(c.settings_unknown, ["turbo"]);
-        assert_eq!(c.settings_defaulted, ["keepInMenuBar"]);
+        assert_eq!(c.settings_defaulted, ["keepInMenuBar", "writeMhl"]);
         assert_eq!(c.app.as_deref(), Some("0.1.0"));
         let view = plan(
             "x.secopy",
@@ -841,7 +843,7 @@ mod tests {
                 .iter()
                 .map(|m| m.key.as_str())
                 .collect::<Vec<_>>(),
-            ["import.setting.menuBar"]
+            ["import.setting.menuBar", "import.setting.mhl"]
         );
         assert_eq!(view.made_by.unwrap().key, "import.madeBy");
     }
@@ -1296,5 +1298,22 @@ mod tests {
         );
         let text = export_text(Some(&off), &[], &[], "0.12.0", now());
         assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(off)));
+    }
+
+    /// #154: the ASC MHL setting travels, is named, and an older file's lack of it is said.
+    #[test]
+    fn the_mhl_setting_travels_and_is_named() {
+        let on = Settings {
+            write_mhl: true,
+            ..Settings::default()
+        };
+        assert_eq!(
+            settings_changes(&Settings::default(), &on),
+            ["Write ASC MHL: off → on"]
+        );
+        let text = export_text(Some(&on), &[], &[], "0.19.0", now());
+        assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(on)));
+        let older = read(br#"{"secopy":1,"settings":{"writeChecksumFile":true,"showSystemCount":true,"reportNextToChecksum":false,"notifyWhenDone":true,"keepInMenuBar":true}}"#).unwrap();
+        assert_eq!(older.settings_defaulted, ["writeMhl"]);
     }
 }

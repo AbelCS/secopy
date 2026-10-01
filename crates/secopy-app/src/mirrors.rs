@@ -62,6 +62,8 @@ impl MirrorJob {
             shown: crate::message::Message::raw(crate::dto::show(&self.plan.origin)),
             mirror: Some(self.name.clone()),
             copy_root: self.plan.copy.dest.clone(),
+            // Never for a mirror: it removes files a history would list (#154).
+            mhl: None,
         }
     }
 }

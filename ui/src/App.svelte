@@ -163,7 +163,7 @@
   });
   let verify = $state(true);
   let copyPresets: CopyPreset[] = $state([]);
-  let settings: Settings = $state({ writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true });
+  let settings: Settings = $state({ writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false });
   let recent: string[] = $state([]);
   let progress: ProgressView | null = $state(null);
   let summary: SummaryView | null = $state(null);

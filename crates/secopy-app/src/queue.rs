@@ -111,9 +111,11 @@ impl Queue {
 use crate::dto::SessionView;
 use crate::session::{Change, Ready, Session, scan_source};
 
-/// `job` as New copy would build it now: scanned and checked at its turn (spec Q3).
-pub fn prepare(job: &CopyJob) -> Result<Ready, crate::message::Message> {
+/// `job` as New copy would build it now: scanned and checked at its turn (spec Q3), with
+/// ASC MHL if `mhl` (the setting at its turn, #154).
+pub fn prepare(job: &CopyJob, mhl: bool) -> Result<Ready, crate::message::Message> {
     let mut s = Session::new();
+    s.set_mhl(mhl);
     // One scan, with the job's choice (#118): not the folder itself, then again without it.
     let view = apply(
         &mut s,
@@ -413,15 +415,15 @@ mod tests {
             verify: true,
             overwrite: vec![],
         };
-        assert_eq!(prepare(&job).unwrap().plan.files.len(), 2);
+        assert_eq!(prepare(&job, false).unwrap().plan.files.len(), 2);
         std::fs::write(clip.join("b.mp4"), b"b").unwrap();
-        assert_eq!(prepare(&job).unwrap().plan.files.len(), 3);
+        assert_eq!(prepare(&job, false).unwrap().plan.files.len(), 3);
         let only_mp4 = CopyJob {
             extensions: Some(vec![Some("mp4".into())]),
             include_folder: false,
             ..job
         };
-        let ready = prepare(&only_mp4).unwrap();
+        let ready = prepare(&only_mp4, false).unwrap();
         assert_eq!(ready.plan.files.len(), 2);
         assert_eq!(ready.copy_root, only_mp4.destination, "contents only");
     }
@@ -444,11 +446,11 @@ mod tests {
         s.set_policy(ConflictPolicy::Overwrite);
         let job = s.copy_job(true).unwrap();
         assert_eq!(job.overwrite, vec![PathBuf::from("CLIP/a.mp4")]);
-        assert!(prepare(&job).is_ok());
+        assert!(prepare(&job, false).is_ok());
         // At its turn another file differs (another card): nobody saw it, so it doesn't start.
         std::fs::write(dest.join("CLIP/a.xml"), b"older").unwrap();
         assert_eq!(
-            prepare(&job).err().map(|m| m.key),
+            prepare(&job, false).err().map(|m| m.key),
             Some("queue.reason.overwriteChanged".to_string())
         );
         // A job queued before this list existed has none: it doesn't overwrite either.
@@ -457,7 +459,7 @@ mod tests {
             ..job
         };
         assert_eq!(
-            prepare(&old).err().map(|m| m.key),
+            prepare(&old, false).err().map(|m| m.key),
             Some("queue.reason.overwriteChanged".to_string())
         );
     }
@@ -476,7 +478,7 @@ mod tests {
             overwrite: vec![],
         };
         assert!(
-            prepare(&gone)
+            prepare(&gone, false)
                 .err()
                 .unwrap()
                 .ends_with("isn't there any more.")
@@ -486,14 +488,14 @@ mod tests {
             destination: dir.path().join("no-dest"),
             ..gone.clone()
         };
-        assert!(!prepare(&no_dest).err().unwrap().is_empty());
+        assert!(!prepare(&no_dest, false).err().unwrap().is_empty());
         let nothing = CopyJob {
             sources: vec![clip],
             extensions: Some(vec![Some("wav".into())]),
             destination: dest,
             ..gone
         };
-        assert_eq!(prepare(&nothing).err().unwrap(), "Nothing to copy.");
+        assert_eq!(prepare(&nothing, false).err().unwrap(), "Nothing to copy.");
     }
 
     fn job(name: &str) -> CopyJob {

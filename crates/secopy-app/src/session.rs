@@ -7,14 +7,18 @@ use std::path::{Path, PathBuf};
 
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::fsinfo::{self, FsKind};
+use secopy_core::mhl::{
+    self,
+    prepare::{MhlBlocker, MhlInputs, MhlPlan},
+};
 use secopy_core::plan::{DiffersPolicy, Plan};
 use secopy_core::preflight::{Blocker, ConflictKind, Preflight, preflight};
 use secopy_core::scan::{self, Scan, ScanOptions, Selection};
 use secopy_core::source::{DirMode, Source};
 
 use crate::dto::{
-    ConflictPolicy, DestinationView, ExtensionKey, ExtensionView, FileProblemView, PlanView,
-    SessionView, SourceView, count, show,
+    ConflictPolicy, DestinationView, ExtensionKey, ExtensionView, FileProblemView, MhlView,
+    PlanView, SessionView, SourceView, count, show,
 };
 use crate::message::Message;
 use crate::msg;
@@ -52,6 +56,10 @@ pub struct Session {
     policy: ConflictPolicy,
     checked: Option<Result<Preflight, Blocker>>,
     plan: Option<Plan>,
+    /// Settings › Write ASC MHL (#154).
+    mhl_on: bool,
+    /// The plan's ASC MHL, with the setting on.
+    mhl: Option<Result<MhlPlan, Vec<MhlBlocker>>>,
     /// Views made so far: each says how new it is (#138).
     views: std::sync::atomic::AtomicU64,
 }
@@ -74,6 +82,8 @@ impl Default for Session {
             policy: ConflictPolicy::default(),
             checked: None,
             plan: None,
+            mhl_on: false,
+            mhl: None,
             views: std::sync::atomic::AtomicU64::new(0),
         }
     }
@@ -113,6 +123,8 @@ pub struct Ready {
     pub mirror: Option<String>,
     /// Where the files land, for Reveal in Finder.
     pub copy_root: PathBuf,
+    /// With Write ASC MHL on: what the job records (#154).
+    pub mhl: Option<MhlPlan>,
 }
 
 struct Picked {
@@ -509,6 +521,11 @@ impl Session {
         }
         let picked = self.source.as_ref()?;
         let plan = self.plan.as_ref()?;
+        let mhl = match &self.mhl {
+            None => None,
+            Some(Ok(m)) => Some(m.clone()),
+            Some(Err(_)) => return None,
+        };
         (plan.blockers().is_empty() && !plan.files.is_empty()).then(|| Ready {
             source: picked.source.clone(),
             plan: plan.clone(),
@@ -516,6 +533,7 @@ impl Session {
             shown: picked.shown.clone(),
             mirror: None,
             copy_root: self.copy_root(&plan.dest),
+            mhl,
         })
     }
 
@@ -537,6 +555,29 @@ impl Session {
             (Some(sel), Some(Ok(pf))) => Some(Plan::resolve(sel, pf, policy(self.policy))),
             _ => None,
         };
+        self.mhl = None;
+        if self.mhl_on
+            && let Some(mut plan) = self.plan.take()
+        {
+            let inputs = MhlInputs {
+                copy_root: self.copy_root(&plan.dest),
+                source_dir: self.source.as_ref().and_then(|p| match &p.source {
+                    Source::Directory { path, .. } => Some(path.clone()),
+                    Source::Files(_) => None,
+                }),
+            };
+            self.mhl = Some(mhl::prepare::prepare(&mut plan, &inputs));
+            self.plan = Some(plan);
+        }
+    }
+
+    /// Settings › Write ASC MHL (#154): the plan is made again with or without it.
+    pub fn set_mhl(&mut self, on: bool) -> SessionView {
+        if self.mhl_on != on {
+            self.mhl_on = on;
+            self.replan();
+        }
+        self.view()
     }
 
     pub fn view(&self) -> SessionView {
@@ -551,7 +592,7 @@ impl Session {
             selected_bytes: selection.map_or(0, |s| s.total_bytes),
             destination: self.dest.as_ref().map(|d| self.destination_view(d)),
             conflicts: self.policy,
-            plan: self.plan.as_ref().map(plan_view),
+            plan: self.plan.as_ref().map(|p| plan_view(p, self.mhl.as_ref())),
             stale: false,
             preset_id: self.preset.as_ref().map(|p| p.id.clone()),
             preset_changed: self.preset_changed(),
@@ -684,13 +725,25 @@ fn policy(p: ConflictPolicy) -> DiffersPolicy {
     }
 }
 
-fn plan_view(plan: &Plan) -> PlanView {
+fn plan_view(plan: &Plan, mhl: Option<&Result<MhlPlan, Vec<MhlBlocker>>>) -> PlanView {
+    let mhl_blocker = match mhl {
+        Some(Err(blockers)) => blockers.first().map(say::mhl_blocker),
+        _ => None,
+    };
     PlanView {
         files_to_write: count(plan.files.iter().filter(|f| f.action.writes()).count()),
         bytes_to_write: plan.bytes_to_write(),
         overwrites: count(crate::queue::overwrites(plan).len()),
-        blocker: plan.blockers().first().map(say::blocker),
+        blocker: plan.blockers().first().map(say::blocker).or(mhl_blocker),
         purgeable: plan.purgeable_needed().as_ref().map(say::purgeable),
+        mhl: match mhl {
+            Some(Ok(m)) => Some(MhlView {
+                generation: m.generation(),
+                also_reads: count(m.to_read.len()),
+                also_reads_bytes: m.to_read_bytes,
+            }),
+            _ => None,
+        },
     }
 }
 
@@ -1299,14 +1352,14 @@ mod tests {
         let needed = plan.bytes_to_write() + secopy_core::plan::space_margin(plan.bytes_to_write());
         plan.fs.free_bytes = needed - 1;
         plan.fs.available_bytes = needed;
-        let view = plan_view(&plan);
+        let view = plan_view(&plan, None);
         assert!(view.blocker.is_none());
         assert_eq!(
             view.purgeable.map(|m| m.key),
             Some("copy.preflight.purgeable".to_string())
         );
         plan.fs.free_bytes = needed;
-        assert!(plan_view(&plan).purgeable.is_none());
+        assert!(plan_view(&plan, None).purgeable.is_none());
     }
 
     #[test]
@@ -1383,5 +1436,47 @@ mod tests {
         s.set_destination(Some(f.dest.clone()));
         s.set_filter(Some(vec![Some("wav".into())]));
         assert!(s.ready().is_none());
+    }
+
+    /// #154: with ASC MHL on, the plan says what history the copy writes.
+    #[test]
+    fn with_mhl_on_the_plan_says_new_history() {
+        let f = fixture();
+        let mut s = Session::new();
+        s.set_mhl(true);
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        let view = s.set_destination(Some(f.dest.clone()));
+        let mhl = view.plan.unwrap().mhl.unwrap();
+        assert_eq!((mhl.generation, mhl.also_reads), (1, 0));
+        assert!(s.ready().unwrap().mhl.is_some());
+    }
+
+    /// #154: an ASC MHL blocker stops Start, and says why.
+    #[test]
+    fn with_mhl_on_a_blocker_disables_start() {
+        let f = fixture();
+        fs::create_dir_all(f.dest.join("CARD/ascmhl")).unwrap();
+        let mut s = Session::new();
+        s.set_mhl(true);
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        let view = s.set_destination(Some(f.dest.clone()));
+        assert_eq!(
+            view.plan.unwrap().blocker.unwrap().key,
+            "errors.mhl.damaged"
+        );
+        assert!(s.ready().is_none());
+    }
+
+    /// #154: with ASC MHL off, nothing about the plan changes.
+    #[test]
+    fn with_mhl_off_nothing_changes() {
+        let f = fixture();
+        fs::create_dir_all(f.dest.join("CARD/ascmhl")).unwrap();
+        let mut s = Session::new();
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        let view = s.set_destination(Some(f.dest.clone()));
+        let plan = view.plan.unwrap();
+        assert!(plan.mhl.is_none() && plan.blocker.is_none());
+        assert!(s.ready().unwrap().mhl.is_none());
     }
 }

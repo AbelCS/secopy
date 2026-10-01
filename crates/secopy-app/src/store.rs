@@ -36,6 +36,8 @@ pub struct Settings {
     pub notify_when_done: bool,
     /// Closing the window during a job hides it, with a menu bar icon (#80).
     pub keep_in_menu_bar: bool,
+    /// Each copy also writes an ASC MHL history (#154).
+    pub write_mhl: bool,
 }
 
 /// `settings.json` as read: missing fields take their defaults. Kept apart from
@@ -53,6 +55,8 @@ struct SettingsOnDisk {
     notify_when_done: bool,
     #[serde(default = "yes")]
     keep_in_menu_bar: bool,
+    #[serde(default)]
+    write_mhl: bool,
 }
 
 fn yes() -> bool {
@@ -68,6 +72,7 @@ impl<'de> Deserialize<'de> for Settings {
             report_next_to_checksum: s.report_next_to_checksum,
             notify_when_done: s.notify_when_done,
             keep_in_menu_bar: s.keep_in_menu_bar,
+            write_mhl: s.write_mhl,
         })
     }
 }
@@ -80,6 +85,7 @@ impl Default for Settings {
             report_next_to_checksum: false,
             notify_when_done: true,
             keep_in_menu_bar: true,
+            write_mhl: false,
         }
     }
 }
@@ -1153,5 +1159,16 @@ mod tests {
         assert!(!off.keep_in_menu_bar);
         let json = serde_json::to_value(&off).unwrap();
         assert_eq!(json["keepInMenuBar"], false);
+    }
+
+    /// #154: ASC MHL is off unless turned on, also in settings saved before it existed.
+    #[test]
+    fn write_mhl_is_off_by_default_and_saved() {
+        assert!(!Settings::default().write_mhl);
+        let old: Settings = serde_json::from_str(r#"{"writeChecksumFile":true}"#).unwrap();
+        assert!(!old.write_mhl);
+        let on: Settings = serde_json::from_str(r#"{"writeMhl":true}"#).unwrap();
+        assert!(on.write_mhl);
+        assert_eq!(serde_json::to_value(&on).unwrap()["writeMhl"], true);
     }
 }

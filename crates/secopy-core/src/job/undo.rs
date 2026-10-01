@@ -22,8 +22,8 @@ pub struct Undone {
 }
 
 /// Removes what the job wrote: the files it created, its checksum file, its ASC MHL
-/// generations and the directories it made; files it replaced come back from `archive` (a mirror's `archive_replaced`). Files that
-/// were there before are never removed.
+/// generations and the directories it made; files it replaced come back from `archive` (a
+/// mirror's `archive_replaced`). Files that were there before are never removed.
 pub fn undo(plan: &Plan, report: &JobReport, archive: Option<&Path>) -> Undone {
     let mut done = Undone::default();
     // The ASC MHL generations first, newest first: the histories as they were (#154).

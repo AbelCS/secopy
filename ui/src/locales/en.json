@@ -631,7 +631,8 @@
       "systemCount": "Show the count of skipped system files",
       "report": "Save the report next to the checksum file",
       "notify": "Notify when a copy finishes",
-      "menuBar": "Keep copying in the menu bar"
+      "menuBar": "Keep copying in the menu bar",
+      "mhl": "Write ASC MHL"
     },
     "noName": {
       "copy": "A copy preset with no name",
@@ -1093,6 +1094,13 @@
       "destNotWritable": "Can't write to the destination: {why}",
       "destInsideSource": "The destination is the source directory or inside it",
       "notEnoughSpace": "Not enough space: {needed} needed, {available} available"
+    },
+    "mhl": {
+      "twoHistories": "The source and the destination have different ASC MHL histories. Choose another destination, or turn off ASC MHL in Settings.",
+      "overwrites": "Overwriting files its ASC MHL history lists would break it. Choose Skip or Keep both, or turn off ASC MHL in Settings.",
+      "damaged": "The ASC MHL history in {path} is damaged. Nothing in it is changed; turn off ASC MHL in Settings to copy anyway.",
+      "leavesOut": "This copy leaves out files the source's ASC MHL history lists. Copy every file type, or turn off ASC MHL in Settings.",
+      "unlistable": "ASC MHL can't list {path}: its name has characters XML can't hold."
     },
     "scan": {
       "notAFile": "Not a regular file",

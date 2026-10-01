@@ -8,7 +8,7 @@ export const copyPresets: CopyPreset[] = [
   { id: "dji", name: "DJI Mini 4", source: "/Volumes/DJI/DCIM", includeFolder: false, extensions: null },
 ];
 
-export const settings: Settings = { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true };
+export const settings: Settings = { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false };
 
 const session: SessionView = {
   revision: 1,
@@ -48,7 +48,7 @@ const session: SessionView = {
     stalePartials: 0,
   },
   conflicts: "keepBoth",
-  plan: { filesToWrite: 106, bytesToWrite: 180_000_000_000, overwrites: 0, blocker: null, purgeable: null },
+  plan: { filesToWrite: 106, bytesToWrite: 180_000_000_000, overwrites: 0, blocker: null, purgeable: null, mhl: null },
   presetId: "fx3",
   presetChanged: true,
   pickProblem: null,
