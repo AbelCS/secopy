@@ -656,6 +656,10 @@ impl Job {
             unread: Vec::new(),
             durability_error: None,
             dir_errors: Vec::new(),
+            mhl_written: Vec::new(),
+            mhl_error: None,
+            mhl_failed: Vec::new(),
+            mhl_off: true,
         };
         // A check stays a check: what was read so far, counted.
         let check = self.check_plan().map(|plan| CheckReport {

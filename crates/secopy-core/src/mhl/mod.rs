@@ -4,12 +4,21 @@ pub mod c4;
 pub mod ignore;
 pub mod prepare;
 pub mod read;
+pub mod run;
 pub mod write;
 
 /// The history's folder, at the root of the folder it covers.
 pub const FOLDER: &str = "ascmhl";
 /// The chain file inside it.
 pub const CHAIN: &str = "ascmhl_chain.xml";
+
+/// What a copy job needs to record its ASC MHL (`JobOptions::mhl`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MhlJob {
+    pub plan: prepare::MhlPlan,
+    /// This Secopy's version, for the manifest's `tool`.
+    pub tool_version: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {

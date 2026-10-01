@@ -425,6 +425,7 @@ pub fn run(
                 })
                 .collect(),
             paused: control.is_paused(),
+            recording: None,
         }
     };
     // One lane: takes the next file of its queue until the queue is empty.
@@ -519,6 +520,10 @@ pub fn run(
             unread: Vec::new(),
             durability_error: None,
             dir_errors: Vec::new(),
+            mhl_written: Vec::new(),
+            mhl_error: None,
+            mhl_failed: Vec::new(),
+            mhl_off: true,
         },
         not_checked: plan.not_checked.clone(),
         problems: plan.problems.clone(),

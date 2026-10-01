@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 use chrono::TimeZone;
 use common::write_files;
 use secopy_core::filter::ExtensionFilter;
-use secopy_core::hash::hash_bytes;
+use secopy_core::hash::{hash_bytes, to_hex};
+use secopy_core::job::{Event, JobControl, JobOptions, JobReport, Progress, run_job};
+use secopy_core::mhl::MhlJob;
 use secopy_core::mhl::prepare::{MhlBlocker, MhlInputs, MhlPlan, prepare};
 use secopy_core::mhl::read::{Damage, read};
 use secopy_core::mhl::write::append;
@@ -277,4 +279,164 @@ fn nested_histories_come_deepest_first() {
     assert_eq!(scopes[2], f.dest.join("A"));
     assert!(scopes[..2].contains(&f.dest.join("A/A001")));
     assert!(scopes[..2].contains(&f.dest.join("A/A002")));
+}
+
+// Recording at the end of the job (Task 6).
+
+fn run(plan: &Plan, mhl: Option<MhlPlan>) -> (JobReport, Vec<Progress>) {
+    let opts = JobOptions {
+        mhl: mhl.map(|plan| MhlJob {
+            plan,
+            tool_version: "9.9.9".into(),
+        }),
+        progress_interval: std::time::Duration::from_millis(1),
+        ..JobOptions::default()
+    };
+    let events = std::sync::Mutex::new(Vec::new());
+    let report = run_job(plan, &opts, &JobControl::new(), &|e| {
+        if let Event::Progress(p) = e {
+            events.lock().unwrap().push(p)
+        }
+    });
+    (report, events.into_inner().unwrap())
+}
+
+/// Copies `f` with ASC MHL on.
+fn copy(f: &Fixture) -> JobReport {
+    let (plan, result) = prepared(f);
+    run(&plan, Some(result.unwrap())).0
+}
+
+fn manifests(scope: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(scope.join("ascmhl"))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|n| n.ends_with(".mhl"))
+        .collect();
+    names.sort();
+    names
+}
+
+fn latest_manifest(scope: &Path) -> String {
+    let name = manifests(scope).pop().unwrap();
+    fs::read_to_string(scope.join("ascmhl").join(name)).unwrap()
+}
+
+#[test]
+fn a_copy_writes_a_new_history_that_lists_every_file() {
+    let f = fixture(&[("a.mov", b"aaa"), ("sub/b.mov", b"bb")]);
+    let report = copy(&f);
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(report.mhl_written.len(), 1);
+    let h = read(&f.dest.join("A")).unwrap().unwrap();
+    assert_eq!(h.first_xxh64["a.mov"], hash_bytes(b"aaa"));
+    assert_eq!(h.first_xxh64["sub/b.mov"], hash_bytes(b"bb"));
+    let text = latest_manifest(&f.dest.join("A"));
+    assert!(text.contains(r#"<tool version="9.9.9">Secopy</tool>"#));
+    assert!(text.contains("<process>transfer</process>"));
+}
+
+#[test]
+fn files_already_there_are_read_and_recorded() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    write_files(&f.dest, &[("A/old.mov", b"old!")]);
+    let (plan, result) = prepared(&f);
+    let (report, progress) = run(&plan, Some(result.unwrap()));
+    assert!(report.is_success(), "{report:?}");
+    let h = read(&f.dest.join("A")).unwrap().unwrap();
+    assert_eq!(h.first_xxh64["old.mov"], hash_bytes(b"old!"));
+    assert!(
+        progress
+            .iter()
+            .any(|p| p.recording.as_ref().is_some_and(|r| r.total == 4))
+    );
+}
+
+#[test]
+fn a_source_history_is_continued_with_verified_files() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    history(&f.src, &[("a.mov", b"aaa")]);
+    let report = copy(&f);
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(manifests(&f.dest.join("A")).len(), 2);
+    let text = latest_manifest(&f.dest.join("A"));
+    assert!(text.contains(&format!(
+        r#"<xxh64 action="verified">{}</xxh64>"#,
+        to_hex(hash_bytes(b"aaa"))
+    )));
+    // The source's history is untouched.
+    assert_eq!(manifests(&f.src).len(), 1);
+}
+
+#[test]
+fn a_changed_file_is_failed_and_the_job_isnt_complete() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    history(&f.src, &[("a.mov", b"not what it was")]);
+    let report = copy(&f);
+    assert_eq!(report.mhl_failed, [PathBuf::from("a.mov")]);
+    assert!(!report.is_success());
+    assert!(latest_manifest(&f.dest.join("A")).contains(r#"action="failed""#));
+}
+
+#[test]
+fn nested_generations_are_referenced_by_the_root() {
+    let f = fixture(&[("A001/a.mov", b"a"), ("notes.txt", b"n")]);
+    history(&f.src.join("A001"), &[("a.mov", b"a")]);
+    let report = copy(&f);
+    assert!(report.is_success(), "{report:?}");
+    let nested = f.dest.join("A/A001");
+    let nested_name = manifests(&nested).pop().unwrap();
+    let c4 = secopy_core::mhl::c4::c4(&fs::read(nested.join("ascmhl").join(&nested_name)).unwrap());
+    let root = latest_manifest(&f.dest.join("A"));
+    assert!(root.contains(&format!("<path>A001/ascmhl/{nested_name}</path>")));
+    assert!(root.contains(&c4));
+    // Each file is in its closest history only.
+    assert!(root.contains("notes.txt") && !root.contains("A001/a.mov"));
+    assert!(latest_manifest(&nested).contains(r#"action="verified""#));
+}
+
+#[test]
+fn a_chain_changed_during_the_job_isnt_overwritten() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    write_files(&f.dest, &[("A/old.mov", b"old!")]);
+    history(&f.dest.join("A"), &[("old.mov", b"old!")]);
+    let (plan, result) = prepared(&f);
+    let mhl = result.unwrap();
+    // Another tool appends a generation after the plan was made.
+    history(&f.dest.join("A"), &[("old.mov", b"old!")]);
+    let chain = fs::read(f.dest.join("A/ascmhl/ascmhl_chain.xml")).unwrap();
+    let report = run(&plan, Some(mhl)).0;
+    assert!(report.mhl_error.is_some());
+    assert!(!report.is_success());
+    assert_eq!(
+        fs::read(f.dest.join("A/ascmhl/ascmhl_chain.xml")).unwrap(),
+        chain
+    );
+    assert_eq!(manifests(&f.dest.join("A")).len(), 2);
+}
+
+#[test]
+fn a_write_that_fails_leaves_the_history_as_it_was() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = fixture(&[("a.mov", b"aaa")]);
+    history(&f.dest.join("A"), &[]);
+    let (plan, result) = prepared(&f);
+    let folder = f.dest.join("A/ascmhl");
+    let chain = fs::read(folder.join("ascmhl_chain.xml")).unwrap();
+    fs::set_permissions(&folder, fs::Permissions::from_mode(0o555)).unwrap();
+    let report = run(&plan, Some(result.unwrap())).0;
+    fs::set_permissions(&folder, fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(report.mhl_error.is_some());
+    assert_eq!(fs::read(folder.join("ascmhl_chain.xml")).unwrap(), chain);
+    assert_eq!(manifests(&f.dest.join("A")).len(), 1);
+}
+
+#[test]
+fn the_setting_off_writes_nothing() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    let (plan, _) = planned(&f, &ExtensionFilter::All, DiffersPolicy::KeepBoth);
+    let report = run(&plan, None).0;
+    assert!(report.is_success());
+    assert!(report.mhl_written.is_empty());
+    assert!(!f.dest.join("A/ascmhl").exists());
 }

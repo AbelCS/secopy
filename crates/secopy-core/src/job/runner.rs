@@ -69,6 +69,8 @@ pub(super) struct Runner<'a> {
     created_dirs: Mutex<HashSet<PathBuf>>,
     /// Folders this job made that weren't there before.
     pub(super) made_dirs: Mutex<Vec<PathBuf>>,
+    /// ASC MHL's reading, after the copy (#154).
+    pub(super) recording: Mutex<Option<super::Recording>>,
 }
 
 impl<'a> Runner<'a> {
@@ -101,6 +103,7 @@ impl<'a> Runner<'a> {
             stop_copying: AtomicBool::new(false),
             created_dirs: Mutex::new(HashSet::new()),
             made_dirs: Mutex::new(Vec::new()),
+            recording: Mutex::new(None),
         }
     }
 
