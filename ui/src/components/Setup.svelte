@@ -79,9 +79,9 @@
       { text: t("copy.files", { count: source.files }) },
       { text: formatBytes(source.bytes) },
     ];
-    if (settings.showSystemCount && source.skippedSystem > 0)
+    if (settings.showSystemCount && source.ignored > 0)
       parts.push({
-        text: t("copy.systemSkipped", { count: source.skippedSystem }),
+        text: t("copy.systemSkipped", { count: source.ignored }),
         hint: t("copy.systemHint"),
       });
     if (source.skippedSymlinks > 0) parts.push({ text: t("copy.symlinksSkipped", { count: source.skippedSymlinks }) });

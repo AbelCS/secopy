@@ -772,6 +772,8 @@ export type Settings = {
 	keepInMenuBar: boolean,
 	/**  Each copy also writes an ASC MHL history (#154). */
 	writeMhl: boolean,
+	/**  Names never copied or mirrored (#158), checked (`ignore::Patterns`). */
+	ignore: string[],
 };
 
 export type SettingsImport = {
@@ -809,8 +811,11 @@ export type SourceView = {
 	extensions: ExtensionView[],
 	/**  `None` = every extension; otherwise the selected keys (FR-8). */
 	selectedExtensions: (string | null)[] | null,
-	/**  System files skipped (`.DS_Store`, `Thumbs.db`…); hidden files are copied (FR-12). */
-	skippedSystem: number,
+	/**
+	 *  System files skipped (`.DS_Store`, `Thumbs.db`…); hidden files are copied (FR-12).
+	 *  Files and directories the ignore list (or Secopy, its own) left out (#158).
+	 */
+	ignored: number,
 	skippedSymlinks: number,
 	/**  FIFOs, sockets and devices: never copied (#135). */
 	skippedSpecial: number,

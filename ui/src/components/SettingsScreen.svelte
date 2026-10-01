@@ -40,7 +40,10 @@
   let draft: Settings = $state({ ...settings });
   let saving = $state(false);
   let settingsError: string | null = $state(null);
-  const changed = $derived((Object.keys(draft) as (keyof Settings)[]).some((k) => draft[k] !== settings[k]));
+  /** A setting's value, compared by what it holds: the ignore list is an array (#158). */
+  const same = (a: unknown, b: unknown) =>
+    Array.isArray(a) && Array.isArray(b) ? a.length === b.length && a.every((x, i) => x === b[i]) : a === b;
+  const changed = $derived((Object.keys(draft) as (keyof Settings)[]).some((k) => !same(draft[k], settings[k])));
 
   /** Whether it's fine to leave: asks when there are unsaved changes (Import opens over it). */
   export async function mayLeave(): Promise<boolean> {

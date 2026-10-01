@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use secopy_core::ignore::Patterns;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -38,6 +39,8 @@ pub struct Settings {
     pub keep_in_menu_bar: bool,
     /// Each copy also writes an ASC MHL history (#154).
     pub write_mhl: bool,
+    /// Names never copied or mirrored (#158), checked (`ignore::Patterns`).
+    pub ignore: Vec<String>,
 }
 
 /// `settings.json` as read: missing fields take their defaults. Kept apart from
@@ -57,6 +60,13 @@ struct SettingsOnDisk {
     keep_in_menu_bar: bool,
     #[serde(default)]
     write_mhl: bool,
+    /// Read leniently: a bad pattern is dropped, never the settings.
+    #[serde(default = "default_ignore")]
+    ignore: Vec<String>,
+}
+
+fn default_ignore() -> Vec<String> {
+    Patterns::defaults().as_slice().to_vec()
 }
 
 fn yes() -> bool {
@@ -73,6 +83,7 @@ impl<'de> Deserialize<'de> for Settings {
             notify_when_done: s.notify_when_done,
             keep_in_menu_bar: s.keep_in_menu_bar,
             write_mhl: s.write_mhl,
+            ignore: Patterns::lenient(s.ignore).as_slice().to_vec(),
         })
     }
 }
@@ -86,7 +97,15 @@ impl Default for Settings {
             notify_when_done: true,
             keep_in_menu_bar: true,
             write_mhl: false,
+            ignore: default_ignore(),
         }
+    }
+}
+
+impl Settings {
+    /// The ignore list, checked.
+    pub fn patterns(&self) -> Patterns {
+        Patterns::lenient(self.ignore.clone())
     }
 }
 
@@ -1170,5 +1189,26 @@ mod tests {
         let on: Settings = serde_json::from_str(r#"{"writeMhl":true}"#).unwrap();
         assert!(on.write_mhl);
         assert_eq!(serde_json::to_value(&on).unwrap()["writeMhl"], true);
+    }
+
+    /// #158: settings saved before the list existed start from the defaults.
+    #[test]
+    fn the_ignore_list_starts_as_the_defaults() {
+        let old: Settings = serde_json::from_str(r#"{"writeChecksumFile":true}"#).unwrap();
+        assert_eq!(
+            old.ignore,
+            secopy_core::ignore::Patterns::defaults().as_slice()
+        );
+        assert_eq!(Settings::default().ignore, old.ignore);
+    }
+
+    /// #158: a bad pattern in the file is dropped; the rest load.
+    #[test]
+    fn a_bad_pattern_in_the_file_is_dropped() {
+        let s: Settings =
+            serde_json::from_str(r#"{"writeChecksumFile":false,"ignore":["a/b","*.LRF"]}"#)
+                .unwrap();
+        assert_eq!(s.ignore, ["*.LRF"]);
+        assert!(!s.write_checksum_file);
     }
 }
