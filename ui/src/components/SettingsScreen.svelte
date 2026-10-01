@@ -52,6 +52,7 @@
     if (problem === "slash") patternError = t("errors.pattern.slash");
     else if (problem === "tooLong") patternError = t("errors.pattern.tooLong", { max: MAX_LEN });
     else if (problem === "tooMany") patternError = t("errors.pattern.tooMany", { max: MAX_PATTERNS });
+    else if (problem === "badChar") patternError = t("errors.pattern.badChar");
     else if (problem === "repeat") patternError = t("settings.ignore.repeat");
     else {
       const p = pattern.replace(/^ +| +$/g, "");

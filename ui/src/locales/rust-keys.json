@@ -123,6 +123,7 @@
   "errors.os.tooLarge",
   "errors.os.unknown",
   "errors.os.unsupported",
+  "errors.pattern.badChar",
   "errors.pattern.slash",
   "errors.pattern.tooLong",
   "errors.pattern.tooMany",
