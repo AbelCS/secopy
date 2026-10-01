@@ -1,5 +1,6 @@
 //! A mirror preset turned into a job the job runner can run (plan 7).
 
+use secopy_core::ignore::Patterns;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -27,6 +28,16 @@ pub fn prepare(
     control: &JobControl,
     on_compared: &(dyn Fn(u64, u64) + Sync),
 ) -> Result<MirrorJob, crate::message::Message> {
+    prepare_with(preset, &Patterns::defaults(), control, on_compared)
+}
+
+/// `prepare` with Settings › Always ignore when copying (#158).
+pub fn prepare_with(
+    preset: &MirrorPreset,
+    ignore: &Patterns,
+    control: &JobControl,
+    on_compared: &(dyn Fn(u64, u64) + Sync),
+) -> Result<MirrorJob, crate::message::Message> {
     for p in [&preset.origin, &preset.destination] {
         let path = Path::new(p);
         if !path.is_dir() {
@@ -36,7 +47,7 @@ pub fn prepare(
     let options = MirrorOptions {
         deleted: (&preset.deleted).into(),
         deep_check: preset.deep_check,
-        ignore: secopy_core::ignore::Patterns::defaults(),
+        ignore: ignore.clone(),
     };
     let plan = mirror::plan_watched(
         Path::new(&preset.origin),

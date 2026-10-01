@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::fsinfo::{self, FsKind};
+use secopy_core::ignore::Patterns;
 use secopy_core::mhl::{
     self,
     prepare::{MhlBlocker, MhlInputs, MhlPlan},
@@ -58,6 +59,8 @@ pub struct Session {
     plan: Option<Plan>,
     /// Settings › Write ASC MHL (#154).
     mhl_on: bool,
+    /// Settings › Always ignore when copying (#158).
+    ignore: Patterns,
     /// The plan's ASC MHL, with the setting on.
     mhl: Option<Result<MhlPlan, Vec<MhlBlocker>>>,
     /// Views made so far: each says how new it is (#138).
@@ -83,6 +86,7 @@ impl Default for Session {
             checked: None,
             plan: None,
             mhl_on: false,
+            ignore: Patterns::defaults(),
             mhl: None,
             views: std::sync::atomic::AtomicU64::new(0),
         }
@@ -102,6 +106,8 @@ pub enum Change {
     IncludeFolder(bool),
     /// A copy preset selected, or `None`.
     CopyPreset(Option<CopyPreset>),
+    /// Settings › Always ignore when copying changed (#158): the pick is scanned again.
+    Ignore(Patterns),
 }
 
 /// A scan to run without the session locked, then hand to [`Session::finish_scan`].
@@ -109,6 +115,8 @@ pub struct PendingScan {
     ticket: u64,
     pub source: Source,
     filter: ExtensionFilter,
+    /// The names the scan leaves out (#158).
+    pub ignore: Patterns,
 }
 
 /// Everything a job needs from the main window.
@@ -177,7 +185,7 @@ impl Session {
     /// scan: nothing picked yet, or the pick can't be used (the preset's folder is missing,
     /// a folder and files together).
     pub fn begin(&mut self, change: Change) -> Result<PendingScan, Box<SessionView>> {
-        let keep_filter = matches!(change, Change::IncludeFolder(_));
+        let keep_filter = matches!(change, Change::IncludeFolder(_) | Change::Ignore(_));
         // A toggle during a pending scan keeps that scan's file types, not the old card's.
         let kept = if self.scan_pending() {
             self.next_filter.clone()
@@ -197,6 +205,7 @@ impl Session {
                 self.include_folder = include_folder;
             }
             Change::IncludeFolder(include) => self.include_folder = include,
+            Change::Ignore(patterns) => self.ignore = patterns,
             Change::CopyPreset(preset) => {
                 if let Some(p) = &preset {
                     self.include_folder = p.include_folder;
@@ -226,6 +235,7 @@ impl Session {
                     ticket: self.generation,
                     source,
                     filter,
+                    ignore: self.ignore.clone(),
                 })
             }
             Err(problem) => {
@@ -565,7 +575,7 @@ impl Session {
                     Source::Directory { path, .. } => Some(path.clone()),
                     Source::Files(_) => None,
                 }),
-                ignore: secopy_core::ignore::Patterns::defaults(),
+                ignore: self.ignore.clone(),
             };
             self.mhl = Some(mhl::prepare::prepare(&mut plan, &inputs));
             self.plan = Some(plan);
@@ -636,7 +646,7 @@ impl Session {
                         .collect(),
                 ),
             },
-            skipped_system: count(scan.ignored),
+            ignored: count(scan.ignored),
             skipped_symlinks: count(scan.skipped_symlinks.len()),
             skipped_special: count(scan.skipped_special.len()),
             problems: scan
@@ -818,8 +828,11 @@ fn fs_code(kind: &FsKind) -> (String, Option<String>) {
 }
 
 /// Scans `source` (the slow part of picking a source); called without the session lock.
-pub fn scan_source(source: &Source) -> Result<Scan, Message> {
-    scan::scan(source, &ScanOptions::default()).map_err(|e| say::scan_error(&e))
+pub fn scan_source(source: &Source, ignore: &Patterns) -> Result<Scan, Message> {
+    let options = ScanOptions {
+        ignore: ignore.clone(),
+    };
+    scan::scan(source, &options).map_err(|e| say::scan_error(&e))
 }
 
 #[cfg(test)]
@@ -868,7 +881,7 @@ mod tests {
     fn apply(session: &mut Session, change: Change) -> SessionView {
         match session.begin(change) {
             Ok(pending) => {
-                let scanned = scan_source(&pending.source);
+                let scanned = scan_source(&pending.source, &pending.ignore);
                 session.finish_scan(pending, scanned)
             }
             Err(view) => *view,
@@ -1113,9 +1126,9 @@ mod tests {
         let old = s.begin(Change::Pick(vec![f.card.clone()])).ok().unwrap();
         s.restart();
         let new = s.begin(Change::Pick(vec![card(&f)])).ok().unwrap();
-        let old_scan = scan_source(&old.source);
+        let old_scan = scan_source(&old.source, &old.ignore);
         assert!(s.finish_scan(old, old_scan).stale);
-        let new_scan = scan_source(&new.source);
+        let new_scan = scan_source(&new.source, &new.ignore);
         assert!(!s.finish_scan(new, new_scan).stale);
     }
 
@@ -1128,9 +1141,9 @@ mod tests {
         s.set_filter(Some(vec![Some("xml".into())]));
         let first = s.begin(Change::Pick(vec![clip])).ok().unwrap();
         let second = s.begin(Change::IncludeFolder(false)).ok().unwrap();
-        let first_scan = scan_source(&first.source);
+        let first_scan = scan_source(&first.source, &first.ignore);
         assert!(s.finish_scan(first, first_scan).stale);
-        let second_scan = scan_source(&second.source);
+        let second_scan = scan_source(&second.source, &second.ignore);
         let view = s.finish_scan(second, second_scan);
         assert_eq!(
             view.selected_files, 3,
@@ -1399,10 +1412,10 @@ mod tests {
         let mut s = Session::new();
         let old = s.begin(Change::Pick(vec![f.card.clone()])).ok().unwrap();
         let newer = s.begin(Change::Pick(vec![f.card.clone()])).ok().unwrap();
-        let old_scan = scan_source(&old.source);
+        let old_scan = scan_source(&old.source, &old.ignore);
         let view = s.finish_scan(old, old_scan);
         assert!(view.stale && view.source.is_none());
-        let newer_scan = scan_source(&newer.source);
+        let newer_scan = scan_source(&newer.source, &newer.ignore);
         let view = s.finish_scan(newer, newer_scan);
         assert!(!view.stale && view.source.is_some());
     }
@@ -1414,7 +1427,7 @@ mod tests {
         pick(&mut s, std::slice::from_ref(&f.card), false);
         s.set_destination(Some(f.dest.clone()));
         let source = Session::source_for(std::slice::from_ref(&f.card), false).unwrap();
-        let failed = scan_source(&source)
+        let failed = scan_source(&source, &Patterns::defaults())
             .unwrap()
             .select(&ExtensionFilter::All)
             .subset(&[0]);
@@ -1479,5 +1492,17 @@ mod tests {
         let plan = view.plan.unwrap();
         assert!(plan.mhl.is_none() && plan.blocker.is_none());
         assert!(s.ready().unwrap().mhl.is_none());
+    }
+
+    /// #158: changing the list scans the shown source again.
+    #[test]
+    fn changing_the_list_scans_again() {
+        let f = fixture();
+        let mut s = Session::new();
+        let before = pick(&mut s, std::slice::from_ref(&f.card), false);
+        let lrf = secopy_core::ignore::Patterns::new(["*.xml".to_string()]).unwrap();
+        let after = apply(&mut s, Change::Ignore(lrf));
+        assert_eq!(after.selected_files, before.selected_files - 1);
+        assert_eq!(after.source.unwrap().ignored, 1);
     }
 }

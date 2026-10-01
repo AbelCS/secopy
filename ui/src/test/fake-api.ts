@@ -50,7 +50,7 @@ export function sourceView(over: Partial<SourceView> = {}): SourceView {
       { key: "xml", files: 24, bytes: 2_000_000 },
     ],
     selectedExtensions: null,
-    skippedSystem: 37,
+    ignored: 37,
     skippedSymlinks: 0,
     skippedSpecial: 0,
     problems: [],
@@ -177,7 +177,7 @@ export function copyPreset(over: Partial<CopyPreset> = {}): CopyPreset {
 }
 
 export function settingsView(over: Partial<Settings> = {}): Settings {
-  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false, ...over };
+  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false, ignore: [".DS_Store", "._*", "Thumbs.db"], ...over };
 }
 
 export function startView(over: Partial<StartView> = {}): StartView {

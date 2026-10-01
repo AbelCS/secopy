@@ -1250,7 +1250,7 @@ mod tests {
             })
             .ok()
             .unwrap();
-        let scanned = scan_source(&pending.source);
+        let scanned = scan_source(&pending.source, &pending.ignore);
         session.finish_scan(pending, scanned);
         session.set_destination(Some(dest.clone()));
         let jobs = Jobs::new(dir.path().join("reports"));
@@ -1303,7 +1303,7 @@ mod tests {
             })
             .ok()
             .unwrap();
-        let scanned = scan_source(&pending.source);
+        let scanned = scan_source(&pending.source, &pending.ignore);
         f.session.finish_scan(pending, scanned);
         f.session.set_destination(Some(f.dest.clone()));
         f.session.set_mhl(true);
@@ -1464,7 +1464,7 @@ mod tests {
             })
             .ok()
             .unwrap();
-        let scanned = scan_source(&pending.source);
+        let scanned = scan_source(&pending.source, &pending.ignore);
         session.finish_scan(pending, scanned);
         fs::set_permissions(card.join("locked"), fs::Permissions::from_mode(0o755)).unwrap();
         session.set_destination(Some(dest.clone()));
@@ -1822,7 +1822,7 @@ mod tests {
                     verify: false,
                     overwrite: vec![],
                 },
-                false,
+                &crate::store::Settings::default(),
             )
             .ok()
             .unwrap()

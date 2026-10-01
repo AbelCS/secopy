@@ -594,6 +594,7 @@ fn setting_label(key: &str) -> Option<Message> {
         "notifyWhenDone" => msg!("import.setting.notify"),
         "keepInMenuBar" => msg!("import.setting.menuBar"),
         "writeMhl" => msg!("import.setting.mhl"),
+        "ignore" => msg!("import.setting.ignore"),
         _ => return None,
     })
 }
@@ -637,6 +638,10 @@ pub fn settings_changes(from: &Settings, to: &Settings) -> Vec<Message> {
     .into_iter()
     .filter(|(_, a, b)| a != b)
     .map(|(what, a, b)| msg!("import.change", setting = what, from = on(a), to = on(b)))
+    .chain(
+        (from.ignore != to.ignore)
+            .then(|| msg!("import.changed", setting = msg!("import.setting.ignore"))),
+    )
     .collect()
 }
 
@@ -826,7 +831,10 @@ mod tests {
             "turbo":true}}"#;
         let c = read(text.as_bytes()).unwrap();
         assert_eq!(c.settings_unknown, ["turbo"]);
-        assert_eq!(c.settings_defaulted, ["keepInMenuBar", "writeMhl"]);
+        assert_eq!(
+            c.settings_defaulted,
+            ["ignore", "keepInMenuBar", "writeMhl"]
+        );
         assert_eq!(c.app.as_deref(), Some("0.1.0"));
         let view = plan(
             "x.secopy",
@@ -843,7 +851,11 @@ mod tests {
                 .iter()
                 .map(|m| m.key.as_str())
                 .collect::<Vec<_>>(),
-            ["import.setting.menuBar", "import.setting.mhl"]
+            [
+                "import.setting.ignore",
+                "import.setting.menuBar",
+                "import.setting.mhl"
+            ]
         );
         assert_eq!(view.made_by.unwrap().key, "import.madeBy");
     }
@@ -1314,6 +1326,23 @@ mod tests {
         let text = export_text(Some(&on), &[], &[], "0.19.0", now());
         assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(on)));
         let older = read(br#"{"secopy":1,"settings":{"writeChecksumFile":true,"showSystemCount":true,"reportNextToChecksum":false,"notifyWhenDone":true,"keepInMenuBar":true}}"#).unwrap();
-        assert_eq!(older.settings_defaulted, ["writeMhl"]);
+        assert_eq!(older.settings_defaulted, ["ignore", "writeMhl"]);
+    }
+
+    /// #158: the list travels, and a change to it is named, not each pattern.
+    #[test]
+    fn the_ignore_list_travels_and_a_change_is_named() {
+        let mine = Settings {
+            ignore: vec!["*.LRF".into()],
+            ..Settings::default()
+        };
+        assert_eq!(
+            settings_changes(&Settings::default(), &mine),
+            ["Always ignore when copying: changed"]
+        );
+        let text = export_text(Some(&mine), &[], &[], "0.21.0", now());
+        assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(mine)));
+        let older = read(br#"{"secopy":1,"settings":{"writeChecksumFile":true}}"#).unwrap();
+        assert!(older.settings_defaulted.contains(&"ignore".to_string()));
     }
 }

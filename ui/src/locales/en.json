@@ -622,6 +622,7 @@
       "settings": "{message} The settings weren't imported."
     },
     "change": "{setting}: {from} → {to}",
+    "changed": "{setting}: changed",
     "madeBy": "Made by Secopy {theirs}; this is {ours}.",
     "notImported": "“{setting}” isn't imported: it's from a newer Secopy.",
     "defaulted": "{setting}: not in the file, so set to its default.",
@@ -647,7 +648,8 @@
       "report": "Save the report next to the checksum file",
       "notify": "Notify when a copy finishes",
       "menuBar": "Keep copying in the menu bar",
-      "mhl": "Write ASC MHL"
+      "mhl": "Write ASC MHL",
+      "ignore": "Always ignore when copying"
     },
     "noName": {
       "copy": "A copy preset with no name",
@@ -1118,6 +1120,14 @@
       "destNotWritable": "Can't write to the destination: {why}",
       "destInsideSource": "The destination is the source directory or inside it",
       "notEnoughSpace": "Not enough space: {needed} needed, {available} available"
+    },
+    "settings": {
+      "pattern": "“{pattern}”: {why}"
+    },
+    "pattern": {
+      "slash": "A pattern is a name: it can't contain /.",
+      "tooLong": "A pattern can have up to {max} characters.",
+      "tooMany": "The list can have up to {max} patterns."
     },
     "mhl": {
       "twoHistories": "The source and the destination have different ASC MHL histories. Choose another destination, or turn off ASC MHL in Settings.",

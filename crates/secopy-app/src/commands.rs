@@ -2,6 +2,7 @@
 //! wrappers: the work is in `session` and `jobs`, run off the main thread so the window
 //! never freezes (NFR-5).
 
+use secopy_core::ignore::{PatternError, Patterns};
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -117,6 +118,8 @@ impl AppState {
         let (mirrors, w5) = store.load::<MirrorPresets>(MIRRORS);
         let mut session = Session::new();
         session.set_mhl(settings.write_mhl);
+        // Nothing is picked yet: this only sets the list for the first scan (#158).
+        let _ = session.begin(Change::Ignore(settings.patterns()));
         Self {
             session: Mutex::new(session),
             jobs: Jobs::new(data_dir.join("reports")),
@@ -185,7 +188,7 @@ impl AppState {
             Ok(pending) => pending,
             Err(view) => return *view,
         };
-        let scanned = scan(&pending.source);
+        let scanned = scan(&pending.source, &pending.ignore);
         session(self).finish_scan(pending, scanned)
     }
 
@@ -325,15 +328,20 @@ impl AppState {
 
     /// Saves, then applies (the next job uses it): settings that can't be saved aren't used
     /// either (#116).
-    pub fn set_settings(&self, settings: Settings) -> Result<Settings, Message> {
+    pub fn set_settings(&self, mut settings: Settings) -> Result<Settings, Message> {
+        settings.ignore = checked_patterns(&settings.ignore)?.as_slice().to_vec();
         // Held across the save, so the last change in memory is also the last one on disk.
         let mut current = lock(&self.settings);
+        let list_changed = current.ignore != settings.ignore;
         self.store
             .save(SETTINGS, &settings)
             .map_err(|e| msg!("errors.save.settings", why = e))?;
         *current = settings.clone();
         drop(current);
         session(self).set_mhl(settings.write_mhl);
+        if list_changed {
+            self.rescan(Change::Ignore(settings.patterns()));
+        }
         Ok(settings)
     }
 
@@ -548,7 +556,8 @@ impl AppState {
     ) -> Result<MirrorJob, Message> {
         let control = Arc::new(JobControl::new());
         lock(&self.planning).push(control.clone());
-        let job = crate::mirrors::prepare(preset, &control, on_compared);
+        let ignore = lock(&self.settings).patterns();
+        let job = crate::mirrors::prepare_with(preset, &ignore, &control, on_compared);
         lock(&self.planning).retain(|c| !Arc::ptr_eq(c, &control));
         job
     }
@@ -780,8 +789,8 @@ impl AppState {
         };
         match &entry.job {
             QueuedJob::Copy(job) => {
-                let mhl = lock(&self.settings).write_mhl;
-                let ready = match crate::queue::prepare(job, mhl) {
+                let settings = lock(&self.settings).clone();
+                let ready = match crate::queue::prepare(job, &settings) {
                     Ok(ready) => ready,
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
@@ -833,7 +842,8 @@ impl AppState {
                 self.start_and_wait(work, started, sink, Some(&preset.id))
             }
             QueuedJob::Check { directory } => {
-                let plan = match plan_check(directory) {
+                let ignore = lock(&self.settings).patterns();
+                let plan = match plan_check(directory, &ignore) {
                     Ok(plan) => plan,
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
@@ -985,15 +995,48 @@ fn nothing_to_verify() -> Message {
     msg!("errors.verify.nothing")
 }
 
+/// A list Settings saves: each pattern checked, the first bad one said with why (#158).
+fn checked_patterns(list: &[String]) -> Result<Patterns, Message> {
+    for p in list {
+        if let Err(e) = Patterns::new([p.clone()]) {
+            return Err(msg!(
+                "errors.settings.pattern",
+                pattern = p.trim(),
+                why = pattern_why(e)
+            ));
+        }
+    }
+    Patterns::new(list.iter().cloned()).map_err(|e| {
+        msg!(
+            "errors.settings.pattern",
+            pattern = "",
+            why = pattern_why(e)
+        )
+    })
+}
+
+fn pattern_why(e: PatternError) -> Message {
+    match e {
+        PatternError::HasSlash => msg!("errors.pattern.slash"),
+        PatternError::TooLong => msg!("errors.pattern.tooLong", max = secopy_core::ignore::MAX_LEN),
+        PatternError::TooMany => {
+            msg!(
+                "errors.pattern.tooMany",
+                max = secopy_core::ignore::MAX_PATTERNS
+            )
+        }
+    }
+}
+
 /// Plans a check of `dir`: a directory that is there.
-fn plan_check(dir: &Path) -> Result<CheckPlan, Message> {
+fn plan_check(dir: &Path, ignore: &Patterns) -> Result<CheckPlan, Message> {
     if !dir.exists() {
         return Err(crate::session::gone(dir));
     }
     if !dir.is_dir() {
         return Err(msg!("errors.verify.notADirectory"));
     }
-    secopy_core::check::plan(dir, &secopy_core::ignore::Patterns::defaults()).map_err(|e| {
+    secopy_core::check::plan(dir, ignore).map_err(|e| {
         msg!(
             "errors.verify.cantRead",
             path = dir,
@@ -1523,7 +1566,7 @@ impl AppState {
 
     /// Verify's Choose…: plans a check of `path` and keeps it for Verify's Start.
     pub fn check_directory(&self, path: &Path) -> Result<CheckView, Message> {
-        let plan = plan_check(path)?;
+        let plan = plan_check(path, &lock(&self.settings).patterns())?;
         let view = CheckView {
             directory: show(path),
             checksum_files: count(plan.checksum_files.len()),
@@ -2108,6 +2151,7 @@ impl AppState {
                 self.change_whole(&self.settings, SETTINGS, |_| Ok((theirs.clone(), ())))
                     .map_err(|e| (Kind::Settings, e))?;
                 session(self).set_mhl(theirs.write_mhl);
+                self.rescan(Change::Ignore(theirs.patterns()));
                 done.2 = true;
             }
             Ok(())
@@ -2643,6 +2687,7 @@ mod tests {
                             notify_when_done: i % 7 == 0,
                             keep_in_menu_bar: i % 11 == 0,
                             write_mhl: i % 13 == 0,
+                            ignore: Settings::default().ignore,
                         };
                         let a = state.set_settings(settings).err();
                         let b = state
@@ -4038,5 +4083,37 @@ mod tests {
         assert!(state.wants_hide(), "the quit flag is taken once");
         lock(&state.settings).keep_in_menu_bar = false;
         assert!(!state.wants_hide(), "setting off");
+    }
+
+    /// #158: a pattern Settings refuses isn't saved.
+    #[test]
+    fn a_bad_pattern_isnt_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        let bad = Settings {
+            ignore: vec!["a/b".into()],
+            ..Settings::default()
+        };
+        let why = state.set_settings(bad).unwrap_err();
+        assert_eq!(why.key, "errors.settings.pattern");
+        assert_eq!(lock(&state.settings).ignore, Settings::default().ignore);
+    }
+
+    /// #158: a saved list applies to the source New copy shows.
+    #[test]
+    fn saving_a_new_list_scans_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let card = dir.path().join("CARD");
+        fs::create_dir_all(&card).unwrap();
+        fs::write(card.join("a.MP4"), b"a").unwrap();
+        fs::write(card.join("a.LRF"), b"l").unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        assert_eq!(state.rescan(Change::Pick(vec![card])).selected_files, 2);
+        let lrf = Settings {
+            ignore: vec!["*.LRF".into()],
+            ..Settings::default()
+        };
+        state.set_settings(lrf).unwrap();
+        assert_eq!(state.session_view().selected_files, 1);
     }
 }

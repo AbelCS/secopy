@@ -112,10 +112,15 @@ use crate::dto::SessionView;
 use crate::session::{Change, Ready, Session, scan_source};
 
 /// `job` as New copy would build it now: scanned and checked at its turn (spec Q3), with
-/// ASC MHL if `mhl` (the setting at its turn, #154).
-pub fn prepare(job: &CopyJob, mhl: bool) -> Result<Ready, crate::message::Message> {
+/// the settings at its turn (ASC MHL #154, the ignore list #158).
+pub fn prepare(
+    job: &CopyJob,
+    settings: &crate::store::Settings,
+) -> Result<Ready, crate::message::Message> {
     let mut s = Session::new();
-    s.set_mhl(mhl);
+    s.set_mhl(settings.write_mhl);
+    // Nothing is picked yet: this only sets the list for the scan below (#158).
+    let _ = s.begin(Change::Ignore(settings.patterns()));
     // One scan, with the job's choice (#118): not the folder itself, then again without it.
     let view = apply(
         &mut s,
@@ -154,7 +159,7 @@ pub fn overwrites(plan: &secopy_core::plan::Plan) -> Vec<PathBuf> {
 fn apply(s: &mut Session, change: Change) -> SessionView {
     match s.begin(change) {
         Ok(pending) => {
-            let scanned = scan_source(&pending.source);
+            let scanned = scan_source(&pending.source, &pending.ignore);
             s.finish_scan(pending, scanned)
         }
         Err(view) => *view,
@@ -361,7 +366,7 @@ mod tests {
     /// Applies `change` and runs its scan, like the commands do.
     fn apply(s: &mut Session, change: Change) {
         if let Ok(pending) = s.begin(change) {
-            let scanned = scan_source(&pending.source);
+            let scanned = scan_source(&pending.source, &pending.ignore);
             s.finish_scan(pending, scanned);
         }
     }
@@ -415,15 +420,29 @@ mod tests {
             verify: true,
             overwrite: vec![],
         };
-        assert_eq!(prepare(&job, false).unwrap().plan.files.len(), 2);
+        assert_eq!(
+            prepare(&job, &crate::store::Settings::default())
+                .unwrap()
+                .plan
+                .files
+                .len(),
+            2
+        );
         std::fs::write(clip.join("b.mp4"), b"b").unwrap();
-        assert_eq!(prepare(&job, false).unwrap().plan.files.len(), 3);
+        assert_eq!(
+            prepare(&job, &crate::store::Settings::default())
+                .unwrap()
+                .plan
+                .files
+                .len(),
+            3
+        );
         let only_mp4 = CopyJob {
             extensions: Some(vec![Some("mp4".into())]),
             include_folder: false,
             ..job
         };
-        let ready = prepare(&only_mp4, false).unwrap();
+        let ready = prepare(&only_mp4, &crate::store::Settings::default()).unwrap();
         assert_eq!(ready.plan.files.len(), 2);
         assert_eq!(ready.copy_root, only_mp4.destination, "contents only");
     }
@@ -446,11 +465,13 @@ mod tests {
         s.set_policy(ConflictPolicy::Overwrite);
         let job = s.copy_job(true).unwrap();
         assert_eq!(job.overwrite, vec![PathBuf::from("CLIP/a.mp4")]);
-        assert!(prepare(&job, false).is_ok());
+        assert!(prepare(&job, &crate::store::Settings::default()).is_ok());
         // At its turn another file differs (another card): nobody saw it, so it doesn't start.
         std::fs::write(dest.join("CLIP/a.xml"), b"older").unwrap();
         assert_eq!(
-            prepare(&job, false).err().map(|m| m.key),
+            prepare(&job, &crate::store::Settings::default())
+                .err()
+                .map(|m| m.key),
             Some("queue.reason.overwriteChanged".to_string())
         );
         // A job queued before this list existed has none: it doesn't overwrite either.
@@ -459,7 +480,9 @@ mod tests {
             ..job
         };
         assert_eq!(
-            prepare(&old, false).err().map(|m| m.key),
+            prepare(&old, &crate::store::Settings::default())
+                .err()
+                .map(|m| m.key),
             Some("queue.reason.overwriteChanged".to_string())
         );
     }
@@ -478,7 +501,7 @@ mod tests {
             overwrite: vec![],
         };
         assert!(
-            prepare(&gone, false)
+            prepare(&gone, &crate::store::Settings::default())
                 .err()
                 .unwrap()
                 .ends_with("isn't there any more.")
@@ -488,14 +511,24 @@ mod tests {
             destination: dir.path().join("no-dest"),
             ..gone.clone()
         };
-        assert!(!prepare(&no_dest, false).err().unwrap().is_empty());
+        assert!(
+            !prepare(&no_dest, &crate::store::Settings::default())
+                .err()
+                .unwrap()
+                .is_empty()
+        );
         let nothing = CopyJob {
             sources: vec![clip],
             extensions: Some(vec![Some("wav".into())]),
             destination: dest,
             ..gone
         };
-        assert_eq!(prepare(&nothing, false).err().unwrap(), "Nothing to copy.");
+        assert_eq!(
+            prepare(&nothing, &crate::store::Settings::default())
+                .err()
+                .unwrap(),
+            "Nothing to copy."
+        );
     }
 
     fn job(name: &str) -> CopyJob {
@@ -589,5 +622,39 @@ mod tests {
                 directory: PathBuf::from("/Volumes/Backup/Day01")
             }
         );
+    }
+
+    /// #158: a queued job at its turn leaves out what the saved list names.
+    #[test]
+    fn a_queued_job_uses_the_saved_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("CARD");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("a.MP4"), b"a").unwrap();
+        std::fs::write(src.join("a.LRF"), b"l").unwrap();
+        let dest = dir.path().join("dest");
+        std::fs::create_dir_all(&dest).unwrap();
+        let job = CopyJob {
+            sources: vec![src],
+            include_folder: true,
+            extensions: None,
+            destination: dest,
+            conflicts: ConflictPolicy::KeepBoth,
+            verify: false,
+            overwrite: vec![],
+        };
+        let lrf = crate::store::Settings {
+            ignore: vec!["*.LRF".into()],
+            ..crate::store::Settings::default()
+        };
+        assert_eq!(
+            prepare(&job, &crate::store::Settings::default())
+                .unwrap()
+                .plan
+                .files
+                .len(),
+            2
+        );
+        assert_eq!(prepare(&job, &lrf).unwrap().plan.files.len(), 1);
     }
 }

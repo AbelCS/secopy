@@ -63,7 +63,8 @@ impl Patterns {
         let mut kept = Vec::new();
         let mut seen = HashSet::new();
         for p in list {
-            let p = p.trim();
+            // Spaces only: `Icon\r` is a name with a carriage return in it.
+            let p = p.trim_matches(' ');
             if p.is_empty() {
                 continue;
             }
@@ -82,7 +83,7 @@ impl Patterns {
     pub fn lenient<I: IntoIterator<Item = String>>(list: I) -> Patterns {
         let good = list
             .into_iter()
-            .filter(|p| check(p.trim()).is_ok())
+            .filter(|p| check(p.trim_matches(' ')).is_ok())
             .collect::<Vec<_>>();
         let mut p = Patterns::new(good).unwrap_or_else(|_| Patterns::none());
         p.0.truncate(MAX_PATTERNS);
@@ -210,6 +211,17 @@ mod tests {
         ] {
             assert!(!d.matches(OsStr::new(name)), "{name}");
         }
+    }
+
+    /// The defaults survive being checked again: `Icon\r` keeps its `\r` (only spaces trim).
+    #[test]
+    fn the_defaults_check_as_they_are() {
+        let again = Patterns::new(Patterns::defaults().as_slice().to_vec()).unwrap();
+        assert_eq!(again, Patterns::defaults());
+        assert_eq!(
+            Patterns::lenient(DEFAULTS.iter().map(|p| p.to_string())),
+            Patterns::defaults()
+        );
     }
 
     #[test]

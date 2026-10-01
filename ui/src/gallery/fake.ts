@@ -8,7 +8,7 @@ export const copyPresets: CopyPreset[] = [
   { id: "dji", name: "DJI Mini 4", source: "/Volumes/DJI/DCIM", includeFolder: false, extensions: null },
 ];
 
-export const settings: Settings = { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false };
+export const settings: Settings = { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false, ignore: [".DS_Store", "._*", "Thumbs.db"] };
 
 const session: SessionView = {
   revision: 1,
@@ -25,7 +25,7 @@ const session: SessionView = {
       { key: "xml", files: 106, bytes: 400_000 },
     ],
     selectedExtensions: ["mp4"],
-    skippedSystem: 4,
+    ignored: 4,
     skippedSymlinks: 0,
     skippedSpecial: 0,
     problems: [],
