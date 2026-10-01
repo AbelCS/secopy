@@ -144,6 +144,8 @@
     },
     "showInFinder": "Show in Finder",
     "openChecksumFile": "Open checksum file",
+    "showMhl": "Show ASC MHL",
+    "mhlWritten": "ASC MHL written.",
     "saveReport": "Save report…",
     "done": "Done",
     "newCopy": "New copy",
@@ -260,6 +262,7 @@
       "copying": "Copying",
       "of": "{done} of {size}"
     },
+    "recordingMhl": "Recording ASC MHL",
     "smallFiles": {
       "name": "Small files",
       "of": "{done} of {total}",
@@ -429,6 +432,12 @@
       "skip": "Skip",
       "filesGoTo": "Files go to",
       "purgeable": "Needs purgeable space: {needed} needed, {free} free now",
+      "mhlNew": "ASC MHL: new history",
+      "mhlContinues": "ASC MHL: continues the history (generation {n})",
+      "mhlAlsoReads": {
+        "one": "Also records {count} file already here ({size}).",
+        "other": "Also records {count} files already here ({size})."
+      },
       "aboutPurgeable": "About purgeable space",
       "purgeableHelp": "Space macOS frees on demand (Time Machine local snapshots, caches), not always in time. If it isn't freed, the copy stops when the disk is full. To free it first, delete the local snapshots in Disk Utility.",
       "notEmpty": {
@@ -647,6 +656,10 @@
     "checksumFile": {
       "label": "Write the checksum file to the destination",
       "help": "A {file} file lists every copied file with its checksum, so the copy can be checked again later, for example with {command}."
+    },
+    "mhl": {
+      "label": "Write ASC MHL",
+      "help": "The media industry's proof of copy (ASC Media Hash List), read by tools such as Silverstack and Hedge. Kept in an ascmhl folder with the copied files; a history the files already have is continued. Files already in the destination are read too, so the history lists them."
     },
     "systemCount": {
       "label": "Show the count of skipped system files",

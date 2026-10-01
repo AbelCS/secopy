@@ -91,6 +91,8 @@
     {#if summary.checksumError}
       <Notice tone="danger">{t("summary.checksumError", { why: say(summary.checksumError) })}</Notice>
     {/if}
+    {#if summary.mhlFolder}<p class="muted">{t("summary.mhlWritten")}</p>{/if}
+    {#if summary.mhlError}<Notice tone="danger">{say(summary.mhlError)}</Notice>{/if}
     {#if summary.durabilityError}
       <Notice tone="danger">{t("summary.durabilityError", { why: say(summary.durabilityError) })}</Notice>
     {/if}
@@ -109,9 +111,11 @@
         {#each summary.failures as f, i (i)}
           <li><span class="mono">{f.path}</span>: {f.reason ? say(f.reason) : ""}</li>
         {/each}
-        {#if summary.failed + summary.unread + summary.dirErrors > summary.failures.length}
+        {#if summary.failed + summary.unread + summary.dirErrors + summary.mhlFailed > summary.failures.length}
           <li class="muted">
-            {t("summary.more", { count: summary.failed + summary.unread + summary.dirErrors - summary.failures.length })}
+            {t("summary.more", {
+              count: summary.failed + summary.unread + summary.dirErrors + summary.mhlFailed - summary.failures.length,
+            })}
           </li>
         {/if}
       </ul>
@@ -162,6 +166,9 @@
         <Button onclick={() => act(() => api.reveal(summary.copyRoot))}>{t("summary.showInFinder")}</Button>
         {#if summary.checksumFile}
           <Button onclick={() => act(() => api.openFile(summary.checksumFile!))}>{t("summary.openChecksumFile")}</Button>
+        {/if}
+        {#if summary.mhlFolder}
+          <Button onclick={() => act(() => api.reveal(summary.mhlFolder!))}>{t("summary.showMhl")}</Button>
         {/if}
         <Button onclick={saveReport}>{t("summary.saveReport")}</Button>
       {/snippet}

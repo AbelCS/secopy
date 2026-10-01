@@ -208,6 +208,13 @@ describe("JobProgress", () => {
     expect(screen.getByRole("progressbar", { name: "Small files" }).getAttribute("aria-valuenow")).toBe("25");
   });
 
+  test("recording ASC MHL shows its own bar (#154)", () => {
+    show(progressView({ recording: { bytes: 1_000_000_000, total: 4_000_000_000 } }));
+    screen.getByText("Recording ASC MHL");
+    screen.getByText("1.0 GB of 4.0 GB");
+    expect(screen.getByRole("progressbar", { name: "Recording ASC MHL" }).getAttribute("aria-valuenow")).toBe("25");
+  });
+
   test("a fatal error shows a banner", () => {
     show(progressView({ phase: "done", fatal: raw("The source is no longer available; was it disconnected?") }));
     expect(screen.getByRole("alert").textContent).toContain("Stopped: The source is no longer available");

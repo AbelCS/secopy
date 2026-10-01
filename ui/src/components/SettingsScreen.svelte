@@ -85,6 +85,13 @@
         {/snippet}
       </Checkbox>
       <Checkbox
+        label={t("settings.mhl.label")}
+        checked={draft.writeMhl}
+        onChange={(on) => (draft.writeMhl = on)}
+      >
+        {#snippet help()}{t("settings.mhl.help")}{/snippet}
+      </Checkbox>
+      <Checkbox
         label={t("settings.systemCount.label")}
         checked={draft.showSystemCount}
         onChange={(on) => (draft.showSystemCount = on)}

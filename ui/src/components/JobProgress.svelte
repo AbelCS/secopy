@@ -253,6 +253,18 @@
               t("progress.smallFiles.help"),
             )}
           {/if}
+          <!-- After the copy: files already there that ASC MHL records (#154). -->
+          {#if progress.recording}
+            {@const r = progress.recording}
+            {@render activeRow(
+              t("progress.recordingMhl"),
+              "",
+              "",
+              r.bytes,
+              r.total,
+              t("progress.file.of", { done: formatBytes(r.bytes), size: formatBytes(r.total) }),
+            )}
+          {/if}
         </tbody>
       </table>
     </Section>
