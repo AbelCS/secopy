@@ -365,11 +365,11 @@
       "one": "{count} file",
       "other": "{count} files"
     },
-    "systemSkipped": {
-      "one": "{count} system file skipped",
-      "other": "{count} system files skipped"
+    "ignored": {
+      "one": "{count} ignored",
+      "other": "{count} ignored"
     },
-    "systemHint": "Files computers leave behind, like .DS_Store, ._ files and Thumbs.db. They're never copied.",
+    "ignoredHint": "Left out by Settings › Always ignore when copying: {patterns}",
     "symlinksSkipped": {
       "one": "{count} symlink skipped",
       "other": "{count} symlinks skipped"
@@ -644,7 +644,7 @@
     },
     "setting": {
       "checksumFile": "Write the checksum file",
-      "systemCount": "Show the count of skipped system files",
+      "systemCount": "Show the count of ignored files",
       "report": "Save the report next to the checksum file",
       "notify": "Notify when a copy finishes",
       "menuBar": "Keep copying in the menu bar",
@@ -669,8 +669,16 @@
       "help": "The media industry's proof of copy (ASC Media Hash List), read by tools such as Silverstack and Hedge. Kept in an ascmhl folder with the copied files; a history the files already have is continued. Files already in the destination are read too, so the history lists them."
     },
     "systemCount": {
-      "label": "Show the count of skipped system files",
-      "help": "Files computers leave behind ({a}, {b}, {c}…) are never copied; this only shows how many were skipped. Every other file is copied, hidden or not."
+      "label": "Show the count of ignored files",
+      "help": "Shows how many files and directories Always ignore when copying left out. Every other file is copied, hidden or not."
+    },
+    "ignore": {
+      "label": "Always ignore when copying",
+      "help": "Files and directories with these names are never copied or mirrored, and a mirror never removes them from its backup. * stands for any characters, ? for one.",
+      "field": "Name pattern",
+      "add": "Add",
+      "restore": "Restore defaults",
+      "repeat": "It's already in the list."
     },
     "report": {
       "label": "Also save the job report next to the checksum file",

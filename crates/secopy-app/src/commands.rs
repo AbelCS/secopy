@@ -1960,6 +1960,13 @@ pub async fn set_settings(app: AppHandle, settings: Settings) -> Result<Settings
     blocking(app, move |state| state.set_settings(settings)).await?
 }
 
+/// Settings › Always ignore when copying: Restore defaults (#158).
+#[tauri::command]
+#[specta::specta]
+pub fn default_ignore() -> Vec<String> {
+    Patterns::defaults().as_slice().to_vec()
+}
+
 /// Copy or Copy & Verify, remembered for the next launch (FR-36).
 #[tauri::command]
 #[specta::specta]

@@ -69,7 +69,7 @@ describe("Setup", () => {
     expect(from().getAllByRole("button", { name: "Choose…" })).toHaveLength(1);
     await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.scanSource).toHaveBeenCalledWith(["/Volumes/CARD/DCIM"]));
-    await screen.findByText(showing("1,284 files · 212.4 GB · 37 system files skipped"));
+    await screen.findByText(showing("1,284 files · 212.4 GB · 37 ignored"));
     api.pickSource.mockResolvedValueOnce(["/a.wav", "/b.wav"]);
     await fireEvent.click(from().getByRole("button", { name: "Choose…" }));
     await waitFor(() => expect(api.scanSource).toHaveBeenLastCalledWith(["/a.wav", "/b.wav"]));
@@ -158,6 +158,12 @@ describe("Setup", () => {
     );
     to().getByText("ASC MHL: new history");
     expect(to().queryByText(/Also records/)).toBeNull();
+  });
+
+  test("ignored files are counted, with the patterns in the hint (#158)", () => {
+    setup(readyView({ source: { ...readyView().source!, ignored: 12 } }));
+    const count = screen.getByText("12 ignored");
+    expect(hintOf(count)).toContain(".DS_Store, ._*, Thumbs.db");
   });
 
   test("a copy that needs purgeable space warns but doesn't block", () => {
@@ -384,7 +390,7 @@ describe("Setup", () => {
 
   test("the terms that need it explain themselves", () => {
     setup(readyView());
-    expect(hintOf(screen.getByText("37 system files skipped"))).toMatch(/\.DS_Store/);
+    expect(hintOf(screen.getByText("37 ignored"))).toMatch(/\.DS_Store/);
     expect(hintOf(screen.getByRole("button", { name: "About verifying" }))).toMatch(/back from the destination/);
   });
 
@@ -493,7 +499,7 @@ describe("Setup", () => {
     setup(readyView());
     const source = within(screen.getByRole("group", { name: "Source" }));
     source.getByText("/Volumes/CARD/DCIM");
-    source.getByText(showing("1,284 files · 212.4 GB · 37 system files skipped"));
+    source.getByText(showing("1,284 files · 212.4 GB · 37 ignored"));
     source.getByRole("button", { name: "Choose…" });
     expect(screen.queryByRole("group", { name: "Selected" })).toBeNull();
     expect(screen.queryByText(/cards or drives/)).toBeNull();

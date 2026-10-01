@@ -62,6 +62,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::delete_copy_preset,
             commands::set_settings,
             commands::set_mode,
+            commands::default_ignore,
             commands::clear_source,
             commands::set_filter,
             commands::set_destination,

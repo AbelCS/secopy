@@ -1,5 +1,6 @@
 <script lang="ts">
   // The main window (RFD §5.2): FROM, TO, what pre-flight found, mode, Start.
+  import { shownPattern } from "../lib/patterns";
   import { t, type Key } from "../lib/i18n";
   import { say } from "../lib/message";
   import { onMount } from "svelte";
@@ -81,8 +82,8 @@
     ];
     if (settings.showSystemCount && source.ignored > 0)
       parts.push({
-        text: t("copy.systemSkipped", { count: source.ignored }),
-        hint: t("copy.systemHint"),
+        text: t("copy.ignored", { count: source.ignored }),
+        hint: t("copy.ignoredHint", { patterns: settings.ignore.map(shownPattern).join(t("format.comma")) }),
       });
     if (source.skippedSymlinks > 0) parts.push({ text: t("copy.symlinksSkipped", { count: source.skippedSymlinks }) });
     if (source.skippedSpecial > 0)

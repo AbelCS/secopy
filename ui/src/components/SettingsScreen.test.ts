@@ -23,6 +23,37 @@ const actions = () => within(screen.getByRole("group", { name: "Actions" }));
 const save = () => actions().getByRole("button", { name: "Save" });
 
 describe("SettingsScreen", () => {
+  test("a pattern is added and removed, and Save sends the list (#158)", async () => {
+    const { api, calls } = show();
+    await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.LRF" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Remove ._*" }));
+    await fireEvent.click(save());
+    await waitFor(() => expect(calls.done).toBe(1));
+    expect(api.setSettings).toHaveBeenCalledWith(settingsView({ ignore: [".DS_Store", "Thumbs.db", "*.LRF"] }));
+  });
+
+  test("Restore defaults puts the defaults back", async () => {
+    const { api } = show(settingsView({ ignore: ["*.LRF"] }));
+    api.defaultIgnore.mockResolvedValue([".DS_Store", "Thumbs.db"]);
+    await fireEvent.click(screen.getByRole("button", { name: "Restore defaults" }));
+    await screen.findByText(".DS_Store");
+    expect(screen.queryByText("*.LRF")).toBeNull();
+  });
+
+  test("a pattern with / is refused with why, and a repeat isn't added", async () => {
+    show();
+    const field = screen.getByLabelText("Name pattern");
+    await fireEvent.input(field, { target: { value: "a/b" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    screen.getByText("A pattern is a name: it can't contain /.");
+    expect(screen.queryByText("a/b")).toBeNull();
+    await fireEvent.input(field, { target: { value: ".ds_store" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    screen.getByText("It's already in the list.");
+    expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(3);
+  });
+
   test("Write ASC MHL can be turned on (#154)", async () => {
     const { api, calls } = show();
     await fireEvent.click(screen.getByLabelText("Write ASC MHL"));
@@ -54,7 +85,7 @@ describe("SettingsScreen", () => {
   test("Save is on only when something changed", async () => {
     show();
     expect(save()).toHaveProperty("disabled", true);
-    const box = screen.getByLabelText("Show the count of skipped system files");
+    const box = screen.getByLabelText("Show the count of ignored files");
     await fireEvent.click(box);
     expect(save()).toHaveProperty("disabled", false);
     await fireEvent.click(box);
@@ -63,7 +94,7 @@ describe("SettingsScreen", () => {
 
   test("Cancel drops the changes and goes back", async () => {
     const { api, calls } = show();
-    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
+    await fireEvent.click(screen.getByLabelText("Show the count of ignored files"));
     await fireEvent.click(actions().getByRole("button", { name: "Cancel" }));
     expect(calls.done).toBe(1);
     expect(api.setSettings).not.toHaveBeenCalled();
@@ -72,7 +103,7 @@ describe("SettingsScreen", () => {
 
   test("Esc is Cancel", async () => {
     const { api, calls } = show();
-    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
+    await fireEvent.click(screen.getByLabelText("Show the count of ignored files"));
     await fireEvent.keyDown(window, { key: "Escape" });
     expect(calls.done).toBe(1);
     expect(api.setSettings).not.toHaveBeenCalled();
@@ -89,7 +120,7 @@ describe("SettingsScreen", () => {
   test("a save error is shown, and nothing is left", async () => {
     const { api, calls } = show();
     api.setSettings.mockRejectedValueOnce(new Error("Couldn't save the settings: disk full"));
-    await fireEvent.click(screen.getByLabelText("Show the count of skipped system files"));
+    await fireEvent.click(screen.getByLabelText("Show the count of ignored files"));
     await fireEvent.click(save());
     await screen.findByText("Couldn't save the settings: disk full");
     expect(calls.done).toBe(0);

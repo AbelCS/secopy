@@ -370,6 +370,7 @@ export function fakeApi(session: SessionView = sessionView()) {
     deleteCopyPreset: vi.fn((_id: string) => presetsAnswer()),
     setSettings: vi.fn((s: Settings) => Promise.resolve(s)),
     setMode: vi.fn((_verify: boolean) => Promise.resolve(null)),
+    defaultIgnore: vi.fn(() => Promise.resolve([".DS_Store", "._*", "Thumbs.db"])),
     onOpenSettings: vi.fn((handler: () => void) => {
       state.openSettings = handler;
       return Promise.resolve(() => {});
