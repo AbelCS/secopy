@@ -73,7 +73,7 @@
   let destError: string | null = $state(null);
 
   const source = $derived(view.source);
-  /** "1,284 files · 212.4 GB · 37 system files skipped" (FR-3, FR-13, FR-24) */
+  /** "1,284 files · 212.4 GB · 37 ignored" (FR-3, FR-13, FR-24, #158) */
   const sourceSummary = $derived.by((): { text: string; hint?: string }[] => {
     if (!source) return [];
     const parts: { text: string; hint?: string }[] = [
