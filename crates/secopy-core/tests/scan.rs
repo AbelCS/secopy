@@ -7,6 +7,7 @@ use std::time::{Duration, SystemTime};
 
 use common::write_files;
 use secopy_core::filter::ExtensionFilter;
+use secopy_core::ignore::Patterns;
 use secopy_core::scan::{ExtStat, Scan, ScanOptions, scan};
 use secopy_core::source::{DirMode, Source};
 
@@ -45,17 +46,20 @@ fn card() -> (tempfile::TempDir, PathBuf) {
 const SYSTEM_ITEMS: u64 = 8;
 
 fn scan_card(card: &Path, mode: DirMode, include_system_files: bool) -> Scan {
+    let ignore = if include_system_files {
+        Patterns::none()
+    } else {
+        Patterns::defaults()
+    };
+    scan_with(card, mode, ignore)
+}
+
+fn scan_with(card: &Path, mode: DirMode, ignore: Patterns) -> Scan {
     let source = Source::Directory {
         path: card.to_path_buf(),
         mode,
     };
-    scan(
-        &source,
-        &ScanOptions {
-            include_system_files,
-        },
-    )
-    .unwrap()
+    scan(&source, &ScanOptions { ignore }).unwrap()
 }
 
 fn rels(paths: impl IntoIterator<Item = PathBuf>) -> BTreeSet<String> {
@@ -109,7 +113,7 @@ fn contents_only_has_no_prefix() {
 fn system_files_are_skipped_and_counted_once() {
     let (_dir, card) = card();
     let scan = scan_card(&card, DirMode::ContentsOnly, false);
-    assert_eq!(scan.skipped_system, SYSTEM_ITEMS);
+    assert_eq!(scan.ignored, SYSTEM_ITEMS);
     assert_eq!(scan.files.len(), 5);
 }
 
@@ -117,11 +121,12 @@ fn system_files_are_skipped_and_counted_once() {
 fn include_system_files_scans_everything() {
     let (_dir, card) = card();
     let scan = scan_card(&card, DirMode::ContentsOnly, true);
-    assert_eq!(scan.skipped_system, 0);
+    // Secopy's own unfinished copy stays out, whatever the list (#158).
+    assert_eq!(scan.ignored, 1);
     assert_eq!(
         scan.files.len(),
-        5 + 8,
-        "the 8 system files are 5 files plus one in each directory"
+        5 + 7,
+        "the 8 system items are 5 files plus one in each directory, less the unfinished copy"
     );
 }
 
@@ -357,7 +362,7 @@ fn a_picked_file_named_like_an_unfinished_copy_is_skipped() {
         rels(scan.files.iter().map(|f| f.rel.clone())),
         rels(["clip.mov"].map(PathBuf::from))
     );
-    assert_eq!(scan.skipped_system, 1);
+    assert_eq!(scan.ignored, 1);
 }
 
 /// QA review (#135): special files (a FIFO, a socket, a device) aren't copied, like links,
@@ -374,4 +379,60 @@ fn special_files_are_listed_as_skipped() {
     let scan = scan_card(&card, DirMode::FolderItself, false);
     assert_eq!(scan.skipped_special, vec![fifo]);
     assert_eq!(scan.files.len(), 1);
+}
+
+/// #158: a name the list holds isn't scanned, file or directory (with what's in it).
+#[test]
+fn an_ignored_file_and_directory_arent_scanned() {
+    let dir = tempfile::tempdir().unwrap();
+    let card = dir.path().join("CARD");
+    write_files(
+        &card,
+        &[("a.MP4", b"a"), ("a.LRF", b"l"), ("THMBNL/t.jpg", b"t")],
+    );
+    let ignore = Patterns::new(["*.lrf".to_string(), "THMBNL".to_string()]).unwrap();
+    let scan = scan_with(&card, DirMode::FolderItself, ignore);
+    assert_eq!(
+        rels(scan.files.iter().map(|f| f.rel.clone())),
+        rels(["CARD/a.MP4"].map(PathBuf::from))
+    );
+    assert_eq!(scan.ignored, 2);
+}
+
+/// #158: what was picked is never checked against the list.
+#[test]
+fn what_was_picked_is_never_ignored() {
+    let dir = tempfile::tempdir().unwrap();
+    let dcim = dir.path().join("DCIM");
+    write_files(&dcim, &[("a.MP4", b"a")]);
+    write_files(dir.path(), &[("b.LRF", b"b")]);
+    let ignore = Patterns::new(["DCIM".to_string(), "*.LRF".to_string()]).unwrap();
+    assert_eq!(
+        scan_with(&dcim, DirMode::FolderItself, ignore.clone())
+            .files
+            .len(),
+        1
+    );
+    let picked = scan(
+        &Source::Files(vec![dir.path().join("b.LRF")]),
+        &ScanOptions { ignore },
+    )
+    .unwrap();
+    assert_eq!(picked.files.len(), 1);
+}
+
+/// #158: Secopy's own files stay out with an empty list.
+#[test]
+fn secopys_own_files_are_skipped_with_no_list() {
+    let dir = tempfile::tempdir().unwrap();
+    let card = dir.path().join("CARD");
+    write_files(
+        &card,
+        &[(".a.MP4.secopy-partial", b"p"), (".DS_Store", b"d")],
+    );
+    let scan = scan_with(&card, DirMode::ContentsOnly, Patterns::none());
+    assert_eq!(
+        rels(scan.files.iter().map(|f| f.rel.clone())),
+        rels([".DS_Store"].map(PathBuf::from))
+    );
 }

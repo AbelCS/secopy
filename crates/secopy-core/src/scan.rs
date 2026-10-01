@@ -10,14 +10,15 @@ use walkdir::WalkDir;
 
 use crate::error::IoFailure;
 use crate::filter::{ExtKey, ExtensionFilter, ext_key};
+use crate::ignore::{Patterns, is_own_file};
 use crate::source::{DirMode, Source};
-use crate::system::is_system_file;
 
 #[derive(Debug, Clone, Default)]
 pub struct ScanOptions {
-    /// Include system files too (FR-14): `.DS_Store`, `Thumbs.db` and the like. Hidden
-    /// files are always included.
-    pub include_system_files: bool,
+    /// Names left out (#158): by default the files computers leave behind (`.DS_Store`,
+    /// `Thumbs.db`…). Hidden files are otherwise always included; Secopy's own working files
+    /// never are.
+    pub ignore: Patterns,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,8 +88,9 @@ pub struct Scan {
     pub empty_dirs: Vec<PathBuf>,
     /// File count and bytes per extension, for the filter chips (FR-7).
     pub ext_stats: BTreeMap<ExtKey, ExtStat>,
-    /// System files skipped; a skipped directory counts once (FR-13).
-    pub skipped_system: u64,
+    /// Files and directories left out by the ignore list or as Secopy's own; a skipped
+    /// directory counts once (FR-13).
+    pub ignored: u64,
     /// Symlinks are never followed or copied (FR-24).
     pub skipped_symlinks: Vec<PathBuf>,
     /// FIFOs, sockets and devices: not files, never copied; listed like links (#135).
@@ -214,8 +216,8 @@ fn scan_files(paths: &[PathBuf]) -> Scan {
                 let name = path.file_name().expect("a regular file has a file name");
                 // Secopy's own unfinished copy: copied, the next copy would take it for a
                 // leftover and delete it (#115).
-                if crate::system::is_secopy_partial(&name.to_string_lossy()) {
-                    scan.skipped_system += 1;
+                if is_own_file(name) {
+                    scan.ignored += 1;
                     continue;
                 }
                 scan.push_file(path.clone(), PathBuf::from(name), &meta);
@@ -244,7 +246,7 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
     }
     let mut dirs = BTreeSet::new();
     let mut non_empty = HashSet::new();
-    let mut skipped_system = 0u64;
+    let mut ignored = 0u64;
 
     let walker = WalkDir::new(&root)
         .follow_links(false)
@@ -253,14 +255,14 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
         .into_iter()
         .filter_entry(|e| {
             // The root is passed to the predicate too; whatever was picked is scanned.
-            if opts.include_system_files || e.depth() == 0 {
+            if e.depth() == 0 {
                 return true;
             }
-            let system = is_system_file(e.file_name());
-            if system {
-                skipped_system += 1;
+            let left_out = is_own_file(e.file_name()) || opts.ignore.matches(e.file_name());
+            if left_out {
+                ignored += 1;
             }
-            !system
+            !left_out
         });
 
     for entry in walker {
@@ -317,7 +319,7 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
         }
     }
 
-    scan.skipped_system = skipped_system;
+    scan.ignored = ignored;
     scan.empty_dirs = dirs
         .into_iter()
         .filter(|d| !non_empty.contains(d))
