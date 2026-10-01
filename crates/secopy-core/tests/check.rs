@@ -86,6 +86,23 @@ fn a_plan_lists_files_and_what_nothing_lists() {
     assert!(p.problems.is_empty(), "{:?}", p.problems);
 }
 
+/// #154: a copy's ASC MHL history isn't media the checksum file forgot.
+#[test]
+fn an_ascmhl_folder_isnt_counted_as_not_checked() {
+    let (_dir, root) = copy_of(&[("a.mov", b"a")]);
+    fs::create_dir_all(root.join("ascmhl")).unwrap();
+    fs::write(
+        root.join("ascmhl/0001_Day01_2026-10-01_081500Z.mhl"),
+        b"<x/>",
+    )
+    .unwrap();
+    fs::write(root.join("ascmhl/ascmhl_chain.xml"), b"<x/>").unwrap();
+    fs::create_dir_all(root.join("A001/ascmhl")).unwrap();
+    fs::write(root.join("A001/ascmhl/ascmhl_chain.xml"), b"<x/>").unwrap();
+    let p = check::plan(&root).unwrap();
+    assert!(p.not_checked.is_empty(), "{:?}", p.not_checked);
+}
+
 #[test]
 fn the_newest_checksum_file_wins() {
     let (_dir, root) = copy_of(&[("a.mov", b"old")]);

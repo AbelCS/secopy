@@ -21,11 +21,17 @@ pub struct Undone {
     pub failed: Vec<(PathBuf, String)>,
 }
 
-/// Removes what the job wrote: the files it created, its checksum file and the directories it
-/// made; files it replaced come back from `archive` (a mirror's `archive_replaced`). Files that
+/// Removes what the job wrote: the files it created, its checksum file, its ASC MHL
+/// generations and the directories it made; files it replaced come back from `archive` (a mirror's `archive_replaced`). Files that
 /// were there before are never removed.
 pub fn undo(plan: &Plan, report: &JobReport, archive: Option<&Path>) -> Undone {
     let mut done = Undone::default();
+    // The ASC MHL generations first, newest first: the histories as they were (#154).
+    for w in report.mhl_written.iter().rev() {
+        if let Err(e) = crate::mhl::write::revert(w) {
+            done.failed.push((w.chain.clone(), e.to_string()));
+        }
+    }
     for o in &report.outcomes {
         if !matches!(o.status, FileStatus::Copied | FileStatus::Verified) {
             continue;

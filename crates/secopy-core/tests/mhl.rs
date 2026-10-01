@@ -8,7 +8,7 @@ use chrono::TimeZone;
 use common::write_files;
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::hash::{hash_bytes, to_hex};
-use secopy_core::job::{Event, JobControl, JobOptions, JobReport, Progress, run_job};
+use secopy_core::job::{Event, JobControl, JobOptions, JobReport, Progress, run_job, undo};
 use secopy_core::mhl::MhlJob;
 use secopy_core::mhl::prepare::{MhlBlocker, MhlInputs, MhlPlan, prepare};
 use secopy_core::mhl::read::{Damage, read};
@@ -439,4 +439,36 @@ fn the_setting_off_writes_nothing() {
     assert!(report.is_success());
     assert!(report.mhl_written.is_empty());
     assert!(!f.dest.join("A/ascmhl").exists());
+}
+
+// Undo (Task 7).
+
+#[test]
+fn undo_reverts_the_mhl() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    write_files(&f.dest, &[("A/old.mov", b"old!")]);
+    history(&f.dest.join("A"), &[("old.mov", b"old!")]);
+    let chain = fs::read(f.dest.join("A/ascmhl/ascmhl_chain.xml")).unwrap();
+    let (plan, result) = prepared(&f);
+    let report = run(&plan, Some(result.unwrap())).0;
+    assert_eq!(manifests(&f.dest.join("A")).len(), 2);
+    let undone = undo(&plan, &report, None);
+    assert!(undone.failed.is_empty(), "{:?}", undone.failed);
+    assert_eq!(
+        fs::read(f.dest.join("A/ascmhl/ascmhl_chain.xml")).unwrap(),
+        chain
+    );
+    assert_eq!(manifests(&f.dest.join("A")).len(), 1);
+    assert!(!f.dest.join("A/a.mov").exists());
+    assert!(f.dest.join("A/old.mov").exists());
+}
+
+#[test]
+fn undo_of_a_new_history_removes_its_folder() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    let (plan, result) = prepared(&f);
+    let report = run(&plan, Some(result.unwrap())).0;
+    assert!(f.dest.join("A/ascmhl").is_dir());
+    undo(&plan, &report, None);
+    assert!(!f.dest.join("A").exists());
 }
