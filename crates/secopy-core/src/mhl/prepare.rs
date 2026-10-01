@@ -83,8 +83,17 @@ pub enum MhlBlocker {
     LeavesOut {
         scope: PathBuf,
     },
-    /// A name XML can't hold (or not UTF-8).
+    /// A name XML can't hold (or not UTF-8), or a folder name a manifest's name can't carry.
     Unlistable {
+        path: PathBuf,
+    },
+    /// A file the source's history lists would land under another name (Keep both) or not
+    /// at all (Skip): the history would describe the file already there.
+    Conflicts {
+        path: PathBuf,
+    },
+    /// A folder in the destination that can't be read: what's in it can't be listed.
+    Unreadable {
         path: PathBuf,
     },
 }
@@ -119,14 +128,14 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
     // The source's histories: where they land, and whether this copy brings them whole.
     let mut source_scopes: Vec<(PathBuf, PathBuf)> = Vec::new();
     if let Some(src) = &inputs.source_dir {
-        let mut found: Vec<PathBuf> = vec![src.clone()];
-        found.extend(plan.files.iter().filter_map(|f| {
-            let path = &f.entry.source;
-            let folder = path.parent()?;
-            (path.file_name()? == CHAIN && folder.file_name()? == FOLDER)
-                .then(|| folder.parent().map(Path::to_path_buf))
-                .flatten()
-        }));
+        // Every history in the source, also one a file-type filter leaves out of the copy.
+        let mut found: Vec<PathBuf> = WalkDir::new(src)
+            .follow_links(false)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_dir() && e.file_name() == FOLDER)
+            .filter_map(|e| e.path().parent().map(Path::to_path_buf))
+            .collect();
         found.sort();
         found.dedup();
         for at in found {
@@ -144,6 +153,18 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
                             scope: landed.clone(),
                         });
                     }
+                    blockers.extend(
+                        lands_elsewhere(plan, &at, &h)
+                            .into_iter()
+                            .map(|path| MhlBlocker::Conflicts { path }),
+                    );
+                    // Appended to once copied: the checksum file would list it as it was.
+                    let own = at.join(FOLDER);
+                    for f in plan.files.iter_mut() {
+                        if f.entry.source.starts_with(&own) {
+                            f.in_checksum_file = false;
+                        }
+                    }
                     source_scopes.push((at.clone(), landed.clone()));
                     scopes.get_mut(&landed).expect("added").source = Some(h);
                 }
@@ -156,7 +177,14 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
     if root.is_dir() {
         let mut walk = WalkDir::new(root).follow_links(false).into_iter();
         while let Some(entry) = walk.next() {
-            let Ok(entry) = entry else { continue };
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(e) => {
+                    let path = e.path().unwrap_or(root).to_path_buf();
+                    blockers.push(MhlBlocker::Unreadable { path });
+                    continue;
+                }
+            };
             if entry.file_type().is_dir() {
                 if entry.file_name() == FOLDER {
                     walk.skip_current_dir();
@@ -199,6 +227,15 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
 
     let mut ordered: Vec<ScopePlan> = scopes.into_values().collect();
     ordered.sort_by_key(|s| std::cmp::Reverse(s.scope.components().count()));
+    // A manifest's name carries its folder's name.
+    for s in &ordered {
+        let name = s.scope.file_name().and_then(|n| n.to_str());
+        if !name.is_some_and(|n| xml_can_hold(n) && !n.contains('\\')) {
+            blockers.push(MhlBlocker::Unlistable {
+                path: s.scope.clone(),
+            });
+        }
+    }
     let deepest = |path: &Path| ordered.iter().find(|s| path.starts_with(&s.scope));
 
     let mut written: HashSet<PathBuf> = HashSet::new();
@@ -255,6 +292,20 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
         blockers.dedup();
         Err(blockers)
     }
+}
+
+/// Where files the source history at `at` lists would land under another name or not at all.
+fn lands_elsewhere(plan: &Plan, at: &Path, h: &History) -> Vec<PathBuf> {
+    let ignore = Ignore::new(&h.ignore);
+    plan.files
+        .iter()
+        .filter(|f| matches!(f.action, Action::KeepBoth { .. } | Action::SkipDiffers))
+        .filter(|f| {
+            rel_to(&f.entry.source, at)
+                .is_some_and(|rel| h.recorded.contains(&rel) && !ignore.matches(&rel, false))
+        })
+        .map(|f| plan.dest.join(&f.entry.rel))
+        .collect()
 }
 
 /// Whether the copy leaves out files the source history at `at` lists, or the history's own

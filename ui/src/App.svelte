@@ -268,6 +268,11 @@
     if (path) await showImport(path);
   }
 
+  /** New copy as the app has it now, e.g. after a setting changed its plan. */
+  async function refreshView() {
+    view = newest(view, await api.sessionView().catch(() => view));
+  }
+
   async function doImport(choices: ImportChoices) {
     const done = await run(() => api.applyImport(choices));
     if (!done) return;
@@ -276,6 +281,7 @@
     mirrorPresets = done.mirrorPresets;
     // The selected preset was replaced: New copy shows the imported one (#116).
     if (done.session) view = newest(view, done.session);
+    else void refreshView();
     importing = null;
     screen = importBack;
     if (done.failed) error = say(done.message);
@@ -600,7 +606,11 @@
         bind:this={settingsScreen}
         {settings}
         {banner}
-        onSettings={(s) => (settings = s)}
+        onSettings={(s) => {
+          settings = s;
+          // ASC MHL changes New copy's plan (#154): show it as it is now.
+          void refreshView();
+        }}
         onExport={() => (exporting = true)}
         onImport={chooseImport}
         onDone={() => (screen = back)}

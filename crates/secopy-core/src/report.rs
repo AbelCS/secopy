@@ -600,6 +600,11 @@ fn result_line(job: &JobReport, counts: &Counts) -> String {
         },
         0 if job.checksum_error.is_some() => "checksum file not written".to_string(),
         0 if job.durability_error.is_some() => "not confirmed saved to disk".to_string(),
+        0 if !job.mhl_failed.is_empty() => match job.mhl_failed.len() {
+            1 => "1 file doesn't match its ASC MHL history".to_string(),
+            n => format!("{n} files don't match their ASC MHL history"),
+        },
+        0 if job.mhl_error.is_some() => "ASC MHL not written".to_string(),
         0 => "complete".to_string(),
         1 => "1 file failed".to_string(),
         n => format!("{n} files failed"),

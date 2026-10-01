@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use chrono::{Local, Utc};
 
-use super::ignore::merged;
+use super::ignore::{Ignore, merged};
 use super::prepare::{ScopePlan, rel_to};
 use super::write::{Written, append, revert};
 use super::{Action, Generation, MhlJob, Record, Reference};
@@ -67,6 +67,11 @@ pub fn record(
         let Some(rel) = rel_to(&path, &scope.scope) else {
             continue;
         };
+        // What the generation's ignore list leaves out isn't recorded in it.
+        let previous = scope.continues().map_or(&[][..], |h| h.ignore.as_slice());
+        if Ignore::new(&merged(previous)).matches(&rel, false) {
+            continue;
+        }
         let meta = match fs::symlink_metadata(&path) {
             Ok(m) => m,
             Err(e) => return failure(e),
@@ -114,13 +119,20 @@ pub fn record(
             records,
             references,
         };
-        match write(scope, &g, started) {
+        match as_planned(scope).and_then(|()| write(scope, &g, started)) {
             Ok(w) => written.push(w),
             Err(e) => {
-                for w in written.iter().rev() {
-                    let _ = revert(w);
-                }
-                return failure(e);
+                // What can't be taken back stays listed, so undo and the summary know of it.
+                let kept: Vec<Written> = written
+                    .into_iter()
+                    .rev()
+                    .filter(|w| revert(w).is_err())
+                    .collect();
+                return Recorded {
+                    written: kept,
+                    error: Some(e.into()),
+                    failed: Vec::new(),
+                };
             }
         }
     }
@@ -129,6 +141,29 @@ pub fn record(
         written,
         error: None,
         failed,
+    }
+}
+
+/// The history at `scope` is still the one planned: the destination's unchanged, or the
+/// source's arrived whole with the copy (every manifest there and as its chain says).
+fn as_planned(scope: &ScopePlan) -> std::io::Result<()> {
+    let now = super::read::read(&scope.scope);
+    let planned = scope.continues().map(|h| h.chain_bytes.as_slice());
+    let same = match (&now, planned) {
+        (Ok(None), None) => true,
+        (Ok(Some(h)), Some(chain)) => h.chain_bytes == chain,
+        _ => false,
+    };
+    if same {
+        Ok(())
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!(
+                "the ASC MHL history in {} isn't the one planned",
+                scope.scope.display()
+            ),
+        ))
     }
 }
 

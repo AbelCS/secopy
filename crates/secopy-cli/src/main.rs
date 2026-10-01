@@ -267,9 +267,14 @@ fn mhl_blocker(b: &MhlBlocker) -> String {
             scope.display()
         ),
         MhlBlocker::Unlistable { path } => format!(
-            "{} has characters XML can't hold in its name",
+            "{} has characters a history can't hold in its name",
             path.display()
         ),
+        MhlBlocker::Conflicts { path } => format!(
+            "{} is in the source's history but would be copied under another name or skipped",
+            path.display()
+        ),
+        MhlBlocker::Unreadable { path } => format!("{} can't be read", path.display()),
     }
 }
 

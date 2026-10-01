@@ -103,3 +103,12 @@ test("a check counts every checksum file problem, also past the ones listed", ()
     "1,000 checksum file problems",
   );
 });
+
+test("an ASC MHL that failed isn't a success (#154)", () => {
+  expect(headline(summaryView({ outcome: "failures", failed: 0, mhlFailed: 2 }))).toBe(
+    "2 files don't match their ASC MHL history",
+  );
+  expect(headline(summaryView({ outcome: "failures", failed: 0, mhlError: raw("x") }))).toBe(
+    "ASC MHL couldn't be written",
+  );
+});

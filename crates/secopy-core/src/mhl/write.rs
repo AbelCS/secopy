@@ -131,6 +131,8 @@ pub struct Written {
     pub chain: PathBuf,
     /// The chain as it was (`None`: there was none).
     pub chain_before: Option<Vec<u8>>,
+    /// The chain as this call wrote it: `revert` only takes back its own.
+    pub chain_after: Vec<u8>,
     pub created_folder: bool,
 }
 
@@ -146,16 +148,8 @@ pub fn append(
 ) -> io::Result<Written> {
     let folder = scope.join(FOLDER);
     let chain = folder.join(CHAIN);
-    let on_disk = match fs::read(&chain) {
-        Ok(b) => Some(b),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => None,
-        Err(e) => return Err(e),
-    };
-    if on_disk.as_deref() != chain_before {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "the ASC MHL history changed",
-        ));
+    if read_chain(&chain)?.as_deref() != chain_before {
+        return Err(changed());
     }
     let created_folder = match fs::create_dir(&folder) {
         Ok(()) => true,
@@ -170,11 +164,19 @@ pub fn append(
     let manifest = folder.join(manifest_name(sequence, &name, started));
     let text = manifest_xml(g);
     let c4 = super::c4::c4(text.as_bytes());
+    let mut entries = entries_before.to_vec();
+    entries.push(ChainEntry {
+        sequence,
+        file: manifest_name(sequence, &name, started),
+        c4: c4.clone(),
+    });
+    let chain_text = chain_xml(&entries);
     let written = Written {
         manifest: manifest.clone(),
-        c4: c4.clone(),
+        c4,
         chain: chain.clone(),
         chain_before: chain_before.map(<[u8]>::to_vec),
+        chain_after: chain_text.clone().into_bytes(),
         created_folder,
     };
     // Never through a link, never over a file: a taken name is an error, and isn't removed.
@@ -191,19 +193,25 @@ pub fn append(
             return Err(e);
         }
     };
-    let result = (|| {
+    let before_chain = (|| {
         f.write_all(text.as_bytes())?;
         crate::os::sync_durable(&f)?;
-        let mut entries = entries_before.to_vec();
-        entries.push(ChainEntry {
-            sequence,
-            file: manifest_name(sequence, &name, started),
-            c4,
-        });
-        replace(&chain, chain_xml(&entries).as_bytes())?;
-        sync_dir(&folder)
+        // Once more right before the chain is replaced: the window for another tool to
+        // append unseen is as small as it can be without a lock the standard doesn't have.
+        if read_chain(&chain)?.as_deref() != chain_before {
+            return Err(changed());
+        }
+        Ok(())
     })();
-    match result {
+    if let Err(e) = before_chain {
+        // The chain is untouched: only this call's manifest (and folder) go.
+        let _ = fs::remove_file(&manifest);
+        if created_folder {
+            let _ = fs::remove_dir(&folder);
+        }
+        return Err(e);
+    }
+    match replace(&chain, chain_text.as_bytes()).and_then(|()| sync_dir(&folder)) {
         Ok(()) => Ok(written),
         Err(e) => {
             let _ = revert(&written);
@@ -212,15 +220,42 @@ pub fn append(
     }
 }
 
-/// Writes `path` whole: a temporary name next to it, synced, renamed over it.
+fn changed() -> io::Error {
+    io::Error::new(io::ErrorKind::AlreadyExists, "the ASC MHL history changed")
+}
+
+fn read_chain(chain: &Path) -> io::Result<Option<Vec<u8>>> {
+    match fs::read(chain) {
+        Ok(b) => Ok(Some(b)),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// Writes `path` whole: a temporary name next to it (one nobody has: a taken one is left
+/// alone), synced, renamed over it.
 fn replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let tmp = path.with_file_name(format!(".{CHAIN}.{}.secopy-tmp", std::process::id()));
-    let result = (|| {
-        let mut f = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
-        f.write_all(bytes)?;
-        crate::os::sync_durable(&f)?;
-        fs::rename(&tmp, path)
-    })();
+    let pid = std::process::id();
+    let (tmp, mut f) = (0..100)
+        .find_map(|n| {
+            let suffix = if n == 0 {
+                String::new()
+            } else {
+                format!("-{n}")
+            };
+            let tmp = path.with_file_name(format!(".{CHAIN}.{pid}{suffix}.secopy-tmp"));
+            match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+                Ok(f) => Some(Ok((tmp, f))),
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => None,
+                Err(e) => Some(Err(e)),
+            }
+        })
+        .unwrap_or_else(|| Err(io::Error::from(io::ErrorKind::AlreadyExists)))?;
+    // Only the file this call created is removed on a failure.
+    let result = f
+        .write_all(bytes)
+        .and_then(|()| crate::os::sync_durable(&f))
+        .and_then(|()| fs::rename(&tmp, path));
     if result.is_err() {
         let _ = fs::remove_file(&tmp);
     }
@@ -233,8 +268,20 @@ fn sync_dir(dir: &Path) -> io::Result<()> {
 }
 
 /// Takes back what `append` wrote: the chain as it was, the manifest gone, and the folder if
-/// it made it (when it's empty).
+/// it made it (when it's empty). Only while both are still as it wrote them: what another
+/// tool wrote since is never undone (`AlreadyExists`, nothing changed).
 pub fn revert(w: &Written) -> io::Result<()> {
+    let manifest_ours = match fs::read(&w.manifest) {
+        Ok(bytes) => super::c4::c4(&bytes) == w.c4,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => true,
+        Err(e) => return Err(e),
+    };
+    let chain_now = read_chain(&w.chain)?;
+    let chain_ours = chain_now.as_deref() == Some(w.chain_after.as_slice())
+        || chain_now.as_deref() == w.chain_before.as_deref();
+    if !manifest_ours || !chain_ours {
+        return Err(changed());
+    }
     match &w.chain_before {
         Some(bytes) => replace(&w.chain, bytes)?,
         None => match fs::remove_file(&w.chain) {
@@ -419,6 +466,60 @@ mod tests {
             b"someone else's"
         );
         assert!(!folder.join("ascmhl_chain.xml").exists());
+    }
+
+    /// Review #1: revert never undoes what another tool wrote after Secopy.
+    #[test]
+    fn revert_leaves_a_history_someone_else_changed() {
+        let scope = tempfile::tempdir().unwrap();
+        let at = chrono::Utc.with_ymd_and_hms(2026, 10, 1, 8, 15, 0).unwrap();
+        let mine = append(scope.path(), None, &[], &generation(), at).unwrap();
+        let entries = [ChainEntry {
+            sequence: 1,
+            file: mine.manifest.file_name().unwrap().to_string_lossy().into(),
+            c4: mine.c4.clone(),
+        }];
+        let later = chrono::Utc.with_ymd_and_hms(2026, 10, 1, 9, 0, 0).unwrap();
+        let theirs = append(
+            scope.path(),
+            Some(&mine.chain_after),
+            &entries,
+            &generation(),
+            later,
+        )
+        .unwrap();
+        assert!(revert(&mine).is_err());
+        assert_eq!(std::fs::read(&mine.chain).unwrap(), theirs.chain_after);
+        assert!(mine.manifest.exists() && theirs.manifest.exists());
+    }
+
+    /// Review #1: a manifest someone replaced isn't removed by revert.
+    #[test]
+    fn revert_leaves_a_replaced_manifest() {
+        let scope = tempfile::tempdir().unwrap();
+        let at = chrono::Utc.with_ymd_and_hms(2026, 10, 1, 8, 15, 0).unwrap();
+        let mine = append(scope.path(), None, &[], &generation(), at).unwrap();
+        std::fs::write(&mine.manifest, b"someone else's").unwrap();
+        assert!(revert(&mine).is_err());
+        assert_eq!(std::fs::read(&mine.manifest).unwrap(), b"someone else's");
+        assert!(mine.chain.exists());
+    }
+
+    /// Review #3: a temporary name already taken isn't removed, and the chain still goes in.
+    #[test]
+    fn a_taken_temporary_name_isnt_removed() {
+        let scope = tempfile::tempdir().unwrap();
+        let folder = scope.path().join("ascmhl");
+        std::fs::create_dir(&folder).unwrap();
+        let taken = folder.join(format!(
+            ".ascmhl_chain.xml.{}.secopy-tmp",
+            std::process::id()
+        ));
+        std::fs::write(&taken, b"not mine").unwrap();
+        let at = chrono::Utc.with_ymd_and_hms(2026, 10, 1, 8, 15, 0).unwrap();
+        append(scope.path(), None, &[], &generation(), at).unwrap();
+        assert_eq!(std::fs::read(&taken).unwrap(), b"not mine");
+        assert!(folder.join("ascmhl_chain.xml").is_file());
     }
 
     #[test]

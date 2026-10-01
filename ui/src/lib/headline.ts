@@ -31,6 +31,8 @@ export function headline(s: SummaryView): string {
     if (m?.archiveNotDeleted) return t("summary.headline.archiveNotDeleted");
     if (m?.archiveNotCleaned) return t("summary.headline.archiveNotCleaned");
     if (s.checksumError) return t("summary.headline.checksumFailed");
+    if (s.mhlFailed > 0) return t("summary.headline.mhlFailed", { count: s.mhlFailed });
+    if (s.mhlError) return t("summary.headline.mhlNotWritten");
     if (s.durabilityError) return t("summary.headline.notDurable");
   }
   if (m && s.outcome === "complete") {

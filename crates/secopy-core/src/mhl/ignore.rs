@@ -44,6 +44,8 @@ struct Rule {
     glob: Pattern,
     anchored: bool,
     dirs_only: bool,
+    /// `!pattern`: takes a match of an earlier pattern back.
+    negated: bool,
 }
 
 const OPTIONS: MatchOptions = MatchOptions {
@@ -57,6 +59,10 @@ impl Ignore {
         let rules = patterns
             .iter()
             .filter_map(|p| {
+                let (negated, p) = match p.strip_prefix('!') {
+                    Some(rest) => (true, rest),
+                    None => (false, p.as_str()),
+                };
                 let dirs_only = p.ends_with('/');
                 let body = p.trim_end_matches('/');
                 let anchored = body.contains('/');
@@ -65,28 +71,39 @@ impl Ignore {
                     glob,
                     anchored,
                     dirs_only,
+                    negated,
                 })
             })
             .collect();
         Ignore { rules }
     }
 
-    /// `rel` is `/`-separated, relative to the scope. Anything inside an ignored folder is
-    /// ignored too.
+    /// `rel` is `/`-separated, relative to the scope. As in .gitignore, the last pattern that
+    /// matches decides, and anything inside an ignored folder is ignored too.
     pub fn matches(&self, rel: &str, is_dir: bool) -> bool {
         let parts: Vec<&str> = rel.split('/').collect();
-        (0..parts.len()).any(|end| {
-            let as_dir = end + 1 < parts.len() || is_dir;
+        for end in 0..parts.len() {
+            let last = end + 1 == parts.len();
+            let as_dir = !last || is_dir;
             let prefix = parts[..=end].join("/");
-            self.rules.iter().any(|r| {
-                (!r.dirs_only || as_dir)
-                    && if r.anchored {
-                        r.glob.matches_with(&prefix, OPTIONS)
-                    } else {
-                        r.glob.matches_with(parts[end], OPTIONS)
-                    }
-            })
-        })
+            let ignored = self
+                .rules
+                .iter()
+                .rev()
+                .find(|r| {
+                    (!r.dirs_only || as_dir)
+                        && if r.anchored {
+                            r.glob.matches_with(&prefix, OPTIONS)
+                        } else {
+                            r.glob.matches_with(parts[end], OPTIONS)
+                        }
+                })
+                .is_some_and(|r| !r.negated);
+            if ignored || last {
+                return ignored;
+            }
+        }
+        false
     }
 }
 
@@ -141,6 +158,15 @@ mod tests {
         assert!(!i.matches("a/top.txt", false));
         assert!(i.matches("sub/x.tmp", false));
         assert!(!i.matches("a/sub/x.tmp", false));
+    }
+
+    /// Review #12: a later `!pattern` takes a file back out of an earlier pattern.
+    #[test]
+    fn a_negated_pattern_isnt_ignored() {
+        let i = Ignore::new(&["*.mov".into(), "!keep.mov".into()]);
+        assert!(i.matches("other.mov", false));
+        assert!(!i.matches("keep.mov", false));
+        assert!(!i.matches("sub/keep.mov", false));
     }
 
     #[test]
