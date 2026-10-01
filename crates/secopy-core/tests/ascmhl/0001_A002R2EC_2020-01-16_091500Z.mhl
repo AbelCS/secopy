@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hashlist version="2.0" xmlns="urn:ASC:MHL:v2.0">
+  <creatorinfo>
+    <creationdate>2020-01-16T09:15:00+00:00</creationdate>
+    <hostname>myHost.local</hostname>
+    <tool version="0.3 alpha">ascmhl.py</tool>
+  </creatorinfo>
+  <processinfo>
+    <process>in-place</process>
+    <roothash>
+      <content>
+        <xxh64 hashdate="2020-01-16T09:15:00+00:00">8d02114c32e28cbe</xxh64>
+      </content>
+      <structure>
+        <xxh64 hashdate="2020-01-16T09:15:00+00:00">f557f8ca8e5a88ef</xxh64>
+      </structure>
+    </roothash>
+    <ignore>
+      <pattern>.DS_Store</pattern>
+      <pattern>ascmhl</pattern>
+      <pattern>ascmhl/</pattern>
+    </ignore>
+  </processinfo>
+  <hashes>
+    <hash>
+      <path size="5" lastmodificationdate="2020-01-15T13:00:00+00:00">Clips/A002C006_141024_R2EC.mov</path>
+      <xxh64 action="original" hashdate="2020-01-16T09:15:00+00:00">0ea03b369a463d9d</xxh64>
+    </hash>
+    <hash>
+      <path size="4" lastmodificationdate="2020-01-15T13:00:00+00:00">Clips/A002C007_141024_R2EC.mov</path>
+      <xxh64 action="original" hashdate="2020-01-16T09:15:00+00:00">7680e5f98f4a80fd</xxh64>
+    </hash>
+    <directoryhash>
+      <path lastmodificationdate="2020-01-15T13:00:00+00:00">Clips</path>
+      <content>
+        <xxh64 hashdate="2020-01-16T09:15:00+00:00">4c226b42e27d7af3</xxh64>
+      </content>
+      <structure>
+        <xxh64 hashdate="2020-01-16T09:15:00+00:00">906faa843d591a9f</xxh64>
+      </structure>
+    </directoryhash>
+    <hash>
+      <path size="58" lastmodificationdate="2020-01-15T13:00:00+00:00">Sidecar.txt</path>
+      <xxh64 action="original" hashdate="2020-01-16T09:15:00+00:00">3ab5a4166b9bde44</xxh64>
+    </hash>
+  </hashes>
+</hashlist>
