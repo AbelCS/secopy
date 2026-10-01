@@ -115,8 +115,10 @@ impl AppState {
         let (remembered, w3) = store.load::<Remembered>(REMEMBERED);
         let (queue, w4) = store.load::<Queue>(QUEUE);
         let (mirrors, w5) = store.load::<MirrorPresets>(MIRRORS);
+        let mut session = Session::new();
+        session.set_mhl(settings.write_mhl);
         Self {
-            session: Mutex::new(Session::new()),
+            session: Mutex::new(session),
             jobs: Jobs::new(data_dir.join("reports")),
             store,
             settings: Mutex::new(settings),
@@ -330,6 +332,8 @@ impl AppState {
             .save(SETTINGS, &settings)
             .map_err(|e| msg!("errors.save.settings", why = e))?;
         *current = settings.clone();
+        drop(current);
+        session(self).set_mhl(settings.write_mhl);
         Ok(settings)
     }
 
@@ -776,7 +780,8 @@ impl AppState {
         };
         match &entry.job {
             QueuedJob::Copy(job) => {
-                let ready = match crate::queue::prepare(job) {
+                let mhl = lock(&self.settings).write_mhl;
+                let ready = match crate::queue::prepare(job, mhl) {
                     Ok(ready) => ready,
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
@@ -2096,6 +2101,7 @@ impl AppState {
             if wants_settings && let Some(Ok(theirs)) = &contents.settings {
                 self.change_whole(&self.settings, SETTINGS, |_| Ok((theirs.clone(), ())))
                     .map_err(|e| (Kind::Settings, e))?;
+                session(self).set_mhl(theirs.write_mhl);
                 done.2 = true;
             }
             Ok(())
@@ -2630,6 +2636,7 @@ mod tests {
                             report_next_to_checksum: i % 5 == 0,
                             notify_when_done: i % 7 == 0,
                             keep_in_menu_bar: i % 11 == 0,
+                            write_mhl: i % 13 == 0,
                         };
                         let a = state.set_settings(settings).err();
                         let b = state

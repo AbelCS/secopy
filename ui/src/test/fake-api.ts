@@ -101,7 +101,7 @@ export function readyView(over: Partial<SessionView> = {}): SessionView {
     selectedFiles: 1284,
     selectedBytes: 212_400_000_000,
     destination: destinationView(),
-    plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, overwrites: 0, blocker: null, purgeable: null },
+    plan: { filesToWrite: 1284, bytesToWrite: 212_400_000_000, overwrites: 0, blocker: null, purgeable: null, mhl: null },
     ...over,
   });
 }
@@ -173,7 +173,7 @@ export function copyPreset(over: Partial<CopyPreset> = {}): CopyPreset {
 }
 
 export function settingsView(over: Partial<Settings> = {}): Settings {
-  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, ...over };
+  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false, ...over };
 }
 
 export function startView(over: Partial<StartView> = {}): StartView {

@@ -128,6 +128,22 @@ pub fn blocker(b: &Blocker) -> Message {
     }
 }
 
+/// Why ASC MHL stops Start (#154).
+pub fn mhl_blocker(b: &secopy_core::mhl::prepare::MhlBlocker) -> Message {
+    use secopy_core::mhl::prepare::MhlBlocker;
+    match b {
+        MhlBlocker::TwoHistories { .. } => msg!("errors.mhl.twoHistories"),
+        MhlBlocker::OverwritesRecorded { .. } => msg!("errors.mhl.overwrites"),
+        MhlBlocker::Damaged { scope, .. } => {
+            msg!("errors.mhl.damaged", path = crate::dto::show(scope))
+        }
+        MhlBlocker::LeavesOut { .. } => msg!("errors.mhl.leavesOut"),
+        MhlBlocker::Unlistable { path } => {
+            msg!("errors.mhl.unlistable", path = crate::dto::show(path))
+        }
+    }
+}
+
 /// The copy fits only once macOS frees purgeable space (#108).
 pub fn purgeable(p: &PurgeableNeeded) -> Message {
     msg!(

@@ -1712,15 +1712,18 @@ mod tests {
             }
             let dest = dir.path().join(format!("{name}-dest"));
             std::fs::create_dir_all(&dest).unwrap();
-            crate::queue::prepare(&crate::queue::CopyJob {
-                sources: vec![src],
-                include_folder: true,
-                extensions: None,
-                destination: dest,
-                conflicts: crate::dto::ConflictPolicy::KeepBoth,
-                verify: false,
-                overwrite: vec![],
-            })
+            crate::queue::prepare(
+                &crate::queue::CopyJob {
+                    sources: vec![src],
+                    include_folder: true,
+                    extensions: None,
+                    destination: dest,
+                    conflicts: crate::dto::ConflictPolicy::KeepBoth,
+                    verify: false,
+                    overwrite: vec![],
+                },
+                false,
+            )
             .ok()
             .unwrap()
         };

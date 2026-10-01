@@ -138,6 +138,19 @@ pub struct PlanView {
     pub blocker: Option<Message>,
     /// It fits only once macOS frees purgeable space: a warning, not a block (#108).
     pub purgeable: Option<Message>,
+    /// With Write ASC MHL on: the history the copy writes (#154).
+    pub mhl: Option<MhlView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MhlView {
+    /// The copy root's generation: 1 is a new history.
+    pub generation: u32,
+    /// Files already in the destination that are read and recorded.
+    pub also_reads: u32,
+    #[specta(type = specta_typescript::Number)]
+    pub also_reads_bytes: u64,
 }
 
 /// Sent twice a second while a job runs (RFD §5.3, NFR-5).

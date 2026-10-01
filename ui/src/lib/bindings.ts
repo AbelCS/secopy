@@ -407,6 +407,14 @@ export type Message = {
 	args: { [key in string]: Arg },
 };
 
+export type MhlView = {
+	/**  The copy root's generation: 1 is a new history. */
+	generation: number,
+	/**  Files already in the destination that are read and recorded. */
+	alsoReads: number,
+	alsoReadsBytes: number,
+};
+
 /**  A saved one-way mirror (plan 7, FR-44). */
 export type MirrorPreset = MirrorPreset_Serialize | MirrorPreset_Deserialize;
 
@@ -547,6 +555,8 @@ export type PlanView = {
 	blocker: Message | null,
 	/**  It fits only once macOS frees purgeable space: a warning, not a block (#108). */
 	purgeable: Message | null,
+	/**  With Write ASC MHL on: the history the copy writes (#154). */
+	mhl: MhlView | null,
 };
 
 export type PresetChoice = {
@@ -747,6 +757,8 @@ export type Settings = {
 	notifyWhenDone: boolean,
 	/**  Closing the window during a job hides it, with a menu bar icon (#80). */
 	keepInMenuBar: boolean,
+	/**  Each copy also writes an ASC MHL history (#154). */
+	writeMhl: boolean,
 };
 
 export type SettingsImport = {
