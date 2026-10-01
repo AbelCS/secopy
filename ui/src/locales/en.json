@@ -680,7 +680,7 @@
       "restore": "Restore defaults",
       "repeat": "It's already in the list.",
       "placeholder": "Add a name pattern, e.g. *.LRF",
-      "empty": "No patterns: every file is copied.",
+      "empty": "No patterns. Secopy's own working files are still left out.",
       "count": {
         "one": "{count} pattern",
         "other": "{count} patterns"

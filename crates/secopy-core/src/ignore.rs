@@ -89,9 +89,8 @@ impl Patterns {
             if kept.0.len() == MAX_PATTERNS {
                 break;
             }
-            // Secopy's own (`Icon\r` in a list saved before #161) are left out anyway.
-            if let Some(p) = trimmed(&p).filter(|p| check(p).is_ok() && !is_own_file(OsStr::new(p)))
-            {
+            // The old `Icon\r` default (lists saved before #161): Secopy leaves it out anyway.
+            if let Some(p) = trimmed(&p).filter(|p| check(p).is_ok() && !is_folder_icon(p)) {
                 kept.push(p);
             }
         }
@@ -160,13 +159,18 @@ fn glob(p: &[char], s: &[char]) -> bool {
     p[pi..].iter().all(|&c| c == '*')
 }
 
+/// macOS's custom-folder-icon file, `Icon\r`, in any case (as the old default matched it).
+fn is_folder_icon(name: &str) -> bool {
+    name.eq_ignore_ascii_case("Icon\r")
+}
+
 /// Secopy's own working files: always left out, whatever the list says.
 pub fn is_own_file(name: &OsStr) -> bool {
     let name = name.to_string_lossy();
     crate::system::is_secopy_partial(&name)
         || name == ".secopy-checksums.xxh64"
         // macOS's custom-folder-icon file: never media (#161).
-        || name == "Icon\r"
+        || is_folder_icon(&name)
         // A mirror's checksum file set aside (#114).
         || name.starts_with(".secopy-checksums.xxh64.damaged-")
 }
@@ -326,6 +330,21 @@ mod tests {
         let read = Patterns::lenient(["Icon\r".to_string(), "*.LRF".to_string()]);
         assert_eq!(read.as_slice(), ["*.LRF"]);
         assert!(!is_own_file(OsStr::new("Icon")) && !is_own_file(OsStr::new("Icons")));
+    }
+
+    /// #161 review: only the old `Icon\r` default leaves a saved list; a user's own patterns
+    /// stay, even ones that look like Secopy's files.
+    #[test]
+    fn a_saved_list_keeps_every_user_pattern() {
+        let read = Patterns::lenient([".secopy-*.partial".to_string(), "ICON\r".to_string()]);
+        assert_eq!(read.as_slice(), [".secopy-*.partial"]);
+        assert!(read.matches(OsStr::new(".secopy-user.PARTIAL")));
+    }
+
+    /// #161 review: the folder icon file is left out in any case, as the old default did.
+    #[test]
+    fn the_folder_icon_file_is_left_out_in_any_case() {
+        assert!(is_own_file(OsStr::new("icon\r")) && is_own_file(OsStr::new("ICON\r")));
     }
 
     #[test]
