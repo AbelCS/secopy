@@ -6,11 +6,6 @@ export const MAX_LEN = 255;
 /** Patterns the list holds at most. */
 export const MAX_PATTERNS = 200;
 
-/** A pattern as shown: a carriage return (macOS's "Icon\r") as ␍. */
-export function shownPattern(p: string): string {
-  return p.replaceAll("\r", "␍");
-}
-
 /** Why `pattern` can't be added to `list`, or null. Spaces at its ends don't count. */
 export function patternProblem(
   pattern: string,
@@ -18,8 +13,7 @@ export function patternProblem(
 ): "slash" | "tooLong" | "tooMany" | "badChar" | "repeat" | null {
   const p = pattern.replace(/^ +| +$/g, "");
   if (p.includes("/")) return "slash";
-  // Control characters, but a carriage return (macOS's "Icon\r").
-  if ([...p].some((c) => c < " " && c !== "\r")) return "badChar";
+  if ([...p].some((c) => c < " ")) return "badChar";
   if ([...p].length > MAX_LEN) return "tooLong";
   const key = (q: string) => q.normalize("NFC").toLowerCase();
   if (list.some((q) => key(q) === key(p))) return "repeat";

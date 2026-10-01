@@ -113,3 +113,13 @@ Under Every copy, after the checksum file options:
 ## Not now
 
 Path patterns; per-preset or per-run lists; showing which files were ignored (only how many).
+
+## Changes after release (#161)
+
+- The Settings list is its own section: the add field at full width, the patterns one per row
+  in a box that scrolls past about 8 rows, each row's remove button on hover or focus, and
+  "16 patterns" with Restore defaults under it.
+- `Icon\r` (macOS's custom-folder-icon file) left the defaults and joined Secopy's own files,
+  always ignored: the list only holds names a person can read and type. A list saved before
+  drops it.
+

@@ -23,6 +23,24 @@ const actions = () => within(screen.getByRole("group", { name: "Actions" }));
 const save = () => actions().getByRole("button", { name: "Save" });
 
 describe("SettingsScreen", () => {
+  test("the patterns are a list, one per row, with how many (#161)", async () => {
+    show();
+    const list = screen.getByRole("list", { name: "Always ignore when copying" });
+    expect(within(list).getAllByRole("listitem").map((li) => li.textContent?.trim())).toEqual([
+      ".DS_Store",
+      "._*",
+      "Thumbs.db",
+    ]);
+    screen.getByText("3 patterns");
+    await fireEvent.click(screen.getByRole("button", { name: "Remove .DS_Store" }));
+    screen.getByText("2 patterns");
+  });
+
+  test("an empty list says every file is copied", async () => {
+    show(settingsView({ ignore: [] }));
+    screen.getByText("No patterns: every file is copied.");
+  });
+
   test("a pattern is added and removed, and Save sends the list (#158)", async () => {
     const { api, calls } = show();
     await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.LRF" } });
