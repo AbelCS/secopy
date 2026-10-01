@@ -230,12 +230,16 @@ fn prepare_mhl(plan: &mut Plan, source: &Source, scan: &scan::Scan) -> Result<Mh
                     mhl.generation()
                 );
             }
-            if !mhl.to_read.is_empty() {
-                eprintln!(
-                    "ASC MHL: also records {} files already there ({})",
-                    mhl.to_read.len(),
+            match mhl.to_read.len() {
+                0 => {}
+                1 => eprintln!(
+                    "ASC MHL: also records 1 file already there ({})",
                     fmt_bytes(mhl.to_read_bytes)
-                );
+                ),
+                n => eprintln!(
+                    "ASC MHL: also records {n} files already there ({})",
+                    fmt_bytes(mhl.to_read_bytes)
+                ),
             }
             Ok(MhlJob {
                 plan: mhl,
