@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.1](https://github.com/AbelCS/secopy/compare/v0.21.0...v0.21.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* review fixes for the ignore list's layout ([#161](https://github.com/AbelCS/secopy/issues/161)) ([eb87b13](https://github.com/AbelCS/secopy/commit/eb87b134d16f581e99cfd8e09e4632c10c3bec0b))
+* **ui:** the ignore list as a readable, scrolling list ([c19a376](https://github.com/AbelCS/secopy/commit/c19a376e62851bd58407c19e4c5668687d8ecf2e)), closes [#161](https://github.com/AbelCS/secopy/issues/161)
+
 ## [0.21.0](https://github.com/AbelCS/secopy/compare/v0.20.0...v0.21.0) (2026-10-01)
 
 
