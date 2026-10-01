@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/AbelCS/secopy/compare/v0.18.0...v0.19.0) (2026-10-01)
+
+
+### Features
+
+* **app:** Include the directory off by default ([949dc1d](https://github.com/AbelCS/secopy/commit/949dc1d145d4304f7e1a0768e14b738a94d26b70)), closes [#152](https://github.com/AbelCS/secopy/issues/152)
+
 ## [0.18.0](https://github.com/AbelCS/secopy/compare/v0.17.6...v0.18.0) (2026-09-30)
 
 
