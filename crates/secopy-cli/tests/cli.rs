@@ -482,3 +482,68 @@ fn a_mirror_dry_run_counts_files_that_will_fail() {
     assert!(text.contains("! will fail: 1"), "{text}");
     assert!(text.contains("= unchanged: 0"), "{text}");
 }
+
+/// #154: --mhl writes an ASC MHL history in the folder the files go to.
+#[test]
+fn mhl_writes_a_history() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&src).unwrap();
+    fs::create_dir_all(&dest).unwrap();
+    fs::write(src.join("A001.mov"), b"movie").unwrap();
+    let out = cli()
+        .arg(&src)
+        .arg("--to")
+        .arg(&dest)
+        .arg("--mhl")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(dest.join("CARD/ascmhl/ascmhl_chain.xml").is_file());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("ASC MHL: new history"), "{stderr}");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("ASC MHL:"), "{stdout}");
+}
+
+/// #154: an ASC MHL blocker stops the copy before anything is copied.
+#[test]
+fn mhl_blockers_stop_before_copying() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&src).unwrap();
+    fs::create_dir_all(dest.join("CARD/ascmhl")).unwrap();
+    fs::write(src.join("A001.mov"), b"movie").unwrap();
+    let out = cli()
+        .arg(&src)
+        .arg("--to")
+        .arg(&dest)
+        .arg("--mhl")
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("damaged"), "{stderr}");
+    assert!(!dest.join("CARD/A001.mov").exists());
+}
+
+/// #154: ASC MHL is for copies, not mirrors.
+#[test]
+fn mhl_isnt_for_mirrors() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = cli()
+        .arg(dir.path())
+        .arg("--to")
+        .arg(dir.path())
+        .arg("--mirror")
+        .arg("--mhl")
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+}

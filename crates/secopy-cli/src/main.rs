@@ -10,6 +10,8 @@ use clap::{Parser, ValueEnum};
 use secopy_core::checksum_file;
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::job::{self, Event, FileStatus, JobControl, JobOptions, JobReport, Progress};
+use secopy_core::mhl::MhlJob;
+use secopy_core::mhl::prepare::{MhlBlocker, MhlInputs, prepare};
 use secopy_core::mirror::{self, Change, Deleted, MirrorOptions};
 use secopy_core::plan::{DiffersPolicy, Plan};
 use secopy_core::preflight::{ConflictKind, Preflight, preflight};
@@ -46,6 +48,10 @@ struct Args {
     /// Do not write the .xxh64 checksum file.
     #[arg(long)]
     no_checksum: bool,
+    /// Also write an ASC MHL history (the media industry's proof of copy) in the folder the
+    /// files go to, or continue the one there or in the source.
+    #[arg(long, conflicts_with = "mirror")]
+    mhl: bool,
     /// Also copy system files (.DS_Store, Thumbs.db, …). Hidden files are always copied.
     #[arg(long)]
     include_system_files: bool,
@@ -160,15 +166,21 @@ fn run(args: Args) -> Result<ExitCode, String> {
         ));
     }
     let pf = preflight(&source, &selection, args.to()).map_err(|e| e.to_string())?;
-    let plan = Plan::resolve(&selection, &pf, args.on_conflict.into());
+    let mut plan = Plan::resolve(&selection, &pf, args.on_conflict.into());
     print_preflight(&pf, &plan);
     if let Some(blocker) = plan.blockers().first() {
         return Err(blocker.to_string());
     }
+    let mhl = if args.mhl {
+        Some(prepare_mhl(&mut plan, &source, &scan)?)
+    } else {
+        None
+    };
 
     let opts = JobOptions {
         verify: args.verify,
         write_checksum_file: !args.no_checksum,
+        mhl,
         ..JobOptions::default()
     };
     let started_at = Local::now();
@@ -188,6 +200,73 @@ fn run(args: Args) -> Result<ExitCode, String> {
     } else {
         ExitCode::from(1)
     })
+}
+
+/// The copy's ASC MHL (#154): what it writes, or every reason it can't.
+fn prepare_mhl(plan: &mut Plan, source: &Source, scan: &scan::Scan) -> Result<MhlJob, String> {
+    let inputs = MhlInputs {
+        copy_root: match &scan.root_dir {
+            Some(root) => plan.dest.join(root),
+            None => plan.dest.clone(),
+        },
+        source_dir: match source {
+            Source::Directory { path, .. } => Some(path.clone()),
+            Source::Files(_) => None,
+        },
+    };
+    match prepare(plan, &inputs) {
+        Err(blockers) => {
+            for b in &blockers {
+                eprintln!("ASC MHL: {}", mhl_blocker(b));
+            }
+            Err("ASC MHL can't be written for this copy (see above), or leave out --mhl".into())
+        }
+        Ok(mhl) => {
+            if mhl.generation() == 1 {
+                eprintln!("ASC MHL: new history");
+            } else {
+                eprintln!(
+                    "ASC MHL: continues the history (generation {})",
+                    mhl.generation()
+                );
+            }
+            if !mhl.to_read.is_empty() {
+                eprintln!(
+                    "ASC MHL: also records {} files already there ({})",
+                    mhl.to_read.len(),
+                    fmt_bytes(mhl.to_read_bytes)
+                );
+            }
+            Ok(MhlJob {
+                plan: mhl,
+                tool_version: env!("CARGO_PKG_VERSION").into(),
+            })
+        }
+    }
+}
+
+fn mhl_blocker(b: &MhlBlocker) -> String {
+    match b {
+        MhlBlocker::TwoHistories { scope } => format!(
+            "the source and {} have different histories",
+            scope.display()
+        ),
+        MhlBlocker::OverwritesRecorded { path } => format!(
+            "overwriting {} would break the history that lists it",
+            path.display()
+        ),
+        MhlBlocker::Damaged { scope, damage } => {
+            format!("the history in {} is damaged ({damage:?})", scope.display())
+        }
+        MhlBlocker::LeavesOut { scope } => format!(
+            "this copy leaves out files the source's history for {} lists",
+            scope.display()
+        ),
+        MhlBlocker::Unlistable { path } => format!(
+            "{} has characters XML can't hold in its name",
+            path.display()
+        ),
+    }
 }
 
 /// Runs `plan`, showing progress and failures; Ctrl-C cancels.
@@ -484,6 +563,18 @@ fn print_summary(report: &JobReport, total_bytes: u64) {
     }
     if let Some(path) = &report.checksum_file {
         println!("checksum file: {}", path.display());
+    }
+    if let Some(w) = report.mhl_written.last() {
+        println!(
+            "ASC MHL: {}",
+            w.manifest.parent().unwrap_or(&w.manifest).display()
+        );
+    }
+    if let Some(e) = &report.mhl_error {
+        println!("ASC MHL couldn't be written: {}", e.message);
+    }
+    for rel in &report.mhl_failed {
+        println!("ASC MHL: {} doesn't match its history", rel.display());
     }
     if let Some(e) = &report.checksum_error {
         println!("checksum file NOT written: {e}");
