@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.21.0](https://github.com/AbelCS/secopy/compare/v0.20.0...v0.21.0) (2026-10-01)
+
+
+### Features
+
+* **app:** the Always ignore list, saved and used by every scan ([#158](https://github.com/AbelCS/secopy/issues/158)) ([9ea3673](https://github.com/AbelCS/secopy/commit/9ea3673b55bb1e4b457a5d828c9193473a7308e1))
+* **cli:** --ignore ([#158](https://github.com/AbelCS/secopy/issues/158)) ([7b204d0](https://github.com/AbelCS/secopy/commit/7b204d037ecf1a2f959b2a338cefdc6555d0d597))
+* **core:** ASC MHL histories ignore the list ([#158](https://github.com/AbelCS/secopy/issues/158)) ([0e59029](https://github.com/AbelCS/secopy/commit/0e59029454c995ec07c06648368a5c5ee934710c))
+* **core:** ignore patterns ([#158](https://github.com/AbelCS/secopy/issues/158)) ([53c41dd](https://github.com/AbelCS/secopy/commit/53c41dd0e52917b5a5fd68a733858ce45aa8770d))
+* **core:** mirrors leave ignored files alone ([#158](https://github.com/AbelCS/secopy/issues/158)) ([2cb67d5](https://github.com/AbelCS/secopy/commit/2cb67d5d0c6695471ff150988fa72472f270fb30))
+* **core:** scans skip what the ignore list names ([#158](https://github.com/AbelCS/secopy/issues/158)) ([f05f428](https://github.com/AbelCS/secopy/commit/f05f428e52fa7ce700c5673df8773f4fd0b0e8d1))
+* **core:** Verify follows the ignore list ([#158](https://github.com/AbelCS/secopy/issues/158)) ([0e2993c](https://github.com/AbelCS/secopy/commit/0e2993cccd1570009744bca11a0a0835b9ab6898))
+* **ui:** Always ignore when copying in Settings ([#158](https://github.com/AbelCS/secopy/issues/158)) ([abd94eb](https://github.com/AbelCS/secopy/commit/abd94ebde8e397f69d63afb705eb370b4dd92e47))
+
+
+### Bug Fixes
+
+* review fixes for the ignore list ([#158](https://github.com/AbelCS/secopy/issues/158)) ([1b55e6a](https://github.com/AbelCS/secopy/commit/1b55e6ab7bec5ae68651f211d83af0259113eb9e))
+
 ## [0.20.0](https://github.com/AbelCS/secopy/compare/v0.19.0...v0.20.0) (2026-10-01)
 
 
