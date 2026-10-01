@@ -13,6 +13,7 @@ pub mod error;
 pub mod filter;
 pub mod fsinfo;
 pub mod hash;
+pub mod ignore;
 pub mod job;
 mod metadata;
 pub mod mhl;
