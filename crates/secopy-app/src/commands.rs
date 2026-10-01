@@ -1025,6 +1025,7 @@ fn pattern_why(e: PatternError) -> Message {
                 max = secopy_core::ignore::MAX_PATTERNS
             )
         }
+        PatternError::BadChar => msg!("errors.pattern.badChar"),
     }
 }
 
@@ -1535,7 +1536,10 @@ impl AppState {
                 Some((preset, job)) if preset.id == id => (preset.clone(), job.clone()),
                 _ => return Err(msg!("errors.mirror.previewFirst")),
             };
-            if lock(&self.mirrors).get(id) != Some(&previewed) {
+            // The preset, or the ignore list it was planned with (#158), changed since.
+            if lock(&self.mirrors).get(id) != Some(&previewed)
+                || lock(&self.settings).patterns() != job.ignore
+            {
                 *preview = None;
                 return Err(msg!("errors.mirror.changedSincePreview"));
             }
@@ -4122,5 +4126,24 @@ mod tests {
         };
         state.set_settings(lrf).unwrap();
         assert_eq!(state.session_view().selected_files, 1);
+    }
+
+    /// Review #1 (#158): a preview made before the ignore list changed doesn't run.
+    #[test]
+    fn a_preview_made_with_another_ignore_list_doesnt_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        fs::write(d.join("backup.LRF"), b"keep me").unwrap();
+        state.preview_mirror(&id, &|_, _| {}).unwrap();
+        let lrf = Settings {
+            ignore: vec!["*.LRF".into()],
+            ..Settings::default()
+        };
+        state.set_settings(lrf).unwrap();
+        assert_eq!(
+            state.run_mirror(&id, Sink::default()).unwrap_err(),
+            "The mirror changed since its preview. Preview it again."
+        );
+        assert!(d.join("backup.LRF").exists());
     }
 }

@@ -12,11 +12,17 @@ export function shownPattern(p: string): string {
 }
 
 /** Why `pattern` can't be added to `list`, or null. Spaces at its ends don't count. */
-export function patternProblem(pattern: string, list: string[]): "slash" | "tooLong" | "tooMany" | "repeat" | null {
+export function patternProblem(
+  pattern: string,
+  list: string[],
+): "slash" | "tooLong" | "tooMany" | "badChar" | "repeat" | null {
   const p = pattern.replace(/^ +| +$/g, "");
   if (p.includes("/")) return "slash";
+  // Control characters, but a carriage return (macOS's "Icon\r").
+  if ([...p].some((c) => c < " " && c !== "\r")) return "badChar";
   if ([...p].length > MAX_LEN) return "tooLong";
-  if (list.some((q) => q.toLowerCase() === p.toLowerCase())) return "repeat";
+  const key = (q: string) => q.normalize("NFC").toLowerCase();
+  if (list.some((q) => key(q) === key(p))) return "repeat";
   if (list.length >= MAX_PATTERNS) return "tooMany";
   return null;
 }

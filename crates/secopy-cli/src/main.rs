@@ -653,6 +653,7 @@ fn patterns(args: &Args) -> Result<Patterns, String> {
                 PatternError::HasSlash => "a pattern is a name: it can't contain /".to_string(),
                 PatternError::TooLong => format!("up to {MAX_LEN} characters"),
                 PatternError::TooMany => format!("up to {MAX_PATTERNS} patterns"),
+                PatternError::BadChar => "a pattern can't contain control characters".to_string(),
             };
             return Err(format!("--ignore {p}: {why}"));
         }

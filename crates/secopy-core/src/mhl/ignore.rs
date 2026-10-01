@@ -31,14 +31,30 @@ pub fn secopy_patterns(user: &crate::ignore::Patterns) -> Vec<String> {
     dedup(patterns)
 }
 
-/// A name pattern (only `*` and `?` special) as a gitignore one: `[` is literal, and a
-/// leading `!` or `#` isn't a negation or a comment.
+/// A name pattern (only `*` and `?` special, any case) as a gitignore one with the same
+/// meaning: each letter as `[lL]` (gitignore is case-sensitive), `[` as `[[]`, a run of `*`
+/// as one, and a leading `!` or `#` escaped (not a negation or a comment).
 fn as_gitignore(p: &str) -> String {
-    let p = p.replace('[', "[[]");
-    if p.starts_with('!') || p.starts_with('#') {
-        format!("\\{p}")
+    let mut out = String::new();
+    let mut last = None;
+    for c in p.chars() {
+        if c == '*' && last == Some('*') {
+            continue;
+        }
+        let (lower, upper) = (c.to_lowercase().to_string(), c.to_uppercase().to_string());
+        if c == '[' {
+            out.push_str("[[]");
+        } else if lower != upper && lower.chars().count() == 1 && upper.chars().count() == 1 {
+            out.push_str(&format!("[{lower}{upper}]"));
+        } else {
+            out.push(c);
+        }
+        last = Some(c);
+    }
+    if out.starts_with('!') || out.starts_with('#') {
+        format!("\\{out}")
     } else {
-        p
+        out
     }
 }
 
@@ -86,9 +102,11 @@ impl Ignore {
         let rules = patterns
             .iter()
             .filter_map(|p| {
-                let (negated, p) = match p.strip_prefix('!') {
-                    Some(rest) => (true, rest),
-                    None => (false, p.as_str()),
+                // `\!` and `\#` are a literal `!` or `#` at the start, not a negation.
+                let (negated, p) = match (p.strip_prefix('!'), p.strip_prefix('\\')) {
+                    (Some(rest), _) => (true, rest),
+                    (None, Some(rest)) if rest.starts_with(['!', '#']) => (false, rest),
+                    _ => (false, p.as_str()),
                 };
                 let dirs_only = p.ends_with('/');
                 let body = p.trim_end_matches('/');
@@ -194,6 +212,31 @@ mod tests {
         assert!(i.matches("other.mov", false));
         assert!(!i.matches("keep.mov", false));
         assert!(!i.matches("sub/keep.mov", false));
+    }
+
+    fn user(list: &[&str]) -> Ignore {
+        let patterns = crate::ignore::Patterns::new(list.iter().map(|p| p.to_string())).unwrap();
+        Ignore::new(&secopy_patterns(&patterns))
+    }
+
+    /// Review #5: the history ignores a user pattern in any case, as the copy does.
+    #[test]
+    fn user_patterns_match_in_any_case() {
+        let i = user(&["*.LRF"]);
+        for rel in ["a.LRF", "extra.lrf", "sub/x.Lrf"] {
+            assert!(i.matches(rel, false), "{rel}");
+        }
+        assert!(!i.matches("a.mov", false));
+    }
+
+    /// Review #6: a leading ! or #, `**` and `[` mean what they meant in the list.
+    #[test]
+    fn user_patterns_keep_their_meaning() {
+        let i = user(&["!notes", "#tag", "**.LRF", "[x]"]);
+        for rel in ["!notes", "#tag", "a.lrf", "[x]"] {
+            assert!(i.matches(rel, false), "{rel}");
+        }
+        assert!(!i.matches("x", false));
     }
 
     #[test]

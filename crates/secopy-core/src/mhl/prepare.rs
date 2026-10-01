@@ -180,7 +180,16 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
     // The destination: its histories, and the files already there.
     let mut existing: Vec<(PathBuf, u64)> = Vec::new();
     if root.is_dir() {
-        let mut walk = WalkDir::new(root).follow_links(false).into_iter();
+        // A folder the copy ignores isn't entered: what's in it isn't the copy's (#158).
+        let mut walk = WalkDir::new(root)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|e| {
+                e.depth() == 0
+                    || !e.file_type().is_dir()
+                    || e.file_name() == FOLDER
+                    || !inputs.ignore.matches(e.file_name())
+            });
         while let Some(entry) = walk.next() {
             let entry = match entry {
                 Ok(entry) => entry,

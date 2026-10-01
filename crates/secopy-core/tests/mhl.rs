@@ -652,8 +652,8 @@ fn the_ignore_list_is_in_the_manifest() {
     let report = run(&plan, Some(mhl)).0;
     assert!(report.is_success(), "{report:?}");
     let text = latest_manifest(&f.dest.join("A"));
-    assert!(text.contains("<pattern>*.LRF</pattern>"), "{text}");
-    assert!(text.contains("<pattern>[[]x]</pattern>"), "{text}");
+    assert!(text.contains("<pattern>*.[lL][rR][fF]</pattern>"), "{text}");
+    assert!(text.contains("<pattern>[[][xX]]</pattern>"), "{text}");
     assert!(!text.contains("a.LRF"), "{text}");
 }
 
@@ -669,4 +669,21 @@ fn a_source_history_listing_an_ignored_file_blocks() {
             scope: f.dest.join("A")
         })
     );
+}
+
+/// Review #8: an ignored folder in the destination isn't entered, even when unreadable.
+#[test]
+fn an_ignored_unreadable_folder_in_the_destination_doesnt_block() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = fixture(&[("a.mov", b"aaa")]);
+    write_files(&f.dest, &[("A/cache/x.bin", b"x")]);
+    let locked = f.dest.join("A/cache");
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    let cache = Patterns::new(["CACHE".to_string()]).unwrap();
+    let (mut plan, inputs) =
+        planned_with(&f, &ExtensionFilter::All, DiffersPolicy::KeepBoth, cache);
+    let result = prepare(&mut plan, &inputs);
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+    let mhl = result.expect("not blocked");
+    assert!(mhl.to_read.is_empty());
 }

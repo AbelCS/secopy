@@ -18,6 +18,8 @@ pub struct MirrorJob {
     /// The preset's days: archived files older than this go at the start of a run, in Delete
     /// mode too (#101).
     pub archive_days: u32,
+    /// The ignore list it was planned with: another one makes the preview stale (#158).
+    pub ignore: Patterns,
 }
 
 /// Plans `preset` now; a missing origin or destination says so, like New copy does. The deep
@@ -61,6 +63,7 @@ pub fn prepare_with(
         plan: Arc::new(plan),
         name: preset.name.clone(),
         archive_days: preset.deleted.days,
+        ignore: ignore.clone(),
     })
 }
 

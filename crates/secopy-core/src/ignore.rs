@@ -1,7 +1,6 @@
 //! What copies and mirrors leave out (#158): the user's list of name patterns, which starts as
 //! the files computers leave behind, and Secopy's own working files, always.
 
-use std::collections::HashSet;
 use std::ffi::OsStr;
 
 /// Patterns a list holds at most.
@@ -36,6 +35,8 @@ pub enum PatternError {
     HasSlash,
     TooLong,
     TooMany,
+    /// A control character (one an ASC MHL history couldn't hold).
+    BadChar,
 }
 
 /// A checked list of name patterns: trimmed, none empty, no repeats in any case. `*` is any
@@ -60,41 +61,47 @@ impl Patterns {
 
     /// What a person typed, or a CLI flag: the first bad pattern is an error.
     pub fn new<I: IntoIterator<Item = String>>(list: I) -> Result<Patterns, PatternError> {
-        let mut kept = Vec::new();
-        let mut seen = HashSet::new();
+        let mut kept = Patterns::none();
         for p in list {
-            // Spaces only: `Icon\r` is a name with a carriage return in it.
-            let p = p.trim_matches(' ');
-            if p.is_empty() {
-                continue;
-            }
-            check(p)?;
-            if seen.insert(p.to_lowercase()) {
-                kept.push(p.to_string());
+            if let Some(p) = trimmed(&p) {
+                check(p)?;
+                kept.push(p);
             }
         }
-        if kept.len() > MAX_PATTERNS {
+        if kept.0.len() > MAX_PATTERNS {
             return Err(PatternError::TooMany);
         }
-        Ok(Patterns(kept))
+        Ok(kept)
+    }
+
+    /// Adds `p` unless the list has it already (in any case or Unicode form).
+    fn push(&mut self, p: &str) {
+        if !self.0.iter().any(|q| key(q) == key(p)) {
+            self.0.push(p.to_string());
+        }
     }
 
     /// What a file says: bad patterns are dropped, the rest kept.
+    /// What a file says: bad patterns are dropped, and past the most a list holds, the rest:
+    /// the first ones always stay.
     pub fn lenient<I: IntoIterator<Item = String>>(list: I) -> Patterns {
-        let good = list
-            .into_iter()
-            .filter(|p| check(p.trim_matches(' ')).is_ok())
-            .collect::<Vec<_>>();
-        let mut p = Patterns::new(good).unwrap_or_else(|_| Patterns::none());
-        p.0.truncate(MAX_PATTERNS);
-        p
+        let mut kept = Patterns::none();
+        for p in list {
+            if kept.0.len() == MAX_PATTERNS {
+                break;
+            }
+            if let Some(p) = trimmed(&p).filter(|p| check(p).is_ok()) {
+                kept.push(p);
+            }
+        }
+        kept
     }
 
     /// Whether a file or directory with this `name` is left out.
     pub fn matches(&self, name: &OsStr) -> bool {
-        let name: Vec<char> = name.to_string_lossy().to_lowercase().chars().collect();
+        let name: Vec<char> = key(&name.to_string_lossy()).chars().collect();
         self.0.iter().any(|p| {
-            let p: Vec<char> = p.to_lowercase().chars().collect();
+            let p: Vec<char> = key(p).chars().collect();
             glob(&p, &name)
         })
     }
@@ -104,9 +111,23 @@ impl Patterns {
     }
 }
 
+/// What names are compared by: one Unicode form (macOS may store either) and one case.
+fn key(s: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    s.nfc().collect::<String>().to_lowercase()
+}
+
+/// A pattern without the spaces at its ends (only spaces: `Icon\r` is a name with a carriage
+/// return in it); `None` when nothing is left.
+fn trimmed(p: &str) -> Option<&str> {
+    Some(p.trim_matches(' ')).filter(|p| !p.is_empty())
+}
+
 fn check(p: &str) -> Result<(), PatternError> {
     if p.contains('/') {
         Err(PatternError::HasSlash)
+    } else if !crate::mhl::write::xml_can_hold(p) || p.chars().any(|c| c < ' ' && c != '\r') {
+        Err(PatternError::BadChar)
     } else if p.chars().count() > MAX_LEN {
         Err(PatternError::TooLong)
     } else {
@@ -120,12 +141,13 @@ fn glob(p: &[char], s: &[char]) -> bool {
     let (mut pi, mut si) = (0, 0);
     let mut star: Option<(usize, usize)> = None;
     while si < s.len() {
-        if pi < p.len() && (p[pi] == '?' || p[pi] == s[si]) {
-            pi += 1;
-            si += 1;
-        } else if pi < p.len() && p[pi] == '*' {
+        // `*` first: a name can have a `*` in it, which isn't the pattern's wildcard.
+        if pi < p.len() && p[pi] == '*' {
             star = Some((pi, si));
             pi += 1;
+        } else if pi < p.len() && (p[pi] == '?' || p[pi] == s[si]) {
+            pi += 1;
+            si += 1;
         } else if let Some((sp, ss)) = star {
             pi = sp + 1;
             si = ss + 1;
@@ -169,6 +191,44 @@ mod tests {
         let started = std::time::Instant::now();
         assert!(!p.matches(OsStr::new(&"a".repeat(250))));
         assert!(started.elapsed() < std::time::Duration::from_millis(100));
+    }
+
+    /// Review #2: a list longer than allowed keeps its first patterns, never none.
+    #[test]
+    fn a_long_list_from_a_file_keeps_its_first_patterns() {
+        let list = std::iter::once("*.LRF".to_string()).chain((0..300).map(|i| format!("x{i}")));
+        let p = Patterns::lenient(list);
+        assert_eq!(p.as_slice().len(), MAX_PATTERNS);
+        assert!(p.matches(OsStr::new("a.LRF")));
+    }
+
+    /// Review #3: a name with `*` in it still matches a `*` pattern.
+    #[test]
+    fn a_star_in_a_name_is_a_character() {
+        let p = Patterns::new(["*.LRF".to_string()]).unwrap();
+        assert!(p.matches(OsStr::new("*take.LRF")));
+        assert!(p.matches(OsStr::new("a*b.lrf")));
+    }
+
+    /// Review #4: the same name in either Unicode form matches.
+    #[test]
+    fn either_unicode_form_matches() {
+        let composed = Patterns::new(["Caf\u{e9}*".to_string()]).unwrap();
+        assert!(composed.matches(OsStr::new("Cafe\u{301}.LRF")));
+        let decomposed = Patterns::new(["Cafe\u{301}*".to_string()]).unwrap();
+        assert!(decomposed.matches(OsStr::new("Caf\u{e9}.LRF")));
+        let both = Patterns::new(["Caf\u{e9}".to_string(), "Cafe\u{301}".to_string()]).unwrap();
+        assert_eq!(both.as_slice().len(), 1, "the same name twice");
+    }
+
+    /// Review #7: a pattern a history's XML can't hold is refused (Icon\r stays).
+    #[test]
+    fn control_characters_are_refused() {
+        assert_eq!(
+            Patterns::new(["a\u{1}b".to_string()]),
+            Err(PatternError::BadChar)
+        );
+        assert!(Patterns::new(["Icon\r".to_string()]).is_ok());
     }
 
     #[test]

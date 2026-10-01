@@ -1135,7 +1135,8 @@
     "pattern": {
       "slash": "A pattern is a name: it can't contain /.",
       "tooLong": "A pattern can have up to {max} characters.",
-      "tooMany": "The list can have up to {max} patterns."
+      "tooMany": "The list can have up to {max} patterns.",
+      "badChar": "A pattern can't contain control characters."
     },
     "mhl": {
       "twoHistories": "The source and the destination have different ASC MHL histories. Choose another destination, or turn off ASC MHL in Settings.",
