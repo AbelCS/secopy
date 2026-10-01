@@ -22,7 +22,6 @@ pub const DEFAULTS: &[&str] = &[
     ".VolumeIcon.icns",
     ".apdisk",
     ".localized",
-    "Icon\r",
     "System Volume Information",
     "$RECYCLE.BIN",
     "Thumbs.db",
@@ -90,7 +89,9 @@ impl Patterns {
             if kept.0.len() == MAX_PATTERNS {
                 break;
             }
-            if let Some(p) = trimmed(&p).filter(|p| check(p).is_ok()) {
+            // Secopy's own (`Icon\r` in a list saved before #161) are left out anyway.
+            if let Some(p) = trimmed(&p).filter(|p| check(p).is_ok() && !is_own_file(OsStr::new(p)))
+            {
                 kept.push(p);
             }
         }
@@ -164,6 +165,8 @@ pub fn is_own_file(name: &OsStr) -> bool {
     let name = name.to_string_lossy();
     crate::system::is_secopy_partial(&name)
         || name == ".secopy-checksums.xxh64"
+        // macOS's custom-folder-icon file: never media (#161).
+        || name == "Icon\r"
         // A mirror's checksum file set aside (#114).
         || name.starts_with(".secopy-checksums.xxh64.damaged-")
 }
@@ -247,7 +250,6 @@ mod tests {
             "._A001.MOV",
             ".Spotlight-V100",
             "Thumbs.db",
-            "Icon\r",
             "DESKTOP.INI",
         ] {
             assert!(d.matches(OsStr::new(name)), "{name:?}");
@@ -308,6 +310,22 @@ mod tests {
     fn a_file_says_what_it_says_bad_patterns_are_dropped() {
         let p = Patterns::lenient(["a/b".to_string(), "*.LRF".to_string()]);
         assert_eq!(p.as_slice(), ["*.LRF"]);
+    }
+
+    /// #161: macOS's custom-folder-icon file is never media: always left out, not in the list
+    /// (a list read from a file drops it), so the list only holds names a person can type.
+    #[test]
+    fn the_folder_icon_file_is_always_left_out() {
+        assert!(is_own_file(OsStr::new("Icon\r")));
+        assert!(
+            !Patterns::defaults()
+                .as_slice()
+                .iter()
+                .any(|p| p.contains('\r'))
+        );
+        let read = Patterns::lenient(["Icon\r".to_string(), "*.LRF".to_string()]);
+        assert_eq!(read.as_slice(), ["*.LRF"]);
+        assert!(!is_own_file(OsStr::new("Icon")) && !is_own_file(OsStr::new("Icons")));
     }
 
     #[test]

@@ -27,7 +27,8 @@ function unwrapped(root: HTMLElement): string[] {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     const el = n.parentElement!;
-    if (el.closest("script, style, .visually-hidden[aria-hidden]")) continue;
+    // translate="no": data the user typed, like ignore patterns (#161).
+    if (el.closest('script, style, .visually-hidden[aria-hidden], [translate="no"]')) continue;
     // Brackets can open and close in other text nodes of the same element.
     const text = outside(el.textContent ?? "");
     const own = (n.textContent ?? "").trim();

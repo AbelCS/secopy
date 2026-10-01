@@ -678,7 +678,13 @@
       "field": "Name pattern",
       "add": "Add",
       "restore": "Restore defaults",
-      "repeat": "It's already in the list."
+      "repeat": "It's already in the list.",
+      "placeholder": "Add a name pattern, e.g. *.LRF",
+      "empty": "No patterns: every file is copied.",
+      "count": {
+        "one": "{count} pattern",
+        "other": "{count} patterns"
+      }
     },
     "report": {
       "label": "Also save the job report next to the checksum file",
