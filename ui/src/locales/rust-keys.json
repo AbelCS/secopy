@@ -82,6 +82,7 @@
   "errors.legacy",
   "errors.mhl.damaged",
   "errors.mhl.leavesOut",
+  "errors.mhl.notWritten",
   "errors.mhl.overwrites",
   "errors.mhl.twoHistories",
   "errors.mhl.unlistable",
@@ -262,6 +263,8 @@
   "queue.reason.filesFailed",
   "queue.reason.incomplete",
   "queue.reason.internal",
+  "queue.reason.mhl",
+  "queue.reason.mhlFailed",
   "queue.reason.newer",
   "queue.reason.notRemoved",
   "queue.reason.notRun",
@@ -278,6 +281,7 @@
   "summary.reason.differs",
   "summary.reason.dirNotCreated",
   "summary.reason.identical",
+  "summary.reason.mhlFailed",
   "summary.reason.notRemoved",
   "summary.reason.unread"
 ]

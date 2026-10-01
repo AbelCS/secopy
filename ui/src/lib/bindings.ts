@@ -125,6 +125,12 @@ export const commands = {
 	undone: UndoneView | null,
 	/**  A check's own figures (plan 8); `None` for a copy or a mirror. */
 	check: CheckSummaryView | null,
+	/**  The copy's ASC MHL history, when it was written (#154). */
+	mhlFolder: string | null,
+	/**  Why ASC MHL couldn't be written; nothing of it was left. */
+	mhlError: Message | null,
+	/**  Files that don't match their earlier ASC MHL hash; listed with the failures. */
+	mhlFailed: number,
 } | null, Message>(__TAURI_INVOKE("job_summary")),
 	saveReport: (path: string) => typedError<null, Message>(__TAURI_INVOKE("save_report", { path })),
 	/**  "Retry": only the failed files, checked again (RFD §5.4). */
@@ -626,6 +632,8 @@ export type ProgressView = {
 	undoing: boolean,
 	/**  Set once, when the job has stopped for good. */
 	fatal: Message | null,
+	/**  Reading files already in the destination for ASC MHL, after the copy (#154). */
+	recording: RecordingView | null,
 };
 
 /**  What a queue run sends to the window. */
@@ -709,6 +717,11 @@ export type QueuedJobView = {
 	supported: boolean,
 	/**  A mirror's preset name; `None` for a copy. */
 	name: string | null,
+};
+
+export type RecordingView = {
+	bytes: number,
+	total: number,
 };
 
 export type RowStatus = "copied" | "verified" | "skipped" | "failed" | 
@@ -864,6 +877,12 @@ export type SummaryView_Deserialize = {
 	undone: UndoneView | null,
 	/**  A check's own figures (plan 8); `None` for a copy or a mirror. */
 	check: CheckSummaryView | null,
+	/**  The copy's ASC MHL history, when it was written (#154). */
+	mhlFolder: string | null,
+	/**  Why ASC MHL couldn't be written; nothing of it was left. */
+	mhlError: Message | null,
+	/**  Files that don't match their earlier ASC MHL hash; listed with the failures. */
+	mhlFailed: number,
 };
 
 /**  The summary after a job (RFD §5.4). */
@@ -906,6 +925,12 @@ export type SummaryView_Serialize = {
 	undone: UndoneView | null,
 	/**  A check's own figures (plan 8); `None` for a copy or a mirror. */
 	check: CheckSummaryView | null,
+	/**  The copy's ASC MHL history, when it was written (#154). */
+	mhlFolder: string | null,
+	/**  Why ASC MHL couldn't be written; nothing of it was left. */
+	mhlError: Message | null,
+	/**  Files that don't match their earlier ASC MHL hash; listed with the failures. */
+	mhlFailed: number,
 };
 
 /**  The files a cancelled job removed again (#54). */

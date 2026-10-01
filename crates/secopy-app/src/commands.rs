@@ -949,6 +949,12 @@ fn failure_reason(s: &SummaryView) -> Message {
     if s.failed > 0 {
         return msg!("queue.reason.filesFailed", count = s.failed);
     }
+    if s.mhl_failed > 0 {
+        return msg!("queue.reason.mhlFailed", count = s.mhl_failed);
+    }
+    if let Some(e) = &s.mhl_error {
+        return msg!("queue.reason.mhl", why = e);
+    }
     if s.unread > 0 {
         return msg!("queue.reason.unread", count = s.unread);
     }

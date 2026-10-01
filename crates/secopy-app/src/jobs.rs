@@ -27,7 +27,7 @@ use secopy_core::source::Source;
 
 use crate::dto::{
     ActiveFileView, CheckSummaryView, FinishedRow, JobOutcome, JobPhase, MirrorSummaryView,
-    ProgressView, RowStatus, SmallFilesView, SummaryView, UndoneView, count, show,
+    ProgressView, RecordingView, RowStatus, SmallFilesView, SummaryView, UndoneView, count, show,
 };
 use crate::lock;
 use crate::message::Message;
@@ -510,6 +510,8 @@ impl Job {
                 || done.report.checksum_error.is_some()
                 || done.report.durability_error.is_some()
                 || !done.report.dir_errors.is_empty()
+                || done.report.mhl_error.is_some()
+                || !done.report.mhl_failed.is_empty()
                 || check.as_ref().is_some_and(|c| !c.problems.is_empty())
             {
                 JobOutcome::Failures
@@ -568,6 +570,16 @@ impl Job {
                         .filter(|o| matches!(o.status, FileStatus::Failed(_)))
                         .map(|o| row(o, self.check_plan())),
                 )
+                .chain(done.report.mhl_failed.iter().map(|rel| FinishedRow {
+                    id: 0,
+                    path: show(rel),
+                    final_path: show(rel),
+                    size: 0,
+                    millis: 0,
+                    hash: None,
+                    status: RowStatus::Failed,
+                    reason: Some(msg!("summary.reason.mhlFailed")),
+                }))
                 .take(FAILURES_SHOWN)
                 .collect(),
             finished: count(outcomes.len()),
@@ -596,6 +608,14 @@ impl Job {
                 failed: count(u.failed.len()),
             }),
             check,
+            mhl_folder: (!done.report.mhl_written.is_empty())
+                .then(|| show(&self.root().join(secopy_core::mhl::FOLDER))),
+            mhl_error: done
+                .report
+                .mhl_error
+                .as_ref()
+                .map(|e| msg!("errors.mhl.notWritten", why = say::io_failure(e))),
+            mhl_failed: count(done.report.mhl_failed.len()),
         })
     }
 
@@ -760,6 +780,15 @@ impl Job {
             write_checksum_file: settings.write_checksum_file,
             progress_interval: PROGRESS_INTERVAL,
             archive_replaced: mirroring.and_then(|m| m.archive.clone()),
+            // Never for a mirror: it removes files a history would list (#154).
+            mhl: ready
+                .mhl
+                .clone()
+                .filter(|_| mirroring.is_none())
+                .map(|plan| secopy_core::mhl::MhlJob {
+                    plan,
+                    tool_version: env!("CARGO_PKG_VERSION").into(),
+                }),
             ..JobOptions::default()
         };
         let plan: &Plan = &ready.plan;
@@ -911,6 +940,10 @@ impl Job {
             removing: 0,
             archiving: false,
             undoing: false,
+            recording: p.recording.map(|r| RecordingView {
+                bytes: r.bytes,
+                total: r.total,
+            }),
         }
     }
 
@@ -1258,6 +1291,73 @@ mod tests {
         assert_eq!(s.copy_root, show(&f.dest.join("CARD")));
         assert!(s.checksum_file.is_some());
         assert!(f.dest.join("CARD/C0004.mov").is_file());
+    }
+
+    /// Picks CARD again (after files were added to it) with ASC MHL on.
+    fn repick_with_mhl(f: &mut Fixture) {
+        let pending = f
+            .session
+            .begin(Change::PickAs {
+                paths: vec![f.dir.path().join("CARD")],
+                include_folder: true,
+            })
+            .ok()
+            .unwrap();
+        let scanned = scan_source(&pending.source);
+        f.session.finish_scan(pending, scanned);
+        f.session.set_destination(Some(f.dest.clone()));
+        f.session.set_mhl(true);
+    }
+
+    /// #154: the summary says where the ASC MHL is; reading files already there shows.
+    #[test]
+    fn a_job_with_mhl_says_where_it_is() {
+        let mut f = fixture(2, 10);
+        fs::create_dir_all(f.dest.join("CARD")).unwrap();
+        fs::write(f.dest.join("CARD/old.mov"), b"old").unwrap();
+        repick_with_mhl(&mut f);
+        let sink = run(&f, true);
+        let s = f.jobs.summary().unwrap();
+        assert_eq!(s.outcome, JobOutcome::Complete);
+        assert_eq!(s.mhl_folder, Some(show(&f.dest.join("CARD/ascmhl"))));
+        assert!(f.dest.join("CARD/ascmhl/ascmhl_chain.xml").is_file());
+        assert!(
+            sink.0
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|v| v.recording.as_ref().is_some_and(|r| r.total == 3))
+        );
+    }
+
+    /// #154: a file that doesn't match its earlier ASC MHL hash: not complete, and listed.
+    #[test]
+    fn an_mhl_mismatch_isnt_complete() {
+        use chrono::TimeZone;
+        use secopy_core::mhl::{Action, Generation, Record};
+        let mut f = fixture(1, 10);
+        let g = Generation {
+            created: chrono::Local::now(),
+            hostname: "h".into(),
+            tool_version: "other".into(),
+            ignore: secopy_core::mhl::ignore::standard_defaults(),
+            records: vec![Record {
+                rel: "C0000.mov".into(),
+                size: 10,
+                modified: None,
+                xxh64: 1,
+                action: Action::Original,
+            }],
+            references: Vec::new(),
+        };
+        let at = chrono::Utc.with_ymd_and_hms(2026, 10, 1, 8, 0, 0).unwrap();
+        secopy_core::mhl::write::append(&f.dir.path().join("CARD"), None, &[], &g, at).unwrap();
+        repick_with_mhl(&mut f);
+        run(&f, true);
+        let s = f.jobs.summary().unwrap();
+        assert_eq!(s.outcome, JobOutcome::Failures);
+        let row = s.failures.iter().find(|r| r.path == "C0000.mov").unwrap();
+        assert_eq!(row.reason.as_ref().unwrap().key, "summary.reason.mhlFailed");
     }
 
     #[test]

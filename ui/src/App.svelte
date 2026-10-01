@@ -230,6 +230,7 @@
     removing: 0,
     archiving: false,
     undoing: false,
+    recording: null,
   });
 
   /** A queue job before its first update: none of New copy's figures, which aren't its own. */
