@@ -18,6 +18,19 @@ function show(summary: SummaryView) {
 }
 
 describe("Summary", () => {
+  test("ASC MHL written, with a button to show it (#154)", async () => {
+    const { api } = show(summaryView({ mhlFolder: "/Volumes/RAID/Day01/DCIM/ascmhl" }));
+    screen.getByText("ASC MHL written.");
+    await fireEvent.click(screen.getByRole("button", { name: "Show ASC MHL" }));
+    expect(api.reveal).toHaveBeenCalledWith("/Volumes/RAID/Day01/DCIM/ascmhl");
+  });
+
+  test("ASC MHL that couldn't be written says why", () => {
+    show(summaryView({ outcome: "failures", mhlError: raw("ASC MHL couldn't be written: the disk is full") }));
+    screen.getByText("ASC MHL couldn't be written: the disk is full");
+    expect(screen.queryByRole("button", { name: "Show ASC MHL" })).toBeNull();
+  });
+
   test("a mirror says which archived files it couldn't delete, and when they go", () => {
     const note = {
       key: "mirror.archiveNotDeleted",

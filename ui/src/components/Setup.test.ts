@@ -125,6 +125,41 @@ describe("Setup", () => {
     expect(start()).toHaveProperty("disabled", true);
   });
 
+  test("the plan says the ASC MHL history it writes (#154)", () => {
+    setup(
+      readyView({
+        plan: {
+          filesToWrite: 1284,
+          bytesToWrite: 212_400_000_000,
+          overwrites: 0,
+          blocker: null,
+          purgeable: null,
+          mhl: { generation: 3, alsoReads: 212, alsoReadsBytes: 48_000_000_000 },
+        },
+      }),
+    );
+    to().getByText("ASC MHL: continues the history (generation 3)");
+    to().getByText("Also records 212 files already here (48.0 GB).");
+    expect(start()).toHaveProperty("disabled", false);
+  });
+
+  test("a new ASC MHL history says so", () => {
+    setup(
+      readyView({
+        plan: {
+          filesToWrite: 1,
+          bytesToWrite: 1,
+          overwrites: 0,
+          blocker: null,
+          purgeable: null,
+          mhl: { generation: 1, alsoReads: 0, alsoReadsBytes: 0 },
+        },
+      }),
+    );
+    to().getByText("ASC MHL: new history");
+    expect(to().queryByText(/Also records/)).toBeNull();
+  });
+
   test("a copy that needs purgeable space warns but doesn't block", () => {
     setup(
       readyView({

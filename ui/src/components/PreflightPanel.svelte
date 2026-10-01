@@ -3,6 +3,7 @@
   // already there, and the choice for files that differ.
   import { t } from "../lib/i18n";
   import { say } from "../lib/message";
+  import { formatBytes } from "../lib/format";
   import type { ConflictPolicy, DestinationView, PlanView } from "../lib/bindings";
   import FormRow from "../lib/ui/FormRow.svelte";
   import Hint from "../lib/ui/Hint.svelte";
@@ -35,6 +36,18 @@
     <Notice tone="warning">
       {t("copy.preflight.notEmpty", { count: destination.existingItems })}
     </Notice>
+  {/if}
+  {#if !blocker && plan?.mhl}
+    <p class="muted">
+      {plan.mhl.generation === 1
+        ? t("copy.preflight.mhlNew")
+        : t("copy.preflight.mhlContinues", { n: plan.mhl.generation })}
+    </p>
+    {#if plan.mhl.alsoReads > 0}
+      <p class="muted">
+        {t("copy.preflight.mhlAlsoReads", { count: plan.mhl.alsoReads, size: formatBytes(plan.mhl.alsoReadsBytes) })}
+      </p>
+    {/if}
   {/if}
   {#if !blocker && plan?.purgeable}
     <Notice tone="warning">

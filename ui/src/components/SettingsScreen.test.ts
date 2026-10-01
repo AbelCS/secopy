@@ -23,6 +23,14 @@ const actions = () => within(screen.getByRole("group", { name: "Actions" }));
 const save = () => actions().getByRole("button", { name: "Save" });
 
 describe("SettingsScreen", () => {
+  test("Write ASC MHL can be turned on (#154)", async () => {
+    const { api, calls } = show();
+    await fireEvent.click(screen.getByLabelText("Write ASC MHL"));
+    await fireEvent.click(save());
+    await waitFor(() => expect(calls.done).toBe(1));
+    expect(api.setSettings).toHaveBeenCalledWith(settingsView({ writeMhl: true }));
+  });
+
   test("Esc goes back once; a held key's repeats don't count", async () => {
     const { calls } = show();
     await fireEvent.keyDown(window, { key: "Escape", repeat: true });
