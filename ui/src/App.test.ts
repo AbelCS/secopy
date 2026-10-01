@@ -158,6 +158,16 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "Settings" });
   });
 
+  test("saving Settings shows New copy as it is now: ASC MHL changes the plan (#154)", async () => {
+    const { api } = app();
+    await fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Settings" });
+    const calls = api.sessionView.mock.calls.length;
+    await fireEvent.click(screen.getByLabelText("Write ASC MHL"));
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.sessionView.mock.calls.length).toBeGreaterThan(calls));
+  });
+
   test("the menu doesn't open Settings during a copy", async () => {
     const { state } = app();
     await fireEvent.click(await startButton());

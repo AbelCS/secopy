@@ -141,6 +141,12 @@ pub fn mhl_blocker(b: &secopy_core::mhl::prepare::MhlBlocker) -> Message {
         MhlBlocker::Unlistable { path } => {
             msg!("errors.mhl.unlistable", path = crate::dto::show(path))
         }
+        MhlBlocker::Conflicts { path } => {
+            msg!("errors.mhl.conflicts", path = crate::dto::show(path))
+        }
+        MhlBlocker::Unreadable { path } => {
+            msg!("errors.mhl.unreadable", path = crate::dto::show(path))
+        }
     }
 }
 

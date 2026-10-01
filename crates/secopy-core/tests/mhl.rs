@@ -472,3 +472,154 @@ fn undo_of_a_new_history_removes_its_folder() {
     undo(&plan, &report, None);
     assert!(!f.dest.join("A").exists());
 }
+
+// Final review fixes.
+
+/// Review #4: the checksum file never lists a history Secopy then appends to (its own Verify
+/// would call the copy changed).
+#[test]
+fn the_checksum_file_leaves_out_a_continued_history() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    history(&f.src, &[("a.mov", b"aaa")]);
+    let report = copy(&f);
+    assert!(report.is_success(), "{report:?}");
+    let sums = fs::read_to_string(report.checksum_file.unwrap()).unwrap();
+    assert!(sums.contains("A/a.mov"), "{sums}");
+    assert!(!sums.contains("ascmhl"), "{sums}");
+}
+
+/// Review #5: what a generation's ignore list leaves out isn't recorded in it.
+#[test]
+fn ignored_files_arent_recorded() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    history(&f.src, &[("a.mov", b"aaa")]);
+    copy(&f);
+    let text = latest_manifest(&f.dest.join("A"));
+    let paths: Vec<&str> = text.lines().filter(|l| l.contains("<path")).collect();
+    assert!(paths.iter().any(|l| l.contains(">a.mov<")), "{text}");
+    assert!(!paths.iter().any(|l| l.contains("ascmhl")), "{paths:?}");
+}
+
+/// Review #6: a file the source's history lists that would land under another name (Keep
+/// both) or not at all (Skip) blocks: the history would describe the wrong file.
+#[test]
+fn a_recorded_file_that_wouldnt_land_at_its_path_blocks() {
+    for policy in [DiffersPolicy::KeepBoth, DiffersPolicy::Skip] {
+        let f = fixture(&[("a.mov", b"aaa")]);
+        history(&f.src, &[("a.mov", b"aaa")]);
+        write_files(&f.dest, &[("A/a.mov", b"a different one")]);
+        let (mut plan, inputs) = planned(&f, &ExtensionFilter::All, policy);
+        assert!(
+            blockers(prepare(&mut plan, &inputs)).contains(&MhlBlocker::Conflicts {
+                path: f.dest.join("A/a.mov")
+            }),
+            "{policy:?}"
+        );
+    }
+}
+
+/// Review #7: a history whose manifest didn't arrive with the copy isn't appended to.
+#[test]
+fn a_source_history_that_didnt_arrive_whole_isnt_appended_to() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    history(&f.src, &[("a.mov", b"aaa")]);
+    let (plan, result) = prepared(&f);
+    let mhl = result.unwrap();
+    // A manifest gone from the source before it's copied: its copy fails, the chain's doesn't.
+    let manifest = fs::read_dir(f.src.join("ascmhl"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.extension().is_some_and(|x| x == "mhl"))
+        .unwrap();
+    fs::remove_file(&manifest).unwrap();
+    let report = run(&plan, Some(mhl)).0;
+    assert!(report.mhl_error.is_some());
+    assert_eq!(
+        fs::read(f.dest.join("A/ascmhl/ascmhl_chain.xml")).unwrap(),
+        fs::read(f.src.join("ascmhl/ascmhl_chain.xml")).unwrap()
+    );
+}
+
+/// Review #8: a nested history a file-type filter leaves out still counts.
+#[test]
+fn a_nested_history_left_out_by_a_filter_blocks() {
+    let f = fixture(&[("A001/a.mov", b"a")]);
+    history(&f.src.join("A001"), &[("a.mov", b"a")]);
+    let movs = ExtensionFilter::Only([Some("mov".to_string())].into_iter().collect());
+    let (mut plan, inputs) = planned(&f, &movs, DiffersPolicy::KeepBoth);
+    assert!(
+        blockers(prepare(&mut plan, &inputs)).contains(&MhlBlocker::LeavesOut {
+            scope: f.dest.join("A/A001")
+        })
+    );
+}
+
+/// Review #8: a nested `ascmhl` without a chain in the source is damage.
+#[test]
+fn a_nested_source_history_without_a_chain_blocks() {
+    let f = fixture(&[("A001/a.mov", b"a")]);
+    fs::create_dir_all(f.src.join("A001/ascmhl")).unwrap();
+    fs::write(
+        f.src.join("A001/ascmhl/0001_A001_2026-10-01_080000Z.mhl"),
+        b"x",
+    )
+    .unwrap();
+    assert!(blockers(prepared(&f).1).contains(&MhlBlocker::Damaged {
+        scope: f.src.join("A001"),
+        damage: Damage::NoChain
+    }));
+}
+
+/// Review #13: a folder in the destination that can't be read blocks.
+#[test]
+fn an_unreadable_folder_in_the_destination_blocks() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = fixture(&[("a.mov", b"aaa")]);
+    write_files(&f.dest, &[("A/locked/x.mov", b"x")]);
+    let locked = f.dest.join("A/locked");
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    let result = prepared(&f).1;
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(blockers(result).contains(&MhlBlocker::Unreadable { path: locked }));
+}
+
+/// Review #14: a folder name a manifest's name can't carry blocks.
+#[test]
+fn a_scope_name_a_manifest_cant_carry_blocks() {
+    for name in ["bad\u{1}", "back\\slash"] {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join(name);
+        let dest = dir.path().join("dest");
+        write_files(&src, &[("a.mov", b"a")]);
+        fs::create_dir_all(&dest).unwrap();
+        let f = Fixture {
+            _dir: dir,
+            src,
+            dest,
+        };
+        assert!(
+            blockers(prepared(&f).1).contains(&MhlBlocker::Unlistable {
+                path: f.dest.join(name)
+            }),
+            "{name:?}"
+        );
+    }
+}
+
+/// Review #16: the saved report doesn't call a copy complete when its ASC MHL failed.
+#[test]
+fn the_report_says_when_the_mhl_failed() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    history(&f.src, &[("a.mov", b"not what it was")]);
+    let (plan, result) = prepared(&f);
+    let job = run(&plan, Some(result.unwrap())).0;
+    let meta = secopy_core::report::JobMeta {
+        app_version: "0".into(),
+        source: "src".into(),
+        verify: true,
+        started: chrono::Local::now(),
+        finished: chrono::Local::now(),
+    };
+    let report = secopy_core::report::Report::new(&plan, &job, &meta);
+    assert_eq!(report.result, "1 file doesn't match its ASC MHL history");
+}

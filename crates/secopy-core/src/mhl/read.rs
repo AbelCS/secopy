@@ -37,6 +37,8 @@ pub enum Damage {
     Altered(String),
     /// A manifest (or a name in the chain) can't be read.
     Unreadable(String),
+    /// A reference to a nested history's manifest that's missing or not what its C4 says.
+    BadReference(String),
 }
 
 /// The history at `scope`; `None` when it has no `ascmhl` folder.
@@ -80,11 +82,27 @@ pub fn read(scope: &Path) -> Result<Option<History>, Damage> {
             .ok()
             .and_then(manifest)
             .ok_or_else(|| Damage::Unreadable(e.file.clone()))?;
-        for (path, xxh64) in m.hashes {
-            if let Some(h) = xxh64 {
-                history.first_xxh64.entry(path.clone()).or_insert(h);
+        for r in m.hashes {
+            // A file another tool renamed: its record moves to the new name.
+            if let Some(previous) = &r.previous {
+                history.recorded.remove(previous);
+                if let Some(old) = history.first_xxh64.remove(previous) {
+                    history.first_xxh64.entry(r.path.clone()).or_insert(old);
+                }
             }
-            history.recorded.insert(path);
+            if let Some(h) = r.xxh64 {
+                history.first_xxh64.entry(r.path.clone()).or_insert(h);
+            }
+            history.recorded.insert(r.path);
+        }
+        for (path, c4) in m.references {
+            let ok = !path
+                .split('/')
+                .any(|p| p.is_empty() || p == "." || p == "..")
+                && fs::read(scope.join(&path)).is_ok_and(|b| super::c4::c4(&b) == c4);
+            if !ok {
+                return Err(Damage::BadReference(path));
+            }
         }
         if let Some(ignore) = m.ignore {
             history.ignore = ignore;
@@ -94,9 +112,19 @@ pub fn read(scope: &Path) -> Result<Option<History>, Damage> {
 }
 
 struct Manifest {
-    /// Each `hash` or `directoryhash` path, with its `original` xxh64 if it has one.
-    hashes: Vec<(String, Option<u64>)>,
+    hashes: Vec<HashRecord>,
     ignore: Option<Vec<String>>,
+    /// Nested histories' manifests: path from this scope, and C4.
+    references: Vec<(String, String)>,
+}
+
+/// A `hash` or `directoryhash` entry.
+struct HashRecord {
+    path: String,
+    /// Its `previousPath`: the file was renamed.
+    previous: Option<String>,
+    /// Its xxh64 when it was `original` or `verified` (a known-good hash), not `failed`.
+    xxh64: Option<u64>,
 }
 
 fn local(e: &BytesStart) -> String {
@@ -220,21 +248,51 @@ fn chain_entries(text: &str) -> Option<Vec<ChainEntry>> {
 
 fn manifest(text: &str) -> Option<Manifest> {
     let mut hashes = Vec::new();
+    let mut references = Vec::new();
     let mut ignore: Option<Vec<String>> = None;
-    let (mut path, mut xxh64, mut original) = (None, None, false);
+    let (mut path, mut previous, mut xxh64, mut good) = (None, None, None, false);
+    let (mut ref_path, mut ref_c4) = (None, None);
     walk(text, "hashlist", |step| {
         match step {
             Step::Start {
                 name: "hash" | "directoryhash",
                 ..
-            } => (path, xxh64) = (None, None),
+            } => (path, previous, xxh64) = (None, None, None),
+            Step::Start {
+                name: "path",
+                parents,
+                element,
+            } if matches!(parent(parents), Some("hash" | "directoryhash")) => {
+                previous = attr(element, "previousPath")?;
+            }
             Step::Start {
                 name: "xxh64",
                 parents,
                 element,
             } if parent(parents) == Some("hash") => {
-                original = attr(element, "action")?.as_deref() == Some("original");
+                good = matches!(
+                    attr(element, "action")?.as_deref(),
+                    Some("original" | "verified")
+                );
             }
+            Step::End {
+                name: "path",
+                parents,
+                text,
+            } if parent(parents) == Some("hashlistreference") => {
+                ref_path = Some(text.to_string());
+            }
+            Step::End {
+                name: "c4",
+                parents,
+                text,
+            } if parent(parents) == Some("hashlistreference") => {
+                ref_c4 = Some(text.trim().to_string());
+            }
+            Step::End {
+                name: "hashlistreference",
+                ..
+            } => references.push((ref_path.take()?, ref_c4.take()?)),
             Step::Start {
                 name: "ignore",
                 parents,
@@ -251,7 +309,7 @@ fn manifest(text: &str) -> Option<Manifest> {
                 name: "xxh64",
                 parents,
                 text,
-            } if parent(parents) == Some("hash") && original => {
+            } if parent(parents) == Some("hash") && good => {
                 xxh64 = Some(u64::from_str_radix(text.trim(), 16).ok()?);
             }
             Step::End {
@@ -262,12 +320,20 @@ fn manifest(text: &str) -> Option<Manifest> {
             Step::End {
                 name: "hash" | "directoryhash",
                 ..
-            } => hashes.push((path.take()?, xxh64.take())),
+            } => hashes.push(HashRecord {
+                path: path.take()?,
+                previous: previous.take(),
+                xxh64: xxh64.take(),
+            }),
             _ => {}
         }
         Some(())
     })?;
-    Some(Manifest { hashes, ignore })
+    Some(Manifest {
+        hashes,
+        ignore,
+        references,
+    })
 }
 
 #[cfg(test)]
@@ -429,5 +495,82 @@ mod tests {
         )
         .unwrap();
         assert_eq!(read(d.path()), Err(Damage::Unreadable("../x.mhl".into())));
+    }
+
+    /// Writes a manifest from `body` (the `<hashes>`/`<references>` part) as the next
+    /// generation of `scope`'s history, as another tool would.
+    fn hand_written(scope: &Path, body: &str) {
+        let before = read(scope).unwrap();
+        let folder = scope.join("ascmhl");
+        std::fs::create_dir_all(&folder).unwrap();
+        let text = manifest_xml(&g(Vec::new()))
+            .replace("</processinfo>\n", &format!("</processinfo>\n{body}"));
+        let mut entries = before.map_or(Vec::new(), |h| h.entries);
+        let name = format!("{:04}_x_2026-10-01_081500Z.mhl", entries.len() + 1);
+        std::fs::write(folder.join(&name), &text).unwrap();
+        entries.push(ChainEntry {
+            sequence: entries.len() as u32 + 1,
+            file: name,
+            c4: crate::mhl::c4::c4(text.as_bytes()),
+        });
+        std::fs::write(folder.join("ascmhl_chain.xml"), chain_xml(&entries)).unwrap();
+    }
+
+    /// Review #10: an xxh64 added later as `verified` (after md5) is the known-good hash.
+    #[test]
+    fn a_verified_xxh64_after_another_format_counts() {
+        let d = tempfile::tempdir().unwrap();
+        hand_written(
+            d.path(),
+            "  <hashes>\n    <hash>\n      <path size=\"1\">a.mov</path>\n      <md5 action=\"original\">0cc175b9c0f1b6a831c399e269772661</md5>\n    </hash>\n  </hashes>\n",
+        );
+        hand_written(
+            d.path(),
+            "  <hashes>\n    <hash>\n      <path size=\"1\">a.mov</path>\n      <md5 action=\"verified\">0cc175b9c0f1b6a831c399e269772661</md5>\n      <xxh64 action=\"verified\">00000000000000aa</xxh64>\n    </hash>\n  </hashes>\n",
+        );
+        let h = read(d.path()).unwrap().unwrap();
+        assert_eq!(h.first_xxh64["a.mov"], 0xaa);
+    }
+
+    /// Review #11: a file renamed by another tool is recorded under its new name only.
+    #[test]
+    fn a_renamed_file_is_recorded_under_its_new_name() {
+        let d = tempfile::tempdir().unwrap();
+        hand_written(
+            d.path(),
+            "  <hashes>\n    <hash>\n      <path size=\"1\">old.mov</path>\n      <xxh64 action=\"original\">00000000000000bb</xxh64>\n    </hash>\n  </hashes>\n",
+        );
+        hand_written(
+            d.path(),
+            "  <hashes>\n    <hash>\n      <path size=\"1\" previousPath=\"old.mov\">new.mov</path>\n      <xxh64 action=\"verified\">00000000000000bb</xxh64>\n    </hash>\n  </hashes>\n",
+        );
+        let h = read(d.path()).unwrap().unwrap();
+        assert!(h.recorded.contains("new.mov") && !h.recorded.contains("old.mov"));
+        assert_eq!(h.first_xxh64["new.mov"], 0xbb);
+    }
+
+    /// Review #9: a reference to a nested manifest that's missing or altered is damage.
+    #[test]
+    fn a_bad_reference_to_a_nested_history_is_damage() {
+        let d = tempfile::tempdir().unwrap();
+        let child = d.path().join("A001");
+        hand_written(
+            &child,
+            "  <hashes>\n    <hash>\n      <path size=\"1\">a.mov</path>\n      <xxh64 action=\"original\">0000000000000001</xxh64>\n    </hash>\n  </hashes>\n",
+        );
+        let child_manifest = "A001/ascmhl/0001_x_2026-10-01_081500Z.mhl";
+        let good = crate::mhl::c4::c4(&std::fs::read(d.path().join(child_manifest)).unwrap());
+        hand_written(
+            d.path(),
+            &format!(
+                "  <references>\n    <hashlistreference>\n      <path>{child_manifest}</path>\n      <c4>{good}</c4>\n    </hashlistreference>\n  </references>\n"
+            ),
+        );
+        assert!(read(d.path()).is_ok());
+        std::fs::write(d.path().join(child_manifest), b"altered").unwrap();
+        assert_eq!(
+            read(d.path()),
+            Err(Damage::BadReference(child_manifest.to_string()))
+        );
     }
 }

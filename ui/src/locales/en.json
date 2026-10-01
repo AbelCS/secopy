@@ -30,6 +30,11 @@
     "headline": {
       "cancelled": "Cancelled",
       "stopped": "Stopped: {why}",
+      "mhlFailed": {
+        "one": "{count} file doesn't match its ASC MHL history",
+        "other": "{count} files don't match their ASC MHL history"
+      },
+      "mhlNotWritten": "ASC MHL couldn't be written",
       "checkCannotContinue": "the check could not continue",
       "copyCannotContinue": "the copy could not continue",
       "check": {
@@ -1119,7 +1124,9 @@
       "overwrites": "Overwriting files its ASC MHL history lists would break it. Choose Skip or Keep both, or turn off ASC MHL in Settings.",
       "damaged": "The ASC MHL history in {path} is damaged. Nothing in it is changed; turn off ASC MHL in Settings to copy anyway.",
       "leavesOut": "This copy leaves out files the source's ASC MHL history lists. Copy every file type, or turn off ASC MHL in Settings.",
-      "unlistable": "ASC MHL can't list {path}: its name has characters XML can't hold.",
+      "unlistable": "ASC MHL can't list {path}: its name has characters a history can't hold.",
+      "conflicts": "{path} is in the source's ASC MHL history but would be copied under another name or skipped. Choose Overwrite, or turn off ASC MHL in Settings.",
+      "unreadable": "ASC MHL can't read {path}, so it can't list what's there. Turn off ASC MHL in Settings to copy anyway.",
       "notWritten": "ASC MHL couldn't be written: {why}"
     },
     "scan": {
