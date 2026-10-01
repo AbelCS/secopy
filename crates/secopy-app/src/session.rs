@@ -565,6 +565,7 @@ impl Session {
                     Source::Directory { path, .. } => Some(path.clone()),
                     Source::Files(_) => None,
                 }),
+                ignore: secopy_core::ignore::Patterns::defaults(),
             };
             self.mhl = Some(mhl::prepare::prepare(&mut plan, &inputs));
             self.plan = Some(plan);

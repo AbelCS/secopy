@@ -69,7 +69,7 @@ pub fn record(
         };
         // What the generation's ignore list leaves out isn't recorded in it.
         let previous = scope.continues().map_or(&[][..], |h| h.ignore.as_slice());
-        if Ignore::new(&merged(previous)).matches(&rel, false) {
+        if Ignore::new(&merged(previous, &job.plan.patterns)).matches(&rel, false) {
             continue;
         }
         let meta = match fs::symlink_metadata(&path) {
@@ -115,7 +115,10 @@ pub fn record(
             created,
             hostname: host.clone(),
             tool_version: job.tool_version.clone(),
-            ignore: merged(scope.continues().map_or(&[][..], |h| h.ignore.as_slice())),
+            ignore: merged(
+                scope.continues().map_or(&[][..], |h| h.ignore.as_slice()),
+                &job.plan.patterns,
+            ),
             records,
             references,
         };

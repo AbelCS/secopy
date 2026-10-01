@@ -196,6 +196,22 @@ mod tests {
         }
     }
 
+    /// What a camera or a person names is never in the defaults (moved from system.rs).
+    #[test]
+    fn camera_and_user_files_are_not_defaults() {
+        let d = Patterns::defaults();
+        for name in [
+            ".camera_index",
+            ".config",
+            "A001.MOV",
+            "PRIVATE",
+            "DS_Store",
+            "_A001.MOV",
+        ] {
+            assert!(!d.matches(OsStr::new(name)), "{name}");
+        }
+    }
+
     #[test]
     fn patterns_are_checked() {
         assert_eq!(
