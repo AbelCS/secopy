@@ -132,7 +132,11 @@ fn run(args: Args) -> Result<ExitCode, String> {
     let scan = scan::scan(
         &source,
         &ScanOptions {
-            include_system_files: args.include_system_files,
+            ignore: if args.include_system_files {
+                secopy_core::ignore::Patterns::none()
+            } else {
+                secopy_core::ignore::Patterns::defaults()
+            },
         },
     )
     .map_err(|e| e.to_string())?;
@@ -155,7 +159,7 @@ fn run(args: Args) -> Result<ExitCode, String> {
         "{} files, {} ({} system files skipped)",
         selection.files.len(),
         fmt_bytes(selection.total_bytes),
-        scan.skipped_system
+        scan.ignored
     );
     // Nothing matches (an --ext typo) or nothing at all: not a success a script could take for
     // one (#116). Empty folders alone are still copied (FR-6).

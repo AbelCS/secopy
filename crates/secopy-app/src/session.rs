@@ -635,7 +635,7 @@ impl Session {
                         .collect(),
                 ),
             },
-            skipped_system: count(scan.skipped_system),
+            skipped_system: count(scan.ignored),
             skipped_symlinks: count(scan.skipped_symlinks.len()),
             skipped_special: count(scan.skipped_special.len()),
             problems: scan
