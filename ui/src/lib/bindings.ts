@@ -71,6 +71,8 @@ export const commands = {
 	setSettings: (settings: Settings) => typedError<Settings, Message>(__TAURI_INVOKE("set_settings", { settings })),
 	/**  Copy or Copy & Verify, remembered for the next launch (FR-36). */
 	setMode: (verify: boolean) => typedError<null, Message>(__TAURI_INVOKE("set_mode", { verify })),
+	/**  Settings › Always ignore when copying: Restore defaults (#158). */
+	defaultIgnore: () => __TAURI_INVOKE<string[]>("default_ignore"),
 	/**  Clears the source; the destination stays ("New copy", RFD §5.4). */
 	clearSource: () => typedError<SessionView, Message>(__TAURI_INVOKE("clear_source")),
 	/**  `None` selects every extension (FR-8, FR-10). */

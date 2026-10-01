@@ -156,6 +156,7 @@ export const tauriApi = {
   deleteCopyPreset: (id: string): Promise<CopyPresetsView> => unwrap(commands.deleteCopyPreset(id)),
   setSettings: (settings: Settings): Promise<Settings> => unwrap(commands.setSettings(settings)),
   setMode: (verify: boolean): Promise<null> => unwrap(commands.setMode(verify)),
+  defaultIgnore: (): Promise<string[]> => commands.defaultIgnore(),
   /** Secopy → Settings… (⌘,). */
   onOpenSettings: (handler: () => void): Promise<() => void> => listen("open-settings", handler),
   /** Menu items the window handles: "choose-source", "choose-destination", "start-copy",

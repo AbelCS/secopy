@@ -10,6 +10,10 @@
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
   import Checkbox from "../lib/ui/Checkbox.svelte";
+  import Chip from "../lib/ui/Chip.svelte";
+  import FormRow from "../lib/ui/FormRow.svelte";
+  import TextField from "../lib/ui/TextField.svelte";
+  import { MAX_LEN, MAX_PATTERNS, patternProblem, shownPattern } from "../lib/patterns";
   import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
   import Section from "../lib/ui/Section.svelte";
@@ -34,11 +38,33 @@
 
   const api = useApi();
   // File names and a command: shown as they are, in mono, inside the translated help.
-  const CODE = { file: "secopy_….xxh64", command: "xxhsum -c", a: ".DS_Store", b: "._*", c: "Thumbs.db" };
+  const CODE = { file: "secopy_….xxh64", command: "xxhsum -c" };
   // The screen is recreated each time it opens, so the draft starts from the saved settings.
   // svelte-ignore state_referenced_locally
   let draft: Settings = $state({ ...settings });
   let saving = $state(false);
+  /** Settings › Always ignore when copying (#158): the pattern being typed, and why it can't go in. */
+  let pattern = $state("");
+  let patternError: string | null = $state(null);
+
+  function addPattern() {
+    const problem = patternProblem(pattern, draft.ignore);
+    if (problem === "slash") patternError = t("errors.pattern.slash");
+    else if (problem === "tooLong") patternError = t("errors.pattern.tooLong", { max: MAX_LEN });
+    else if (problem === "tooMany") patternError = t("errors.pattern.tooMany", { max: MAX_PATTERNS });
+    else if (problem === "repeat") patternError = t("settings.ignore.repeat");
+    else {
+      const p = pattern.replace(/^ +| +$/g, "");
+      if (p) draft.ignore = [...draft.ignore, p];
+      pattern = "";
+      patternError = null;
+    }
+  }
+
+  async function restoreDefaults() {
+    draft.ignore = await api.defaultIgnore();
+    patternError = null;
+  }
   let settingsError: string | null = $state(null);
   /** A setting's value, compared by what it holds: the ignore list is an array (#158). */
   const same = (a: unknown, b: unknown) =>
@@ -100,7 +126,7 @@
         onChange={(on) => (draft.showSystemCount = on)}
       >
         {#snippet help()}
-          {@render withCode(tParts("settings.systemCount.help", CODE))}
+          {t("settings.systemCount.help")}
         {/snippet}
       </Checkbox>
       <Checkbox
@@ -128,6 +154,24 @@
         {/snippet}
       </Checkbox>
     </div>
+    <FormRow label={t("settings.ignore.label")} hint={t("settings.ignore.help")}>
+      <div class="patterns">
+        {#each draft.ignore as p (p)}
+          <Chip label={shownPattern(p)} onRemove={() => (draft.ignore = draft.ignore.filter((q) => q !== p))} />
+        {/each}
+      </div>
+      <form
+        class="add"
+        onsubmit={(e) => {
+          e.preventDefault();
+          addPattern();
+        }}
+      >
+        <TextField label={t("settings.ignore.field")} hideLabel mono bind:value={pattern} error={patternError} />
+        <Button type="submit">{t("settings.ignore.add")}</Button>
+        <Button onclick={restoreDefaults}>{t("settings.ignore.restore")}</Button>
+      </form>
+    </FormRow>
     {#if settingsError}<Notice tone="danger">{settingsError}</Notice>{/if}
   </Section>
 
@@ -160,6 +204,19 @@
   .transfer {
     display: flex;
     gap: var(--space-2);
+  }
+
+  .patterns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-bottom: var(--space-2);
+  }
+
+  .add {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
   }
 
   .muted {
