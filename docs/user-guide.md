@@ -101,6 +101,15 @@ Each copy writes a checksum file in the destination directory, named
 standard format; in Terminal, `cd` to the destination and run `xxhsum -c secopy_…xxh64` to
 check every file. A file that failed isn't listed.
 
+**ASC MHL** (Settings, off by default): the media industry's proof of copy, read by tools such
+as Silverstack and Hedge. Each copy writes an `ascmhl` folder in the folder the files go to,
+or adds to the one already there (or brought by the source), marking each file as matching
+its earlier checksum or not; a file that doesn't match makes the copy not complete. Files
+already in that folder that no history lists are read too, and before Start the plan says how
+many. Start is refused when the history can't be kept right: two different histories, Overwrite
+on a file it lists, a damaged history, or a file-type filter that leaves out files it lists.
+Mirrors don't write it.
+
 The report lists the settings, times, counts and the result of every file, including the
 skipped ones. Every report is kept in `~/Library/Application Support/com.latecommits.secopy/reports`;
 a setting also saves it next to the checksum file.
@@ -203,6 +212,7 @@ preset with a setting this Secopy doesn't know can't be imported: update Secopy 
 ## Settings
 
 - **Write the checksum file to the destination** (on by default).
+- **Write ASC MHL** (off by default): see [The checksum file and the report](#the-checksum-file-and-the-report).
 - **Show the count of skipped system files.**
 - **Also save the job report next to the checksum file.**
 - **Notify when a copy finishes**, when Secopy's window isn't in front.

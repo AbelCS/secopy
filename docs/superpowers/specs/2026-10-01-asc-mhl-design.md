@@ -175,3 +175,18 @@ job right before writing, so a history changed in between is never written over.
 
 Reading MHL in Verify; directory and root hashes; flattening and collections; mirrors;
 other hash formats.
+
+## Changes while building (2026-10-01)
+
+- The source's `ascmhl` folder is copied by the normal copy (verified, durable, undoable) and
+  then appended to. When the destination already has that history (the same, or longer), the
+  source's history files aren't copied over it.
+- A cancelled copy (or one that stopped as a whole) writes no ASC MHL, instead of following
+  the checksum file's rules: its history would be as incomplete as the copy. Running the copy
+  again finishes both.
+- A path an existing history recorded only as md5, sha1 or c4 gets Secopy's xxh64 as
+  `original`: Secopy can't compute those, so that file isn't verified against its earlier hash.
+- `hashdate` is left out (it then means the manifest's `creationdate`).
+- The ASC's example chain in its `xsd/examples` folder names a stale C4; the tests use the
+  reference tool's generated `examples/scenarios/Output/scenario_01` instead.
+
