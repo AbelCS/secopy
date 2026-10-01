@@ -15,9 +15,9 @@ use walkdir::WalkDir;
 use crate::control::JobControl;
 use crate::error::{FileError, IoFailure};
 use crate::hash::to_hex;
+use crate::ignore::{Patterns, is_own_file};
 use crate::job::{ActiveFile, Event, FileOutcome, FileStatus, JobReport, Phase, Progress};
 use crate::mirror::ARCHIVE_DIR;
-use crate::system::is_system_file;
 use crate::verify::{CacheBypass, hash_from_device};
 
 /// Lines of a checksum file that couldn't be used: 1-based line number, and why.
@@ -183,7 +183,7 @@ pub struct CheckPlan {
     pub total_bytes: u64,
 }
 
-pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
+pub fn plan(dir: &Path, ignore: &Patterns) -> io::Result<CheckPlan> {
     fs::read_dir(dir)?; // there, and readable
     let mut sums: Vec<(PathBuf, Option<SystemTime>)> = Vec::new();
     let mut others = Vec::new();
@@ -196,7 +196,9 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
         // backup's, and often unreadable.
         .filter_entry(|e| {
             !(e.file_type().is_dir()
-                && (e.file_name() == ARCHIVE_DIR || is_system_file(e.file_name())))
+                && (e.file_name() == ARCHIVE_DIR
+                    || is_own_file(e.file_name())
+                    || ignore.matches(e.file_name())))
         });
     for entry in walk {
         let entry = match entry {
@@ -227,7 +229,8 @@ pub fn plan(dir: &Path) -> io::Result<CheckPlan> {
         let name = entry.file_name().to_string_lossy();
         if name.ends_with(".xxh64") {
             sums.push((rel, entry.metadata().ok().and_then(|m| m.modified().ok())));
-        } else if !is_system_file(entry.file_name())
+        } else if !is_own_file(entry.file_name())
+            && !ignore.matches(entry.file_name())
             && !(name.starts_with("secopy_")
                 && (name.ends_with("_report.txt") || name.ends_with("_report.json")))
             // An ASC MHL history (#154) is the copy's proof, not media.

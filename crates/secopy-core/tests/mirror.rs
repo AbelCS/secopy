@@ -665,7 +665,7 @@ fn a_mirror_keeps_a_checksum_file_a_check_can_use() {
         .collect();
     names.sort();
     assert_eq!(names, ["a.mov", "new/b.mov"]);
-    let plan = secopy_core::check::plan(&d).unwrap();
+    let plan = secopy_core::check::plan(&d, &secopy_core::ignore::Patterns::defaults()).unwrap();
     let r = secopy_core::check::run(
         &plan,
         &secopy_core::check::CheckOptions {
@@ -727,7 +727,7 @@ fn a_deep_check_records_the_hashes_it_compared() {
 }
 
 fn check_of(d: &Path) -> secopy_core::check::CheckReport {
-    let plan = secopy_core::check::plan(d).unwrap();
+    let plan = secopy_core::check::plan(d, &secopy_core::ignore::Patterns::defaults()).unwrap();
     secopy_core::check::run(
         &plan,
         &secopy_core::check::CheckOptions {
