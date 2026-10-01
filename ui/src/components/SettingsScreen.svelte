@@ -256,6 +256,7 @@
   .patterns li {
     display: flex;
     align-items: center;
+    gap: var(--space-2);
     justify-content: space-between;
     min-height: 1.9rem;
     padding: 0 var(--space-2) 0 var(--space-3);
@@ -266,7 +267,14 @@
     background: var(--surface-raised);
   }
 
+  /* A long pattern wraps: its remove button stays in view (up to 255 characters). */
+  .patterns li span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
   .remove {
+    flex-shrink: 0;
     display: grid;
     place-items: center;
     width: 1.4rem;

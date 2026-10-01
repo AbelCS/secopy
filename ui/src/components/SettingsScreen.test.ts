@@ -38,7 +38,7 @@ describe("SettingsScreen", () => {
 
   test("an empty list says every file is copied", async () => {
     show(settingsView({ ignore: [] }));
-    screen.getByText("No patterns: every file is copied.");
+    screen.getByText("No patterns. Secopy's own working files are still left out.");
   });
 
   test("a pattern is added and removed, and Save sends the list (#158)", async () => {

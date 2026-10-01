@@ -20,7 +20,7 @@ pub fn secopy_patterns(user: &crate::ignore::Patterns) -> Vec<String> {
     patterns.extend(
         [
             ".secopy-checksums.xxh64",
-            "Icon\r",
+            "[iI][cC][oO][nN]\r",
             "*.secopy-partial",
             ".secopy-*.partial",
             "secopy_*.xxh64",
