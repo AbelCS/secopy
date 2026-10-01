@@ -18,6 +18,8 @@ pub struct MhlInputs {
     pub copy_root: PathBuf,
     /// The picked directory (the source of `copy_root`); `None` for files picked one by one.
     pub source_dir: Option<PathBuf>,
+    /// The names the copy leaves out (#158): the histories leave them out too.
+    pub ignore: crate::ignore::Patterns,
 }
 
 /// One history the job writes a generation to.
@@ -45,6 +47,8 @@ pub struct MhlPlan {
     /// Files already in the destination that no history records: read and recorded.
     pub to_read: Vec<PathBuf>,
     pub to_read_bytes: u64,
+    /// The patterns Secopy adds to each generation's ignore list.
+    pub patterns: Vec<String>,
 }
 
 impl MhlPlan {
@@ -110,6 +114,7 @@ pub fn rel_to(path: &Path, base: &Path) -> Option<String> {
 /// same, or longer).
 pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBlocker>> {
     let root = &inputs.copy_root;
+    let patterns = super::ignore::secopy_patterns(&inputs.ignore);
     let mut blockers = Vec::new();
     let mut scopes: BTreeMap<PathBuf, ScopePlan> = BTreeMap::new();
     let scope = |scopes: &mut BTreeMap<PathBuf, ScopePlan>, at: &Path| {
@@ -268,7 +273,7 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
             continue;
         };
         let previous = s.continues().map_or(&[][..], |h| h.ignore.as_slice());
-        if Ignore::new(&merged(previous)).matches(&rel, false) {
+        if Ignore::new(&merged(previous, &patterns)).matches(&rel, false) {
             continue;
         }
         let recorded = [&s.dest, &s.source]
@@ -287,6 +292,7 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
             scopes: ordered,
             to_read,
             to_read_bytes,
+            patterns,
         })
     } else {
         blockers.dedup();

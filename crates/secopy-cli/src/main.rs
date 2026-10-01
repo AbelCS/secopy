@@ -129,14 +129,15 @@ fn run(args: Args) -> Result<ExitCode, String> {
         return mirror_run(&args);
     }
     let source = source_from(&args)?;
+    let ignore = if args.include_system_files {
+        secopy_core::ignore::Patterns::none()
+    } else {
+        secopy_core::ignore::Patterns::defaults()
+    };
     let scan = scan::scan(
         &source,
         &ScanOptions {
-            ignore: if args.include_system_files {
-                secopy_core::ignore::Patterns::none()
-            } else {
-                secopy_core::ignore::Patterns::defaults()
-            },
+            ignore: ignore.clone(),
         },
     )
     .map_err(|e| e.to_string())?;
@@ -176,7 +177,7 @@ fn run(args: Args) -> Result<ExitCode, String> {
         return Err(blocker.to_string());
     }
     let mhl = if args.mhl {
-        Some(prepare_mhl(&mut plan, &source, &scan)?)
+        Some(prepare_mhl(&mut plan, &source, &scan, &ignore)?)
     } else {
         None
     };
@@ -207,7 +208,12 @@ fn run(args: Args) -> Result<ExitCode, String> {
 }
 
 /// The copy's ASC MHL (#154): what it writes, or every reason it can't.
-fn prepare_mhl(plan: &mut Plan, source: &Source, scan: &scan::Scan) -> Result<MhlJob, String> {
+fn prepare_mhl(
+    plan: &mut Plan,
+    source: &Source,
+    scan: &scan::Scan,
+    ignore: &secopy_core::ignore::Patterns,
+) -> Result<MhlJob, String> {
     let inputs = MhlInputs {
         copy_root: match &scan.root_dir {
             Some(root) => plan.dest.join(root),
@@ -217,6 +223,7 @@ fn prepare_mhl(plan: &mut Plan, source: &Source, scan: &scan::Scan) -> Result<Mh
             Source::Directory { path, .. } => Some(path.clone()),
             Source::Files(_) => None,
         },
+        ignore: ignore.clone(),
     };
     match prepare(plan, &inputs) {
         Err(blockers) => {

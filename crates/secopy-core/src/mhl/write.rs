@@ -316,7 +316,7 @@ mod tests {
                 .unwrap(),
             hostname: "mac.local".into(),
             tool_version: "0.19.0".into(),
-            ignore: crate::mhl::ignore::merged(&[]),
+            ignore: crate::mhl::ignore::secopy_patterns(&crate::ignore::Patterns::defaults()),
             records: vec![
                 Record {
                     rel: "b & c/<C0002>.MP4".into(),

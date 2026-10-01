@@ -12,18 +12,45 @@ pub fn standard_defaults() -> Vec<String> {
         .to_vec()
 }
 
-/// The standard's defaults, then the system files Secopy never copies, then its own files
-/// (the checksum file, and the report saved next to it).
-pub fn secopy_patterns() -> Vec<String> {
+/// The standard's defaults, then the names the user's list leaves out of the copy (#158), then
+/// Secopy's own files (its working files, the checksum file and the report next to it).
+pub fn secopy_patterns(user: &crate::ignore::Patterns) -> Vec<String> {
     let mut patterns = standard_defaults();
-    patterns.extend(crate::system::NAMES.iter().map(|n| n.to_string()));
-    patterns.extend(["._*", "secopy_*.xxh64", "secopy_*.txt", "secopy_*.json"].map(String::from));
+    patterns.extend(user.as_slice().iter().map(|p| as_gitignore(p)));
+    patterns.extend(
+        [
+            ".secopy-checksums.xxh64",
+            "*.secopy-partial",
+            ".secopy-*.partial",
+            "secopy_*.xxh64",
+            "secopy_*.txt",
+            "secopy_*.json",
+        ]
+        .map(String::from),
+    );
     dedup(patterns)
 }
 
-/// `previous` first, then Secopy's patterns it lacks: the list only grows.
-pub fn merged(previous: &[String]) -> Vec<String> {
-    dedup(previous.iter().cloned().chain(secopy_patterns()).collect())
+/// A name pattern (only `*` and `?` special) as a gitignore one: `[` is literal, and a
+/// leading `!` or `#` isn't a negation or a comment.
+fn as_gitignore(p: &str) -> String {
+    let p = p.replace('[', "[[]");
+    if p.starts_with('!') || p.starts_with('#') {
+        format!("\\{p}")
+    } else {
+        p
+    }
+}
+
+/// `previous` first, then `additions` it lacks: the list only grows.
+pub fn merged(previous: &[String], additions: &[String]) -> Vec<String> {
+    dedup(
+        previous
+            .iter()
+            .cloned()
+            .chain(additions.iter().cloned())
+            .collect(),
+    )
 }
 
 fn dedup(list: Vec<String>) -> Vec<String> {
@@ -112,7 +139,7 @@ mod tests {
     use super::*;
 
     fn ignore() -> Ignore {
-        Ignore::new(&secopy_patterns())
+        Ignore::new(&secopy_patterns(&crate::ignore::Patterns::defaults()))
     }
 
     #[test]
@@ -171,7 +198,10 @@ mod tests {
 
     #[test]
     fn the_list_only_grows() {
-        let merged = merged(&["*.tmp".into(), ".DS_Store".into()]);
+        let merged = merged(
+            &["*.tmp".into(), ".DS_Store".into()],
+            &secopy_patterns(&crate::ignore::Patterns::defaults()),
+        );
         assert_eq!(merged[0], "*.tmp");
         assert_eq!(merged.iter().filter(|p| *p == ".DS_Store").count(), 1);
         assert!(merged.contains(&"ascmhl".to_string()));

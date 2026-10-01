@@ -8,6 +8,7 @@ use chrono::TimeZone;
 use common::write_files;
 use secopy_core::filter::ExtensionFilter;
 use secopy_core::hash::{hash_bytes, to_hex};
+use secopy_core::ignore::Patterns;
 use secopy_core::job::{Event, JobControl, JobOptions, JobReport, Progress, run_job, undo};
 use secopy_core::mhl::MhlJob;
 use secopy_core::mhl::prepare::{MhlBlocker, MhlInputs, MhlPlan, prepare};
@@ -42,11 +43,27 @@ fn fixture(files: &[(&str, &[u8])]) -> Fixture {
 
 /// The plan for copying `src` (the folder itself) into `dest`, and its MHL inputs.
 fn planned(f: &Fixture, filter: &ExtensionFilter, policy: DiffersPolicy) -> (Plan, MhlInputs) {
+    planned_with(f, filter, policy, Patterns::defaults())
+}
+
+/// `planned` with an ignore list for the scan and the history.
+fn planned_with(
+    f: &Fixture,
+    filter: &ExtensionFilter,
+    policy: DiffersPolicy,
+    ignore: Patterns,
+) -> (Plan, MhlInputs) {
     let source = Source::Directory {
         path: f.src.clone(),
         mode: DirMode::FolderItself,
     };
-    let scanned = scan(&source, &ScanOptions::default()).unwrap();
+    let scanned = scan(
+        &source,
+        &ScanOptions {
+            ignore: ignore.clone(),
+        },
+    )
+    .unwrap();
     let sel = scanned.select(filter);
     let pf = preflight(&source, &sel, &f.dest).unwrap();
     let plan = Plan::resolve(&sel, &pf, policy);
@@ -57,6 +74,7 @@ fn planned(f: &Fixture, filter: &ExtensionFilter, policy: DiffersPolicy) -> (Pla
     let inputs = MhlInputs {
         copy_root,
         source_dir: Some(f.src.clone()),
+        ignore,
     };
     (plan, inputs)
 }
@@ -622,4 +640,33 @@ fn the_report_says_when_the_mhl_failed() {
     };
     let report = secopy_core::report::Report::new(&plan, &job, &meta);
     assert_eq!(report.result, "1 file doesn't match its ASC MHL history");
+}
+
+/// #158: the ignore list goes into the history's own.
+#[test]
+fn the_ignore_list_is_in_the_manifest() {
+    let f = fixture(&[("a.mov", b"aaa"), ("a.LRF", b"l")]);
+    let lrf = Patterns::new(["*.LRF".to_string(), "[x]".to_string()]).unwrap();
+    let (mut plan, inputs) = planned_with(&f, &ExtensionFilter::All, DiffersPolicy::KeepBoth, lrf);
+    let mhl = prepare(&mut plan, &inputs).unwrap();
+    let report = run(&plan, Some(mhl)).0;
+    assert!(report.is_success(), "{report:?}");
+    let text = latest_manifest(&f.dest.join("A"));
+    assert!(text.contains("<pattern>*.LRF</pattern>"), "{text}");
+    assert!(text.contains("<pattern>[[]x]</pattern>"), "{text}");
+    assert!(!text.contains("a.LRF"), "{text}");
+}
+
+/// #158: a source history that lists a file the list ignores can't be carried whole.
+#[test]
+fn a_source_history_listing_an_ignored_file_blocks() {
+    let f = fixture(&[("a.mov", b"aaa"), ("a.LRF", b"l")]);
+    history(&f.src, &[("a.mov", b"aaa"), ("a.LRF", b"l")]);
+    let lrf = Patterns::new(["*.LRF".to_string()]).unwrap();
+    let (mut plan, inputs) = planned_with(&f, &ExtensionFilter::All, DiffersPolicy::KeepBoth, lrf);
+    assert!(
+        blockers(prepare(&mut plan, &inputs)).contains(&MhlBlocker::LeavesOut {
+            scope: f.dest.join("A")
+        })
+    );
 }
