@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.20.0](https://github.com/AbelCS/secopy/compare/v0.19.0...v0.20.0) (2026-10-01)
+
+
+### Features
+
+* **app:** copies record ASC MHL and say so ([#154](https://github.com/AbelCS/secopy/issues/154)) ([827ffe7](https://github.com/AbelCS/secopy/commit/827ffe7ca2579e9542249106569ebf6f1618e6c0))
+* **app:** Write ASC MHL setting and the copy's plan ([#154](https://github.com/AbelCS/secopy/issues/154)) ([61ddc5f](https://github.com/AbelCS/secopy/commit/61ddc5fc40ec0b6ca02b3ce0f27809a642e69776))
+* **cli:** --mhl writes ASC MHL ([#154](https://github.com/AbelCS/secopy/issues/154)) ([46a4a83](https://github.com/AbelCS/secopy/commit/46a4a83502553b57b13797d260937d4355353319))
+* **core:** ASC MHL ignore patterns ([#154](https://github.com/AbelCS/secopy/issues/154)) ([cf588f1](https://github.com/AbelCS/secopy/commit/cf588f13807a96310948fe1da206670ea9a9085d))
+* **core:** C4 IDs for ASC MHL ([#154](https://github.com/AbelCS/secopy/issues/154)) ([6e999f3](https://github.com/AbelCS/secopy/commit/6e999f325cc5abadc83eccedb46d38609ded903e))
+* **core:** prepare a copy's ASC MHL: scopes, files to read, blockers ([#154](https://github.com/AbelCS/secopy/issues/154)) ([768582d](https://github.com/AbelCS/secopy/commit/768582d5e555056bb3f4655807c3fc7c154f01f3))
+* **core:** read and check ASC MHL histories ([#154](https://github.com/AbelCS/secopy/issues/154)) ([156cbcb](https://github.com/AbelCS/secopy/commit/156cbcb618eae99ec52104ac9457f6fbd3cf5cb2))
+* **core:** record ASC MHL at the end of a copy ([#154](https://github.com/AbelCS/secopy/issues/154)) ([f48a17e](https://github.com/AbelCS/secopy/commit/f48a17e53866e342952c97878c208e6643aa77d9))
+* **core:** undo takes back ASC MHL; Verify doesn't count it ([#154](https://github.com/AbelCS/secopy/issues/154)) ([9b0d944](https://github.com/AbelCS/secopy/commit/9b0d944a39cef55b33a632e8314538cc8f882b6c))
+* **core:** write ASC MHL manifests and chains ([#154](https://github.com/AbelCS/secopy/issues/154)) ([ec5f01a](https://github.com/AbelCS/secopy/commit/ec5f01af6e56081151bc4d90d128a22f0f6bd213))
+* **ui:** Write ASC MHL in Settings, the plan, progress and summary ([#154](https://github.com/AbelCS/secopy/issues/154)) ([1555d62](https://github.com/AbelCS/secopy/commit/1555d627b8fe3fe7bdf91b4b0d2c2c2b80b952dd))
+
+
+### Bug Fixes
+
+* review fixes for ASC MHL ([#154](https://github.com/AbelCS/secopy/issues/154)) ([f1b78b8](https://github.com/AbelCS/secopy/commit/f1b78b84bee4fb258d0208465f99d9139fcf64c0))
+
 ## [0.19.0](https://github.com/AbelCS/secopy/compare/v0.18.0...v0.19.0) (2026-10-01)
 
 
