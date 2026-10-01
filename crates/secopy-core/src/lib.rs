@@ -15,6 +15,7 @@ pub mod fsinfo;
 pub mod hash;
 pub mod job;
 mod metadata;
+pub mod mhl;
 pub mod mirror;
 pub mod names;
 mod os;

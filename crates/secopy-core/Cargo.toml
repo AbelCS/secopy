@@ -10,7 +10,11 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+bs58.workspace = true
 chrono.workspace = true
+glob.workspace = true
+quick-xml.workspace = true
+sha2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
