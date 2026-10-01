@@ -18,9 +18,10 @@ Drop a directory or files on **From**, or press **Choose…** (⌘O).
   By default only what's inside it is copied; **Include the "…" directory** copies the
   directory itself (the files land in `destination/CLIP/…`).
 - **Files** picked one by one are copied side by side into the destination.
-- **Hidden files are copied** (cameras hide some of their own). Files computers leave behind,
-  like `.DS_Store`, `._*` or `Thumbs.db`, are never copied; their count is shown, so nothing
-  disappears without a word. Links are not followed.
+- **Hidden files are copied** (cameras hide some of their own). Files and directories named in
+  Settings › Always ignore when copying are never copied: by default the ones computers leave
+  behind, like `.DS_Store`, `._*` or `Thumbs.db`. Their count is shown, so nothing disappears
+  without a word. Links are not followed.
 - **File types** lists every extension with its count and size, largest first. Click one to
   leave it out; **All** and **None** select every type or none.
 
@@ -213,7 +214,12 @@ preset with a setting this Secopy doesn't know can't be imported: update Secopy 
 
 - **Write the checksum file to the destination** (on by default).
 - **Write ASC MHL** (off by default): see [The checksum file and the report](#the-checksum-file-and-the-report).
-- **Show the count of skipped system files.**
+- **Show the count of ignored files.**
+- **Always ignore when copying**: names never copied or mirrored, like `*.LRF` or `.gitkeep`
+  (`*` is any characters, `?` one; case doesn't matter). A matching directory is left out with
+  everything in it, and a mirror never removes these files from its backup. It starts with the
+  files computers leave behind; **Restore defaults** puts those back. In Terminal,
+  `--ignore PATTERN` adds a pattern.
 - **Also save the job report next to the checksum file.**
 - **Notify when a copy finishes**, when Secopy's window isn't in front.
 - **Keep copying in the menu bar when the window is closed** (on by default).
