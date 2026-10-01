@@ -2,6 +2,7 @@
 
 pub mod c4;
 pub mod ignore;
+pub mod read;
 pub mod write;
 
 /// The history's folder, at the root of the folder it covers.
