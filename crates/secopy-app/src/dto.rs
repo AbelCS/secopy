@@ -186,6 +186,17 @@ pub struct ProgressView {
     pub undoing: bool,
     /// Set once, when the job has stopped for good.
     pub fatal: Option<Message>,
+    /// Reading files already in the destination for ASC MHL, after the copy (#154).
+    pub recording: Option<RecordingView>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingView {
+    #[specta(type = specta_typescript::Number)]
+    pub bytes: u64,
+    #[specta(type = specta_typescript::Number)]
+    pub total: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Type)]
@@ -299,6 +310,12 @@ pub struct SummaryView {
     pub undone: Option<UndoneView>,
     /// A check's own figures (plan 8); `None` for a copy or a mirror.
     pub check: Option<CheckSummaryView>,
+    /// The copy's ASC MHL history, when it was written (#154).
+    pub mhl_folder: Option<String>,
+    /// Why ASC MHL couldn't be written; nothing of it was left.
+    pub mhl_error: Option<Message>,
+    /// Files that don't match their earlier ASC MHL hash; listed with the failures.
+    pub mhl_failed: u32,
 }
 
 /// A directory about to be checked (plan 8): what its checksum files list.

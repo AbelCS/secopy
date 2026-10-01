@@ -125,6 +125,7 @@ export function progressView(over: Partial<ProgressView> = {}): ProgressView {
     removing: 0,
     archiving: false,
     undoing: false,
+    recording: null,
     ...over,
   };
 }
@@ -156,6 +157,9 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
     mirror: null,
     undone: null,
     check: null,
+    mhlFolder: null,
+    mhlError: null,
+    mhlFailed: 0,
     finished: 1284,
     ...over,
   };

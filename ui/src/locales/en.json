@@ -150,6 +150,7 @@
     "reason": {
       "differs": "A different file with this name was kept",
       "dirNotCreated": "Empty directory not created: {why}",
+      "mhlFailed": "Doesn't match its ASC MHL history",
       "identical": "Already at the destination (not checked)",
       "notRemoved": "Not removed: {why}",
       "unread": "Couldn't be read: {why}"
@@ -769,6 +770,11 @@
         "one": "{count} file failed.",
         "other": "{count} files failed."
       },
+      "mhl": "ASC MHL couldn't be written: {why}.",
+      "mhlFailed": {
+        "one": "{count} file doesn't match its ASC MHL history.",
+        "other": "{count} files don't match their ASC MHL history."
+      },
       "incomplete": "It didn't complete.",
       "internal": "Secopy hit an internal error; the queue stopped.",
       "newer": "Needs a newer Secopy.",
@@ -1100,7 +1106,8 @@
       "overwrites": "Overwriting files its ASC MHL history lists would break it. Choose Skip or Keep both, or turn off ASC MHL in Settings.",
       "damaged": "The ASC MHL history in {path} is damaged. Nothing in it is changed; turn off ASC MHL in Settings to copy anyway.",
       "leavesOut": "This copy leaves out files the source's ASC MHL history lists. Copy every file type, or turn off ASC MHL in Settings.",
-      "unlistable": "ASC MHL can't list {path}: its name has characters XML can't hold."
+      "unlistable": "ASC MHL can't list {path}: its name has characters XML can't hold.",
+      "notWritten": "ASC MHL couldn't be written: {why}"
     },
     "scan": {
       "notAFile": "Not a regular file",

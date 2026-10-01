@@ -76,6 +76,7 @@ export const progress: ProgressView = {
   removing: 0,
   archiving: false,
   undoing: false,
+  recording: null,
 };
 
 function row(i: number, status: FinishedRow["status"] = "verified"): FinishedRow {
@@ -122,6 +123,9 @@ export const summary: SummaryView = {
   mirror: null,
   undone: null,
   check: null,
+  mhlFolder: null,
+  mhlError: null,
+  mhlFailed: 0,
 };
 
 export const mirrors: MirrorPreset[] = [
