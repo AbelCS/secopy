@@ -36,6 +36,7 @@ pub fn prepare(
     let options = MirrorOptions {
         deleted: (&preset.deleted).into(),
         deep_check: preset.deep_check,
+        ignore: secopy_core::ignore::Patterns::defaults(),
     };
     let plan = mirror::plan_watched(
         Path::new(&preset.origin),
