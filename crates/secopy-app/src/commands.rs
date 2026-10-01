@@ -993,7 +993,7 @@ fn plan_check(dir: &Path) -> Result<CheckPlan, Message> {
     if !dir.is_dir() {
         return Err(msg!("errors.verify.notADirectory"));
     }
-    secopy_core::check::plan(dir).map_err(|e| {
+    secopy_core::check::plan(dir, &secopy_core::ignore::Patterns::defaults()).map_err(|e| {
         msg!(
             "errors.verify.cantRead",
             path = dir,

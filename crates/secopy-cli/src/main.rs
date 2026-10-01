@@ -638,7 +638,8 @@ fn fmt_bytes(n: u64) -> String {
 /// `--check`: every file the directory's checksum files list, read again (plan 8).
 fn check_run(dir: &Path) -> Result<ExitCode, String> {
     use secopy_core::{check, error::FileError, job::FileStatus};
-    let plan = check::plan(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let plan = check::plan(dir, &secopy_core::ignore::Patterns::defaults())
+        .map_err(|e| format!("{}: {e}", dir.display()))?;
     if plan.files.is_empty() {
         println!("No checksum files here: there's nothing to verify.");
         return Ok(ExitCode::from(1));

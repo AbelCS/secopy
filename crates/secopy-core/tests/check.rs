@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use secopy_core::check;
+use secopy_core::ignore::Patterns;
 
 #[test]
 fn lines_are_parsed_and_bad_ones_named() {
@@ -73,7 +74,7 @@ fn a_plan_lists_files_and_what_nothing_lists() {
     )
     .unwrap();
     fs::write(root.join("secopy_x_report.txt"), b"r").unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     assert_eq!(p.checksum_files.len(), 1);
     let mut listed: Vec<_> = p.files.iter().map(|f| f.rel.clone()).collect();
     listed.sort();
@@ -99,7 +100,7 @@ fn an_ascmhl_folder_isnt_counted_as_not_checked() {
     fs::write(root.join("ascmhl/ascmhl_chain.xml"), b"<x/>").unwrap();
     fs::create_dir_all(root.join("A001/ascmhl")).unwrap();
     fs::write(root.join("A001/ascmhl/ascmhl_chain.xml"), b"<x/>").unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     assert!(p.not_checked.is_empty(), "{:?}", p.not_checked);
 }
 
@@ -113,7 +114,7 @@ fn the_newest_checksum_file_wins() {
         format!("{:016x}  a.mov\n", secopy_core::hash::hash_bytes(b"new")),
     )
     .unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     assert_eq!(p.files.len(), 1);
     assert_eq!(p.files[0].expected, secopy_core::hash::hash_bytes(b"new"));
     assert_eq!(p.files[0].from, PathBuf::from("later.xxh64"));
@@ -126,7 +127,7 @@ fn checksum_files_in_subdirectories_are_found() {
     let drive = dir.path().join("drive");
     fs::create_dir_all(&drive).unwrap();
     fs::rename(&day1, drive.join("Day01")).unwrap();
-    let p = check::plan(&drive).unwrap();
+    let p = check::plan(&drive, &Patterns::defaults()).unwrap();
     assert_eq!(p.files[0].rel, PathBuf::from("Day01/x.mov"));
 }
 
@@ -139,7 +140,7 @@ fn a_path_outside_the_directory_is_a_problem() {
         "0000000000000001  ../secret\n0000000000000002  /etc/hosts\n",
     )
     .unwrap();
-    let p = check::plan(dir.path()).unwrap();
+    let p = check::plan(dir.path(), &secopy_core::ignore::Patterns::defaults()).unwrap();
     assert!(p.files.is_empty());
     assert_eq!(p.problems.len(), 2, "{:?}", p.problems);
     assert!(p.problems.iter().all(|x| x.reason.contains("outside")));
@@ -157,7 +158,7 @@ fn bad_lines_and_mirror_checksums() {
         ),
     )
     .unwrap();
-    let p = check::plan(dir.path()).unwrap();
+    let p = check::plan(dir.path(), &secopy_core::ignore::Patterns::defaults()).unwrap();
     assert_eq!(p.files.len(), 1);
     assert_eq!(p.problems.len(), 1);
     assert_eq!(p.problems[0].line, Some(2));
@@ -172,7 +173,7 @@ fn quick() -> check::CheckOptions {
 }
 
 fn check_all(root: &Path) -> check::CheckReport {
-    let p = check::plan(root).unwrap();
+    let p = check::plan(root, &Patterns::defaults()).unwrap();
     check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {})
 }
 
@@ -210,7 +211,7 @@ fn a_listed_link_or_directory_is_a_failure_not_missing() {
     std::os::unix::fs::symlink(root.join("target.mov"), root.join("link.mov")).unwrap();
     fs::remove_file(root.join("dir.mov")).unwrap();
     fs::create_dir(root.join("dir.mov")).unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     let link = p.files.iter().find(|f| f.rel == Path::new("link.mov"));
     assert_eq!(link.unwrap().size, 0, "a link's target isn't counted");
     let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
@@ -252,7 +253,7 @@ fn small_and_large_files_are_all_checked() {
 #[test]
 fn a_file_that_changed_size_is_changed() {
     let (_dir, root) = copy_of(&[("a.mov", b"short")]);
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     fs::write(root.join("a.mov"), b"longer than before").unwrap();
     let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
     assert_eq!(r.counts().changed, 1);
@@ -286,7 +287,7 @@ fn problems_and_cancel_are_not_intact() {
     let (_dir, root) = copy_of(&[("a.mov", b"a")]);
     fs::write(root.join("bad.xxh64"), "garbage\n").unwrap();
     assert!(!check_all(&root).is_intact(), "a checksum file problem");
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     let control = secopy_core::job::JobControl::new();
     control.cancel();
     let r = check::run(&p, &quick(), &control, &|_| {});
@@ -296,7 +297,7 @@ fn problems_and_cancel_are_not_intact() {
 #[test]
 fn progress_counts_bytes_checked() {
     let (_dir, root) = copy_of(&[("a.mov", &[1u8; 10_000]), ("b.mov", &[2u8; 5_000])]);
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     let last = std::sync::Mutex::new(None);
     check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|e| {
         if let secopy_core::job::Event::Progress(p) = e {
@@ -315,7 +316,7 @@ fn the_report_says_what_was_checked() {
     let (_dir, root) = copy_of(&[("a.mov", b"aaaa"), ("b.mov", b"b")]);
     fs::write(root.join("a.mov"), b"aaab").unwrap();
     fs::write(root.join("extra.mov"), b"x").unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
     let meta = secopy_core::report::JobMeta {
         app_version: "test".into(),
@@ -346,7 +347,7 @@ fn a_whole_drive_skips_the_systems_directories() {
     fs::create_dir_all(root.join(".Spotlight-V100")).unwrap();
     fs::write(root.join(".Spotlight-V100/store.db"), b"x").unwrap();
     fs::set_permissions(root.join(".Trashes"), fs::Permissions::from_mode(0o000)).unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     fs::set_permissions(root.join(".Trashes"), fs::Permissions::from_mode(0o755)).unwrap();
     assert!(p.problems.is_empty(), "{:?}", p.problems);
     assert!(p.not_checked.is_empty(), "{:?}", p.not_checked);
@@ -367,7 +368,7 @@ fn a_path_through_a_link_is_a_problem() {
         format!("{:016x}  link/x.mov\n", secopy_core::hash::hash_bytes(b"x")),
     )
     .unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     assert!(p.files.is_empty(), "{:?}", p.files);
     assert_eq!(p.problems.len(), 1);
     assert!(p.problems[0].reason.contains("outside"), "{:?}", p.problems);
@@ -384,7 +385,7 @@ fn dot_slash_paths_are_the_same_files() {
         format!("{:016x}  ./a.mov\n", secopy_core::hash::hash_bytes(b"a")),
     )
     .unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     assert_eq!(p.files.len(), 1);
     assert_eq!(p.files[0].rel, PathBuf::from("a.mov"));
     assert!(p.not_checked.is_empty(), "{:?}", p.not_checked);
@@ -397,7 +398,7 @@ fn only_secopys_reports_are_left_out() {
     let (_dir, root) = copy_of(&[("a.mov", b"a")]);
     fs::write(root.join("sales_report.txt"), b"s").unwrap();
     fs::write(root.join("secopy_2026-09-28_120000_report.txt"), b"r").unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     assert_eq!(p.not_checked, [PathBuf::from("sales_report.txt")]);
 }
 
@@ -408,7 +409,7 @@ fn a_checks_report_is_a_verify_not_a_copy() {
     let (_dir, root) = copy_of(&[("a.mov", b"aaaa"), ("b.mov", b"bb"), ("gone.mov", b"g")]);
     fs::write(root.join("a.mov"), b"aaab").unwrap();
     fs::remove_file(root.join("gone.mov")).unwrap();
-    let p = check::plan(&root).unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
     let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
     let meta = secopy_core::report::JobMeta {
         app_version: "test".into(),
@@ -451,7 +452,7 @@ fn the_report_names_the_checksum_file_that_listed_a_problem() {
     fs::rename(&day1, drive.join("Day01")).unwrap();
     fs::write(drive.join("Day01/a.mov"), b"aaab").unwrap();
     fs::remove_file(drive.join("Day01/gone.mov")).unwrap();
-    let p = check::plan(&drive).unwrap();
+    let p = check::plan(&drive, &Patterns::defaults()).unwrap();
     let sums = secopy_core::checksum_file::slash_path(&p.checksum_files[0]);
     assert!(sums.starts_with("Day01/secopy_"), "{sums}");
     let r = check::run(&p, &quick(), &secopy_core::job::JobControl::new(), &|_| {});
@@ -487,4 +488,28 @@ fn the_report_names_the_checksum_file_that_listed_a_problem() {
     assert_eq!(file("Day01/gone.mov")["listed_in"], sums.as_str());
     assert_eq!(file("Day01/a.mov")["listed_in"], sums.as_str());
     assert_eq!(file("Day01/ok.mov")["listed_in"], sums.as_str());
+}
+
+/// #158: what the list names isn't "not checked".
+#[test]
+fn an_ignored_file_isnt_not_checked() {
+    let (_dir, root) = copy_of(&[("a.mov", b"a")]);
+    fs::write(root.join("extra.LRF"), b"x").unwrap();
+    let lrf = Patterns::new(["*.LRF".to_string()]).unwrap();
+    assert!(check::plan(&root, &lrf).unwrap().not_checked.is_empty());
+    assert_eq!(
+        check::plan(&root, &Patterns::defaults())
+            .unwrap()
+            .not_checked,
+        [PathBuf::from("extra.LRF")]
+    );
+}
+
+/// #158: a file a checksum file lists is checked, whatever the list says.
+#[test]
+fn a_listed_file_is_checked_whatever_the_list_says() {
+    let (_dir, root) = copy_of(&[("a.LRF", b"a")]);
+    let lrf = Patterns::new(["*.LRF".to_string()]).unwrap();
+    let p = check::plan(&root, &lrf).unwrap();
+    assert_eq!(p.files.len(), 1);
 }

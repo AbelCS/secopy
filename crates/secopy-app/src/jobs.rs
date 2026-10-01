@@ -2092,7 +2092,9 @@ mod tests {
         let (dir, root) = check_fixture();
         fs::write(root.join("b.mov"), b"B").unwrap();
         let jobs = Jobs::new(dir.path().join("reports"));
-        let plan = Arc::new(secopy_core::check::plan(&root).unwrap());
+        let plan = Arc::new(
+            secopy_core::check::plan(&root, &secopy_core::ignore::Patterns::defaults()).unwrap(),
+        );
         jobs.start_work(Work::Check(plan), Collect::default())
             .unwrap();
         jobs.wait();
@@ -2113,7 +2115,9 @@ mod tests {
     fn a_check_row_names_the_checksum_file_that_listed_it() {
         let (dir, root) = check_fixture();
         fs::write(root.join("b.mov"), b"B").unwrap();
-        let plan = Arc::new(secopy_core::check::plan(&root).unwrap());
+        let plan = Arc::new(
+            secopy_core::check::plan(&root, &secopy_core::ignore::Patterns::defaults()).unwrap(),
+        );
         fs::remove_file(root.join("a.mov")).unwrap();
         let sum = plan.checksum_files[0]
             .file_name()
@@ -2143,7 +2147,9 @@ mod tests {
     fn an_intact_check_is_complete() {
         let (dir, root) = check_fixture();
         let jobs = Jobs::new(dir.path().join("reports"));
-        let plan = Arc::new(secopy_core::check::plan(&root).unwrap());
+        let plan = Arc::new(
+            secopy_core::check::plan(&root, &secopy_core::ignore::Patterns::defaults()).unwrap(),
+        );
         jobs.start_work(Work::Check(plan), Collect::default())
             .unwrap();
         jobs.wait();
@@ -2168,7 +2174,9 @@ mod tests {
     fn a_check_that_panicked_is_still_a_check() {
         let (dir, root) = check_fixture();
         let jobs = Jobs::new(dir.path().join("reports"));
-        let plan = Arc::new(secopy_core::check::plan(&root).unwrap());
+        let plan = Arc::new(
+            secopy_core::check::plan(&root, &secopy_core::ignore::Patterns::defaults()).unwrap(),
+        );
         jobs.start_work(Work::Check(plan), PanicsFirst::default())
             .unwrap();
         jobs.wait();

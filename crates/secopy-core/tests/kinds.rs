@@ -67,7 +67,7 @@ fn a_check_problem_says_what_it_is() {
         "not a line\nzz00000000000000  a.mov\n0000000000000001  ../out.mov\n",
     )
     .unwrap();
-    let plan = check::plan(dir.path()).unwrap();
+    let plan = check::plan(dir.path(), &secopy_core::ignore::Patterns::defaults()).unwrap();
     let kinds: Vec<_> = plan.problems.iter().map(|p| p.kind.clone()).collect();
     assert_eq!(
         kinds,
