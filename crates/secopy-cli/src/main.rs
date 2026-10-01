@@ -9,6 +9,7 @@ use chrono::Local;
 use clap::{Parser, ValueEnum};
 use secopy_core::checksum_file;
 use secopy_core::filter::ExtensionFilter;
+use secopy_core::ignore::{MAX_LEN, MAX_PATTERNS, PatternError, Patterns};
 use secopy_core::job::{self, Event, FileStatus, JobControl, JobOptions, JobReport, Progress};
 use secopy_core::mhl::MhlJob;
 use secopy_core::mhl::prepare::{MhlBlocker, MhlInputs, prepare};
@@ -52,9 +53,14 @@ struct Args {
     /// files go to, or continue the one there or in the source.
     #[arg(long, conflicts_with = "mirror")]
     mhl: bool,
-    /// Also copy system files (.DS_Store, Thumbs.db, …). Hidden files are always copied.
+    /// Also copy system files (.DS_Store, Thumbs.db, …): don't use the default ignore list.
+    /// Hidden files are always copied; Secopy's own working files never are.
     #[arg(long)]
     include_system_files: bool,
+    /// Never copy or mirror files and directories with this name: * is any characters, ? one
+    /// (case doesn't matter). Repeatable; added to the default list.
+    #[arg(long, value_name = "PATTERN")]
+    ignore: Vec<String>,
     /// What to do with files that already exist at the destination but differ.
     /// Identical files (same size and date) are always skipped.
     #[arg(long, value_enum, default_value_t = OnConflict::KeepBoth)]
@@ -117,7 +123,7 @@ impl Args {
 
 fn run(args: Args) -> Result<ExitCode, String> {
     if let Some(dir) = &args.check {
-        return check_run(dir);
+        return check_run(dir, &patterns(&args)?);
     }
     if !args.to().is_dir() {
         return Err(format!(
@@ -129,11 +135,7 @@ fn run(args: Args) -> Result<ExitCode, String> {
         return mirror_run(&args);
     }
     let source = source_from(&args)?;
-    let ignore = if args.include_system_files {
-        secopy_core::ignore::Patterns::none()
-    } else {
-        secopy_core::ignore::Patterns::defaults()
-    };
+    let ignore = patterns(&args)?;
     let scan = scan::scan(
         &source,
         &ScanOptions {
@@ -212,7 +214,7 @@ fn prepare_mhl(
     plan: &mut Plan,
     source: &Source,
     scan: &scan::Scan,
-    ignore: &secopy_core::ignore::Patterns,
+    ignore: &Patterns,
 ) -> Result<MhlJob, String> {
     let inputs = MhlInputs {
         copy_root: match &scan.root_dir {
@@ -327,11 +329,7 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
     let options = MirrorOptions {
         deleted,
         deep_check: args.deep,
-        ignore: if args.include_system_files {
-            secopy_core::ignore::Patterns::none()
-        } else {
-            secopy_core::ignore::Patterns::defaults()
-        },
+        ignore: patterns(args)?,
     };
     let plan = mirror::plan(origin, args.to(), &options)?;
     let new = plan
@@ -642,11 +640,31 @@ fn fmt_bytes(n: u64) -> String {
     }
 }
 
+/// The ignore list (#158): the defaults (none with --include-system-files) and --ignore's.
+fn patterns(args: &Args) -> Result<Patterns, String> {
+    let base = if args.include_system_files {
+        Patterns::none()
+    } else {
+        Patterns::defaults()
+    };
+    for p in &args.ignore {
+        if let Err(e) = Patterns::new([p.clone()]) {
+            let why = match e {
+                PatternError::HasSlash => "a pattern is a name: it can't contain /".to_string(),
+                PatternError::TooLong => format!("up to {MAX_LEN} characters"),
+                PatternError::TooMany => format!("up to {MAX_PATTERNS} patterns"),
+            };
+            return Err(format!("--ignore {p}: {why}"));
+        }
+    }
+    let all = base.as_slice().iter().chain(&args.ignore).cloned();
+    Patterns::new(all).map_err(|_| format!("--ignore: up to {MAX_PATTERNS} patterns"))
+}
+
 /// `--check`: every file the directory's checksum files list, read again (plan 8).
-fn check_run(dir: &Path) -> Result<ExitCode, String> {
+fn check_run(dir: &Path, ignore: &Patterns) -> Result<ExitCode, String> {
     use secopy_core::{check, error::FileError, job::FileStatus};
-    let plan = check::plan(dir, &secopy_core::ignore::Patterns::defaults())
-        .map_err(|e| format!("{}: {e}", dir.display()))?;
+    let plan = check::plan(dir, ignore).map_err(|e| format!("{}: {e}", dir.display()))?;
     if plan.files.is_empty() {
         println!("No checksum files here: there's nothing to verify.");
         return Ok(ExitCode::from(1));

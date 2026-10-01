@@ -547,3 +547,67 @@ fn mhl_isnt_for_mirrors() {
         .unwrap();
     assert_eq!(out.status.code(), Some(2));
 }
+
+/// #158: --ignore adds name patterns to the defaults.
+#[test]
+fn ignore_adds_patterns() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&src).unwrap();
+    fs::create_dir_all(&dest).unwrap();
+    fs::write(src.join("a.MP4"), b"a").unwrap();
+    fs::write(src.join("a.LRF"), b"l").unwrap();
+    fs::write(src.join(".DS_Store"), b"d").unwrap();
+    let out = cli()
+        .arg(&src)
+        .args(["--ignore", "*.lrf", "--to"])
+        .arg(&dest)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(dest.join("CARD/a.MP4").exists());
+    assert!(!dest.join("CARD/a.LRF").exists() && !dest.join("CARD/.DS_Store").exists());
+}
+
+/// #158: a pattern with / is an error, before anything is copied.
+#[test]
+fn a_bad_pattern_is_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = cli()
+        .arg(dir.path())
+        .args(["--ignore", "a/b", "--to"])
+        .arg(dir.path())
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("a/b"));
+}
+
+/// #158: --include-system-files drops the defaults; --ignore still applies.
+#[test]
+fn include_system_files_drops_the_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&src).unwrap();
+    fs::create_dir_all(&dest).unwrap();
+    fs::write(src.join(".DS_Store"), b"d").unwrap();
+    fs::write(src.join("a.LRF"), b"l").unwrap();
+    let out = cli()
+        .arg(&src)
+        .args(["--include-system-files", "--ignore", "*.LRF", "--to"])
+        .arg(&dest)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(dest.join("CARD/.DS_Store").exists() && !dest.join("CARD/a.LRF").exists());
+}
