@@ -2,6 +2,7 @@
 
 pub mod c4;
 pub mod ignore;
+pub mod prepare;
 pub mod read;
 pub mod write;
 
