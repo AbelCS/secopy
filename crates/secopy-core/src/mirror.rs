@@ -9,12 +9,12 @@ use walkdir::WalkDir;
 
 use crate::error::IoFailure;
 use crate::filter::ExtensionFilter;
+use crate::ignore::{Patterns, is_own_file};
 use crate::job::{JobControl, JobReport};
 use crate::plan::{Action, DiffersPolicy, Plan};
 use crate::preflight::{Blocker, preflight};
 use crate::scan::{DriveRoot, ScanOptions, ScanProblem, scan};
 use crate::source::{DirMode, Source};
-use crate::system::is_system_file;
 use crate::verify::hash_from_device;
 
 pub const ARCHIVE_DIR: &str = ".secopy-archive";
@@ -32,6 +32,8 @@ pub struct MirrorOptions {
     pub deleted: Deleted,
     /// Also compare the contents of files whose size and date match (FR-46).
     pub deep_check: bool,
+    /// Names never mirrored, and never removed from the destination (#158).
+    pub ignore: Patterns,
 }
 
 /// Why a file is written.
@@ -270,7 +272,10 @@ pub fn plan_watched(
         path: origin.to_path_buf(),
         mode: DirMode::ContentsOnly,
     };
-    let scanned = scan(&source, &ScanOptions::default()).map_err(|e| PlanError::Scan {
+    let scan_options = ScanOptions {
+        ignore: options.ignore.clone(),
+    };
+    let scanned = scan(&source, &scan_options).map_err(|e| PlanError::Scan {
         drive_root: e.get_ref().is_some_and(|r| r.is::<DriveRoot>()),
         io: e.into(),
     })?;
@@ -332,7 +337,12 @@ pub fn plan_watched(
         mut renames,
         destination_files,
         unread,
-    } = extras(destination, &planned, &|rel| in_origin(origin, rel));
+    } = extras(
+        destination,
+        &planned,
+        &|rel| in_origin(origin, rel),
+        &options.ignore,
+    );
     let guard = if let Some(first) = scanned.problems.first() {
         // What couldn't be read would look deleted in the origin.
         removals.clear();
@@ -439,7 +449,12 @@ struct Extras {
 /// Files to remove, directories to remove (deepest first), names spelled otherwise, and the
 /// destination's file count. `planned` are the origin's files; `origin_has` says whether the
 /// origin resolves a destination path.
-fn extras(destination: &Path, planned: &[&Path], origin_has: &dyn Fn(&Path) -> bool) -> Extras {
+fn extras(
+    destination: &Path,
+    planned: &[&Path],
+    origin_has: &dyn Fn(&Path) -> bool,
+    ignore: &Patterns,
+) -> Extras {
     let exact: HashSet<&Path> = planned.iter().copied().collect();
     // The same name in another letter case or Unicode form.
     let mut alike: HashMap<String, Vec<&Path>> = HashMap::new();
@@ -457,7 +472,8 @@ fn extras(destination: &Path, planned: &[&Path], origin_has: &dyn Fn(&Path) -> b
         .into_iter()
         .filter_entry(|e| {
             !(e.depth() == 1 && e.file_name() == ARCHIVE_DIR)
-                && !is_system_file(e.file_name())
+                && !is_own_file(e.file_name())
+                && !ignore.matches(e.file_name())
                 && !is_nas_file(e.file_name())
         });
     let mut unread = Vec::new();
@@ -1074,7 +1090,7 @@ mod tests {
         let nfc = "Caf\u{e9}.mov";
         fs::write(dir.path().join(nfd), b"x").unwrap();
         let planned = [Path::new(nfc)];
-        let e = extras(dir.path(), &planned, &|_| false);
+        let e = extras(dir.path(), &planned, &|_| false, &Patterns::defaults());
         assert!(e.removals.is_empty(), "{:?}", e.removals);
         assert_eq!(e.destination_files, 1);
     }

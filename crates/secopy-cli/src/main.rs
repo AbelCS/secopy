@@ -320,6 +320,11 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
     let options = MirrorOptions {
         deleted,
         deep_check: args.deep,
+        ignore: if args.include_system_files {
+            secopy_core::ignore::Patterns::none()
+        } else {
+            secopy_core::ignore::Patterns::defaults()
+        },
     };
     let plan = mirror::plan(origin, args.to(), &options)?;
     let new = plan

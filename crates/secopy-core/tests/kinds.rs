@@ -16,6 +16,7 @@ fn opts() -> MirrorOptions {
     MirrorOptions {
         deleted: Deleted::Archive,
         deep_check: false,
+        ignore: secopy_core::ignore::Patterns::defaults(),
     }
 }
 

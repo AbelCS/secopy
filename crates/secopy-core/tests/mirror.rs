@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::time::Duration;
 
+use secopy_core::ignore::Patterns;
 use secopy_core::job::{JobControl, JobOptions, run_job};
 use secopy_core::mirror::{self, Change, Deleted, MirrorOptions};
 
@@ -28,7 +29,12 @@ fn opts() -> MirrorOptions {
     MirrorOptions {
         deleted: Deleted::Archive,
         deep_check: false,
+        ignore: Patterns::defaults(),
     }
+}
+
+fn lrf() -> Patterns {
+    Patterns::new(["*.LRF".to_string()]).unwrap()
 }
 
 fn pair() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
@@ -1115,4 +1121,64 @@ fn an_archive_that_cant_be_looked_at_is_said() {
     fs::set_permissions(&d, fs::Permissions::from_mode(0o755)).unwrap();
     assert!(cleaned.error.is_some(), "{cleaned:?}");
     assert!(old.exists());
+}
+
+/// #158: what the list names in the origin isn't mirrored.
+#[test]
+fn an_ignored_file_in_the_origin_isnt_mirrored() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), ("a.LRF", b"l")]);
+    let p = mirror::plan(
+        &o,
+        &d,
+        &MirrorOptions {
+            ignore: lrf(),
+            ..opts()
+        },
+    )
+    .unwrap();
+    let planned: Vec<_> = p.copy.files.iter().map(|f| f.entry.rel.clone()).collect();
+    assert_eq!(planned, [std::path::PathBuf::from("a.mov")]);
+}
+
+/// #158: what the list names in the destination is never removed, archived or deleted.
+#[test]
+fn an_ignored_file_in_the_destination_survives() {
+    for deleted in [Deleted::Archive, Deleted::Delete] {
+        let (dir, o, d) = pair();
+        write(&o, &[("a.mov", b"a")]);
+        write(&d, &[("a.mov", b"a"), ("b.LRF", b"b"), ("sub/c.lrf", b"c")]);
+        let options = MirrorOptions {
+            deleted,
+            ignore: lrf(),
+            ..opts()
+        };
+        let p = mirror::plan(&o, &d, &options).unwrap();
+        assert!(p.removals.is_empty(), "{:?}", p.removals);
+        let archive = dir.path().join("backup/.secopy-archive/run");
+        let archive = matches!(deleted, Deleted::Archive).then_some(archive.as_path());
+        let (report, _) = run(&p, archive);
+        assert!(report.is_success());
+        assert!(d.join("b.LRF").exists() && d.join("sub/c.lrf").exists());
+    }
+}
+
+/// #158: a default taken off the list is mirrored, and removed, like any file.
+#[test]
+fn a_removed_default_is_mirrored_like_any_file() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a"), (".DS_Store", b"o")]);
+    write(&d, &[("Thumbs.db", b"t")]);
+    let options = MirrorOptions {
+        ignore: Patterns::none(),
+        ..opts()
+    };
+    let p = mirror::plan(&o, &d, &options).unwrap();
+    assert!(
+        p.copy
+            .files
+            .iter()
+            .any(|f| f.entry.rel.ends_with(".DS_Store"))
+    );
+    assert_eq!(p.removals, [std::path::PathBuf::from("Thumbs.db")]);
 }
