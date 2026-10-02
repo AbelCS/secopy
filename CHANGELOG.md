@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.1](https://github.com/AbelCS/secopy/compare/v0.22.0...v0.22.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **ui:** New copy doesn't flash on option changes; Also ignore next to the options ([28a0877](https://github.com/AbelCS/secopy/commit/28a0877f1b779a99bc65f02e6c2b3dee035baf67)), closes [#167](https://github.com/AbelCS/secopy/issues/167)
+* **ui:** review fixes for New copy's quick rescans ([#167](https://github.com/AbelCS/secopy/issues/167)) ([65c6560](https://github.com/AbelCS/secopy/commit/65c6560e2a5f907cd5b3859235bed13c56723031))
+
 ## [0.22.0](https://github.com/AbelCS/secopy/compare/v0.21.1...v0.22.0) (2026-10-02)
 
 
