@@ -25,10 +25,11 @@ ignores.
 ## Patterns
 
 The same patterns as the global list (#158): one name, `*` and `?`, case and Unicode form
-ignored, no `/`, no control characters, up to 255 characters. A job's list and the global list
-together hold at most 200 patterns: adding one past that is refused ("The global list and this
-one can have up to 200 patterns."). A pattern already in the global list isn't added
-("It's already in Settings › Always ignore when copying.").
+ignored, no `/`, no control characters, up to 255 characters. **Each list holds at most 128
+patterns**, the global list and a job's alike (the global list's limit goes down from #158's
+200; a saved global list longer than that keeps its first 128). Adding one past that is refused
+("The list can have up to 128 patterns."). A pattern already in the global list isn't added to
+a job's ("It's already in Settings › Always ignore when copying.").
 
 ## What the user sees
 
@@ -65,9 +66,9 @@ one can have up to 200 patterns."). A pattern already in the global list isn't a
 
 ## How it's built
 
-- **Engine:** `Patterns::with(&self, extra: &[String]) -> Result<Patterns, PatternError>` (the
-  global plus a job's, checked, deduplicated, limit enforced); `Patterns::with_lenient` for
-  saved lists (drops what doesn't fit).
+- **Engine:** `MAX_PATTERNS` = 128; `Patterns::with(&self, job: &Patterns) -> Patterns` (the
+  global plus a job's, deduplicated; each was checked, so the combined list needs no limit of
+  its own).
 - **App:** the fields above; `Session` keeps the run's list (`Change::JobIgnore(Vec<String>)`
   scans again), loads it from a preset, compares it for "changed", passes it when saving a
   preset and when queueing; `queue::prepare` and the mirror preview combine it with the
@@ -77,7 +78,8 @@ one can have up to 200 patterns."). A pattern already in the global list isn't a
 
 ## Tests
 
-- `Patterns::with`: combining, repeats with the global list, the 200 limit.
+- `Patterns::with`: combining, repeats with the global list; each list's 128 limit (typed:
+  refused; saved: the first 128 kept).
 - Copy preset: its list saved, loaded into New copy, changed mark, Save to preset.
 - New copy: changing the list scans again; the count includes both lists.
 - Queue: a queued job keeps its list and combines it at its turn.
