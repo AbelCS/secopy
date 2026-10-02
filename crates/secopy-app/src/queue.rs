@@ -24,6 +24,9 @@ pub struct CopyJob {
     /// destination: at its turn it replaces no other (#112).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub overwrite: Vec<PathBuf>,
+    /// Also ignore (#164), as it was when queued; a job queued before has none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ignore: Vec<String>,
 }
 
 /// A queued job; kinds this version doesn't know are kept as they were written.
@@ -395,6 +398,7 @@ mod tests {
         assert_eq!(
             s.copy_job(false),
             Some(CopyJob {
+                ignore: Vec::new(),
                 sources: vec![clip],
                 include_folder: false,
                 extensions: Some(vec![Some("mp4".into())]),
@@ -412,6 +416,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (clip, dest) = card(dir.path());
         let job = CopyJob {
+            ignore: Vec::new(),
             sources: vec![clip.clone()],
             include_folder: true,
             extensions: None,
@@ -492,6 +497,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (clip, dest) = card(dir.path());
         let gone = CopyJob {
+            ignore: Vec::new(),
             sources: vec![dir.path().join("gone")],
             include_folder: true,
             extensions: None,
@@ -533,6 +539,7 @@ mod tests {
 
     fn job(name: &str) -> CopyJob {
         CopyJob {
+            ignore: Vec::new(),
             sources: vec![PathBuf::from(format!("/Volumes/{name}/DCIM"))],
             include_folder: true,
             extensions: Some(vec![Some("mp4".into())]),
@@ -635,6 +642,7 @@ mod tests {
         let dest = dir.path().join("dest");
         std::fs::create_dir_all(&dest).unwrap();
         let job = CopyJob {
+            ignore: Vec::new(),
             sources: vec![src],
             include_folder: true,
             extensions: None,
@@ -656,5 +664,15 @@ mod tests {
             2
         );
         assert_eq!(prepare(&job, &lrf).unwrap().plan.files.len(), 1);
+    }
+
+    /// #164: a job queued before has no list of its own.
+    #[test]
+    fn a_queued_job_without_a_list_has_none() {
+        let job: CopyJob = serde_json::from_str(
+            r#"{"sources":["/Volumes/A/DCIM"],"includeFolder":true,"extensions":null,"destination":"/Volumes/B","conflicts":"keepBoth","verify":true}"#,
+        )
+        .unwrap();
+        assert!(job.ignore.is_empty());
     }
 }
