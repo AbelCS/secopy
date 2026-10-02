@@ -350,8 +350,15 @@ impl AppState {
     /// source is scanned again with it.
     pub fn set_job_ignore(&self, list: Vec<String>) -> Result<SessionView, Message> {
         let list = crate::store::checked_list(&list)?;
-        let global = session(self).global_ignore().clone();
-        if let Some(p) = list.iter().find(|p| global.has(p)) {
+        let (global, before) = {
+            let s = session(self);
+            (
+                s.global_ignore().clone(),
+                Patterns::lenient(s.job_ignore().to_vec()),
+            )
+        };
+        // Only a pattern being added: one there before (a preset can hold one) stays editable.
+        if let Some(p) = list.iter().find(|p| global.has(p) && !before.has(p)) {
             return Err(msg!("errors.field.ignoreInGlobal", pattern = p.as_str()));
         }
         Ok(self.rescan(Change::JobIgnore(list)))
@@ -4227,5 +4234,30 @@ mod tests {
             "The mirror changed since its preview. Preview it again."
         );
         assert!(d.join("backup.LRF").exists());
+    }
+
+    /// #164 review: a pattern Settings has already is refused when added, not when it was
+    /// there before (a preset can hold one): the rest of the list stays editable.
+    #[test]
+    fn existing_overlaps_dont_block_editing_the_runs_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        state.rescan(Change::JobIgnore(vec![
+            ".DS_Store".into(),
+            "Thumbs.db".into(),
+        ]));
+        assert!(state.set_job_ignore(vec!["Thumbs.db".into()]).is_ok());
+        assert!(
+            state
+                .set_job_ignore(vec!["Thumbs.db".into(), ".gitkeep".into()])
+                .is_ok()
+        );
+        assert_eq!(
+            state
+                .set_job_ignore(vec!["Thumbs.db".into(), ".gitkeep".into(), "._*".into()])
+                .unwrap_err()
+                .key,
+            "errors.field.ignoreInGlobal"
+        );
     }
 }

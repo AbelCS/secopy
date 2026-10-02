@@ -349,6 +349,7 @@
             patterns={view.jobIgnore}
             global={settings.ignore}
             rows={4}
+            disabled={scanning > 0}
             onChange={setJobIgnore}
           />
         {/if}
