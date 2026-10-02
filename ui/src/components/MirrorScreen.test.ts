@@ -53,6 +53,16 @@ describe("MirrorScreen", () => {
     );
   });
 
+  test("a mirror has its own Also ignore list (#164)", async () => {
+    const { api } = show();
+    await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.LRF" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(api.editMirrorPreset).toHaveBeenCalledWith("m1", expect.objectContaining({ ignore: ["*.LRF"] })),
+    );
+  });
+
   test("a long Preview… says how far it is and can be cancelled", async () => {
     const { api } = show();
     let report: ((c: { done: number; total: number }) => void) | undefined;

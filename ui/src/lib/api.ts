@@ -157,6 +157,7 @@ export const tauriApi = {
   setSettings: (settings: Settings): Promise<Settings> => unwrap(commands.setSettings(settings)),
   setMode: (verify: boolean): Promise<null> => unwrap(commands.setMode(verify)),
   defaultIgnore: (): Promise<string[]> => commands.defaultIgnore(),
+  setJobIgnore: (list: string[]): Promise<SessionView> => unwrap(commands.setJobIgnore(list)),
   /** Secopy → Settings… (⌘,). */
   onOpenSettings: (handler: () => void): Promise<() => void> => listen("open-settings", handler),
   /** Menu items the window handles: "choose-source", "choose-destination", "start-copy",

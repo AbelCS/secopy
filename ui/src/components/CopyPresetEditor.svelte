@@ -1,6 +1,7 @@
 <script lang="ts">
   // One copy preset's fields (FR-38): its name, the source it loads, whether that directory itself
   // is copied, and which file types. Problems show next to their field.
+  import IgnoreList from "../lib/ui/IgnoreList.svelte";
   import { t } from "../lib/i18n";
   import { fieldOf } from "../lib/message";
   import { baseName, messageOf } from "../lib/format";
@@ -42,10 +43,12 @@
     includeFolder: preset?.includeFolder ?? false,
     all: preset ? preset.extensions === null : true,
     types: preset?.extensions ?? [],
+    ignore: preset?.ignore ?? [],
   };
   let name = $state(start.name);
   let source = $state(start.source);
   let includeFolder = $state(start.includeFolder);
+  let ignore = $state([...start.ignore]);
   let all = $state(start.all);
   let types: (string | null)[] = $state([...start.types]);
   let newType = $state("");
@@ -61,6 +64,7 @@
       : name !== start.name ||
           source !== start.source ||
           includeFolder !== start.includeFolder ||
+          ignore.join("\n") !== start.ignore.join("\n") ||
           all !== start.all ||
           (!all && types.join("\n") !== start.types.join("\n")),
   );
@@ -75,6 +79,7 @@
     name = start.name;
     source = start.source;
     includeFolder = start.includeFolder;
+    ignore = [...start.ignore];
     all = start.all;
     types = [...start.types];
     newType = "";
@@ -110,7 +115,7 @@
     saving = true;
     nameProblem = sourceProblem = otherProblem = null;
     try {
-      await onSave({ name, source, includeFolder, extensions: all ? null : types });
+      await onSave({ name, source, includeFolder, extensions: all ? null : types, ignore });
     } catch (e) {
       const message = messageOf(e);
       const field = fieldOf(e);
@@ -188,6 +193,10 @@
       </div>
       {#if noTypes}<p class="muted">{t("presets.editor.atLeastOne")}</p>{/if}
     {/if}
+  </FormRow>
+
+  <FormRow label={t("copy.alsoIgnore")} hint={t("presets.editor.alsoIgnoreHint")}>
+    <IgnoreList label={t("copy.alsoIgnore")} patterns={ignore} rows={4} onChange={(list) => (ignore = list)} />
   </FormRow>
 
   {#if otherProblem}<Notice tone="danger">{otherProblem}</Notice>{/if}

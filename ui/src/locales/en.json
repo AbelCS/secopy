@@ -365,6 +365,8 @@
       "one": "{count} file",
       "other": "{count} files"
     },
+    "alsoIgnore": "Also ignore",
+    "alsoIgnoreCount": "Also ignore ({count})",
     "ignored": {
       "one": "{count} ignored",
       "other": "{count} ignored"
@@ -534,6 +536,7 @@
       "sourcePlaceholder": "e.g. /Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
       "options": "Options",
       "includeNamed": "Include the “{name}” directory",
+      "alsoIgnoreHint": "Names this preset never copies, on top of Settings › Always ignore when copying.",
       "includePicked": "Include the picked directory itself",
       "fileTypes": "File types",
       "allTypes": "All types",
@@ -679,6 +682,7 @@
       "add": "Add",
       "restore": "Restore defaults",
       "repeat": "It's already in the list.",
+      "inGlobal": "It's already in Settings › Always ignore when copying.",
       "placeholder": "Add a name pattern, e.g. *.LRF",
       "empty": "No patterns. Secopy's own working files are still left out.",
       "count": {
@@ -936,6 +940,7 @@
       "daysHelp": "In .secopy-archive on the destination. Each run deletes those older than this.",
       "deleteNote": "Files deleted in the origin are deleted in the destination too. This can't be undone.",
       "verifyNote": "New and changed files are always verified after copying.",
+      "alsoIgnoreHint": "Names this mirror never copies or removes, on top of Settings › Always ignore when copying.",
       "daysShorter": {
         "one": "At the next run, files archived more than {count} day ago are removed.",
         "other": "At the next run, files archived more than {count} days ago are removed."
