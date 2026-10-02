@@ -122,6 +122,11 @@ pub struct CopyPreset {
     pub include_folder: bool,
     /// `None` = every file type, including ones never seen.
     pub extensions: Option<Vec<ExtensionKey>>,
+    /// Also ignore (#164): patterns on top of Settings' list, for this preset. Left out when
+    /// empty: the file is as an older Secopy wrote it.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[specta(optional)]
+    pub ignore: Vec<String>,
 }
 
 impl CopyPreset {
@@ -144,6 +149,41 @@ struct CopyPresetOnDisk {
     source: String,
     include_folder: bool,
     extensions: Option<Vec<ExtensionKey>>,
+    #[serde(default, deserialize_with = "lenient_patterns")]
+    ignore: Vec<String>,
+}
+
+/// A saved list of patterns: a bad one is dropped, never the preset (#164).
+fn lenient_patterns<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    let list = Vec::<String>::deserialize(d)?;
+    Ok(Patterns::lenient(list).as_slice().to_vec())
+}
+
+/// A typed list (a preset editor, an import): checked, the first bad pattern said with why.
+pub fn checked_list(list: &[String]) -> Result<Vec<String>, Message> {
+    for p in list {
+        if let Err(e) = Patterns::new([p.clone()]) {
+            return Err(msg!(
+                "errors.field.ignore",
+                pattern = p.trim(),
+                why = pattern_why(e)
+            ));
+        }
+    }
+    Patterns::new(list.iter().cloned())
+        .map(|p| p.as_slice().to_vec())
+        .map_err(|e| msg!("errors.field.ignore", pattern = "", why = pattern_why(e)))
+}
+
+/// Why a pattern is refused (#158).
+pub fn pattern_why(e: secopy_core::ignore::PatternError) -> Message {
+    use secopy_core::ignore::{MAX_LEN, MAX_PATTERNS, PatternError};
+    match e {
+        PatternError::HasSlash => msg!("errors.pattern.slash"),
+        PatternError::TooLong => msg!("errors.pattern.tooLong", max = MAX_LEN),
+        PatternError::TooMany => msg!("errors.pattern.tooMany", max = MAX_PATTERNS),
+        PatternError::BadChar => msg!("errors.pattern.badChar"),
+    }
 }
 
 impl<'de> Deserialize<'de> for CopyPreset {
@@ -155,6 +195,7 @@ impl<'de> Deserialize<'de> for CopyPreset {
             source: p.source,
             include_folder: p.include_folder,
             extensions: p.extensions,
+            ignore: p.ignore,
         })
     }
 }
@@ -168,6 +209,10 @@ pub struct CopyPresetInput {
     pub source: String,
     pub include_folder: bool,
     pub extensions: Option<Vec<ExtensionKey>>,
+    /// Also ignore (#164); a preset written before has none. Left out when empty, so an
+    /// older Secopy still imports a preset without one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ignore: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -231,6 +276,7 @@ impl CopyPresets {
             source: input.source,
             include_folder: input.include_folder,
             extensions: input.extensions,
+            ignore: input.ignore,
         };
         self.presets.push(preset.clone());
         Ok(preset)
@@ -247,6 +293,7 @@ impl CopyPresets {
         preset.source = input.source;
         preset.include_folder = input.include_folder;
         preset.extensions = input.extensions;
+        preset.ignore = input.ignore;
         Ok(preset.clone())
     }
 
@@ -276,6 +323,7 @@ impl CopyPresets {
             source: source(&input.source)?,
             include_folder: input.include_folder,
             extensions: extensions(input.extensions),
+            ignore: checked_list(&input.ignore)?,
         })
     }
 
@@ -349,6 +397,7 @@ impl CopyPresets {
                 p.id
             };
             out.presets.push(CopyPreset {
+                ignore: Vec::new(),
                 id,
                 name,
                 source,
@@ -373,6 +422,7 @@ impl CopyPreset {
             source: self.source.clone(),
             include_folder: self.include_folder,
             extensions: self.extensions.clone(),
+            ignore: self.ignore.clone(),
         }
     }
 }
@@ -473,6 +523,14 @@ pub struct MirrorPreset {
     /// first. Kept with its path, so a later change of destination never points it elsewhere.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clear_archive: Option<String>,
+    /// Also ignore (#164): patterns on top of Settings' list, for this mirror.
+    #[serde(
+        default,
+        deserialize_with = "lenient_patterns",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    #[specta(type = Vec<String>, optional)]
+    pub ignore: Vec<String>,
 }
 
 /// A mirror preset as typed in its editor.
@@ -484,6 +542,10 @@ pub struct MirrorPresetInput {
     pub destination: String,
     pub deleted: DeletedFiles,
     pub deep_check: bool,
+    /// Also ignore (#164); a preset written before has none. Left out when empty, so an
+    /// older Secopy still imports a preset without one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ignore: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -507,6 +569,7 @@ impl MirrorPresets {
             deleted: input.deleted,
             deep_check: input.deep_check,
             clear_archive: None,
+            ignore: input.ignore,
         };
         self.presets.push(preset.clone());
         Ok(preset)
@@ -529,6 +592,7 @@ impl MirrorPresets {
         preset.destination = input.destination;
         preset.deleted = input.deleted;
         preset.deep_check = input.deep_check;
+        preset.ignore = input.ignore;
         Ok(preset.clone())
     }
 
@@ -596,6 +660,7 @@ impl MirrorPresets {
             name,
             origin,
             destination,
+            ignore: checked_list(&input.ignore)?,
             ..input
         })
     }
@@ -610,6 +675,7 @@ impl MirrorPreset {
             destination: self.destination.clone(),
             deleted: self.deleted,
             deep_check: self.deep_check,
+            ignore: self.ignore.clone(),
         }
     }
 }
@@ -764,6 +830,7 @@ mod tests {
 
     fn input(name: &str, source: &str) -> CopyPresetInput {
         CopyPresetInput {
+            ignore: Vec::new(),
             name: name.into(),
             source: source.into(),
             include_folder: true,
@@ -964,6 +1031,7 @@ mod tests {
     #[test]
     fn a_preset_selects_its_file_types_or_all() {
         let mut p = CopyPreset {
+            ignore: Vec::new(),
             id: "x".into(),
             name: "A".into(),
             source: String::new(),
@@ -1006,6 +1074,7 @@ mod tests {
     }
     fn mirror_input(name: &str, origin: &str, destination: &str) -> MirrorPresetInput {
         MirrorPresetInput {
+            ignore: Vec::new(),
             name: name.into(),
             origin: origin.into(),
             destination: destination.into(),
@@ -1070,6 +1139,7 @@ mod tests {
     #[test]
     fn normalized_checks_a_preset_without_its_name_clashing() {
         let input = CopyPresetInput {
+            ignore: Vec::new(),
             name: "  Sony FX3 ".into(),
             source: "/Volumes/CARD_A/CLIP/".into(),
             include_folder: true,
@@ -1090,6 +1160,7 @@ mod tests {
             "The preset needs a name."
         );
         let mirror = MirrorPresetInput {
+            ignore: Vec::new(),
             name: "Footage".into(),
             origin: "/Volumes/SSD/Footage".into(),
             destination: "/Volumes/SSD/Footage/Backup".into(),
@@ -1140,6 +1211,7 @@ mod tests {
             "The name is too long: 200 characters at most."
         );
         let mirror = MirrorPresetInput {
+            ignore: Vec::new(),
             name: "Footage".into(),
             origin: "/a".into(),
             destination: "/b".into(),
@@ -1210,5 +1282,41 @@ mod tests {
                 .unwrap();
         assert_eq!(s.ignore, ["*.LRF"]);
         assert!(!s.write_checksum_file);
+    }
+
+    /// #164: presets saved before have no list of their own.
+    #[test]
+    fn a_preset_saved_before_has_no_list() {
+        let copy: CopyPreset = serde_json::from_str(
+            r#"{"id":"a","name":"A","source":"","includeFolder":true,"extensions":null}"#,
+        )
+        .unwrap();
+        assert!(copy.ignore.is_empty());
+        let mirror: MirrorPreset = serde_json::from_str(
+            r#"{"id":"m","name":"M","origin":"/o","destination":"/d","deleted":{"mode":"archive","days":30},"deepCheck":false}"#,
+        )
+        .unwrap();
+        assert!(mirror.ignore.is_empty());
+    }
+
+    /// #164: a preset's list is saved, read leniently, and checked when typed.
+    #[test]
+    fn a_presets_list_is_saved_and_checked() {
+        let read: CopyPreset = serde_json::from_str(
+            r#"{"id":"a","name":"A","source":"","includeFolder":true,"extensions":null,"ignore":["a/b",".gitkeep"]}"#,
+        )
+        .unwrap();
+        assert_eq!(read.ignore, [".gitkeep"]);
+        let mut presets = CopyPresets::default();
+        let bad = CopyPresetInput {
+            ignore: vec!["a/b".into()],
+            ..input("Bad", "")
+        };
+        assert_eq!(presets.add(bad).unwrap_err().key, "errors.field.ignore");
+        let good = CopyPresetInput {
+            ignore: vec![" .gitkeep ".into()],
+            ..input("Good", "")
+        };
+        assert_eq!(presets.add(good).unwrap().ignore, [".gitkeep"]);
     }
 }

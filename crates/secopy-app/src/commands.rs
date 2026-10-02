@@ -277,6 +277,7 @@ impl AppState {
         };
         let preset = self.change_copy_presets(|p| {
             p.add(CopyPresetInput {
+                ignore: Vec::new(),
                 name,
                 source,
                 include_folder,
@@ -2329,6 +2330,7 @@ mod tests {
 
     fn input(name: &str, source: &Path) -> CopyPresetInput {
         CopyPresetInput {
+            ignore: Vec::new(),
             name: name.into(),
             source: show(source),
             include_folder: true,
@@ -2797,6 +2799,7 @@ mod tests {
                 fs::write(src.join(format!("{i}.mov")), b"clip").unwrap();
             }
             lock(&state.queue).add(CopyJob {
+                ignore: Vec::new(),
                 sources: vec![src],
                 include_folder: true,
                 extensions: None,
@@ -3226,6 +3229,7 @@ mod tests {
         fs::write(d.join("z.mov"), b"z").unwrap();
         let presets = state
             .create_mirror_preset(crate::store::MirrorPresetInput {
+                ignore: Vec::new(),
                 name: "Footage".into(),
                 origin: show(&o),
                 destination: show(&d),
@@ -3527,6 +3531,7 @@ mod tests {
             .edit_mirror_preset(
                 &id,
                 crate::store::MirrorPresetInput {
+                    ignore: Vec::new(),
                     name: preset.name,
                     origin: preset.origin,
                     destination: preset.destination,
@@ -3568,6 +3573,7 @@ mod tests {
             .edit_mirror_preset(
                 &id,
                 crate::store::MirrorPresetInput {
+                    ignore: Vec::new(),
                     name: preset.name,
                     origin: preset.origin,
                     destination: preset.destination,
@@ -3617,6 +3623,7 @@ mod tests {
             .edit_mirror_preset(
                 &id,
                 crate::store::MirrorPresetInput {
+                    ignore: Vec::new(),
                     name: p.name,
                     origin: p.origin,
                     destination: p.destination,
@@ -3830,6 +3837,7 @@ mod tests {
         state
             .change_copy_presets(|p| {
                 p.add(crate::store::CopyPresetInput {
+                    ignore: Vec::new(),
                     name: "Sony FX3".into(),
                     source: "/Volumes/CARD_A/CLIP".into(),
                     include_folder: true,
@@ -3894,6 +3902,7 @@ mod tests {
         let state = AppState::new(dir.path().join("data"));
         state
             .create_copy_preset(CopyPresetInput {
+                ignore: Vec::new(),
                 name: "FX3".into(),
                 source: show(&a),
                 include_folder: true,
@@ -4033,6 +4042,7 @@ mod tests {
             p.edit(
                 &id,
                 crate::store::CopyPresetInput {
+                    ignore: Vec::new(),
                     name: "Sony FX3".into(),
                     source: "/Volumes/CARD_B".into(),
                     include_folder: true,

@@ -405,6 +405,7 @@ impl Session {
             return None;
         }
         Some(crate::queue::CopyJob {
+            ignore: Vec::new(),
             sources: self.picked.clone()?,
             include_folder: self.include_folder,
             extensions: match &self.filter {
@@ -896,6 +897,7 @@ mod tests {
     /// A preset loading `source` (empty: whatever is picked).
     fn preset(source: &Path, extensions: Option<&[&str]>) -> CopyPreset {
         CopyPreset {
+            ignore: Vec::new(),
             id: "fx3".into(),
             name: "Sony FX3".into(),
             source: show(source),

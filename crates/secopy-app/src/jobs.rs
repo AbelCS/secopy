@@ -1814,6 +1814,7 @@ mod tests {
             std::fs::create_dir_all(&dest).unwrap();
             crate::queue::prepare(
                 &crate::queue::CopyJob {
+                    ignore: Vec::new(),
                     sources: vec![src],
                     include_folder: true,
                     extensions: None,
@@ -1865,6 +1866,7 @@ mod tests {
     }
     fn preset(o: &Path, d: &Path, mode: crate::store::DeletedMode) -> crate::store::MirrorPreset {
         crate::store::MirrorPreset {
+            ignore: Vec::new(),
             id: "m".into(),
             name: "Footage".into(),
             origin: show(o),

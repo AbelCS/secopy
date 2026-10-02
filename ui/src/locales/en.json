@@ -1191,6 +1191,7 @@
       "notSaved": "The file couldn't be saved: {why}"
     },
     "field": {
+      "ignore": "“{pattern}”: {why}",
       "days": {
         "tooFew": "Keep archived files for at least 1 day.",
         "tooMany": "Keep archived files for at most {max} days."

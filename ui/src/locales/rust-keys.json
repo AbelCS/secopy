@@ -33,6 +33,7 @@
   "errors.field.days.tooMany",
   "errors.field.destination.inOrigin",
   "errors.field.destination.notFull",
+  "errors.field.ignore",
   "errors.field.name.mirrorEmpty",
   "errors.field.name.mirrorTaken",
   "errors.field.name.presetEmpty",

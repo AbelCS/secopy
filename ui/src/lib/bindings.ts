@@ -60,14 +60,14 @@ export const commands = {
 	/**  The "Include the folder" checkbox (FR-4); this run's file types stay. */
 	setIncludeFolder: (include: boolean) => typedError<SessionView, Message>(__TAURI_INVOKE("set_include_folder", { include })),
 	/**  Everything the window needs at start; load problems are handed out once. */
-	appStart: () => typedError<StartView, Message>(__TAURI_INVOKE("app_start")),
+	appStart: () => typedError<StartView_Serialize, Message>(__TAURI_INVOKE("app_start")),
 	recentDestinations: () => typedError<string[], Message>(__TAURI_INVOKE("recent_destinations")),
 	selectCopyPreset: (id: string | null) => typedError<SessionView, Message>(__TAURI_INVOKE("select_copy_preset", { id })),
-	updateCopyPreset: () => typedError<CopyPresetsView, Message>(__TAURI_INVOKE("update_copy_preset")),
-	saveCopyPresetAs: (name: string) => typedError<CopyPresetsView, Message>(__TAURI_INVOKE("save_copy_preset_as", { name })),
-	createCopyPreset: (input: CopyPresetInput) => typedError<CopyPreset[], Message>(__TAURI_INVOKE("create_copy_preset", { input })),
-	editCopyPreset: (id: string, input: CopyPresetInput) => typedError<CopyPresetsView, Message>(__TAURI_INVOKE("edit_copy_preset", { id, input })),
-	deleteCopyPreset: (id: string) => typedError<CopyPresetsView, Message>(__TAURI_INVOKE("delete_copy_preset", { id })),
+	updateCopyPreset: () => typedError<CopyPresetsView_Serialize, Message>(__TAURI_INVOKE("update_copy_preset")),
+	saveCopyPresetAs: (name: string) => typedError<CopyPresetsView_Serialize, Message>(__TAURI_INVOKE("save_copy_preset_as", { name })),
+	createCopyPreset: (input: CopyPresetInput_Deserialize) => typedError<CopyPreset_Serialize[], Message>(__TAURI_INVOKE("create_copy_preset", { input })),
+	editCopyPreset: (id: string, input: CopyPresetInput_Deserialize) => typedError<CopyPresetsView_Serialize, Message>(__TAURI_INVOKE("edit_copy_preset", { id, input })),
+	deleteCopyPreset: (id: string) => typedError<CopyPresetsView_Serialize, Message>(__TAURI_INVOKE("delete_copy_preset", { id })),
 	setSettings: (settings: Settings) => typedError<Settings, Message>(__TAURI_INVOKE("set_settings", { settings })),
 	/**  Copy or Copy & Verify, remembered for the next launch (FR-36). */
 	setMode: (verify: boolean) => typedError<null, Message>(__TAURI_INVOKE("set_mode", { verify })),
@@ -150,8 +150,8 @@ export const commands = {
 	queueFinishedPage: (index: number, offset: number, limit: number, failedOnly: boolean) => typedError<FinishedRow[], Message>(__TAURI_INVOKE("queue_finished_page", { index, offset, limit, failedOnly })),
 	queueSaveReport: (index: number, path: string) => typedError<null, Message>(__TAURI_INVOKE("queue_save_report", { index, path })),
 	mirrorPresets: () => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("mirror_presets")),
-	createMirrorPreset: (input: MirrorPresetInput) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("create_mirror_preset", { input })),
-	editMirrorPreset: (id: string, input: MirrorPresetInput) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("edit_mirror_preset", { id, input })),
+	createMirrorPreset: (input: MirrorPresetInput_Deserialize) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("create_mirror_preset", { input })),
+	editMirrorPreset: (id: string, input: MirrorPresetInput_Deserialize) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("edit_mirror_preset", { id, input })),
 	deleteMirrorPreset: (id: string) => typedError<MirrorPreset_Serialize[], Message>(__TAURI_INVOKE("delete_mirror_preset", { id })),
 	/**  A mirror's preview (FR-47); the preview's Start then runs it. */
 	previewMirror: (id: string, onCompared: Channel<ComparedView>) => typedError<MirrorPreviewView, Message>(__TAURI_INVOKE("preview_mirror", { id, onCompared })),
@@ -248,7 +248,41 @@ export type ComparedView = {
 export type ConflictPolicy = "keepBoth" | "overwrite" | "skip";
 
 /**  A saved copy setup for FROM (FR-38): choosing it loads its source and settings. */
-export type CopyPreset = {
+export type CopyPreset = CopyPreset_Serialize | CopyPreset_Deserialize;
+
+/**  A copy preset as typed in a form (Save as…, the Copy presets screen). */
+export type CopyPresetInput = CopyPresetInput_Serialize | CopyPresetInput_Deserialize;
+
+/**  A copy preset as typed in a form (Save as…, the Copy presets screen). */
+export type CopyPresetInput_Deserialize = {
+	name: string,
+	/**  A full path, or empty. */
+	source: string,
+	includeFolder: boolean,
+	extensions: (string | null)[] | null,
+	/**
+	 *  Also ignore (#164); a preset written before has none. Left out when empty, so an
+	 *  older Secopy still imports a preset without one.
+	 */
+	ignore?: string[],
+};
+
+/**  A copy preset as typed in a form (Save as…, the Copy presets screen). */
+export type CopyPresetInput_Serialize = {
+	name: string,
+	/**  A full path, or empty. */
+	source: string,
+	includeFolder: boolean,
+	extensions: (string | null)[] | null,
+	/**
+	 *  Also ignore (#164); a preset written before has none. Left out when empty, so an
+	 *  older Secopy still imports a preset without one.
+	 */
+	ignore?: string[],
+};
+
+/**  A saved copy setup for FROM (FR-38): choosing it loads its source and settings. */
+export type CopyPreset_Deserialize = {
 	/**  Stays the same when the preset is renamed. */
 	id: string,
 	name: string,
@@ -258,20 +292,43 @@ export type CopyPreset = {
 	includeFolder: boolean,
 	/**  `None` = every file type, including ones never seen. */
 	extensions: (string | null)[] | null,
+	/**
+	 *  Also ignore (#164): patterns on top of Settings' list, for this preset. Left out when
+	 *  empty: the file is as an older Secopy wrote it.
+	 */
+	ignore?: string[],
 };
 
-/**  A copy preset as typed in a form (Save as…, the Copy presets screen). */
-export type CopyPresetInput = {
+/**  A saved copy setup for FROM (FR-38): choosing it loads its source and settings. */
+export type CopyPreset_Serialize = {
+	/**  Stays the same when the preset is renamed. */
+	id: string,
 	name: string,
-	/**  A full path, or empty. */
+	/**  The directory it loads, as a full path; empty until one is saved into it. */
 	source: string,
+	/**  "Include the folder" (FR-4). */
 	includeFolder: boolean,
+	/**  `None` = every file type, including ones never seen. */
 	extensions: (string | null)[] | null,
+	/**
+	 *  Also ignore (#164): patterns on top of Settings' list, for this preset. Left out when
+	 *  empty: the file is as an older Secopy wrote it.
+	 */
+	ignore?: string[],
 };
 
 /**  After a copy preset change: the presets and what FROM shows now. */
-export type CopyPresetsView = {
-	presets: CopyPreset[],
+export type CopyPresetsView = CopyPresetsView_Serialize | CopyPresetsView_Deserialize;
+
+/**  After a copy preset change: the presets and what FROM shows now. */
+export type CopyPresetsView_Deserialize = {
+	presets: CopyPreset_Deserialize[],
+	session: SessionView,
+};
+
+/**  After a copy preset change: the presets and what FROM shows now. */
+export type CopyPresetsView_Serialize = {
+	presets: CopyPreset_Serialize[],
 	session: SessionView,
 };
 
@@ -368,7 +425,7 @@ export type ImportDone_Deserialize = {
 	/**  Part of it couldn't be saved; `message` says what. */
 	failed: boolean,
 	settings: Settings,
-	copyPresets: CopyPreset[],
+	copyPresets: CopyPreset_Deserialize[],
 	mirrorPresets: MirrorPreset_Deserialize[],
 	/**  New copy, reloaded because its selected preset was replaced (#116). */
 	session: SessionView | null,
@@ -380,7 +437,7 @@ export type ImportDone_Serialize = {
 	/**  Part of it couldn't be saved; `message` says what. */
 	failed: boolean,
 	settings: Settings,
-	copyPresets: CopyPreset[],
+	copyPresets: CopyPreset_Serialize[],
 	mirrorPresets: MirrorPreset_Serialize[],
 	/**  New copy, reloaded because its selected preset was replaced (#116). */
 	session: SessionView | null,
@@ -427,12 +484,34 @@ export type MhlView = {
 export type MirrorPreset = MirrorPreset_Serialize | MirrorPreset_Deserialize;
 
 /**  A mirror preset as typed in its editor. */
-export type MirrorPresetInput = {
+export type MirrorPresetInput = MirrorPresetInput_Serialize | MirrorPresetInput_Deserialize;
+
+/**  A mirror preset as typed in its editor. */
+export type MirrorPresetInput_Deserialize = {
 	name: string,
 	origin: string,
 	destination: string,
 	deleted: DeletedFiles,
 	deepCheck: boolean,
+	/**
+	 *  Also ignore (#164); a preset written before has none. Left out when empty, so an
+	 *  older Secopy still imports a preset without one.
+	 */
+	ignore?: string[],
+};
+
+/**  A mirror preset as typed in its editor. */
+export type MirrorPresetInput_Serialize = {
+	name: string,
+	origin: string,
+	destination: string,
+	deleted: DeletedFiles,
+	deepCheck: boolean,
+	/**
+	 *  Also ignore (#164); a preset written before has none. Left out when empty, so an
+	 *  older Secopy still imports a preset without one.
+	 */
+	ignore?: string[],
 };
 
 /**  A saved one-way mirror (plan 7, FR-44). */
@@ -449,6 +528,8 @@ export type MirrorPreset_Deserialize = {
 	 *  first. Kept with its path, so a later change of destination never points it elsewhere.
 	 */
 	clearArchive?: string | null,
+	/**  Also ignore (#164): patterns on top of Settings' list, for this mirror. */
+	ignore?: string[],
 };
 
 /**  A saved one-way mirror (plan 7, FR-44). */
@@ -465,6 +546,8 @@ export type MirrorPreset_Serialize = {
 	 *  first. Kept with its path, so a later change of destination never points it elsewhere.
 	 */
 	clearArchive?: string | null,
+	/**  Also ignore (#164): patterns on top of Settings' list, for this mirror. */
+	ignore?: string[],
 };
 
 /**  A mirror's preview (FR-47): what a run would do, before anything is touched. */
@@ -827,10 +910,28 @@ export type SourceView = {
 };
 
 /**  What the window loads at start (plan 3b-1). */
-export type StartView = {
+export type StartView = StartView_Serialize | StartView_Deserialize;
+
+/**  What the window loads at start (plan 3b-1). */
+export type StartView_Deserialize = {
 	session: SessionView,
 	settings: Settings,
-	copyPresets: CopyPreset[],
+	copyPresets: CopyPreset_Deserialize[],
+	/**  Copy & Verify (true) or Copy, as last used (FR-36). */
+	verify: boolean,
+	/**  Recent destinations that still exist, most recent first. */
+	recentDestinations: string[],
+	/**  Saved files that couldn't be read; shown once. */
+	warnings: Message[],
+	/**  The copy preset last used, when its source is there: the window loads it again (FR-36). */
+	lastPreset: string | null,
+};
+
+/**  What the window loads at start (plan 3b-1). */
+export type StartView_Serialize = {
+	session: SessionView,
+	settings: Settings,
+	copyPresets: CopyPreset_Serialize[],
 	/**  Copy & Verify (true) or Copy, as last used (FR-36). */
 	verify: boolean,
 	/**  Recent destinations that still exist, most recent first. */

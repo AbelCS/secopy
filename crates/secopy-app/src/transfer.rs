@@ -182,13 +182,16 @@ pub fn read(bytes: &[u8]) -> Result<Contents, Message> {
     }
     // Every key a preset has here, so a newer preset is known as one even when it can't be
     // read; a new field fails to build until it's here too.
+    // A list in each, so its key is known (an empty one isn't written).
     let copy_keys = CopyPresetInput {
+        ignore: vec![String::new()],
         name: String::new(),
         source: String::new(),
         include_folder: false,
         extensions: None,
     };
     let mirror_keys = MirrorPresetInput {
+        ignore: vec![String::new()],
         name: String::new(),
         origin: String::new(),
         destination: String::new(),
@@ -679,6 +682,7 @@ mod tests {
     fn copy_presets() -> CopyPresets {
         let mut p = CopyPresets::default();
         p.add(CopyPresetInput {
+            ignore: Vec::new(),
             name: "Sony FX3".into(),
             source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP".into(),
             include_folder: true,
@@ -686,6 +690,7 @@ mod tests {
         })
         .unwrap();
         p.add(CopyPresetInput {
+            ignore: Vec::new(),
             name: "Día 1 — ñandú".into(),
             source: "/Volumes/My Card/DCIM".into(),
             include_folder: false,
@@ -698,6 +703,7 @@ mod tests {
     fn mirror_presets() -> MirrorPresets {
         let mut m = MirrorPresets::default();
         m.add(MirrorPresetInput {
+            ignore: Vec::new(),
             name: "Footage".into(),
             origin: "/Volumes/SSD/Footage".into(),
             destination: "/Volumes/Media/Footage".into(),
@@ -1344,5 +1350,15 @@ mod tests {
         assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(mine)));
         let older = read(br#"{"secopy":1,"settings":{"writeChecksumFile":true}}"#).unwrap();
         assert!(older.settings_defaulted.contains(&"ignore".to_string()));
+    }
+
+    /// #164: a preset's list travels; a file without it gives an empty one.
+    #[test]
+    fn presets_with_lists_travel() {
+        let text = r#"{"secopy":1,"copyPresets":[{"name":"T","source":"","includeFolder":true,"extensions":null,"ignore":[".gitkeep"]}],
+            "mirrorPresets":[{"name":"M","origin":"/o","destination":"/d","deleted":{"mode":"archive","days":30},"deepCheck":false}]}"#;
+        let c = read(text.as_bytes()).unwrap();
+        assert_eq!(c.copy_presets[0].as_ref().unwrap().ignore, [".gitkeep"]);
+        assert!(c.mirror_presets[0].as_ref().unwrap().ignore.is_empty());
     }
 }
