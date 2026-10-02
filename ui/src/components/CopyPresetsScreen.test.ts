@@ -56,7 +56,18 @@ describe("CopyPresetsScreen", () => {
         source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
         includeFolder: true,
         extensions: ["mp4"],
+        ignore: [],
       }),
+    );
+  });
+
+  test("a preset has its own Also ignore list (#164)", async () => {
+    const { api } = show();
+    await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: ".gitkeep" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await fireEvent.click(save());
+    await waitFor(() =>
+      expect(api.editCopyPreset).toHaveBeenCalledWith("fx3", expect.objectContaining({ ignore: [".gitkeep"] })),
     );
   });
 
@@ -162,6 +173,7 @@ describe("CopyPresetsScreen", () => {
         source: "/Volumes/GOPRO/DCIM",
         includeFolder: false,
         extensions: null,
+        ignore: [],
       }),
     );
     expect(calls.presets).toHaveLength(1);

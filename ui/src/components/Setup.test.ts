@@ -166,6 +166,19 @@ describe("Setup", () => {
     expect(hintOf(count)).toContain(".DS_Store, ._*, Thumbs.db");
   });
 
+  test("Also ignore opens its list, and a change scans again (#164)", async () => {
+    const { api } = setup(readyView({ jobIgnore: [".gitkeep"] }));
+    await fireEvent.click(screen.getByText("Also ignore (1)"));
+    await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.LRF" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(api.setJobIgnore).toHaveBeenCalledWith([".gitkeep", "*.LRF"]);
+  });
+
+  test("the ignored count's hint lists Settings' and this copy's patterns (#164)", () => {
+    setup(readyView({ source: { ...readyView().source!, ignored: 3 }, jobIgnore: [".gitkeep"] }));
+    expect(hintOf(screen.getByText("3 ignored"))).toContain(".gitkeep");
+  });
+
   test("a copy that needs purgeable space warns but doesn't block", () => {
     setup(
       readyView({

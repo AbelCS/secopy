@@ -1,6 +1,7 @@
 <script lang="ts">
   // One mirror preset's fields (FR-44): its name, origin and destination, what happens to
   // files deleted in the origin, and the deep check. Problems show next to their field.
+  import IgnoreList from "../lib/ui/IgnoreList.svelte";
   import { t } from "../lib/i18n";
   import { fieldOf } from "../lib/message";
   import { messageOf } from "../lib/format";
@@ -41,6 +42,7 @@
     mode: preset?.deleted.mode ?? ("archive" as DeletedMode),
     days: String(preset?.deleted.days ?? 30),
     deepCheck: preset?.deepCheck ?? false,
+    ignore: preset?.ignore ?? [],
   };
   let name = $state(start.name);
   let origin = $state(start.origin);
@@ -48,6 +50,7 @@
   let mode: DeletedMode = $state(start.mode);
   let days = $state(start.days);
   let deepCheck = $state(start.deepCheck);
+  let ignore = $state([...start.ignore]);
   let saving = $state(false);
   let nameProblem: string | null = $state(null);
   let originProblem: string | null = $state(null);
@@ -61,6 +64,7 @@
           origin !== start.origin ||
           destination !== start.destination ||
           mode !== start.mode ||
+          ignore.join("\n") !== start.ignore.join("\n") ||
           (mode === "archive" && days !== start.days) ||
           deepCheck !== start.deepCheck,
   );
@@ -83,6 +87,7 @@
     mode = start.mode;
     days = start.days;
     deepCheck = start.deepCheck;
+    ignore = [...start.ignore];
     nameProblem = originProblem = destinationProblem = otherProblem = null;
   }
 
@@ -104,6 +109,7 @@
         destination,
         deleted: { mode, days: Number.parseInt(days, 10) || 0 },
         deepCheck,
+        ignore,
       });
     } catch (e) {
       const message = messageOf(e);
@@ -197,6 +203,10 @@
       onChange={(v) => (deepCheck = v)}
     />
     <p class="help">{t("mirror.editor.verifyNote")}</p>
+  </FormRow>
+
+  <FormRow label={t("copy.alsoIgnore")} hint={t("mirror.editor.alsoIgnoreHint")}>
+    <IgnoreList label={t("copy.alsoIgnore")} patterns={ignore} rows={4} onChange={(list) => (ignore = list)} />
   </FormRow>
 
   {#if otherProblem}<Notice tone="danger">{otherProblem}</Notice>{/if}

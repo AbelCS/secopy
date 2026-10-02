@@ -10,9 +10,7 @@
   import AppShell from "../lib/ui/AppShell.svelte";
   import Button from "../lib/ui/Button.svelte";
   import Checkbox from "../lib/ui/Checkbox.svelte";
-  import TextField from "../lib/ui/TextField.svelte";
-  import { MAX_LEN, MAX_PATTERNS, patternProblem } from "../lib/patterns";
-  import Icon from "../lib/ui/Icon.svelte";
+  import IgnoreList from "../lib/ui/IgnoreList.svelte";
   import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
   import Section from "../lib/ui/Section.svelte";
@@ -42,28 +40,8 @@
   // svelte-ignore state_referenced_locally
   let draft: Settings = $state({ ...settings });
   let saving = $state(false);
-  /** Settings › Always ignore when copying (#158): the pattern being typed, and why it can't go in. */
-  let pattern = $state("");
-  let patternError: string | null = $state(null);
-
-  function addPattern() {
-    const problem = patternProblem(pattern, draft.ignore);
-    if (problem === "slash") patternError = t("errors.pattern.slash");
-    else if (problem === "tooLong") patternError = t("errors.pattern.tooLong", { max: MAX_LEN });
-    else if (problem === "tooMany") patternError = t("errors.pattern.tooMany", { max: MAX_PATTERNS });
-    else if (problem === "badChar") patternError = t("errors.pattern.badChar");
-    else if (problem === "repeat") patternError = t("settings.ignore.repeat");
-    else {
-      const p = pattern.replace(/^ +| +$/g, "");
-      if (p) draft.ignore = [...draft.ignore, p];
-      pattern = "";
-      patternError = null;
-    }
-  }
-
   async function restoreDefaults() {
     draft.ignore = await api.defaultIgnore();
-    patternError = null;
   }
   let settingsError: string | null = $state(null);
   /** A setting's value, compared by what it holds: the ignore list is an array (#158). */
@@ -159,45 +137,12 @@
 
   <Section title={t("settings.ignore.label")}>
     <p class="muted">{t("settings.ignore.help")}</p>
-      <form
-        class="add"
-        onsubmit={(e) => {
-          e.preventDefault();
-          addPattern();
-        }}
-      >
-        <TextField
-          label={t("settings.ignore.field")}
-          hideLabel
-          mono
-          placeholder={t("settings.ignore.placeholder")}
-          bind:value={pattern}
-          error={patternError}
-        />
-        <Button type="submit">{t("settings.ignore.add")}</Button>
-      </form>
-      <!-- One per row, in a box that scrolls: readable at 200 patterns (#161). -->
-      {#if draft.ignore.length > 0}
-        <ul class="patterns" aria-label={t("settings.ignore.label")} translate="no">
-          {#each draft.ignore as p (p)}
-            <li>
-              <span class="mono">{p}</span>
-              <button
-                type="button"
-                class="remove"
-                aria-label={t("ui.remove", { name: p })}
-                onclick={() => (draft.ignore = draft.ignore.filter((q) => q !== p))}><Icon name="x" size={12} /></button
-              >
-            </li>
-          {/each}
-        </ul>
-      {:else}
-        <p class="empty">{t("settings.ignore.empty")}</p>
-      {/if}
-      <div class="foot">
-        <span class="count">{t("settings.ignore.count", { count: draft.ignore.length })}</span>
-        <Button onclick={restoreDefaults}>{t("settings.ignore.restore")}</Button>
-      </div>
+    <IgnoreList
+      label={t("settings.ignore.label")}
+      patterns={draft.ignore}
+      onChange={(list) => (draft.ignore = list)}
+      onRestore={restoreDefaults}
+    />
   </Section>
 
   {#if onExport || onImport}
@@ -229,88 +174,6 @@
   .transfer {
     display: flex;
     gap: var(--space-2);
-  }
-
-  .add {
-    display: flex;
-    gap: var(--space-2);
-    align-items: flex-start;
-  }
-
-  .add > :global(:first-child) {
-    flex: 1;
-  }
-
-  /* About 8 rows, then it scrolls. */
-  .patterns {
-    list-style: none;
-    margin: var(--space-2) 0 0;
-    padding: var(--space-1) 0;
-    max-height: calc(8 * 1.9rem + 2 * var(--space-1));
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-control);
-    background: var(--surface);
-  }
-
-  .patterns li {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    justify-content: space-between;
-    min-height: 1.9rem;
-    padding: 0 var(--space-2) 0 var(--space-3);
-  }
-
-  .patterns li:hover,
-  .patterns li:focus-within {
-    background: var(--surface-raised);
-  }
-
-  /* A long pattern wraps: its remove button stays in view (up to 255 characters). */
-  .patterns li span {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .remove {
-    flex-shrink: 0;
-    display: grid;
-    place-items: center;
-    width: 1.4rem;
-    height: 1.4rem;
-    border: 0;
-    border-radius: var(--radius-control);
-    background: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    opacity: 0;
-  }
-
-  .patterns li:hover .remove,
-  .remove:focus-visible {
-    opacity: 1;
-  }
-
-  .remove:hover {
-    color: var(--text);
-  }
-
-  .empty {
-    margin: var(--space-2) 0 0;
-    color: var(--text-muted);
-  }
-
-  .foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: var(--space-2);
-  }
-
-  .count {
-    color: var(--text-muted);
-    font-size: var(--text-sm);
   }
 
   .muted {

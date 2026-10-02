@@ -295,6 +295,7 @@ export function fakeApi(session: SessionView = sessionView()) {
   const api = {
     scanSource: vi.fn(answer),
     setIncludeFolder: vi.fn((_include: boolean) => answer()),
+    setJobIgnore: vi.fn((_list: string[]) => answer()),
     clearSource: vi.fn(answer),
     sessionView: vi.fn(answer),
     setFilter: vi.fn(answer),

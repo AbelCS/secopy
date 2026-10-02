@@ -1,5 +1,6 @@
 <script lang="ts">
   // The main window (RFD §5.2): FROM, TO, what pre-flight found, mode, Start.
+  import IgnoreList from "../lib/ui/IgnoreList.svelte";
   import { t, type Key } from "../lib/i18n";
   import { say } from "../lib/message";
   import { onMount } from "svelte";
@@ -82,7 +83,7 @@
     if (settings.showSystemCount && source.ignored > 0)
       parts.push({
         text: t("copy.ignored", { count: source.ignored }),
-        hint: t("copy.ignoredHint", { patterns: settings.ignore.join(t("format.comma")) }),
+        hint: t("copy.ignoredHint", { patterns: [...settings.ignore, ...view.jobIgnore].join(t("format.comma")) }),
       });
     if (source.skippedSymlinks > 0) parts.push({ text: t("copy.symlinksSkipped", { count: source.skippedSymlinks }) });
     if (source.skippedSpecial > 0)
@@ -188,6 +189,14 @@
 
   function setIncludeFolder(include: boolean) {
     return update(() => api.setIncludeFolder(include), (e) => (sourceError = e), "scan");
+  }
+
+  /** Also ignore's row is open: its editor is shown. */
+  let alsoOpen = $state(false);
+
+  /** This copy's Also ignore (#164): the source is scanned again with it. */
+  function setJobIgnore(list: string[]) {
+    return update(() => api.setJobIgnore(list), (e) => (sourceError = e), "scan");
   }
 
   function selectCopyPreset(id: string | null) {
@@ -327,6 +336,23 @@
           {/snippet}
         </FormRow>
       {/if}
+      <!-- On top of Settings' list, for this copy (and its preset): #164. -->
+      <details class="also" bind:open={alsoOpen}>
+        <summary>
+          {view.jobIgnore.length > 0
+            ? t("copy.alsoIgnoreCount", { count: view.jobIgnore.length })
+            : t("copy.alsoIgnore")}
+        </summary>
+        {#if alsoOpen}
+          <IgnoreList
+            label={t("copy.alsoIgnore")}
+            patterns={view.jobIgnore}
+            global={settings.ignore}
+            rows={4}
+            onChange={setJobIgnore}
+          />
+        {/if}
+      </details>
     {/if}
   </Section>
 
@@ -392,6 +418,17 @@
 </AppShell>
 
 <style>
+  .also {
+    margin-top: var(--space-2);
+  }
+
+  .also summary {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    margin-bottom: var(--space-2);
+  }
+
   p {
     margin: 0;
   }
