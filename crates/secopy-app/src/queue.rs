@@ -122,8 +122,9 @@ pub fn prepare(
 ) -> Result<Ready, crate::message::Message> {
     let mut s = Session::new();
     s.set_mhl(settings.write_mhl);
-    // Nothing is picked yet: this only sets the list for the scan below (#158).
+    // Nothing is picked yet: these only set the lists for the scan below (#158, #164).
     let _ = s.begin(Change::Ignore(settings.patterns()));
+    let _ = s.begin(Change::JobIgnore(job.ignore.clone()));
     // One scan, with the job's choice (#118): not the folder itself, then again without it.
     let view = apply(
         &mut s,
@@ -674,5 +675,35 @@ mod tests {
         )
         .unwrap();
         assert!(job.ignore.is_empty());
+    }
+
+    /// #164: a queued job keeps its own list, on top of the settings' at its turn.
+    #[test]
+    fn a_queued_job_keeps_its_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("CARD");
+        std::fs::create_dir_all(&src).unwrap();
+        for f in ["a.MP4", "a.LRF", ".gitkeep"] {
+            std::fs::write(src.join(f), b"x").unwrap();
+        }
+        let dest = dir.path().join("dest");
+        std::fs::create_dir_all(&dest).unwrap();
+        let job = CopyJob {
+            sources: vec![src],
+            include_folder: true,
+            extensions: None,
+            destination: dest,
+            conflicts: ConflictPolicy::KeepBoth,
+            verify: false,
+            overwrite: vec![],
+            ignore: vec![".gitkeep".into()],
+        };
+        let lrf = crate::store::Settings {
+            ignore: vec!["*.LRF".into()],
+            ..crate::store::Settings::default()
+        };
+        let files = |s: &crate::store::Settings| prepare(&job, s).unwrap().plan.files.len();
+        assert_eq!(files(&crate::store::Settings::default()), 2, "a.MP4, a.LRF");
+        assert_eq!(files(&lrf), 1, "a.MP4");
     }
 }

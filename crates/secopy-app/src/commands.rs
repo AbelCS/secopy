@@ -568,7 +568,10 @@ impl AppState {
     ) -> Result<MirrorJob, Message> {
         let control = Arc::new(JobControl::new());
         lock(&self.planning).push(control.clone());
-        let ignore = lock(&self.settings).patterns();
+        // Settings' list plus the preset's own (#164).
+        let ignore = lock(&self.settings)
+            .patterns()
+            .with(&Patterns::lenient(preset.ignore.clone()));
         let job = crate::mirrors::prepare_with(preset, &ignore, &control, on_compared);
         lock(&self.planning).retain(|c| !Arc::ptr_eq(c, &control));
         job
@@ -1542,9 +1545,10 @@ impl AppState {
                 _ => return Err(msg!("errors.mirror.previewFirst")),
             };
             // The preset, or the ignore list it was planned with (#158), changed since.
-            if lock(&self.mirrors).get(id) != Some(&previewed)
-                || lock(&self.settings).patterns() != job.ignore
-            {
+            let ignore = lock(&self.settings)
+                .patterns()
+                .with(&Patterns::lenient(previewed.ignore.clone()));
+            if lock(&self.mirrors).get(id) != Some(&previewed) || ignore != job.ignore {
                 *preview = None;
                 return Err(msg!("errors.mirror.changedSincePreview"));
             }
@@ -4184,5 +4188,44 @@ mod tests {
                 .job_ignore,
             [".gitkeep"]
         );
+    }
+
+    /// Sets mirror preset `id`'s own list (#164).
+    fn mirror_ignore(state: &AppState, id: &str, list: &[&str]) {
+        let mut input = state.mirror_presets()[0].input();
+        input.ignore = list.iter().map(|p| p.to_string()).collect();
+        state.edit_mirror_preset(id, input).unwrap();
+    }
+
+    /// #164: a mirror preset's own list keeps a file only in the backup there, in Delete mode.
+    #[test]
+    fn a_mirror_presets_list_protects_its_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        let mut input = state.mirror_presets()[0].input();
+        input.deleted.mode = crate::store::DeletedMode::Delete;
+        input.ignore = vec!["*.LRF".into()];
+        state.edit_mirror_preset(&id, input).unwrap();
+        fs::write(d.join("backup.LRF"), b"keep me").unwrap();
+        state.preview_mirror(&id, &|_, _| {}).unwrap();
+        state.run_mirror(&id, Sink::default()).unwrap();
+        state.jobs.wait();
+        assert!(d.join("backup.LRF").exists());
+        assert!(!d.join("x.mov").exists(), "the rest is mirrored as before");
+    }
+
+    /// #164: a preview made before the preset's list changed doesn't run.
+    #[test]
+    fn a_preview_made_before_the_presets_list_changed_doesnt_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, id, _, d) = mirror_state(dir.path());
+        fs::write(d.join("backup.LRF"), b"keep me").unwrap();
+        state.preview_mirror(&id, &|_, _| {}).unwrap();
+        mirror_ignore(&state, &id, &["*.LRF"]);
+        assert_eq!(
+            state.run_mirror(&id, Sink::default()).unwrap_err(),
+            "The mirror changed since its preview. Preview it again."
+        );
+        assert!(d.join("backup.LRF").exists());
     }
 }
