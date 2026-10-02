@@ -68,6 +68,13 @@
 
   /** Scans and destination checks still running; Start waits for all of them. */
   let scanning = $state(0);
+  /** A scan or check has taken longer than `SLOW_MS`: only then does New copy say so and grey
+   *  its controls out; a quick one just updates in place, without a flash (#167). */
+  let slow = $state(false);
+  const SLOW_MS = 400;
+  let slowTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Waiting for every scan and check to end (Start or Add to queue pressed meanwhile). */
+  const idleWaiters: (() => void)[] = [];
   let checking = $state(0);
   let sourceError: string | null = $state(null);
   let destError: string | null = $state(null);
@@ -91,14 +98,37 @@
     return parts;
   });
   const destination = $derived(view.destination);
-  const canStart = $derived(
-    scanning === 0 &&
-      checking === 0 &&
-      !!view.plan &&
+  const scanningShown = $derived(scanning > 0 && slow);
+  const checkingShown = $derived(checking > 0 && slow);
+  $effect(() => {
+    if (scanning + checking > 0) {
+      slowTimer ??= setTimeout(() => (slow = true), SLOW_MS);
+    } else {
+      clearTimeout(slowTimer);
+      slowTimer = undefined;
+      slow = false;
+      for (const done of idleWaiters.splice(0)) done();
+    }
+  });
+  /** Resolves once no scan or check is under way. */
+  function idle(): Promise<void> {
+    return scanning + checking === 0 ? Promise.resolve() : new Promise((done) => idleWaiters.push(done));
+  }
+  /** The plan can be started, whatever is under way. */
+  const planReady = $derived(
+    !!view.plan &&
       !view.plan.blocker &&
       !destination?.blocker &&
       view.plan.filesToWrite > 0,
   );
+  const canStart = $derived(scanning === 0 && checking === 0 && planReady);
+  /** Start looks ready during a quick scan: pressed then, it waits for the scan (#167). */
+  const startShown = $derived(planReady && !scanningShown && !checkingShown);
+
+  async function startWhenReady() {
+    await idle();
+    if (canStart) onStart();
+  }
 
   /** "Added to the queue (3 jobs).", for a few seconds after Add to queue. */
   let queuedNote: string | null = $state(null);
@@ -110,7 +140,8 @@
   const queued: { at: number | null } = { at: null };
 
   async function addToQueue() {
-    if (queueing || queued.at === view.revision) return;
+    await idle();
+    if (!canStart || queueing || queued.at === view.revision) return;
     queueing = true;
     // The view the job is added from, as it was when asked (#138).
     const from = view.revision;
@@ -131,8 +162,8 @@
   /** Why Start can't be used yet, or what it will copy. */
   const startStatus = $derived.by(() => {
     if (queuedNote) return queuedNote;
-    if (scanning > 0) return t("copy.status.scanning");
-    if (checking > 0) return t("copy.status.checking");
+    if (scanningShown) return t("copy.status.scanning");
+    if (checkingShown) return t("copy.status.checking");
     if (!source) return t("copy.status.noSource");
     if (!destination) return t("copy.status.noDestination");
     if (destination.blocker || view.plan?.blocker) return t("copy.status.blocked");
@@ -220,7 +251,7 @@
 
   /** Start from the File menu: only what the Start button would start. */
   export function startIfReady() {
-    if (canStart) onStart();
+    if (startShown) void startWhenReady();
   }
 
   export async function chooseSource() {
@@ -279,7 +310,7 @@
 
   <Section title={t("copy.from")} data-drop="from">
     <FormRow label={t("copy.source")}>
-      {#if scanning > 0}<p class="muted" role="status">{t("copy.scanning")}</p>{/if}
+      {#if scanningShown}<p class="muted" role="status">{t("copy.scanning")}</p>{/if}
       {#if view.pickProblem}<Notice tone="danger">{say(view.pickProblem)}</Notice>{/if}
       {#if source}
         <div>
@@ -308,7 +339,7 @@
       <PresetBar
         {view}
         {presets}
-        busy={scanning > 0}
+        busy={scanningShown}
         onSelect={selectCopyPreset}
         onApplied={presetsApplied}
         onManage={onManagePresets}
@@ -323,7 +354,7 @@
         <Checkbox
           label={t("copy.includeFolder", { name: baseName(folder) })}
           checked={!source.contentsOnly}
-          disabled={scanning > 0}
+          disabled={scanningShown}
           onChange={setIncludeFolder}
         />
       </FormRow>
@@ -336,13 +367,8 @@
           {/snippet}
         </FormRow>
       {/if}
-      <!-- On top of Settings' list, for this copy (and its preset): #164. -->
-      <details class="also" bind:open={alsoOpen}>
-        <summary>
-          {view.jobIgnore.length > 0
-            ? t("copy.alsoIgnoreCount", { count: view.jobIgnore.length })
-            : t("copy.alsoIgnore")}
-        </summary>
+      <!-- On top of Settings' list, for this copy (and its preset): #164, #167. -->
+      <FormRow label={t("copy.alsoIgnore")} hint={t("copy.alsoIgnoreHint")}>
         {#if alsoOpen}
           <IgnoreList
             label={t("copy.alsoIgnore")}
@@ -352,14 +378,23 @@
             disabled={scanning > 0}
             onChange={setJobIgnore}
           />
+        {:else}
+          <p class="mono also" translate="no">
+            {view.jobIgnore.length > 0 ? view.jobIgnore.join(t("format.comma")) : t("copy.alsoIgnoreNone")}
+          </p>
         {/if}
-      </details>
+        {#snippet aside()}
+          <Button variant="link" onclick={() => (alsoOpen = !alsoOpen)}
+            >{alsoOpen ? t("copy.alsoIgnoreDone") : t("copy.alsoIgnoreEdit")}</Button
+          >
+        {/snippet}
+      </FormRow>
     {/if}
   </Section>
 
   <Section title={t("copy.to")} data-drop="to">
     <FormRow label={t("copy.destination")}>
-      {#if checking > 0}<p class="muted" role="status">{t("copy.checking")}</p>{/if}
+      {#if checkingShown}<p class="muted" role="status">{t("copy.checking")}</p>{/if}
       {#if destination}
         <div>
           <p class="path mono">{destination.path}</p>
@@ -408,11 +443,11 @@
       {#snippet end()}
         <!-- The mode is chosen next to it; the figures are in the status. -->
         <Button
-          disabled={!canStart || !!source?.isRetry}
+          disabled={!startShown || !!source?.isRetry}
           help={t("copy.addToQueueHelp")}
           onclick={addToQueue}>{t("copy.addToQueue")}</Button
         >
-        <Button variant="primary" disabled={!canStart} help={startHelp} onclick={onStart}>{t("copy.start.label")}</Button>
+        <Button variant="primary" disabled={!startShown} help={startHelp} onclick={startWhenReady}>{t("copy.start.label")}</Button>
       {/snippet}
     </ActionBar>
   {/snippet}
@@ -420,14 +455,9 @@
 
 <style>
   .also {
-    margin-top: var(--space-2);
-  }
-
-  .also summary {
-    cursor: pointer;
+    margin: 0;
     color: var(--text-muted);
-    font-size: var(--text-sm);
-    margin-bottom: var(--space-2);
+    overflow-wrap: anywhere;
   }
 
   p {

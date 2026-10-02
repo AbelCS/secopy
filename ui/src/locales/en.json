@@ -366,7 +366,10 @@
       "other": "{count} files"
     },
     "alsoIgnore": "Also ignore",
-    "alsoIgnoreCount": "Also ignore ({count})",
+    "alsoIgnoreHint": "Names this copy (and its preset) never copies, on top of Settings › Always ignore when copying.",
+    "alsoIgnoreNone": "None",
+    "alsoIgnoreEdit": "Edit",
+    "alsoIgnoreDone": "Done",
     "ignored": {
       "one": "{count} ignored",
       "other": "{count} ignored"
