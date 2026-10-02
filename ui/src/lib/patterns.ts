@@ -4,7 +4,7 @@
 /** Characters a pattern has at most. */
 export const MAX_LEN = 255;
 /** Patterns the list holds at most. */
-export const MAX_PATTERNS = 200;
+export const MAX_PATTERNS = 128;
 
 /** Why `pattern` can't be added to `list`, or null. Spaces at its ends don't count. */
 export function patternProblem(
