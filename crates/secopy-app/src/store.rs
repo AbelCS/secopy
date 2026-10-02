@@ -18,7 +18,8 @@ use crate::dto::ExtensionKey;
 use crate::message::Message;
 use crate::msg;
 
-const VERSION: u32 = 1;
+/// The newest file version this Secopy reads; it writes 1 unless a file needs more.
+const VERSION: u32 = 2;
 pub const SETTINGS: &str = "settings.json";
 /// Copy presets. Their file kept its name from when they were called profiles (#72).
 pub const COPY_PRESETS: &str = "profiles.json";
@@ -397,7 +398,7 @@ impl CopyPresets {
                 p.id
             };
             out.presets.push(CopyPreset {
-                ignore: Vec::new(),
+                ignore: p.ignore.clone(),
                 id,
                 name,
                 source,
@@ -699,6 +700,22 @@ fn source(text: &str) -> Result<String, Message> {
     full_path(text).ok_or_else(|| msg!("errors.field.source.notFull"))
 }
 
+/// The version a file needs: 2 when a preset has its own ignore list (#164), so an older
+/// Secopy, which would drop the list (and a mirror could then delete what it protects),
+/// refuses the file instead; 1 otherwise, as every Secopy before wrote it.
+fn version_needed(value: &serde_json::Value) -> u32 {
+    let lists = ["presets", "profiles"]
+        .into_iter()
+        .filter_map(|key| value.get(key)?.as_array())
+        .flatten()
+        .any(|p| {
+            p.get("ignore")
+                .and_then(|i| i.as_array())
+                .is_some_and(|i| !i.is_empty())
+        });
+    if lists { 2 } else { 1 }
+}
+
 /// On disk: the data next to a version number.
 #[derive(Serialize, Deserialize)]
 struct Versioned<T> {
@@ -805,9 +822,10 @@ impl Store {
             )
         };
         fs::create_dir_all(&self.dir).map_err(failed)?;
+        let value = serde_json::to_value(data).expect("saved data serializes");
         let text = serde_json::to_string_pretty(&Versioned {
-            version: VERSION,
-            data,
+            version: version_needed(&value),
+            data: value,
         })
         .expect("saved data serializes");
         let tmp = self.dir.join(format!("{name}.tmp"));
@@ -903,7 +921,7 @@ mod tests {
     #[test]
     fn a_file_from_a_newer_secopy_is_left_as_it_is() {
         let dir = tempfile::tempdir().unwrap();
-        let newer = br#"{"version": 2, "writeChecksumFile": false}"#;
+        let newer = br#"{"version": 3, "writeChecksumFile": false}"#;
         fs::write(dir.path().join(SETTINGS), newer).unwrap();
         let store = Store::new(dir.path().to_path_buf());
         let (settings, warning) = store.load::<Settings>(SETTINGS);
@@ -1318,5 +1336,55 @@ mod tests {
             ..input("Good", "")
         };
         assert_eq!(presets.add(good).unwrap().ignore, [".gitkeep"]);
+    }
+
+    /// #164 review: presets with their own list are saved as version 2, which an older
+    /// Secopy refuses (it would drop the list, and a mirror could delete what it protects);
+    /// without one, still version 1.
+    #[test]
+    fn presets_with_a_list_are_saved_for_this_version_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let mirror = |ignore: Vec<String>| MirrorPresets {
+            presets: vec![MirrorPreset {
+                id: "m".into(),
+                name: "M".into(),
+                origin: "/o".into(),
+                destination: "/d".into(),
+                deleted: DeletedFiles {
+                    mode: DeletedMode::Delete,
+                    days: 30,
+                },
+                deep_check: false,
+                clear_archive: None,
+                ignore,
+            }],
+        };
+        let version = || -> u64 {
+            let v: serde_json::Value =
+                serde_json::from_str(&fs::read_to_string(dir.path().join("mirrors.json")).unwrap())
+                    .unwrap();
+            v["version"].as_u64().unwrap()
+        };
+        store.save("mirrors.json", &mirror(Vec::new())).unwrap();
+        assert_eq!(version(), 1);
+        store
+            .save("mirrors.json", &mirror(vec!["*.LRF".into()]))
+            .unwrap();
+        assert_eq!(version(), 2);
+        let (read, warning) = store.load::<MirrorPresets>("mirrors.json");
+        assert!(warning.is_none());
+        assert_eq!(read.presets[0].ignore, ["*.LRF"]);
+    }
+
+    /// #164 review: repairing presets at start keeps their lists.
+    #[test]
+    fn repairing_presets_keeps_their_lists() {
+        let presets: CopyPresets = serde_json::from_str(
+            r#"{"profiles":[{"id":"a","name":"A","source":"","includeFolder":true,"extensions":null,"ignore":[".gitkeep"]}]}"#,
+        )
+        .unwrap();
+        let (repaired, _) = presets.repaired();
+        assert_eq!(repaired.presets[0].ignore, [".gitkeep"]);
     }
 }

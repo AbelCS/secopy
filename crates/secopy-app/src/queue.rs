@@ -180,7 +180,8 @@ fn why_not(view: &SessionView) -> crate::message::Message {
 
 /// Every key a queued copy has in this version, with the entry's own.
 fn only_known_copy_keys(value: &serde_json::Value) -> bool {
-    const KNOWN: [&str; 9] = [
+    const KNOWN: [&str; 10] = [
+        "ignore",
         "kind",
         "lastError",
         "sources",
@@ -705,5 +706,17 @@ mod tests {
         let files = |s: &crate::store::Settings| prepare(&job, s).unwrap().plan.files.len();
         assert_eq!(files(&crate::store::Settings::default()), 2, "a.MP4, a.LRF");
         assert_eq!(files(&lrf), 1, "a.MP4");
+    }
+
+    /// #164 review: a queued copy with its own list still loads as a copy.
+    #[test]
+    fn a_queued_copy_with_a_list_loads_after_a_restart() {
+        let mut job = job("A");
+        job.ignore = vec![".gitkeep".into()];
+        let mut q = Queue::default();
+        q.add(job.clone());
+        let text = serde_json::to_string(&q).unwrap();
+        let read: Queue = serde_json::from_str(&text).unwrap();
+        assert!(matches!(&read.jobs[0].job, QueuedJob::Copy(j) if j.ignore == [".gitkeep"]));
     }
 }

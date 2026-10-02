@@ -15,6 +15,7 @@
     global = [],
     rows = 8,
     onRestore,
+    disabled = false,
   }: {
     /** Names the list for screen readers. */
     label: string;
@@ -26,12 +27,15 @@
     rows?: number;
     /** Restore defaults (Settings' list only). */
     onRestore?: () => void;
+    /** A change is on its way: the next waits for it, so none undoes another. */
+    disabled?: boolean;
   } = $props();
 
   let pattern = $state("");
   let error: string | null = $state(null);
 
   function add() {
+    if (disabled) return;
     const problem = patternProblem(pattern, patterns, global);
     if (problem === "slash") error = t("errors.pattern.slash");
     else if (problem === "tooLong") error = t("errors.pattern.tooLong", { max: MAX_LEN });
@@ -64,7 +68,7 @@
       }
     }}
   />
-  <Button onclick={add}>{t("settings.ignore.add")}</Button>
+  <Button {disabled} onclick={add}>{t("settings.ignore.add")}</Button>
 </div>
 {#if patterns.length > 0}
   <ul class="patterns" aria-label={label} translate="no" style="--rows: {rows}">
@@ -74,6 +78,7 @@
         <button
           type="button"
           class="remove"
+          {disabled}
           aria-label={t("ui.remove", { name: p })}
           onclick={() => onChange(patterns.filter((q) => q !== p))}><Icon name="x" size={12} /></button
         >

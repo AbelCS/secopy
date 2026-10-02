@@ -204,6 +204,12 @@ impl Session {
             Change::Pick(paths) => {
                 self.picked = Some(paths);
                 self.include_folder = self.preset.as_ref().is_some_and(|p| p.include_folder);
+                // From the preset, like its file types: a list changed for one copy doesn't
+                // follow into the next (#164).
+                self.job_ignore = self
+                    .preset
+                    .as_ref()
+                    .map_or_else(Vec::new, |p| p.ignore.clone());
             }
             Change::PickAs {
                 paths,
@@ -494,6 +500,10 @@ impl Session {
         self.pick_problem = None;
         self.source = None;
         self.filter = ExtensionFilter::All;
+        self.job_ignore = self
+            .preset
+            .as_ref()
+            .map_or_else(Vec::new, |p| p.ignore.clone());
         self.forget_choice();
         self.recompute();
         self.view()
@@ -1583,5 +1593,23 @@ mod tests {
         );
         s.set_destination(Some(f.dest.clone()));
         assert_eq!(s.copy_job(true).unwrap().ignore, ["*.xml"]);
+    }
+
+    /// #164 review: a new pick takes its list from the preset (none without one), like its
+    /// file types: a list changed for one copy doesn't follow into the next.
+    #[test]
+    fn a_new_pick_takes_its_list_from_the_preset() {
+        let f = fixture();
+        let mut s = Session::new();
+        pick(&mut s, std::slice::from_ref(&f.card), false);
+        apply(&mut s, Change::JobIgnore(vec!["*.xml".into()]));
+        let view = pick(&mut s, std::slice::from_ref(&f.card), false);
+        assert!(view.job_ignore.is_empty());
+        let mut xml = preset(Path::new(""), None);
+        xml.ignore = vec!["*.xml".into()];
+        apply(&mut s, Change::CopyPreset(Some(xml)));
+        apply(&mut s, Change::JobIgnore(Vec::new()));
+        let view = pick(&mut s, std::slice::from_ref(&f.card), false);
+        assert_eq!(view.job_ignore, ["*.xml"]);
     }
 }

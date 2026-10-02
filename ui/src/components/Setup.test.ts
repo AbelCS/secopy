@@ -174,6 +174,19 @@ describe("Setup", () => {
     expect(api.setJobIgnore).toHaveBeenCalledWith([".gitkeep", "*.LRF"]);
   });
 
+  test("Also ignore waits for its scan before the next change (#164 review)", async () => {
+    const { api } = setup(readyView({ jobIgnore: [".gitkeep"] }));
+    let answer: (v: SessionView) => void = () => {};
+    api.setJobIgnore.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    await fireEvent.click(screen.getByText("Also ignore (1)"));
+    await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.xml" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(screen.getByRole("button", { name: "Add" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Remove .gitkeep" })).toHaveProperty("disabled", true);
+    answer(readyView({ jobIgnore: [".gitkeep", "*.xml"], revision: 9 }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toHaveProperty("disabled", false));
+  });
+
   test("the ignored count's hint lists Settings' and this copy's patterns (#164)", () => {
     setup(readyView({ source: { ...readyView().source!, ignored: 3 }, jobIgnore: [".gitkeep"] }));
     expect(hintOf(screen.getByText("3 ignored"))).toContain(".gitkeep");
