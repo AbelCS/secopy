@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.22.0](https://github.com/AbelCS/secopy/compare/v0.21.1...v0.22.0) (2026-10-02)
+
+
+### Features
+
+* **app:** New copy's own ignore list ([#164](https://github.com/AbelCS/secopy/issues/164)) ([f4bad0e](https://github.com/AbelCS/secopy/commit/f4bad0ec9adf35a93773a9bbce482e60887a9f6b))
+* **app:** presets and queued jobs keep their own ignore list ([#164](https://github.com/AbelCS/secopy/issues/164)) ([963b17c](https://github.com/AbelCS/secopy/commit/963b17c19ebff87fc82259e44830c4f7e3d20934))
+* **app:** queued jobs and mirrors use their own ignore list ([#164](https://github.com/AbelCS/secopy/issues/164)) ([4dab9e1](https://github.com/AbelCS/secopy/commit/4dab9e1550ff91cd3ba1e137ff6c37869b2b8bcd))
+* **core:** ignore lists hold up to 128, and a job's adds to the global one ([#164](https://github.com/AbelCS/secopy/issues/164)) ([e954791](https://github.com/AbelCS/secopy/commit/e9547919b3599ad307750f3baafc359b58872e94))
+* **ui:** Also ignore in New copy and the preset editors ([#164](https://github.com/AbelCS/secopy/issues/164)) ([0995cbd](https://github.com/AbelCS/secopy/commit/0995cbd9c473012aa248dd7c7df5bf229be5d9b8))
+
+
+### Bug Fixes
+
+* review fixes for each copy and preset's own ignore list ([#164](https://github.com/AbelCS/secopy/issues/164)) ([00da3bb](https://github.com/AbelCS/secopy/commit/00da3bb2641b68d57d0b13529f7630469d48599d))
+
 ## [0.21.1](https://github.com/AbelCS/secopy/compare/v0.21.0...v0.21.1) (2026-10-01)
 
 
