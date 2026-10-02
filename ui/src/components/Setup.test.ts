@@ -168,7 +168,7 @@ describe("Setup", () => {
 
   test("Also ignore opens its list, and a change scans again (#164)", async () => {
     const { api } = setup(readyView({ jobIgnore: [".gitkeep"] }));
-    await fireEvent.click(screen.getByText("Also ignore (1)"));
+    await fireEvent.click(from().getByRole("button", { name: "Edit" }));
     await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.LRF" } });
     await fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(api.setJobIgnore).toHaveBeenCalledWith([".gitkeep", "*.LRF"]);
@@ -178,7 +178,7 @@ describe("Setup", () => {
     const { api } = setup(readyView({ jobIgnore: [".gitkeep"] }));
     let answer: (v: SessionView) => void = () => {};
     api.setJobIgnore.mockReturnValueOnce(new Promise((r) => (answer = r)));
-    await fireEvent.click(screen.getByText("Also ignore (1)"));
+    await fireEvent.click(from().getByRole("button", { name: "Edit" }));
     await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.xml" } });
     await fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(screen.getByRole("button", { name: "Add" })).toHaveProperty("disabled", true);
@@ -285,6 +285,44 @@ describe("Setup", () => {
     expect(calls.modes).toEqual([false]);
     screen.getByRole("button", { name: "Start" });
     expect(screen.queryByRole("button", { name: /^Copy/ })).toBeNull();
+  });
+
+  test("a quick rescan doesn't flash: no Scanning…, nothing greyed out (#167)", async () => {
+    const { api } = setup(readyView());
+    api.setIncludeFolder.mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(() => resolve(readyView({ revision: 5 })), 60)),
+    );
+    await fireEvent.click(includeFolder());
+    expect(screen.queryByText("Scanning…")).toBeNull();
+    expect(includeFolder()).toHaveProperty("disabled", false);
+    expect(start()).toHaveProperty("disabled", false);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(screen.queryByText("Scanning…")).toBeNull();
+  });
+
+  test("Start pressed during a quick rescan starts once it's done (#167)", async () => {
+    const { api, started } = setup(readyView());
+    let finish = (_v: SessionView) => {};
+    api.setIncludeFolder.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    await fireEvent.click(includeFolder());
+    await fireEvent.click(start());
+    expect(started).toHaveLength(0);
+    finish(readyView({ revision: 6 }));
+    await waitFor(() => expect(started).toHaveLength(1));
+  });
+
+  test("Also ignore is a row with its patterns, and Edit opens its list (#167)", async () => {
+    setup(readyView({ jobIgnore: [".gitkeep", "*.LRF"] }));
+    from().getByText(".gitkeep, *.LRF");
+    expect(screen.queryByLabelText("Name pattern")).toBeNull();
+    await fireEvent.click(from().getByRole("button", { name: "Edit" }));
+    screen.getByLabelText("Name pattern");
+  });
+
+  test("an empty Also ignore says None", () => {
+    setup(readyView());
+    // One "None" is File types' link, the other the empty list.
+    expect(from().getAllByText("None")).toHaveLength(2);
   });
 
   test("a scan in progress says so, and Start waits for it", async () => {
