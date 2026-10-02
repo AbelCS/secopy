@@ -21,7 +21,9 @@ Drop a directory or files on **From**, or press **Choose…** (⌘O).
 - **Hidden files are copied** (cameras hide some of their own). Files and directories named in
   Settings › Always ignore when copying are never copied: by default the ones computers leave
   behind, like `.DS_Store`, `._*` or `Thumbs.db`. Their count is shown, so nothing disappears
-  without a word. Links are not followed.
+  without a word. **Also ignore**, under the file types, adds names for this copy only (and
+  its preset): for example `.gitkeep` for most copies but not for a Template backup. Links are
+  not followed.
 - **File types** lists every extension with its count and size, largest first. Click one to
   leave it out; **All** and **None** select every type or none.
 
@@ -218,8 +220,9 @@ preset with a setting this Secopy doesn't know can't be imported: update Secopy 
 - **Always ignore when copying**: names never copied or mirrored, like `*.LRF` or `.gitkeep`
   (`*` is any characters, `?` one; case doesn't matter). A matching directory is left out with
   everything in it, and a mirror never removes these files from its backup. It starts with the
-  files computers leave behind; **Restore defaults** puts those back. In Terminal,
-  `--ignore PATTERN` adds a pattern.
+  files computers leave behind; **Restore defaults** puts those back. It holds up to 128
+  patterns. Copy and mirror presets have their own **Also ignore** list on top of it. In
+  Terminal, `--ignore PATTERN` adds a pattern.
 - **Also save the job report next to the checksum file.**
 - **Notify when a copy finishes**, when Secopy's window isn't in front.
 - **Keep copying in the menu bar when the window is closed** (on by default).
