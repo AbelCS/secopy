@@ -160,6 +160,7 @@
     presetChanged: false,
     pickProblem: null,
     stale: false,
+    jobIgnore: [],
   });
   let verify = $state(true);
   let copyPresets: CopyPreset[] = $state([]);

@@ -36,6 +36,8 @@ pub struct SessionView {
     pub pick_problem: Option<Message>,
     /// A newer scan replaced this one while it ran (FR-3); the UI keeps its current view.
     pub stale: bool,
+    /// This run's Also ignore (#164), on top of Settings' list.
+    pub job_ignore: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]

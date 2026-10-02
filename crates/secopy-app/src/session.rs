@@ -61,6 +61,8 @@ pub struct Session {
     mhl_on: bool,
     /// Settings › Always ignore when copying (#158).
     ignore: Patterns,
+    /// This run's Also ignore (#164): from the preset, editable.
+    job_ignore: Vec<String>,
     /// The plan's ASC MHL, with the setting on.
     mhl: Option<Result<MhlPlan, Vec<MhlBlocker>>>,
     /// Views made so far: each says how new it is (#138).
@@ -87,6 +89,7 @@ impl Default for Session {
             plan: None,
             mhl_on: false,
             ignore: Patterns::defaults(),
+            job_ignore: Vec::new(),
             mhl: None,
             views: std::sync::atomic::AtomicU64::new(0),
         }
@@ -108,6 +111,8 @@ pub enum Change {
     CopyPreset(Option<CopyPreset>),
     /// Settings › Always ignore when copying changed (#158): the pick is scanned again.
     Ignore(Patterns),
+    /// This run's Also ignore (#164), checked: the pick is scanned again.
+    JobIgnore(Vec<String>),
 }
 
 /// A scan to run without the session locked, then hand to [`Session::finish_scan`].
@@ -185,7 +190,10 @@ impl Session {
     /// scan: nothing picked yet, or the pick can't be used (the preset's folder is missing,
     /// a folder and files together).
     pub fn begin(&mut self, change: Change) -> Result<PendingScan, Box<SessionView>> {
-        let keep_filter = matches!(change, Change::IncludeFolder(_) | Change::Ignore(_));
+        let keep_filter = matches!(
+            change,
+            Change::IncludeFolder(_) | Change::Ignore(_) | Change::JobIgnore(_)
+        );
         // A toggle during a pending scan keeps that scan's file types, not the old card's.
         let kept = if self.scan_pending() {
             self.next_filter.clone()
@@ -206,9 +214,11 @@ impl Session {
             }
             Change::IncludeFolder(include) => self.include_folder = include,
             Change::Ignore(patterns) => self.ignore = patterns,
+            Change::JobIgnore(list) => self.job_ignore = list,
             Change::CopyPreset(preset) => {
                 if let Some(p) = &preset {
                     self.include_folder = p.include_folder;
+                    self.job_ignore = p.ignore.clone();
                     // Choosing a preset loads its source (one without keeps what's picked).
                     if !p.source.is_empty() {
                         self.picked = Some(vec![PathBuf::from(&p.source)]);
@@ -235,7 +245,7 @@ impl Session {
                     ticket: self.generation,
                     source,
                     filter,
-                    ignore: self.ignore.clone(),
+                    ignore: self.patterns(),
                 })
             }
             Err(problem) => {
@@ -312,6 +322,22 @@ impl Session {
         self.preset.as_ref()
     }
 
+    /// Settings' list plus this run's (#164).
+    fn patterns(&self) -> Patterns {
+        self.ignore
+            .with(&Patterns::lenient(self.job_ignore.clone()))
+    }
+
+    /// Settings' list, for checking this run's against it.
+    pub fn global_ignore(&self) -> &Patterns {
+        &self.ignore
+    }
+
+    /// This run's Also ignore (#164), for Save as….
+    pub fn job_ignore(&self) -> &[String] {
+        &self.job_ignore
+    }
+
     pub fn destination(&self) -> Option<&Path> {
         self.dest.as_deref()
     }
@@ -345,6 +371,7 @@ impl Session {
             .picked_source()
             .is_some_and(|picked| same_dir(Path::new(&picked), Path::new(&preset.source)))
             || preset.include_folder != self.include_folder
+            || preset.ignore != self.job_ignore
             || picked
                 .scan
                 .ext_stats
@@ -386,6 +413,7 @@ impl Session {
                 .unwrap_or_else(|| preset.source.clone()),
             include_folder: self.include_folder,
             extensions,
+            ignore: self.job_ignore.clone(),
             ..preset.clone()
         })
     }
@@ -405,7 +433,7 @@ impl Session {
             return None;
         }
         Some(crate::queue::CopyJob {
-            ignore: Vec::new(),
+            ignore: self.job_ignore.clone(),
             sources: self.picked.clone()?,
             include_folder: self.include_folder,
             extensions: match &self.filter {
@@ -576,7 +604,7 @@ impl Session {
                     Source::Directory { path, .. } => Some(path.clone()),
                     Source::Files(_) => None,
                 }),
-                ignore: self.ignore.clone(),
+                ignore: self.patterns(),
             };
             self.mhl = Some(mhl::prepare::prepare(&mut plan, &inputs));
             self.plan = Some(plan);
@@ -609,6 +637,7 @@ impl Session {
             preset_id: self.preset.as_ref().map(|p| p.id.clone()),
             preset_changed: self.preset_changed(),
             pick_problem: self.pick_problem.clone(),
+            job_ignore: self.job_ignore.clone(),
         }
     }
 
@@ -1506,5 +1535,53 @@ mod tests {
         let after = apply(&mut s, Change::Ignore(lrf));
         assert_eq!(after.selected_files, before.selected_files - 1);
         assert_eq!(after.source.unwrap().ignored, 1);
+    }
+
+    /// #164: the run's own list is ignored too, on top of Settings'.
+    #[test]
+    fn the_runs_list_is_ignored_too() {
+        let f = fixture();
+        let mut s = Session::new();
+        let before = pick(&mut s, std::slice::from_ref(&f.card), false);
+        let after = apply(&mut s, Change::JobIgnore(vec!["*.xml".into()]));
+        assert_eq!(after.selected_files, before.selected_files - 1);
+        assert_eq!(after.source.unwrap().ignored, 1);
+        assert_eq!(after.job_ignore, ["*.xml"]);
+    }
+
+    /// #164: a preset brings its list; another preset brings its own instead.
+    #[test]
+    fn a_presets_list_comes_with_it_and_another_brings_its_own() {
+        let f = fixture();
+        let mut s = Session::new();
+        let mut xml = preset(&f.card, None);
+        xml.ignore = vec!["*.xml".into()];
+        let view = apply(&mut s, Change::CopyPreset(Some(xml)));
+        assert_eq!(view.job_ignore, ["*.xml"]);
+        assert_eq!(view.selected_files, 2);
+        let mut other = preset(&f.card, None);
+        other.id = "other".into();
+        other.ignore = vec!["B*".into()];
+        let view = apply(&mut s, Change::CopyPreset(Some(other)));
+        assert_eq!(view.job_ignore, ["B*"]);
+        assert_eq!(view.selected_files, 2, "A001.mov and A001.xml");
+    }
+
+    /// #164: changing the run's list marks the preset changed, and Update keeps it.
+    #[test]
+    fn changing_the_runs_list_marks_the_preset_changed() {
+        let f = fixture();
+        let mut s = Session::new();
+        apply(&mut s, Change::CopyPreset(Some(preset(&f.card, None))));
+        let view = apply(&mut s, Change::JobIgnore(vec!["*.xml".into()]));
+        assert!(view.preset_changed);
+        assert_eq!(s.updated_preset().unwrap().ignore, ["*.xml"]);
+        assert_eq!(
+            s.copy_job(true).map(|j| j.ignore),
+            None,
+            "no destination yet"
+        );
+        s.set_destination(Some(f.dest.clone()));
+        assert_eq!(s.copy_job(true).unwrap().ignore, ["*.xml"]);
     }
 }
