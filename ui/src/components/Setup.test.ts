@@ -311,12 +311,42 @@ describe("Setup", () => {
     await waitFor(() => expect(started).toHaveLength(1));
   });
 
+  test("Start pressed twice during a quick rescan starts once (#167 review)", async () => {
+    const { api, started } = setup(readyView());
+    let finish = (_v: SessionView) => {};
+    api.setIncludeFolder.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    await fireEvent.click(includeFolder());
+    await fireEvent.click(start());
+    await fireEvent.click(start());
+    finish(readyView({ revision: 6 }));
+    await waitFor(() => expect(started).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(started).toHaveLength(1);
+  });
+
+  test("leaving New copy during a quick rescan starts nothing after (#167 review)", async () => {
+    const { api, started, unmount } = setup(readyView());
+    let finish = (_v: SessionView) => {};
+    api.setIncludeFolder.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    await fireEvent.click(includeFolder());
+    await fireEvent.click(start());
+    unmount();
+    finish(readyView({ revision: 6 }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(started).toHaveLength(0);
+  });
+
   test("Also ignore is a row with its patterns, and Edit opens its list (#167)", async () => {
     setup(readyView({ jobIgnore: [".gitkeep", "*.LRF"] }));
     from().getByText(".gitkeep, *.LRF");
     expect(screen.queryByLabelText("Name pattern")).toBeNull();
-    await fireEvent.click(from().getByRole("button", { name: "Edit" }));
+    const edit = from().getByRole("button", { name: "Edit" });
+    expect(edit.getAttribute("aria-expanded")).toBe("false");
+    await fireEvent.click(edit);
     screen.getByLabelText("Name pattern");
+    const done = from().getByRole("button", { name: "Done" });
+    expect(done.getAttribute("aria-expanded")).toBe("true");
+    expect(document.getElementById(done.getAttribute("aria-controls")!)).not.toBeNull();
   });
 
   test("an empty Also ignore says None", () => {
