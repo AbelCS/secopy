@@ -4,7 +4,7 @@
 use std::ffi::OsStr;
 
 /// Patterns a list holds at most.
-pub const MAX_PATTERNS: usize = 200;
+pub const MAX_PATTERNS: usize = 128;
 /// Characters a pattern has at most.
 pub const MAX_LEN: usize = 255;
 
@@ -71,6 +71,16 @@ impl Patterns {
             return Err(PatternError::TooMany);
         }
         Ok(kept)
+    }
+
+    /// This list and a job's own (#164): its patterns first, then the job's it lacks. Each
+    /// was checked, so the two together need no limit of their own.
+    pub fn with(&self, job: &Patterns) -> Patterns {
+        let mut both = self.clone();
+        for p in &job.0 {
+            both.push(p);
+        }
+        both
     }
 
     /// Adds `p` unless the list has it already (in any case or Unicode form).
@@ -238,6 +248,28 @@ mod tests {
         assert!(Patterns::new(["Icon\r".to_string()]).is_ok());
     }
 
+    /// #164: a list holds up to 128 patterns; a saved one keeps its first 128.
+    #[test]
+    fn a_list_holds_up_to_128() {
+        assert_eq!(MAX_PATTERNS, 128);
+        let read = Patterns::lenient((0..200).map(|i| format!("p{i}")));
+        assert_eq!(read.as_slice().len(), 128);
+        assert_eq!(read.as_slice()[0], "p0");
+    }
+
+    /// #164: a job's list adds to the global one; what the global has isn't repeated.
+    #[test]
+    fn a_jobs_list_adds_to_the_global_one() {
+        let job = Patterns::new(["*.LRF".to_string(), ".ds_store".to_string()]).unwrap();
+        let both = Patterns::defaults().with(&job);
+        assert_eq!(
+            both.as_slice().len(),
+            Patterns::defaults().as_slice().len() + 1
+        );
+        assert!(both.matches(OsStr::new("a.LRF")) && both.matches(OsStr::new(".DS_Store")));
+        assert_eq!(both.as_slice().last().unwrap(), "*.LRF");
+    }
+
     #[test]
     fn only_star_and_question_mark_are_special() {
         let p = Patterns::new(["$RECYCLE.BIN".to_string(), "[x]".to_string()]).unwrap();
@@ -298,7 +330,7 @@ mod tests {
         );
         assert_eq!(Patterns::new(["x".repeat(256)]), Err(PatternError::TooLong));
         assert_eq!(
-            Patterns::new((0..201).map(|i| i.to_string())),
+            Patterns::new((0..129).map(|i| i.to_string())),
             Err(PatternError::TooMany)
         );
         let p = Patterns::new([
