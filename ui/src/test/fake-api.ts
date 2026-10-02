@@ -89,6 +89,7 @@ export function sessionView(over: Partial<SessionView> = {}): SessionView {
     presetId: null,
     presetChanged: false,
     pickProblem: null,
+    jobIgnore: [],
     stale: false,
     ...over,
   };

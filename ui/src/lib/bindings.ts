@@ -73,6 +73,8 @@ export const commands = {
 	setMode: (verify: boolean) => typedError<null, Message>(__TAURI_INVOKE("set_mode", { verify })),
 	/**  Settings › Always ignore when copying: Restore defaults (#158). */
 	defaultIgnore: () => __TAURI_INVOKE<string[]>("default_ignore"),
+	/**  New copy's Also ignore (#164). */
+	setJobIgnore: (list: string[]) => typedError<SessionView, Message>(__TAURI_INVOKE("set_job_ignore", { list })),
 	/**  Clears the source; the destination stays ("New copy", RFD §5.4). */
 	clearSource: () => typedError<SessionView, Message>(__TAURI_INVOKE("clear_source")),
 	/**  `None` selects every extension (FR-8, FR-10). */
@@ -844,6 +846,8 @@ export type SessionView = {
 	pickProblem: Message | null,
 	/**  A newer scan replaced this one while it ran (FR-3); the UI keeps its current view. */
 	stale: boolean,
+	/**  This run's Also ignore (#164), on top of Settings' list. */
+	jobIgnore: string[],
 };
 
 /**  The Settings screen (RFD §5.5). */

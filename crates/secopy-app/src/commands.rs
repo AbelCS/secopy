@@ -2,7 +2,7 @@
 //! wrappers: the work is in `session` and `jobs`, run off the main thread so the window
 //! never freezes (NFR-5).
 
-use secopy_core::ignore::{PatternError, Patterns};
+use secopy_core::ignore::Patterns;
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -267,17 +267,17 @@ impl AppState {
 
     /// Save as…: this run's source and choices under a new name, then selected.
     pub fn save_copy_preset_as(&self, name: String) -> Result<CopyPresetsView, Message> {
-        let (source, (include_folder, extensions)) = {
+        let (source, (include_folder, extensions), ignore) = {
             let s = session(self);
             let choices = s.choices().ok_or_else(|| msg!("errors.preset.scanning"))?;
             let source = s
                 .picked_source()
                 .ok_or_else(|| msg!("errors.preset.needsDirectory"))?;
-            (source, choices)
+            (source, choices, s.job_ignore().to_vec())
         };
         let preset = self.change_copy_presets(|p| {
             p.add(CopyPresetInput {
-                ignore: Vec::new(),
+                ignore,
                 name,
                 source,
                 include_folder,
@@ -344,6 +344,17 @@ impl AppState {
             self.rescan(Change::Ignore(settings.patterns()));
         }
         Ok(settings)
+    }
+
+    /// New copy's Also ignore (#164): each pattern checked, none Settings has already; the
+    /// source is scanned again with it.
+    pub fn set_job_ignore(&self, list: Vec<String>) -> Result<SessionView, Message> {
+        let list = crate::store::checked_list(&list)?;
+        let global = session(self).global_ignore().clone();
+        if let Some(p) = list.iter().find(|p| global.has(p)) {
+            return Err(msg!("errors.field.ignoreInGlobal", pattern = p.as_str()));
+        }
+        Ok(self.rescan(Change::JobIgnore(list)))
     }
 
     /// New copy as it is now: after Start refused because the destination changed.
@@ -1003,7 +1014,7 @@ fn checked_patterns(list: &[String]) -> Result<Patterns, Message> {
             return Err(msg!(
                 "errors.settings.pattern",
                 pattern = p.trim(),
-                why = pattern_why(e)
+                why = crate::store::pattern_why(e)
             ));
         }
     }
@@ -1011,23 +1022,9 @@ fn checked_patterns(list: &[String]) -> Result<Patterns, Message> {
         msg!(
             "errors.settings.pattern",
             pattern = "",
-            why = pattern_why(e)
+            why = crate::store::pattern_why(e)
         )
     })
-}
-
-fn pattern_why(e: PatternError) -> Message {
-    match e {
-        PatternError::HasSlash => msg!("errors.pattern.slash"),
-        PatternError::TooLong => msg!("errors.pattern.tooLong", max = secopy_core::ignore::MAX_LEN),
-        PatternError::TooMany => {
-            msg!(
-                "errors.pattern.tooMany",
-                max = secopy_core::ignore::MAX_PATTERNS
-            )
-        }
-        PatternError::BadChar => msg!("errors.pattern.badChar"),
-    }
 }
 
 /// Plans a check of `dir`: a directory that is there.
@@ -1146,6 +1143,13 @@ pub async fn scan_source(app: AppHandle, paths: Vec<String>) -> Result<SessionVi
         state.rescan(Change::Pick(paths.into_iter().map(PathBuf::from).collect()))
     })
     .await
+}
+
+/// New copy's Also ignore (#164).
+#[tauri::command]
+#[specta::specta]
+pub async fn set_job_ignore(app: AppHandle, list: Vec<String>) -> Result<SessionView, Message> {
+    blocking(app, move |state| state.set_job_ignore(list)).await?
 }
 
 /// The "Include the folder" checkbox (FR-4); this run's file types stay.
@@ -4155,5 +4159,30 @@ mod tests {
             "The mirror changed since its preview. Preview it again."
         );
         assert!(d.join("backup.LRF").exists());
+    }
+
+    /// #164: New copy's list refuses a bad pattern and one Settings has already.
+    #[test]
+    fn set_job_ignore_refuses_a_bad_or_global_pattern() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        assert_eq!(
+            state.set_job_ignore(vec!["a/b".into()]).unwrap_err().key,
+            "errors.field.ignore"
+        );
+        assert_eq!(
+            state
+                .set_job_ignore(vec![".ds_store".into()])
+                .unwrap_err()
+                .key,
+            "errors.field.ignoreInGlobal"
+        );
+        assert_eq!(
+            state
+                .set_job_ignore(vec![".gitkeep".into()])
+                .unwrap()
+                .job_ignore,
+            [".gitkeep"]
+        );
     }
 }

@@ -52,6 +52,7 @@ const session: SessionView = {
   presetId: "fx3",
   presetChanged: true,
   pickProblem: null,
+  jobIgnore: [],
   stale: false,
 };
 

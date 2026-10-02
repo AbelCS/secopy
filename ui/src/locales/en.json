@@ -1192,6 +1192,7 @@
     },
     "field": {
       "ignore": "“{pattern}”: {why}",
+      "ignoreInGlobal": "“{pattern}” is already in Settings › Always ignore when copying.",
       "days": {
         "tooFew": "Keep archived files for at least 1 day.",
         "tooMany": "Keep archived files for at most {max} days."

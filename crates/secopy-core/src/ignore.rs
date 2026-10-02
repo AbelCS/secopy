@@ -83,9 +83,14 @@ impl Patterns {
         both
     }
 
+    /// Whether the list has `p`, in any case or Unicode form.
+    pub fn has(&self, p: &str) -> bool {
+        self.0.iter().any(|q| key(q) == key(p))
+    }
+
     /// Adds `p` unless the list has it already (in any case or Unicode form).
     fn push(&mut self, p: &str) {
-        if !self.0.iter().any(|q| key(q) == key(p)) {
+        if !self.has(p) {
             self.0.push(p.to_string());
         }
     }
@@ -268,6 +273,12 @@ mod tests {
         );
         assert!(both.matches(OsStr::new("a.LRF")) && both.matches(OsStr::new(".DS_Store")));
         assert_eq!(both.as_slice().last().unwrap(), "*.LRF");
+    }
+
+    /// #164: whether a list has a pattern, in any case or Unicode form.
+    #[test]
+    fn a_list_knows_its_patterns() {
+        assert!(Patterns::defaults().has(".ds_store") && !Patterns::defaults().has(".gitkeep"));
     }
 
     #[test]
