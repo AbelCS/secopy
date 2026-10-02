@@ -3,7 +3,7 @@
   import IgnoreList from "../lib/ui/IgnoreList.svelte";
   import { t, type Key } from "../lib/i18n";
   import { say } from "../lib/message";
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { useApi } from "../lib/api";
   import type {
     ConflictPolicy,
@@ -75,6 +75,15 @@
   let slowTimer: ReturnType<typeof setTimeout> | undefined;
   /** Waiting for every scan and check to end (Start or Add to queue pressed meanwhile). */
   const idleWaiters: (() => void)[] = [];
+  /** New copy is gone: nothing waiting starts after. */
+  let gone = false;
+  /** Start pressed and waiting: a second press doesn't start a second job. */
+  let starting = false;
+  onDestroy(() => {
+    gone = true;
+    clearTimeout(slowTimer);
+    for (const done of idleWaiters.splice(0)) done();
+  });
   let checking = $state(0);
   let sourceError: string | null = $state(null);
   let destError: string | null = $state(null);
@@ -126,8 +135,14 @@
   const startShown = $derived(planReady && !scanningShown && !checkingShown);
 
   async function startWhenReady() {
-    await idle();
-    if (canStart) onStart();
+    if (starting) return;
+    starting = true;
+    try {
+      await idle();
+      if (!gone && canStart) onStart();
+    } finally {
+      starting = false;
+    }
   }
 
   /** "Added to the queue (3 jobs).", for a few seconds after Add to queue. */
@@ -140,8 +155,9 @@
   const queued: { at: number | null } = { at: null };
 
   async function addToQueue() {
+    if (queueing) return;
     await idle();
-    if (!canStart || queueing || queued.at === view.revision) return;
+    if (gone || !canStart || queueing || queued.at === view.revision) return;
     queueing = true;
     // The view the job is added from, as it was when asked (#138).
     const from = view.revision;
@@ -224,6 +240,7 @@
 
   /** Also ignore's row is open: its editor is shown. */
   let alsoOpen = $state(false);
+  const alsoId = $props.id();
 
   /** This copy's Also ignore (#164): the source is scanned again with it. */
   function setJobIgnore(list: string[]) {
@@ -245,8 +262,9 @@
     if (path) void setDestination(path);
   }
 
+  // The File menu's Start follows the button: ready during a quick scan, then waiting (#167).
   $effect(() => {
-    ready = canStart;
+    ready = startShown;
   });
 
   /** Start from the File menu: only what the Start button would start. */
@@ -370,21 +388,27 @@
       <!-- On top of Settings' list, for this copy (and its preset): #164, #167. -->
       <FormRow label={t("copy.alsoIgnore")} hint={t("copy.alsoIgnoreHint")}>
         {#if alsoOpen}
-          <IgnoreList
+          <div id={alsoId}>
+            <IgnoreList
             label={t("copy.alsoIgnore")}
             patterns={view.jobIgnore}
             global={settings.ignore}
             rows={4}
-            disabled={scanning > 0}
-            onChange={setJobIgnore}
-          />
+              disabled={scanning > 0}
+              onChange={setJobIgnore}
+            />
+          </div>
         {:else}
           <p class="mono also" translate="no">
             {view.jobIgnore.length > 0 ? view.jobIgnore.join(t("format.comma")) : t("copy.alsoIgnoreNone")}
           </p>
         {/if}
         {#snippet aside()}
-          <Button variant="link" onclick={() => (alsoOpen = !alsoOpen)}
+          <Button
+            variant="link"
+            aria-expanded={alsoOpen}
+            aria-controls={alsoOpen ? alsoId : undefined}
+            onclick={() => (alsoOpen = !alsoOpen)}
             >{alsoOpen ? t("copy.alsoIgnoreDone") : t("copy.alsoIgnoreEdit")}</Button
           >
         {/snippet}
