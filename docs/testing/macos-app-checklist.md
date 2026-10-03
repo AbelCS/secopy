@@ -11,7 +11,7 @@ section says, which also checks those first-launch steps), then:
    Expect: both bars move, active files show, the finished list fills, the summary says
    "All N files copied and verified" and lists every file as ✓ Verified with its checksum.
 2. **Checksum file.** Summary → Open checksum file opens it; in Terminal,
-   `cd <destination> && xxhsum -c secopy_*.xxh64` prints `OK` for every file.
+   `cd <destination> && xxhsum -c secopy_*.xxh128` prints `OK` for every file.
 3. **Run it again.** New copy, same card, same destination. Expect: the non-empty warning
    and "N identical files will be skipped (not checked)"; the job finishes at once and the
    summary says nothing had to be copied.
@@ -90,7 +90,7 @@ section says, which also checks those first-launch steps), then:
     one byte in one file (a hex editor), delete another, add a third: Verify says 1 changed,
     1 missing, 1 not checked; the report lists them. Verify a whole drive with several copies.
 30. **Verify a mirror.** Run a mirror to the NAS; Verify its destination: all intact, and
-    `.secopy-checksums.xxh64` is there (⇧⌘. in Finder). Queue a verify of it with another job.
+    `.secopy-checksums.xxh128` is there (⇧⌘. in Finder). Queue a verify of it with another job.
 31. **Export and import.** File › Export… with everything ticked; open the `.secopy` in a text
     editor: settings and presets, no ids. Export one copy preset and one mirror from their
     screens. In another macOS user account, File › Import… the first file: every preset and

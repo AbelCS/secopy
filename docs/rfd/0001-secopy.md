@@ -14,8 +14,8 @@
 
 Secopy is a macOS desktop app that copies files from a
 source to a destination **as fast as the hardware allows**. It can optionally **verify**
-every copy by comparing the xxHash64 of the original with the xxHash64 of the copy read
-back from disk. For every job it writes an **xxHash64 checksum file** into the destination
+every copy by comparing the XXH128 of the original with the XXH128 of the copy read
+back from disk. For every job it writes an **XXH128 checksum file** into the destination
 so the copy can be re-checked later with Secopy or with standard tools (`xxhsum -c`).
 
 The UI is a single window. The user picks a source, a destination and a mode, then
@@ -46,8 +46,8 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 ### Goals (v1)
 
 - Copy a **directory** or a **set of files** to a destination directory.
-- Two modes: **Copy** and **Copy & Verify** (xxHash64, source vs. copy read back from disk).
-- Write an **xxHash64 checksum file** to the destination for every job.
+- Two modes: **Copy** and **Copy & Verify** (XXH128, source vs. copy read back from disk).
+- Write an **XXH128 checksum file** to the destination for every job.
 - **Filter by extension** when the source is a directory.
 - Choose between copying **the folder itself** (`SOURCE/…`) or **only its contents** (`…`),
   with one checkbox: "Include the “SOURCE” folder", off by default (#152).
@@ -79,7 +79,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 | **Job** | One run of the app: one source selection → one destination, one mode. |
 | **Source** | Either one directory, or a set of individual files. |
 | **Destination** | One existing directory. The **copy root** is where the files actually land (see FR-4). |
-| **xxHash64 / XXH64** | 64-bit non-cryptographic hash, seed 0, shown in canonical (big-endian) lowercase hex (16 chars). |
+| **XXH128** | 128-bit non-cryptographic hash (XXH3), seed 0, shown in canonical lowercase hex (32 chars), as `xxhsum -H2` prints. |
 | **Checksum file** | Text file listing `hash  relative/path` for every file copied in the job. |
 | **Verify** | Re-read the written file from the destination device and compare its hash with the source hash. |
 | **Partial file** | A file that is still being written, under a temporary name. |
@@ -148,7 +148,7 @@ The view has three zones, from top to bottom.
    hover), phase (*Copying* / *Verifying*), total size, bytes done, percent, speed, ETA,
    and a slim bar. A file stays in the same row as it moves Copying → Verifying → Done.
 3. **Finished files.** A scrollable list of completed files: name, size, duration, average
-   speed, xxHash64, and status (✓ Copied / ✓ Verified / ✗ Failed + reason). It can be
+   speed, XXH128, and status (✓ Copied / ✓ Verified / ✗ Failed + reason). It can be
    filtered to show failures only, and it stays smooth with 1M rows (virtualized).
 
 ```
@@ -320,7 +320,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 |---|---|---|
 | FR-18 | Every file is written to a temporary name in the same directory (`.<name>.secopy-partial`, or `.secopy-<hash>.partial` when that would be too long), flushed to disk (`fsync`), then renamed atomically to its final name. A file with its final name is always complete. Partial files left by an interrupted job are deleted by the next job that copies the same files, unless another running job is still writing them; that file then fails with "another copy is writing this file". | M |
 | FR-19 | Modification time is preserved on files. Creation time and POSIX permission bits are preserved. Directory mtimes are restored after their contents are written. | M |
-| FR-20 | When a hash is needed (checksum file on, or Copy & Verify), the source xxHash64 is computed **during** the copy from the same bytes being written. The source is read only once. | M |
+| FR-20 | When a hash is needed (checksum file on, or Copy & Verify), the source XXH128 is computed **during** the copy from the same bytes being written. The source is read only once. | M |
 | FR-21 | Per-file errors (unreadable file, permission denied, name too long, the source file changed while it was copied…) are recorded and the job continues. Fatal errors stop the job with a clear message: destination disconnected, disk full, source volume gone. | M |
 | FR-22 | Pause stops I/O at the next buffer boundary. Resume continues from where it stopped. | S |
 | FR-23 | Cancel stops within ~1 s. The in-flight partial file is deleted. Completed files stay and are listed in the checksum file and report. | M |
@@ -339,13 +339,13 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-29 | When **Write checksum file** is on (the default; Settings §5.5), every job writes a checksum file to the **destination directory** (not the copy root), named `secopy_YYYY-MM-DD_HHMMSS.xxh64`. A new file per job, so nothing is ever overwritten. | M |
-| FR-30 | Format: `xxhsum`/GNU-coreutils compatible, one line per file: `<16 lowercase hex chars><two spaces><relative path>`. Paths are relative to the destination directory and use `/` as separator on every OS. `cd DEST && xxhsum -c secopy_….xxh64` must pass. | M |
+| FR-29 | When **Write checksum file** is on (the default; Settings §5.5), every job writes a checksum file to the **destination directory** (not the copy root), named `secopy_YYYY-MM-DD_HHMMSS.xxh128`. A new file per job, so nothing is ever overwritten. | M |
+| FR-30 | Format: `xxhsum`/GNU-coreutils compatible, one line per file: `<32 lowercase hex chars><two spaces><relative path>`. Paths are relative to the destination directory and use `/` as separator on every OS. `cd DEST && xxhsum -c secopy_….xxh128` must pass. | M |
 | FR-31 | The file is UTF-8 without BOM, with LF line endings. It is sorted by path for stable diffs. Paths containing `\` or newline use the coreutils escaping convention (line prefixed with `\`). Files whose names are not valid UTF-8 are copied but not listed; pre-flight warns about them and the report says why. | M |
 | FR-32 | The checksum file contains only hash lines, no comments, so strict parsers accept it. Job metadata (mode, date, app version, counts, failures) lives in the report (FR-35). | M |
 | FR-33 | The checksum file is written in **both** modes. In plain Copy it uses the source hashes from FR-20, so no extra read is needed. | M |
-| FR-57 | **ASC MHL** (#154): with Settings › Write ASC MHL (off by default; CLI `--mhl`), a copy also writes an ASC MHL v2.0 history (`ascmhl/`, xxh64, process `transfer`) in the folder its files go to, or continues the one the source or the destination already has: each file `verified` or `failed` against its earlier hash, and a failed one makes the job not complete. Files already there that no history records are read and recorded, said before Start. Nested histories get their own generations, referenced by the top one. Start is blocked by two different histories for one folder, overwriting a recorded file, a damaged history, or a copy that leaves out files the source's history lists. A failed write leaves the history as it was; undo takes a generation back. Copies only, not mirrors; Verify doesn't read MHL. | S |
-| FR-34 | **Verify existing copy:** point Secopy at a directory (a copy, or a whole drive); every `.xxh64` checksum file inside it is read, and every file they list is read again from the drive and compared: intact, changed, missing or unreadable, per file. Files no checksum file lists are reported as not checked. Nothing is written to the directory; nothing is repaired. When several checksum files list a file, the newest wins; a path that leaves the directory is a problem, never read. Queueable; `secopy-cli --check`. | S |
+| FR-57 | **ASC MHL** (#154): with Settings › Write ASC MHL (off by default; CLI `--mhl`), a copy also writes an ASC MHL v2.0 history (`ascmhl/`, xxh128, process `transfer`) in the folder its files go to, or continues the one the source or the destination already has: each file `verified` or `failed` against its earlier hash, and a failed one makes the job not complete. Files already there that no history records are read and recorded, said before Start. Nested histories get their own generations, referenced by the top one. Start is blocked by two different histories for one folder, overwriting a recorded file, a damaged history, or a copy that leaves out files the source's history lists. A failed write leaves the history as it was; undo takes a generation back. Copies only, not mirrors; Verify doesn't read MHL. | S |
+| FR-34 | **Verify existing copy:** point Secopy at a directory (a copy, or a whole drive); every `.xxh128` checksum file inside it is read, and every file they list is read again from the drive and compared: intact, changed, missing or unreadable, per file. Files no checksum file lists are reported as not checked. Nothing is written to the directory; nothing is repaired. When several checksum files list a file, the newest wins; a path that leaves the directory is a problem, never read. Queueable; `secopy-cli --check`. | S |
 
 ### 6.8 Reporting and settings
 
@@ -372,13 +372,13 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 |---|---|---|
 | FR-44 | **Mirror presets:** a name, an origin and a destination (full paths that don't overlap), what to do with files deleted in the origin (archive for N days, default 30, or delete), and the comparison: **Standard** (size and date) or **Paranoid** (byte-for-byte, the deep check). | S |
 | FR-45 | One way only: the origin is never written to. | M |
-| FR-46 | A file is new when it isn't in the destination, changed when its size or modification date differs (dates within 2 s count as equal), and, with Paranoid (the deep check), when its contents differ (xxHash64 of both sides). | S |
+| FR-46 | A file is new when it isn't in the destination, changed when its size or modification date differs (dates within 2 s count as equal), and, with Paranoid (the deep check), when its contents differ (XXH128 of both sides). | S |
 | FR-47 | **Preview** before a manual run: counts, sizes and the list of new, changed and deleted files; "Already in sync" when there's nothing to do. A run executes the previewed plan. | S |
 | FR-48 | Everything Mirror writes is verified. A changed file is replaced atomically, and its old version archived (archive mode) only after the new copy is verified. | M |
 | FR-49 | Files deleted in the origin are archived to `<destination>/.secopy-archive/<date time>/…` or deleted, only after every copy succeeded; a failed or cancelled run removes nothing. At the start of every run, archived files older than the preset's N days are removed, counted from when they were archived, in Delete mode too (what was archived before a switch still goes when due). Switching a mirror from Archive to Delete asks what to do with its archive: **delete it now**, **keep it N days**, or, when the destination isn't connected or a job runs, **delete it at the next run** (kept with that destination; dropped if the destination changes; done when that run is started, once, and only after the preset is saved without it). A new destination in the same save leaves the old one's archive alone. Files that can't be deleted are listed and go when due. Only a real `.secopy-archive` directory is touched, never through a link. | M |
 | FR-50 | **Guard:** a missing or empty origin, or a run removing more than half of the destination's files, needs confirmation by hand and fails in the queue. | M |
 | FR-51 | System files, symlinks and the archive are ignored on both sides; names are compared after Unicode normalization, and a case-only rename on a case-insensitive destination is an update, not a delete and a copy. | S |
-| FR-52 | A mirror summary: what was copied, updated, archived or deleted, failures with reasons, and a report like a copy's. After a clean run a mirror keeps `.secopy-checksums.xxh64` in its destination (new and changed files' verified hashes added, removed files dropped), written whole or not at all, so its backup can be verified (FR-34). | S |
+| FR-52 | A mirror summary: what was copied, updated, archived or deleted, failures with reasons, and a report like a copy's. After a clean run a mirror keeps `.secopy-checksums.xxh128` in its destination (new and changed files' verified hashes added, removed files dropped), written whole or not at all, so its backup can be verified (FR-34). | S |
 
 ### 6.11 Export and import
 
@@ -415,7 +415,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
 
 - **Streaming with overlapped I/O.** Per file, a reader and a writer share a small ring of
   large buffers (default 4 × 4 MiB, tunable). Reading chunk N+1 overlaps writing chunk N.
-  xxHash64 (≈10+ GB/s per core) runs over each chunk as it is read, so it is never the
+  XXH128 (≈36–40 GB/s per core on Apple silicon) runs over each chunk as it is read, so it is never the
   bottleneck.
 - **File-level concurrency, sized by file type** (lanes):
   - Small files (up to 4 MiB, one buffer): 8 in flight, to hide per-file metadata latency
@@ -461,7 +461,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
 The whole pipeline for a Copy & Verify job, for big files:
 
 1. **One copy lane reads the source from start to end** (one long stream, the fastest way to
-   read a card), computes xxHash64 over each chunk as it reads it, and writes the chunk to
+   read a card), computes XXH128 over each chunk as it reads it, and writes the chunk to
    the destination with the Mac's cache bypassed (so the read-back reads the drive).
 2. **Two verify lanes read finished files back from the destination** (cache bypassed),
    hash them, and compare with the source hash, while the copy lane goes on with the next
@@ -671,3 +671,4 @@ The stack meets these constraints:
 | 2026-10-02 | **Each copy and preset's own ignore list** (#164, FR-12): copy presets, mirror presets, New copy runs and queued jobs get Also ignore, added to Settings' list (never switching one of its patterns off). New copy's comes from the preset and marks it changed; a queued job keeps its own and takes Settings' list at its turn. Each list holds up to 128 patterns (Settings' went down from 200). An empty list isn't written, so files are as older versions wrote them; a preset with a list is refused by an older Secopy (#149). |
 | 2026-10-03 | **Copy and verify in parallel** (#170, §7.5): verify stays parallel with the copy by default (fastest on SSD destinations; the source is read once either way). A "copy everything, then verify" mode for HDD/RAID destinations and a drive-cache flush before each read-back are recorded for the performance work, to be decided with measurements. §7.2 now says which I/O hints and per-device defaults are planned rather than built. |
 | 2026-10-03 | **Spanish** (#84 follow-up): `es.json` (Spain Spanish, "tú", the terms table in docs/i18n.md), chosen by the Mac's language like English; Rust's own words (menus, the menu bar icon) use its number format; the bundle lists `en`/`es` so macOS shows its panels and the .secopy file type in Spanish. A test keeps every catalog's keys, placeholders, plural forms and edge spaces in step with English. The user guide stays English for now. |
+| 2026-10-03 | **XXH128 for every hash** (#178): XXH128 (XXH3 128-bit, seed 0, as `xxhsum -H2`) replaces xxHash64 in the copy, the read-back, Verify, the mirror's Paranoid comparison, the checksum files (`.xxh128`, 32 hex digits, `xxhsum -c` checks them), ASC MHL (`<xxh128>`) and reports. Beta: old `.xxh64` files aren't read; an old mirror checksum file is an ordinary file (archived like any file the origin lacks), and a mirror's new checksum file starts empty; an ASC MHL file recorded only as xxh64 gets its XXH128 as `original`. Library: `twox-hash` 2.1.4, measured on an M2 Max at 39.9 GB/s streaming (xxh64 was 15.6; `xxhash-rust`'s XXH128 26.8; the official C crate 17.1). Checked end to end: `xxhsum -c`, and the ASC reference tool verifies Secopy's history and Secopy continues the tool's. |
