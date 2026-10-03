@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.23.0](https://github.com/AbelCS/secopy/compare/v0.22.2...v0.23.0) (2026-10-03)
+
+
+### Features
+
+* **i18n:** Spanish ([#175](https://github.com/AbelCS/secopy/issues/175)) ([dc34dd1](https://github.com/AbelCS/secopy/commit/dc34dd1e142a19aa0a142d9ab8b13b141bfac963))
+
+
+### Bug Fixes
+
+* **i18n:** review fixes for Spanish ([#175](https://github.com/AbelCS/secopy/issues/175)) ([6d662e0](https://github.com/AbelCS/secopy/commit/6d662e098e1aae78b40dafc4e44aa362742216f7))
+
 ## [0.22.2](https://github.com/AbelCS/secopy/compare/v0.22.1...v0.22.2) (2026-10-03)
 
 
