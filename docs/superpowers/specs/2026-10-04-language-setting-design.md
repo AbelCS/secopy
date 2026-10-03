@@ -51,8 +51,9 @@ Nothing here touches copying, verifying or files. The rules that keep Settings s
   when it changes; the menu bar icon's title is redrawn as it updates.
 - **The UI:** a command `app_language()` gives the language in use; the main window and the
   menu bar panel set it before they first draw. When Settings change the language, Rust tells
-  both windows (an event) and each reloads, drawing everything in the new language (the state
-  lives in Rust; Settings is closed by then).
+  both windows (an event) and each draws what's on screen again in the new language, in place
+  (`t()` follows a signal): nothing set up for the copy is lost (changed after review: a reload
+  selected the preset again).
 - **Language names:** each catalog has `language.name`, its own name ("English", "Español").
 - **Export/import:** `language` travels with the settings. Import shows "Language: Automatic
   → Español". An older Secopy lists it as a setting it doesn't know (#149) and keeps its own.
