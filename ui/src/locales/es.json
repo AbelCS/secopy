@@ -191,7 +191,7 @@
       "question": "¿Cancelar esta tarea?",
       "questionQueue": "¿Cancelar esta tarea y detener la cola?",
       "queueOnly": "¿Detener la cola?",
-      "notStarted": "Esta tarea aún no ha empezado: no se ha escrito nada de ella.",
+      "notStarted": "Esta tarea aún no ha empezado: todavía no se ha escrito nada.",
       "left": {
         "check": "No se ha cambiado nada: verificar solo lee archivos.",
         "mirror": "Los archivos ya copiados se quedan; el archivo en curso se elimina. Los archivos borrados en el origen se dejan en el destino.",
@@ -368,7 +368,7 @@
     "choose": "Elegir…",
     "cancel": "Cancelar",
     "importFile": "Importar…",
-    "remove": "Quitar {name}"
+    "remove": "Eliminar {name}"
   },
   "copy": {
     "files": {
@@ -414,7 +414,7 @@
     },
     "start": {
       "help": "Copia {files} ({size}) en {path} (⌘↩).",
-      "helpVerify": "Copia {files} ({size}) en {path} y los verifica (⌘↩).",
+      "helpVerify": "Copia y verifica {files} ({size}) en {path} (⌘↩).",
       "label": "Empezar"
     },
     "title": "Copia nueva",
@@ -754,7 +754,7 @@
   "queue": {
     "title": "Cola",
     "clear": {
-      "message": "Se quitan todas las tareas de la cola.",
+      "message": "Se eliminan todas las tareas de la cola.",
       "title": "¿Vaciar la cola?",
       "clear": "Vaciar",
       "keep": "Conservar"
@@ -773,7 +773,7 @@
     },
     "moveUp": "Subir la tarea {number}",
     "moveDown": "Bajar la tarea {number}",
-    "remove": "Quitar la tarea {number}",
+    "remove": "Eliminar la tarea {number}",
     "onFailure": {
       "title": "Si una tarea falla",
       "continue": "Seguir con la siguiente tarea",
@@ -784,7 +784,7 @@
       "other": "{count} tareas"
     },
     "clearButton": "Vaciar…",
-    "clearHelp": "Quita todas las tareas de la cola, tras preguntar.",
+    "clearHelp": "Elimina todas las tareas de la cola, tras preguntar.",
     "start": "Empezar",
     "startHelp": {
       "one": "Ejecuta la única tarea de la cola.",
@@ -802,7 +802,7 @@
       "job": "{kind} · {source} a {destination}"
     },
     "done": {
-      "headline": "Cola terminada: {complete} de {jobs} completas",
+      "headline": "Cola terminada. Tareas completas: {complete} de {jobs}",
       "took": "en {time}",
       "jobs": "Tareas",
       "results": "Resultados de las tareas",
@@ -1065,10 +1065,10 @@
       },
       "delete": "Borrar archivados…"
     },
-    "archiveNotDeletedAll": "No se pudieron borrar los archivados ({why}). Lo que contienen se elimina cuando tenga {days} de antigüedad.",
+    "archiveNotDeletedAll": "No se pudieron borrar los archivados ({why}). Se eliminan cuando tengan {days} de antigüedad.",
     "archiveNotCleaned": {
-      "one": "No se pudo eliminar {count} archivado más antiguo que los días que conservar ({why}). Secopy lo vuelve a intentar en la próxima ejecución.",
-      "other": "No se pudieron eliminar {count} archivados más antiguos que los días que conservar ({why}). Secopy lo vuelve a intentar en la próxima ejecución."
+      "one": "No se pudo eliminar {count} archivado cuyo plazo de conservación ha vencido ({why}). Secopy lo vuelve a intentar en la próxima ejecución.",
+      "other": "No se pudieron eliminar {count} archivados cuyo plazo de conservación ha vencido ({why}). Secopy lo vuelve a intentar en la próxima ejecución."
     },
     "archiveNotCleanedAll": "No se pudieron limpiar los archivados ({why}). Secopy lo vuelve a intentar en la próxima ejecución."
   },
@@ -1084,7 +1084,7 @@
     "pause": "Pausar",
     "resume": "Reanudar",
     "ended": {
-      "complete": "Terminado: todos los archivos hechos",
+      "complete": "Terminado: todos los archivos procesados",
       "failures": "Terminado con problemas",
       "cancelled": "Cancelado",
       "stopped": "Detenido",

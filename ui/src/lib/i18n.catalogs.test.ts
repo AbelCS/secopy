@@ -59,6 +59,8 @@ describe.each(translations)("%s", (file) => {
         if (form !== "text" && !forms.includes(form)) wrong.push(`${key}: no form “${form}” in ${tag}`);
       }
       if (!("text" in texts) && !allowed.has("count")) wrong.push(`${key}: a plural without {count}`);
+      // A plural has every form its language needs (Spanish: one and other), never "1 tareas".
+      if (!("text" in texts)) for (const f of forms) if (f !== "many" && !(f in texts)) wrong.push(`${key}: no “${f}”`);
       // Every English placeholder is said somewhere (a form may leave out {count}: "one file").
       const said = new Set(Object.values(texts).flatMap((s) => [...placeholders(s)]));
       for (const p of allowed) if (p !== "count" && !said.has(p)) wrong.push(`${key}: no {${p}}`);

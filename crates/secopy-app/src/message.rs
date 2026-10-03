@@ -56,6 +56,7 @@ impl Message {
 
     /// The message in `tag`'s words and number format; what its catalog lacks in English.
     pub fn in_language(&self, tag: &str) -> String {
+        let tag = language_for(&[tag.to_string()]);
         self.render(&[catalog(tag), catalog("en")], Numbers::of(tag))
     }
 
@@ -216,9 +217,16 @@ impl Numbers {
         if n < 0.0 { format!("-{out}") } else { out }
     }
 
-    /// One decimal: 212.4 → "212.4" or "212,4".
+    /// One decimal, rounded half up as the UI's `toFixed(1)` and grouped: 212.4 → "212.4" or
+    /// "212,4"; 999.95 → "1,000.0".
     fn one_decimal(self, value: f64) -> String {
-        format!("{value:.1}").replace('.', &self.decimal.to_string())
+        let tenths = (value * 10.0).round() as u64;
+        format!(
+            "{}{}{}",
+            self.format((tenths / 10) as f64),
+            self.decimal,
+            tenths % 10
+        )
     }
 }
 
@@ -540,6 +548,23 @@ mod tests {
                 "{tag}: the file type's name"
             );
         }
+    }
+
+    /// Review of #175: sizes round and group as the UI's `formatBytes` (half up, as
+    /// `toFixed`; "1,000.0 KB"), and a regional tag reads its language's words.
+    #[test]
+    fn sizes_round_and_group_as_the_ui() {
+        let size = |bytes: u64, tag: &str| {
+            crate::msg!("format.speed", size = Size(bytes)).in_language(tag)
+        };
+        assert_eq!(size(1250, "es"), "1,3 KB/s");
+        assert_eq!(size(1250, "en"), "1.3 KB/s");
+        assert_eq!(size(999_950, "en"), "1,000.0 KB/s");
+        assert_eq!(size(999_950, "es"), "1000,0 KB/s");
+        assert_eq!(
+            crate::msg!("menu.file.start").in_language("es-ES"),
+            "Empezar"
+        );
     }
 
     #[test]
