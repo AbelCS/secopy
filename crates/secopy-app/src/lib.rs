@@ -80,6 +80,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::retry_failed,
             commands::set_menu_state,
             commands::app_language,
+            commands::automatic_language,
             commands::queue,
             commands::add_to_queue,
             commands::remove_from_queue,

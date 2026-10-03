@@ -143,6 +143,8 @@ export const commands = {
 	setMenuState: (setup: boolean, canStart: boolean, copying: boolean, busy: boolean) => __TAURI_INVOKE<void>("set_menu_state", { setup, canStart, copying, busy }),
 	/**  The language Secopy's words are in (#181): the UI's windows draw in it. */
 	appLanguage: () => __TAURI_INVOKE<string>("app_language"),
+	/**  The language Automatic gives now (#181): the Mac's first one Secopy has, English otherwise. */
+	automaticLanguage: () => __TAURI_INVOKE<string>("automatic_language"),
 	queue: () => typedError<QueueView, Message>(__TAURI_INVOKE("queue")),
 	addToQueue: (verify: boolean) => typedError<QueueView, Message>(__TAURI_INVOKE("add_to_queue", { verify })),
 	removeFromQueue: (index: number) => typedError<QueueView, Message>(__TAURI_INVOKE("remove_from_queue", { index })),

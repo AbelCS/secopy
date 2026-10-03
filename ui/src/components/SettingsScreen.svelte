@@ -1,7 +1,7 @@
 <script lang="ts">
   // Settings (RFD §5.5): what every job does. Changes apply when saved; Cancel (or Esc) drops
   // them. Copy presets have their own screen.
-  import { t, tParts } from "../lib/i18n";
+  import { languages, t, tParts } from "../lib/i18n";
   import { messageOf } from "../lib/format";
   import { useApi } from "../lib/api";
   import type { Snippet } from "svelte";
@@ -14,6 +14,7 @@
   import Notice from "../lib/ui/Notice.svelte";
   import ScreenHeader from "../lib/ui/ScreenHeader.svelte";
   import Section from "../lib/ui/Section.svelte";
+  import Select from "../lib/ui/Select.svelte";
 
   let {
     settings,
@@ -34,6 +35,18 @@
   } = $props();
 
   const api = useApi();
+  /** The language Automatic gives now (#181), named in the menu. */
+  let automatic = $state("en");
+  void api.automaticLanguage().then((tag) => (automatic = tag)).catch(() => {});
+  const languageOptions = $derived([
+    {
+      value: "",
+      label: t("settings.language.automatic", {
+        name: languages().find((l) => l.tag === automatic)?.name ?? automatic,
+      }),
+    },
+    ...languages().map((l) => ({ value: l.tag, label: l.name, lang: l.tag })),
+  ]);
   // File names and a command: shown as they are, in mono, inside the translated help.
   const CODE = { file: "secopy_….xxh128", command: "xxhsum -c" };
   // The screen is recreated each time it opens, so the draft starts from the saved settings.
@@ -131,6 +144,15 @@
 
   <Section title={t("settings.general")}>
     <div class="options">
+      <div class="language">
+        <Select
+          label={t("settings.language.label")}
+          value={draft.language ?? ""}
+          options={languageOptions}
+          onChange={(value) => (draft.language = value === "" ? null : value)}
+        />
+        <p class="muted help">{t("settings.language.help")}</p>
+      </div>
       <Checkbox
         label={t("settings.notify.label")}
         checked={draft.notifyWhenDone}
@@ -184,6 +206,11 @@
   .muted {
     margin: 0 0 var(--space-3);
     color: var(--text-muted);
+  }
+
+  .language .help {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-xs);
   }
 
   .options {

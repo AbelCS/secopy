@@ -155,6 +155,12 @@ export const tauriApi = {
     unwrap(commands.editCopyPreset(id, input)),
   deleteCopyPreset: (id: string): Promise<CopyPresetsView> => unwrap(commands.deleteCopyPreset(id)),
   setSettings: (settings: Settings): Promise<Settings> => unwrap(commands.setSettings(settings)),
+  /** The language Secopy's words are in (#181). */
+  appLanguage: (): Promise<string> => commands.appLanguage(),
+  /** The language Automatic gives now. */
+  automaticLanguage: (): Promise<string> => commands.automaticLanguage(),
+  /** Settings changed the language: the window draws again in it. */
+  onLanguageChanged: (handler: () => void): Promise<() => void> => listen("language-changed", handler),
   setMode: (verify: boolean): Promise<null> => unwrap(commands.setMode(verify)),
   defaultIgnore: (): Promise<string[]> => commands.defaultIgnore(),
   setJobIgnore: (list: string[]): Promise<SessionView> => unwrap(commands.setJobIgnore(list)),

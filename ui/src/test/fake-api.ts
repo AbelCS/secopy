@@ -371,6 +371,9 @@ export function fakeApi(session: SessionView = sessionView()) {
     editCopyPreset: vi.fn((_id: string, _input: CopyPresetInput) => presetsAnswer()),
     deleteCopyPreset: vi.fn((_id: string) => presetsAnswer()),
     setSettings: vi.fn((s: Settings) => Promise.resolve(s)),
+    appLanguage: vi.fn(() => Promise.resolve("en")),
+    automaticLanguage: vi.fn(() => Promise.resolve("en")),
+    onLanguageChanged: vi.fn((_handler: () => void) => Promise.resolve(() => {})),
     setMode: vi.fn((_verify: boolean) => Promise.resolve(null)),
     defaultIgnore: vi.fn(() => Promise.resolve([".DS_Store", "._*", "Thumbs.db"])),
     onOpenSettings: vi.fn((handler: () => void) => {

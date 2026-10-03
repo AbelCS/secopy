@@ -702,7 +702,12 @@
       "about": "Move your settings and presets to a new Mac, or share presets, in a .secopy file.",
       "exportHelp": "Exports your saved settings; save first to include these changes."
     },
-    "general": "General"
+    "general": "General",
+    "language": {
+      "label": "Language",
+      "automatic": "Automatic ({name})",
+      "help": "Automatic uses the Mac’s language when Secopy has it, English otherwise. macOS’s own windows (Open, Save, About) change at the next launch."
+    }
   },
   "verify": {
     "title": "Verify",

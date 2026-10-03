@@ -157,6 +157,28 @@ describe("SettingsScreen", () => {
     screen.getByText(/also kept in the app/);
   });
 
+  test("#181: Language: Automatic (naming today's), then each language in its own name", async () => {
+    const { api } = show();
+    const menu = screen.getByRole("combobox", { name: "Language" });
+    expect([...menu.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+      "Automatic (English)",
+      "English",
+      "Español",
+    ]);
+    await fireEvent.change(menu, { target: { value: "es" } });
+    await fireEvent.click(save());
+    await waitFor(() => expect(api.setSettings).toHaveBeenCalledWith(settingsView({ language: "es" })));
+  });
+
+  test("#181: Automatic saves no language", async () => {
+    const { api } = show(settingsView({ language: "es" }));
+    const menu = screen.getByRole("combobox", { name: "Language" });
+    expect((menu as HTMLSelectElement).value).toBe("es");
+    await fireEvent.change(menu, { target: { value: "" } });
+    await fireEvent.click(save());
+    await waitFor(() => expect(api.setSettings).toHaveBeenCalledWith(settingsView({ language: null })));
+  });
+
   test("#178: the checksum file's help names the .xxh128 file and xxhsum -c", () => {
     show();
     // The help sits under the checkbox, the file name and the command in code.
