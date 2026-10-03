@@ -17,6 +17,7 @@ use crate::awake::KeepAwake;
 use crate::checksum_file;
 use crate::copy::CopyConfig;
 use crate::error::{FatalError, FileError, IoFailure};
+use crate::hash::Hash;
 use crate::plan::Plan;
 use crate::scan::{DirEntry, ScanProblem};
 use crate::verify::CacheBypass;
@@ -31,7 +32,7 @@ pub use undo::{Undone, undo};
 pub struct JobOptions {
     /// Copy & Verify mode (FR-25).
     pub verify: bool,
-    /// Write the `.xxh64` checksum file (FR-29).
+    /// Write the `.xxh128` checksum file (FR-29).
     pub write_checksum_file: bool,
     pub copy: CopyConfig,
     /// Files up to this size go to the small-file lanes (RFD §7.2).
@@ -112,7 +113,7 @@ pub struct FileOutcome {
     pub final_rel: PathBuf,
     pub size: u64,
     /// Source hash; `None` if the file wasn't read or failed before it was hashed.
-    pub hash: Option<u64>,
+    pub hash: Option<Hash>,
     pub status: FileStatus,
     /// Listed in this job's checksum file.
     pub in_checksum_file: bool,
@@ -403,7 +404,7 @@ fn restore_dir_mtimes(plan: &Plan, created: &[PathBuf]) {
 }
 
 fn write_checksum(dest: &Path, outcomes: &[FileOutcome]) -> (Option<PathBuf>, Option<IoFailure>) {
-    let entries: Vec<(PathBuf, u64)> = outcomes
+    let entries: Vec<(PathBuf, Hash)> = outcomes
         .iter()
         .filter(|o| o.in_checksum_file)
         .filter_map(|o| o.hash.map(|h| (o.final_rel.clone(), h)))

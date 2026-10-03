@@ -7,7 +7,8 @@ use std::ptr::NonNull;
 
 use crate::control::JobControl;
 use crate::error::FileError;
-use crate::{hash, os};
+use crate::hash::{Hash, Hasher};
+use crate::os;
 
 /// Whether the verify read bypassed the OS page cache (FR-26).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,11 +23,11 @@ pub fn hash_from_device(
     buffer_size: usize,
     progress: &dyn Fn(u64),
     control: &JobControl,
-) -> Result<(u64, CacheBypass), FileError> {
+) -> Result<(Hash, CacheBypass), FileError> {
     let (mut file, bypassed) = os::open_uncached(path).map_err(FileError::read_back)?;
     let size = file.metadata().map_err(FileError::read_back)?.len();
     let mut buf = AlignedBuf::new(buffer_size);
-    let mut hasher = hash::hasher();
+    let mut hasher = Hasher::new();
     let mut done = 0u64;
     // Driven by the file size: a short read before EOF must not end the hash.
     while done < size {

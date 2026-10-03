@@ -1,25 +1,5 @@
-//! xxHash64 helpers. Secopy always uses seed 0 and the canonical
-//! big-endian lowercase hex form that `xxhsum` prints (RFD §4).
-
-pub use xxhash_rust::xxh64::Xxh64;
-
-/// Seed used for every hash.
-const SEED: u64 = 0;
-
-/// Creates a streaming hasher with the Secopy seed.
-pub fn hasher() -> Xxh64 {
-    Xxh64::new(SEED)
-}
-
-/// Hashes a byte slice in one go.
-pub fn hash_bytes(bytes: &[u8]) -> u64 {
-    xxhash_rust::xxh64::xxh64(bytes, SEED)
-}
-
-/// Canonical form: 16 lowercase hex characters, as printed by `xxhsum`.
-pub fn to_hex(hash: u64) -> String {
-    format!("{hash:016x}")
-}
+//! XXH128 (XXH3 128-bit, seed 0), Secopy's one hash, in the canonical lowercase hex form
+//! `xxhsum -H2` prints (RFD §4, #178).
 
 /// An XXH128 (XXH3 128-bit, seed 0): Secopy's one hash. A type of its own, so a hash is never
 /// mixed with a number, cut short, or compared with a hash of another width (#178).
@@ -92,21 +72,6 @@ impl Default for Hasher {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn matches_reference_vectors() {
-        assert_eq!(hash_bytes(b""), 0xef46_db37_51d8_e999);
-        assert_eq!(hash_bytes(b"abc"), 0x44bc_2cf5_ad77_0999);
-    }
-
-    #[test]
-    fn streaming_matches_one_shot() {
-        let data = b"secopy streaming hash";
-        let mut h = hasher();
-        h.update(&data[..5]);
-        h.update(&data[5..]);
-        assert_eq!(h.digest(), hash_bytes(data));
-    }
 
     #[test]
     fn xxh128_matches_xxhsum() {
@@ -196,11 +161,5 @@ mod tests {
         let gbs = (16.0 * data.len() as f64) / t.elapsed().as_secs_f64() / 1e9;
         eprintln!("XXH128 streaming: {gbs:.1} GB/s");
         assert!(gbs >= 15.6, "{gbs:.1} GB/s is slower than xxh64 was");
-    }
-
-    #[test]
-    fn hex_is_16_lowercase_chars() {
-        assert_eq!(to_hex(0xAB), "00000000000000ab");
-        assert_eq!(to_hex(0xef46_db37_51d8_e999), "ef46db3751d8e999");
     }
 }

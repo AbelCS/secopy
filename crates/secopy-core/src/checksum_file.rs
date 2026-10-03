@@ -6,11 +6,14 @@ use std::path::{Component, Path, PathBuf};
 
 use chrono::{DateTime, Local};
 
-use crate::hash::to_hex;
+use crate::hash::Hash;
 
-/// `secopy_YYYY-MM-DD_HHMMSS.xxh64`
+/// The checksum file's extension: its hash, as `xxhsum` names it.
+pub const EXT: &str = "xxh128";
+
+/// `secopy_YYYY-MM-DD_HHMMSS.xxh128`
 pub fn file_name(now: DateTime<Local>) -> String {
-    format!("secopy_{}.xxh64", now.format("%Y-%m-%d_%H%M%S"))
+    format!("secopy_{}.{EXT}", now.format("%Y-%m-%d_%H%M%S"))
 }
 
 /// Relative path with `/` separators on every OS.
@@ -26,22 +29,26 @@ pub fn slash_path(rel: &Path) -> String {
 
 /// One line without the trailing newline: `<hash>  <path>`. Paths containing `\`, CR or
 /// LF use the GNU coreutils escaping: a leading `\` and escaped characters.
-fn format_line(hash: u64, rel: &Path) -> String {
+fn format_line(hash: Hash, rel: &Path) -> String {
     let path = slash_path(rel);
     if path.contains(['\\', '\n', '\r']) {
         let escaped = path
             .replace('\\', "\\\\")
             .replace('\n', "\\n")
             .replace('\r', "\\r");
-        format!("\\{}  {}", to_hex(hash), escaped)
+        format!("\\{}  {}", hash.to_hex(), escaped)
     } else {
-        format!("{}  {}", to_hex(hash), path)
+        format!("{}  {}", hash.to_hex(), path)
     }
 }
 
 /// Writes the checksum file into `dest`, sorted by path, UTF-8, LF endings.
 /// Never overwrites: adds `_2`, `_3`… if the name is taken. Returns the file's path.
-pub fn write(dest: &Path, entries: &[(PathBuf, u64)], now: DateTime<Local>) -> io::Result<PathBuf> {
+pub fn write(
+    dest: &Path,
+    entries: &[(PathBuf, Hash)],
+    now: DateTime<Local>,
+) -> io::Result<PathBuf> {
     let mut lines: Vec<(String, String)> = entries
         .iter()
         .map(|(rel, hash)| (slash_path(rel), format_line(*hash, rel)))
@@ -74,14 +81,14 @@ fn keep_only_if_written(path: PathBuf, written: io::Result<()>) -> io::Result<Pa
 /// (a Secopy partial file, which no copy or mirror picks up), synced, then renamed over it,
 /// and the directory synced so the new name is on disk (`F_FULLFSYNC`). A device error
 /// doing that is an error, even though the new file is in place.
-pub fn write_replacing(path: &Path, entries: &[(PathBuf, u64)]) -> io::Result<()> {
+pub fn write_replacing(path: &Path, entries: &[(PathBuf, Hash)]) -> io::Result<()> {
     replace_then_sync(path, entries, crate::os::full_barrier)
 }
 
 /// `write_replacing`, with how the directory is synced after the rename.
 fn replace_then_sync(
     path: &Path,
-    entries: &[(PathBuf, u64)],
+    entries: &[(PathBuf, Hash)],
     sync_dir: impl FnOnce(&Path) -> io::Result<()>,
 ) -> io::Result<()> {
     let mut lines: Vec<(String, String)> = entries
@@ -121,12 +128,12 @@ fn replace_then_sync(
 
 fn create_unique(dest: &Path, now: DateTime<Local>) -> io::Result<(PathBuf, File)> {
     let name = file_name(now);
-    let stem = name.trim_end_matches(".xxh64");
+    let stem = name.trim_end_matches(&format!(".{EXT}"));
     for n in 1u32.. {
         let candidate = if n == 1 {
             dest.join(&name)
         } else {
-            dest.join(format!("{stem}_{n}.xxh64"))
+            dest.join(format!("{stem}_{n}.{EXT}"))
         };
         match OpenOptions::new()
             .write(true)
@@ -151,7 +158,7 @@ mod tests {
     #[test]
     fn a_checksum_file_that_fails_while_written_is_removed() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("secopy_x.xxh64");
+        let path = dir.path().join("secopy_x.xxh128");
         fs::write(&path, "half a li").unwrap();
         let result = keep_only_if_written(path.clone(), Err(io::Error::other("disk full")));
         assert_eq!(result.unwrap_err().to_string(), "disk full");
@@ -163,16 +170,16 @@ mod tests {
     #[test]
     fn replacing_syncs_the_directory_after_the_rename() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("sums.xxh64");
+        let path = dir.path().join("sums.xxh128");
         fs::write(&path, "old\n").unwrap();
-        let entries = [(PathBuf::from("a.mov"), 1)];
+        let entries = [(PathBuf::from("a.mov"), Hash::from_u128(1))];
         let mut synced = None;
         replace_then_sync(&path, &entries, |d| {
             synced = Some((d.to_path_buf(), fs::read_to_string(&path).unwrap()));
             Ok(())
         })
         .unwrap();
-        let new = "0000000000000001  a.mov\n".to_string();
+        let new = "00000000000000000000000000000001  a.mov\n".to_string();
         assert_eq!(synced, Some((dir.path().to_path_buf(), new)));
         let err = |code| move |_: &Path| Err(io::Error::from_raw_os_error(code));
         let failed = replace_then_sync(&path, &entries, err(libc::EIO));
@@ -187,27 +194,27 @@ mod tests {
 
     #[test]
     fn file_name_uses_local_timestamp() {
-        assert_eq!(file_name(at(14, 3, 2)), "secopy_2026-09-26_140302.xxh64");
+        assert_eq!(file_name(at(14, 3, 2)), "secopy_2026-09-26_140302.xxh128");
     }
 
     #[test]
     fn line_uses_two_spaces_and_forward_slashes() {
         let rel = Path::new("DCIM").join("A001.mov");
         assert_eq!(
-            format_line(0xef46_db37_51d8_e999, &rel),
-            "ef46db3751d8e999  DCIM/A001.mov"
+            format_line(Hash::from_u128(0xef46_db37_51d8_e999), &rel),
+            "0000000000000000ef46db3751d8e999  DCIM/A001.mov"
         );
     }
 
     #[test]
     fn names_with_newline_or_backslash_are_escaped() {
         assert_eq!(
-            format_line(1, Path::new("a\nb")),
-            "\\0000000000000001  a\\nb"
+            format_line(Hash::from_u128(1), Path::new("a\nb")),
+            "\\00000000000000000000000000000001  a\\nb"
         );
         assert_eq!(
-            format_line(1, Path::new("a\\b")),
-            "\\0000000000000001  a\\\\b"
+            format_line(Hash::from_u128(1), Path::new("a\\b")),
+            "\\00000000000000000000000000000001  a\\\\b"
         );
     }
 
@@ -215,20 +222,23 @@ mod tests {
     fn write_sorts_lines_and_never_overwrites() {
         let dir = tempfile::tempdir().unwrap();
         let entries = vec![
-            (Path::new("b").join("2.mov"), 2),
-            (PathBuf::from("a.mov"), 1),
+            (Path::new("b").join("2.mov"), Hash::from_u128(2)),
+            (PathBuf::from("a.mov"), Hash::from_u128(1)),
         ];
         let first = write(dir.path(), &entries, at(9, 0, 0)).unwrap();
         let second = write(dir.path(), &entries, at(9, 0, 0)).unwrap();
 
-        assert_eq!(first.file_name().unwrap(), "secopy_2026-09-26_090000.xxh64");
+        assert_eq!(
+            first.file_name().unwrap(),
+            "secopy_2026-09-26_090000.xxh128"
+        );
         assert_eq!(
             second.file_name().unwrap(),
-            "secopy_2026-09-26_090000_2.xxh64"
+            "secopy_2026-09-26_090000_2.xxh128"
         );
         assert_eq!(
             fs::read_to_string(&first).unwrap(),
-            "0000000000000001  a.mov\n0000000000000002  b/2.mov\n"
+            "00000000000000000000000000000001  a.mov\n00000000000000000000000000000002  b/2.mov\n"
         );
     }
 }

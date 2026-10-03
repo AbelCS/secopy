@@ -3771,7 +3771,7 @@ mod tests {
         fs::write(root.join("a.mov"), b"a").unwrap();
         secopy_core::checksum_file::write(
             &root,
-            &[(PathBuf::from("a.mov"), secopy_core::hash::hash_bytes(b"a"))],
+            &[(PathBuf::from("a.mov"), secopy_core::hash::Hash::of(b"a"))],
             chrono::Local::now(),
         )
         .unwrap();
@@ -3798,7 +3798,7 @@ mod tests {
         fs::write(root.join("a.mov"), b"A").unwrap();
         secopy_core::checksum_file::write(
             &root,
-            &[(PathBuf::from("a.mov"), secopy_core::hash::hash_bytes(b"a"))],
+            &[(PathBuf::from("a.mov"), secopy_core::hash::Hash::of(b"a"))],
             chrono::Local::now(),
         )
         .unwrap();
@@ -3823,11 +3823,15 @@ mod tests {
         fs::write(root.join("a.mov"), b"a").unwrap();
         secopy_core::checksum_file::write(
             &root,
-            &[(PathBuf::from("a.mov"), secopy_core::hash::hash_bytes(b"a"))],
+            &[(PathBuf::from("a.mov"), secopy_core::hash::Hash::of(b"a"))],
             chrono::Local::now(),
         )
         .unwrap();
-        fs::write(root.join("bad.xxh64"), "not a checksum line\n".repeat(1005)).unwrap();
+        fs::write(
+            root.join("bad.xxh128"),
+            "not a checksum line\n".repeat(1005),
+        )
+        .unwrap();
         state.add_check_to_queue(&show(&root)).unwrap();
         let summary = state.run_queue(Events::default()).unwrap();
         assert_eq!(

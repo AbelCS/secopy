@@ -19,11 +19,11 @@ pub fn secopy_patterns(user: &crate::ignore::Patterns) -> Vec<String> {
     patterns.extend(user.as_slice().iter().map(|p| as_gitignore(p)));
     patterns.extend(
         [
-            ".secopy-checksums.xxh64",
+            ".secopy-checksums.xxh128",
             "[iI][cC][oO][nN]\r",
             "*.secopy-partial",
             ".secopy-*.partial",
-            "secopy_*.xxh64",
+            "secopy_*.xxh128",
             "secopy_*.txt",
             "secopy_*.json",
         ]
@@ -169,10 +169,10 @@ mod tests {
             "A001/.DS_Store",
             "ascmhl/0001_A_2026-10-01_101500Z.mhl",
             "A001/ascmhl/ascmhl_chain.xml",
-            "secopy_2026-10-01_101500.xxh64",
+            "secopy_2026-10-01_101500.xxh128",
             "secopy_2026-10-01_101500.txt",
             "secopy_2026-10-01_101500.json",
-            ".secopy-checksums.xxh64",
+            ".secopy-checksums.xxh128",
             "._C0001.MP4",
             ".Spotlight-V100/Store-V2/x",
             ".fseventsd/0001",

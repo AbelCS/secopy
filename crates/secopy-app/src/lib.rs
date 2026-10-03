@@ -675,10 +675,10 @@ mod tests {
         };
         let allowed = |p: &str| pattern.matches_path_with(Path::new(p), options);
         assert!(allowed(
-            "/Volumes/RAID/Day01/secopy_2026-09-27_140302.xxh64"
+            "/Volumes/RAID/Day01/secopy_2026-09-27_140302.xxh128"
         ));
         assert!(allowed(
-            "/Users/me/Movies/CARD/secopy_2026-09-27_140302.xxh64"
+            "/Users/me/Movies/CARD/secopy_2026-09-27_140302.xxh128"
         ));
         assert!(!allowed("/Users/me/Documents/notes.txt"));
         assert!(!allowed("/Applications/Calculator.app"));

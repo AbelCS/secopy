@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use chrono::TimeZone;
 use common::write_files;
 use secopy_core::filter::ExtensionFilter;
-use secopy_core::hash::{hash_bytes, to_hex};
+use secopy_core::hash::Hash;
 use secopy_core::ignore::Patterns;
 use secopy_core::job::{Event, JobControl, JobOptions, JobReport, Progress, run_job, undo};
 use secopy_core::mhl::MhlJob;
@@ -85,7 +85,7 @@ fn prepared(f: &Fixture) -> (Plan, Result<MhlPlan, Vec<MhlBlocker>>) {
     (plan, result)
 }
 
-/// Appends a generation listing `files` (with the xxh64 of the given bytes) to the history at
+/// Appends a generation listing `files` (with the XXH128 of the given bytes) to the history at
 /// `scope`, starting one if there's none.
 fn history(scope: &Path, files: &[(&str, &[u8])]) {
     fs::create_dir_all(scope).unwrap();
@@ -103,7 +103,7 @@ fn history(scope: &Path, files: &[(&str, &[u8])]) {
                 rel: rel.to_string(),
                 size: bytes.len() as u64,
                 modified: None,
-                xxh64: hash_bytes(bytes),
+                xxh128: Hash::of(bytes),
                 action: Action::Original,
             })
             .collect(),
@@ -151,7 +151,7 @@ fn ignored_files_already_there_arent_read() {
         &f.dest,
         &[
             ("A/.DS_Store", b"x"),
-            ("A/secopy_2026-10-01_101500.xxh64", b"x"),
+            ("A/secopy_2026-10-01_101500.xxh128", b"x"),
         ],
     );
     assert!(prepared(&f).1.unwrap().to_read.is_empty());
@@ -347,8 +347,8 @@ fn a_copy_writes_a_new_history_that_lists_every_file() {
     assert!(report.is_success(), "{report:?}");
     assert_eq!(report.mhl_written.len(), 1);
     let h = read(&f.dest.join("A")).unwrap().unwrap();
-    assert_eq!(h.first_xxh64["a.mov"], hash_bytes(b"aaa"));
-    assert_eq!(h.first_xxh64["sub/b.mov"], hash_bytes(b"bb"));
+    assert_eq!(h.first_xxh128["a.mov"], Hash::of(b"aaa"));
+    assert_eq!(h.first_xxh128["sub/b.mov"], Hash::of(b"bb"));
     let text = latest_manifest(&f.dest.join("A"));
     assert!(text.contains(r#"<tool version="9.9.9">Secopy</tool>"#));
     assert!(text.contains("<process>transfer</process>"));
@@ -362,7 +362,7 @@ fn files_already_there_are_read_and_recorded() {
     let (report, progress) = run(&plan, Some(result.unwrap()));
     assert!(report.is_success(), "{report:?}");
     let h = read(&f.dest.join("A")).unwrap().unwrap();
-    assert_eq!(h.first_xxh64["old.mov"], hash_bytes(b"old!"));
+    assert_eq!(h.first_xxh128["old.mov"], Hash::of(b"old!"));
     assert!(
         progress
             .iter()
@@ -379,8 +379,8 @@ fn a_source_history_is_continued_with_verified_files() {
     assert_eq!(manifests(&f.dest.join("A")).len(), 2);
     let text = latest_manifest(&f.dest.join("A"));
     assert!(text.contains(&format!(
-        r#"<xxh64 action="verified">{}</xxh64>"#,
-        to_hex(hash_bytes(b"aaa"))
+        r#"<xxh128 action="verified">{}</xxh128>"#,
+        Hash::of(b"aaa").to_hex()
     )));
     // The source's history is untouched.
     assert_eq!(manifests(&f.src).len(), 1);
@@ -686,4 +686,31 @@ fn an_ignored_unreadable_folder_in_the_destination_doesnt_block() {
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
     let mhl = result.expect("not blocked");
     assert!(mhl.to_read.is_empty());
+}
+
+/// #178 review focus 5: a history whose files are recorded only as xxh64 (the ASC's sample)
+/// is continued: each file gets its XXH128 as `original`, none `failed`, the copy completes.
+#[test]
+fn a_file_recorded_as_xxh64_only_is_original() {
+    let f = fixture(&[
+        ("Clips/A002C006_141024_R2EC.mov", b"12345"),
+        ("Clips/A002C007_141024_R2EC.mov", b"1234"),
+        ("Sidecar.txt", &[b's'; 58]),
+    ]);
+    let samples = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/ascmhl");
+    fs::create_dir_all(f.src.join("ascmhl")).unwrap();
+    for name in ["0001_A002R2EC_2020-01-16_091500Z.mhl", "ascmhl_chain.xml"] {
+        fs::copy(format!("{samples}/{name}"), f.src.join("ascmhl").join(name)).unwrap();
+    }
+    let report = copy(&f);
+    assert!(report.mhl_failed.is_empty(), "{:?}", report.mhl_failed);
+    assert!(report.is_success(), "{report:?}");
+    let text = latest_manifest(&f.dest.join("A"));
+    assert!(
+        text.contains(&format!(
+            r#"<xxh128 action="original">{}</xxh128>"#,
+            secopy_core::hash::Hash::of(b"12345").to_hex()
+        )),
+        "{text}"
+    );
 }

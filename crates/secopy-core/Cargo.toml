@@ -21,7 +21,6 @@ thiserror.workspace = true
 walkdir.workspace = true
 same-file.workspace = true
 unicode-normalization.workspace = true
-xxhash-rust.workspace = true
 twox-hash.workspace = true
 libc.workspace = true
 objc2 = "0.6.4"

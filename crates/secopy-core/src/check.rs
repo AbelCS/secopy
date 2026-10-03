@@ -14,7 +14,7 @@ use walkdir::WalkDir;
 
 use crate::control::JobControl;
 use crate::error::{FileError, IoFailure};
-use crate::hash::to_hex;
+use crate::hash::Hash;
 use crate::ignore::{Patterns, is_own_file};
 use crate::job::{ActiveFile, Event, FileOutcome, FileStatus, JobReport, Phase, Progress};
 use crate::mirror::ARCHIVE_DIR;
@@ -43,7 +43,7 @@ impl std::fmt::Display for ProblemKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProblemKind::NotALine => f.write_str("not a \"<checksum>  <path>\" line"),
-            ProblemKind::NotAChecksum { hex } => write!(f, "\"{hex}\" isn't an xxHash64 checksum"),
+            ProblemKind::NotAChecksum { hex } => write!(f, "\"{hex}\" isn't an XXH128 checksum"),
             ProblemKind::PathUnreadable => f.write_str("the path can't be read"),
             ProblemKind::Unreadable(_, why) => write!(f, "couldn't be read: {why}"),
             ProblemKind::Outside { path } => {
@@ -53,9 +53,9 @@ impl std::fmt::Display for ProblemKind {
     }
 }
 
-/// Parses xxhsum/GNU lines, `<16 hex>  <path>`, with the coreutils escaping a leading `\`
+/// Parses xxhsum/GNU lines, `<32 hex>  <path>`, with the coreutils escaping a leading `\`
 /// announces (`\\`, `\n`, `\r`). Returns the entries and the bad lines (1-based, why).
-pub fn parse(text: &str) -> (Vec<(PathBuf, u64)>, BadLines) {
+pub fn parse(text: &str) -> (Vec<(PathBuf, Hash)>, BadLines) {
     let (lines, bad) = parse_lines(text);
     let bad = bad
         .into_iter()
@@ -72,7 +72,7 @@ pub fn parse(text: &str) -> (Vec<(PathBuf, u64)>, BadLines) {
 
 /// `parse`, with each entry's 1-based line number.
 /// Entries (line, path, hash) and bad lines (line, why).
-type Parsed = (Vec<(usize, PathBuf, u64)>, Vec<(usize, ProblemKind)>);
+type Parsed = (Vec<(usize, PathBuf, Hash)>, Vec<(usize, ProblemKind)>);
 
 fn parse_lines(text: &str) -> Parsed {
     let mut entries = Vec::new();
@@ -89,9 +89,8 @@ fn parse_lines(text: &str) -> Parsed {
             bad.push((i + 1, ProblemKind::NotALine));
             continue;
         };
-        let hash = (hex.len() == 16 && hex.bytes().all(|b| b.is_ascii_hexdigit()))
-            .then(|| u64::from_str_radix(hex, 16).ok())
-            .flatten();
+        // Exactly 32 hex digits: an old 16-digit xxh64 line is a problem, never a hash.
+        let hash = Hash::from_hex(hex);
         let Some(hash) = hash else {
             bad.push((
                 i + 1,
@@ -133,14 +132,14 @@ fn unescape(s: &str) -> Option<String> {
 }
 
 /// A mirror's checksum file in its destination (plan 8).
-pub const MIRROR_CHECKSUMS: &str = ".secopy-checksums.xxh64";
+pub const MIRROR_CHECKSUMS: &str = ".secopy-checksums.xxh128";
 
 /// One file a checksum file lists.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listed {
     /// Relative to the checked directory.
     pub rel: PathBuf,
-    pub expected: u64,
+    pub expected: Hash,
     /// Its size when planned; 0 when it was missing then.
     pub size: u64,
     /// The checksum file it came from, relative to the checked directory. A check's
@@ -227,7 +226,7 @@ pub fn plan(dir: &Path, ignore: &Patterns) -> io::Result<CheckPlan> {
             .unwrap_or(entry.path())
             .to_path_buf();
         let name = entry.file_name().to_string_lossy();
-        if name.ends_with(".xxh64") {
+        if name.ends_with(&format!(".{}", crate::checksum_file::EXT)) {
             sums.push((rel, entry.metadata().ok().and_then(|m| m.modified().ok())));
         } else if !is_own_file(entry.file_name())
             && !ignore.matches(entry.file_name())
@@ -553,7 +552,7 @@ fn check_one(
     control: &JobControl,
     progress: &dyn Fn(u64),
     no_bypass: &AtomicBool,
-) -> (FileStatus, Option<u64>, u64) {
+) -> (FileStatus, Option<Hash>, u64) {
     let path = dir.join(&file.rel);
     let size = match fs::symlink_metadata(&path) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
@@ -588,8 +587,8 @@ fn check_one(
                 FileStatus::Verified
             } else {
                 FileStatus::Failed(FileError::Changed {
-                    expected: to_hex(file.expected),
-                    actual: to_hex(actual),
+                    expected: file.expected.to_hex(),
+                    actual: actual.to_hex(),
                 })
             };
             (status, Some(actual), file.size)
@@ -628,7 +627,7 @@ mod tests {
         let job = crate::job::JobOptions::default();
         let listed = |size| Listed {
             rel: PathBuf::new(),
-            expected: 0,
+            expected: Hash::from_u128(0),
             size,
             from: PathBuf::new(),
         };

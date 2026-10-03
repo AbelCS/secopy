@@ -33,7 +33,6 @@ thiserror = "2.0.21"
 walkdir = "2.5.0"
 same-file = "1.0.6"
 unicode-normalization = "0.1"
-xxhash-rust = { version = "0.8.18", features = ["xxh64"] }
 twox-hash = { version = "2.1.4", default-features = false, features = ["xxhash3_128", "std"] }
 bs58 = "0.5.1"
 quick-xml = "0.42.0"

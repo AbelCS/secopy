@@ -508,7 +508,7 @@ mod tests {
             std::io::Error::new(io::ErrorKind::InvalidInput, secopy_core::scan::DriveRoot);
         assert_eq!(scan_error(&drive_root).key, "errors.scan.driveRoot");
         let p = check::Problem {
-            file: PathBuf::from("a.xxh64"),
+            file: PathBuf::from("a.xxh128"),
             line: Some(1234),
             reason: "x".into(),
             kind: ProblemKind::NotAChecksum { hex: "zz".into() },

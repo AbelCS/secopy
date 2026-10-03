@@ -104,7 +104,7 @@ fn counts_and_statuses_are_complete() {
         Some("CARD/new (1).txt")
     );
     assert!(file("new.txt").in_checksum_file);
-    assert_eq!(file("new.txt").xxh64.as_ref().unwrap().len(), 16);
+    assert_eq!(file("new.txt").xxh128.as_ref().unwrap().len(), 32);
 }
 
 #[test]

@@ -2,18 +2,24 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use secopy_core::check;
+use secopy_core::hash::Hash;
 use secopy_core::ignore::Patterns;
 
 #[test]
 fn lines_are_parsed_and_bad_ones_named() {
-    let text =
-        "0123456789abcdef  a/b.mov\nnot a line\n0123456789ABCDEF  c.mov\n+123456789abcdef  d.mov\n";
+    let text = "00000000000000000123456789abcdef  a/b.mov\nnot a line\n00000000000000000123456789ABCDEF  c.mov\n0000000000000000+123456789abcdef  d.mov\n";
     let (entries, bad) = check::parse(text);
     assert_eq!(
         entries,
         [
-            (PathBuf::from("a/b.mov"), 0x0123_4567_89ab_cdef),
-            (PathBuf::from("c.mov"), 0x0123_4567_89ab_cdef),
+            (
+                PathBuf::from("a/b.mov"),
+                Hash::from_u128(0x0123_4567_89ab_cdef)
+            ),
+            (
+                PathBuf::from("c.mov"),
+                Hash::from_u128(0x0123_4567_89ab_cdef)
+            ),
         ]
     );
     assert_eq!(bad.iter().map(|(n, _)| *n).collect::<Vec<_>>(), [2, 4]);
@@ -28,7 +34,11 @@ fn escaped_names_round_trip() {
         PathBuf::from("new\nline.mov"),
         PathBuf::from("plain.mov"),
     ];
-    let entries: Vec<(PathBuf, u64)> = names.iter().cloned().zip([1, 2, 3]).collect();
+    let entries: Vec<(PathBuf, Hash)> = names
+        .iter()
+        .cloned()
+        .zip([1, 2, 3].map(Hash::from_u128))
+        .collect();
     let path =
         secopy_core::checksum_file::write(dir.path(), &entries, chrono::Local::now()).unwrap();
     let (read, bad) = check::parse(&fs::read_to_string(path).unwrap());
@@ -42,8 +52,8 @@ fn escaped_names_round_trip() {
 
 #[test]
 fn crlf_and_empty_lines_are_fine() {
-    let (entries, bad) = check::parse("0000000000000001  a\r\n\r\n");
-    assert_eq!(entries, [(PathBuf::from("a"), 1)]);
+    let (entries, bad) = check::parse("00000000000000000000000000000001  a\r\n\r\n");
+    assert_eq!(entries, [(PathBuf::from("a"), Hash::from_u128(1))]);
     assert!(bad.is_empty());
     let _ = Path::new("");
 }
@@ -56,7 +66,7 @@ fn copy_of(files: &[(&str, &[u8])]) -> (tempfile::TempDir, PathBuf) {
         let p = root.join(rel);
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(&p, data).unwrap();
-        entries.push((PathBuf::from(rel), secopy_core::hash::hash_bytes(data)));
+        entries.push((PathBuf::from(rel), secopy_core::hash::Hash::of(data)));
     }
     secopy_core::checksum_file::write(&root, &entries, chrono::Local::now()).unwrap();
     (dir, root)
@@ -110,14 +120,14 @@ fn the_newest_checksum_file_wins() {
     fs::write(root.join("a.mov"), b"new").unwrap();
     std::thread::sleep(std::time::Duration::from_millis(20));
     fs::write(
-        root.join("later.xxh64"),
-        format!("{:016x}  a.mov\n", secopy_core::hash::hash_bytes(b"new")),
+        root.join("later.xxh128"),
+        format!("{}  a.mov\n", secopy_core::hash::Hash::of(b"new")),
     )
     .unwrap();
     let p = check::plan(&root, &Patterns::defaults()).unwrap();
     assert_eq!(p.files.len(), 1);
-    assert_eq!(p.files[0].expected, secopy_core::hash::hash_bytes(b"new"));
-    assert_eq!(p.files[0].from, PathBuf::from("later.xxh64"));
+    assert_eq!(p.files[0].expected, secopy_core::hash::Hash::of(b"new"));
+    assert_eq!(p.files[0].from, PathBuf::from("later.xxh128"));
 }
 
 #[test]
@@ -136,8 +146,8 @@ fn checksum_files_in_subdirectories_are_found() {
 fn a_path_outside_the_directory_is_a_problem() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join("a.xxh64"),
-        "0000000000000001  ../secret\n0000000000000002  /etc/hosts\n",
+        dir.path().join("a.xxh128"),
+        "00000000000000000000000000000001  ../secret\n00000000000000000000000000000002  /etc/hosts\n",
     )
     .unwrap();
     let p = check::plan(dir.path(), &secopy_core::ignore::Patterns::defaults()).unwrap();
@@ -152,10 +162,7 @@ fn bad_lines_and_mirror_checksums() {
     fs::write(dir.path().join("f.mov"), b"f").unwrap();
     fs::write(
         dir.path().join(check::MIRROR_CHECKSUMS),
-        format!(
-            "{:016x}  f.mov\ngarbage\n",
-            secopy_core::hash::hash_bytes(b"f")
-        ),
+        format!("{}  f.mov\ngarbage\n", secopy_core::hash::Hash::of(b"f")),
     )
     .unwrap();
     let p = check::plan(dir.path(), &secopy_core::ignore::Patterns::defaults()).unwrap();
@@ -285,7 +292,7 @@ fn a_check_writes_nothing() {
 #[test]
 fn problems_and_cancel_are_not_intact() {
     let (_dir, root) = copy_of(&[("a.mov", b"a")]);
-    fs::write(root.join("bad.xxh64"), "garbage\n").unwrap();
+    fs::write(root.join("bad.xxh128"), "garbage\n").unwrap();
     assert!(!check_all(&root).is_intact(), "a checksum file problem");
     let p = check::plan(&root, &Patterns::defaults()).unwrap();
     let control = secopy_core::job::JobControl::new();
@@ -364,8 +371,8 @@ fn a_path_through_a_link_is_a_problem() {
     fs::write(outside.join("x.mov"), b"x").unwrap();
     std::os::unix::fs::symlink(&outside, root.join("link")).unwrap();
     fs::write(
-        root.join("a.xxh64"),
-        format!("{:016x}  link/x.mov\n", secopy_core::hash::hash_bytes(b"x")),
+        root.join("a.xxh128"),
+        format!("{}  link/x.mov\n", secopy_core::hash::Hash::of(b"x")),
     )
     .unwrap();
     let p = check::plan(&root, &Patterns::defaults()).unwrap();
@@ -381,8 +388,8 @@ fn dot_slash_paths_are_the_same_files() {
     let root = dir.path().to_path_buf();
     fs::write(root.join("a.mov"), b"a").unwrap();
     fs::write(
-        root.join("x.xxh64"),
-        format!("{:016x}  ./a.mov\n", secopy_core::hash::hash_bytes(b"a")),
+        root.join("x.xxh128"),
+        format!("{}  ./a.mov\n", secopy_core::hash::Hash::of(b"a")),
     )
     .unwrap();
     let p = check::plan(&root, &Patterns::defaults()).unwrap();
@@ -465,7 +472,7 @@ fn the_report_names_the_checksum_file_that_listed_a_problem() {
     };
     let report = secopy_core::report::Report::for_check(&p, &r, &meta);
     let text = report.to_text();
-    let hex = |data: &[u8]| secopy_core::hash::to_hex(secopy_core::hash::hash_bytes(data));
+    let hex = |data: &[u8]| Hash::of(data).to_hex();
     assert!(
         text.contains(&format!(
             "  Day01/a.mov: changed since it was copied (expected {}, found {}) (listed in {sums})",
@@ -512,4 +519,53 @@ fn a_listed_file_is_checked_whatever_the_list_says() {
     let lrf = Patterns::new(["*.LRF".to_string()]).unwrap();
     let p = check::plan(&root, &lrf).unwrap();
     assert_eq!(p.files.len(), 1);
+}
+
+/// #178: XXH128 only; an old xxh64 checksum file is an ordinary file, never read.
+#[test]
+fn old_xxh64_files_are_not_read() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.mov"), b"a").unwrap();
+    fs::write(dir.path().join("old.xxh64"), format!("{:016x}  a.mov\n", 1)).unwrap();
+    let p = check::plan(dir.path(), &Patterns::defaults()).unwrap();
+    assert!(p.checksum_files.is_empty(), "{:?}", p.checksum_files);
+    // Nothing listed: the app, the queue and the CLI refuse to verify ("No checksum files
+    // here"), so nothing is ever called intact.
+    assert!(p.files.is_empty(), "{:?}", p.files);
+    assert_eq!(
+        p.not_checked,
+        [PathBuf::from("a.mov"), PathBuf::from("old.xxh64")]
+    );
+}
+
+/// #178: a 16-digit (xxh64) line in an XXH128 file is a problem, never read as a hash.
+#[test]
+fn a_16_digit_line_is_a_problem() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.mov"), b"a").unwrap();
+    fs::write(dir.path().join("x.xxh128"), "ef46db3751d8e999  a.mov\n").unwrap();
+    let p = check::plan(dir.path(), &Patterns::defaults()).unwrap();
+    assert_eq!(p.checksum_files.len(), 1, "the .xxh128 file is read");
+    assert!(p.files.is_empty(), "{:?}", p.files);
+    assert_eq!(p.problems.len(), 1);
+    assert_eq!(p.problems[0].line, Some(1));
+}
+
+/// #178 review focus 2: one flipped byte is still a change, never intact.
+#[test]
+fn a_flipped_byte_still_fails_verify() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = vec![0x42u8; 300];
+    let mut flipped = data.clone();
+    flipped[123] ^= 1;
+    fs::write(dir.path().join("a.mov"), &flipped).unwrap();
+    fs::write(
+        dir.path().join("x.xxh128"),
+        format!("{}  a.mov\n", secopy_core::hash::Hash::of(&data).to_hex()),
+    )
+    .unwrap();
+    let r = check_all(dir.path());
+    let c = r.counts();
+    assert_eq!((c.intact, c.changed), (0, 1));
+    assert!(!r.is_intact());
 }

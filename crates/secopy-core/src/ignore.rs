@@ -183,11 +183,11 @@ fn is_folder_icon(name: &str) -> bool {
 pub fn is_own_file(name: &OsStr) -> bool {
     let name = name.to_string_lossy();
     crate::system::is_secopy_partial(&name)
-        || name == ".secopy-checksums.xxh64"
+        || name == crate::check::MIRROR_CHECKSUMS
         // macOS's custom-folder-icon file: never media (#161).
         || is_folder_icon(&name)
         // A mirror's checksum file set aside (#114).
-        || name.starts_with(".secopy-checksums.xxh64.damaged-")
+        || name.starts_with(&format!("{}.damaged-", crate::check::MIRROR_CHECKSUMS))
 }
 
 #[cfg(test)]
@@ -395,8 +395,8 @@ mod tests {
         for name in [
             ".A001.MOV.secopy-partial",
             ".secopy-0123.partial",
-            ".secopy-checksums.xxh64",
-            ".secopy-checksums.xxh64.damaged-2026",
+            ".secopy-checksums.xxh128",
+            ".secopy-checksums.xxh128.damaged-2026",
         ] {
             assert!(is_own_file(OsStr::new(name)), "{name}");
         }

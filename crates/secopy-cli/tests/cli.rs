@@ -412,7 +412,7 @@ fn a_mirror_report_says_when_its_checksum_file_failed() {
         std::fs::create_dir_all(p).unwrap();
     }
     std::fs::write(o.join("a.mov"), b"a").unwrap();
-    std::fs::create_dir_all(d.join(".secopy-checksums.xxh64")).unwrap(); // in the way
+    std::fs::create_dir_all(d.join(".secopy-checksums.xxh128")).unwrap(); // in the way
     let out = cli()
         .args(["--mirror", "--report"])
         .arg(&r)

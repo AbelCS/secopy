@@ -9,6 +9,7 @@ use walkdir::WalkDir;
 
 use crate::error::IoFailure;
 use crate::filter::ExtensionFilter;
+use crate::hash::Hash;
 use crate::ignore::{Patterns, is_own_file};
 use crate::job::{JobControl, JobReport};
 use crate::plan::{Action, DiffersPolicy, Plan};
@@ -82,7 +83,7 @@ pub struct MirrorPlan {
     /// How each removal looked in the preview: a file that changed since isn't removed.
     pub seen: HashMap<PathBuf, Seen>,
     /// Unchanged files the deep check read on both sides and found equal, with their hash.
-    pub same: HashMap<PathBuf, u64>,
+    pub same: HashMap<PathBuf, Hash>,
     /// Destination directories no longer in the origin, deepest first.
     pub remove_dirs: Vec<PathBuf>,
     /// The same file spelled otherwise (letter case, Unicode form): (destination name, origin name).
@@ -423,7 +424,7 @@ fn resolved(p: &Path) -> PathBuf {
 
 /// The deep check: `Some(hash)` when both sides read in full and are equal; either side
 /// unreadable counts as different.
-fn compare(a: &Path, b: &Path, control: &JobControl) -> Option<u64> {
+fn compare(a: &Path, b: &Path, control: &JobControl) -> Option<Hash> {
     let hash = |p: &Path| {
         hash_from_device(p, 4 << 20, &|_| {}, control)
             .map(|(h, _)| h)
@@ -974,7 +975,7 @@ pub fn write_checksums(
     let dest = &plan.copy.dest;
     let path = dest.join(crate::check::MIRROR_CHECKSUMS);
     // The previous file; one that is there but can't be read is kept, never replaced.
-    let mut sums: std::collections::BTreeMap<PathBuf, u64> = match fs::read_to_string(&path) {
+    let mut sums: std::collections::BTreeMap<PathBuf, Hash> = match fs::read_to_string(&path) {
         Ok(text) => {
             let (entries, bad) = crate::check::parse(&text);
             // Lines that can't be read aren't dropped silently: that file is kept aside.
@@ -1024,7 +1025,7 @@ pub fn write_checksums(
         Ok(meta) => meta.is_file(),
         Err(e) => e.kind() != std::io::ErrorKind::NotFound,
     });
-    let entries: Vec<(PathBuf, u64)> = sums.into_iter().collect();
+    let entries: Vec<(PathBuf, Hash)> = sums.into_iter().collect();
     crate::checksum_file::write_replacing(&path, &entries)
 }
 

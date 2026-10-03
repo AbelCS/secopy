@@ -24,7 +24,7 @@ use secopy_core::source::{DirMode, Source};
 #[command(
     name = "secopy-cli",
     version,
-    about = "Fast file copy with xxHash64 verification"
+    about = "Fast file copy with XXH128 verification"
 )]
 struct Args {
     /// One directory, or one or more files.
@@ -46,7 +46,7 @@ struct Args {
     /// Only copy these extensions, e.g. "mov,wav". "(none)" means files without extension.
     #[arg(long)]
     ext: Option<String>,
-    /// Do not write the .xxh64 checksum file.
+    /// Do not write the .xxh128 checksum file.
     #[arg(long)]
     no_checksum: bool,
     /// Also write an ASC MHL history (the media industry's proof of copy) in the folder the
@@ -480,7 +480,7 @@ fn write_report(
             .unwrap_or_default()
             .to_string_lossy()
             .into_owned(),
-        None => checksum_file::file_name(started).replace(".xxh64", ""),
+        None => checksum_file::file_name(started).replace(&format!(".{}", checksum_file::EXT), ""),
     };
     let (text, _) = full
         .write(dir, &stem)

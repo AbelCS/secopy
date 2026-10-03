@@ -16,13 +16,17 @@ pub fn write_files(root: &Path, files: &[(&str, &[u8])]) {
     }
 }
 
-/// Every file under `root` as `slash/path → contents`, excluding `.xxh64` checksum files.
+/// Every file under `root` as `slash/path → contents`, excluding `.xxh128` checksum files.
 pub fn read_tree(root: &Path) -> BTreeMap<String, Vec<u8>> {
     WalkDir::new(root)
         .into_iter()
         .map(Result::unwrap)
         .filter(|e| e.file_type().is_file())
-        .filter(|e| e.path().extension().is_none_or(|x| x != "xxh64"))
+        .filter(|e| {
+            e.path()
+                .extension()
+                .is_none_or(|x| x != secopy_core::checksum_file::EXT)
+        })
         .map(|e| {
             let rel = e.path().strip_prefix(root).unwrap();
             let key = rel

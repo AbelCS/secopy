@@ -12,7 +12,8 @@ use super::{Event, FileOutcome, FileStatus, JobControl, JobOptions, Landed, Skip
 use crate::copy::{self, Commit, CopyConfig, PartialCopy};
 use crate::error::{FatalError, FileError};
 use crate::fsinfo;
-use crate::hash;
+use crate::hash::Hash;
+
 use crate::plan::{Action, Plan, PlannedFile};
 use crate::verify::{self, CacheBypass};
 
@@ -334,8 +335,8 @@ impl<'a> Runner<'a> {
             partial.discard();
             if attempt == 1 {
                 break Err(FileError::HashMismatch {
-                    expected: hash::to_hex(expected),
-                    actual: hash::to_hex(actual),
+                    expected: expected.to_hex(),
+                    actual: actual.to_hex(),
                 });
             }
             attempt += 1;
@@ -378,7 +379,7 @@ impl<'a> Runner<'a> {
     fn outcome(
         &self,
         idx: usize,
-        hash: Option<u64>,
+        hash: Option<Hash>,
         status: FileStatus,
         landed: Option<(PathBuf, Option<Landed>)>,
         started: Instant,
