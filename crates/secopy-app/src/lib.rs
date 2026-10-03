@@ -289,7 +289,7 @@ pub struct MenuState {
 }
 
 /// Builds the menus in Secopy's language and puts them in place; the File items keep their
-/// greyed state (#181).
+/// greyed state (#181). On the main thread: `set_menu_state` runs there too.
 pub fn rebuild_menu(app: &AppHandle<tauri::Wry>) -> tauri::Result<()> {
     let new = menu(app)?;
     app.set_menu(new.clone())?;

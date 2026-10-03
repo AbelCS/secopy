@@ -2,6 +2,7 @@
 // The app uses the Mac's language when there's a catalog for it: English and Spanish.
 import en from "../locales/en.json";
 import es from "../locales/es.json";
+import { languageSignal } from "./locale.svelte";
 
 export type Catalog = typeof en;
 type Plural = { one: string; other: string; zero?: string; two?: string; few?: string; many?: string };
@@ -46,20 +47,23 @@ export function languages(): { tag: string; name: string }[] {
 }
 
 export function locale(): string {
+  void languageSignal.version; // what's drawn with it follows a change
   return current;
 }
 
-/** Switches the language (tests, and a language setting one day). */
+/** Switches the language: what's on screen is drawn again in it (#181). */
 export function setLocale(tag: string, next: Catalog = catalogs[tag] ?? en): void {
   current = tag;
   catalog = next;
   plurals = new Intl.PluralRules(tag);
   numbers = new Intl.NumberFormat(tag);
+  languageSignal.version += 1;
 }
 
 const strict = import.meta.env.MODE === "test";
 
 function lookup(key: string): Entry | undefined {
+  void languageSignal.version; // what's drawn with it follows a change
   return lookupEntry(catalog, key);
 }
 

@@ -12,13 +12,15 @@ if (panel) {
   // stylesheet, so no later rule paints the page's background again.
   for (const el of [document.documentElement, document.body]) el.style.background = "transparent";
 }
-// Secopy's language (#181) before anything is drawn; Settings changing it draws again.
-try {
-  setLocale(await tauriApi.appLanguage());
-} catch {
-  // The Mac's language, as chosen at load: still a full catalog.
-}
-void tauriApi.onLanguageChanged(() => location.reload());
+// Secopy's language (#181) before anything is drawn. When Settings change it, what's on
+// screen is drawn again in it, in place: nothing set up for this copy is lost.
+const useAppLanguage = () =>
+  tauriApi
+    .appLanguage()
+    .then((tag) => setLocale(tag))
+    .catch(() => {}); // the Mac's language, as chosen at load: still a full catalog
+await useAppLanguage();
+void tauriApi.onLanguageChanged(() => void useAppLanguage());
 
 const app = mount(panel ? Panel : App, { target: document.getElementById("app")! });
 

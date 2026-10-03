@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
+import { tick } from "svelte";
 import { describe, expect, test } from "vitest";
+import { setLocale } from "../lib/i18n";
 import { apiContext } from "../lib/api";
 import type { Settings } from "../lib/bindings";
 import { fakeApi, settingsView } from "../test/fake-api";
@@ -168,6 +170,17 @@ describe("SettingsScreen", () => {
     await fireEvent.change(menu, { target: { value: "es" } });
     await fireEvent.click(save());
     await waitFor(() => expect(api.setSettings).toHaveBeenCalledWith(settingsView({ language: "es" })));
+  });
+
+  test("#181 review: a new language redraws what's on screen, without starting again", async () => {
+    show();
+    screen.getByRole("heading", { name: "Settings" });
+    setLocale("es");
+    await tick();
+    screen.getByRole("heading", { name: "Ajustes" });
+    screen.getByRole("combobox", { name: "Idioma" });
+    setLocale("en");
+    await tick();
   });
 
   test("#181: Automatic saves no language", async () => {
