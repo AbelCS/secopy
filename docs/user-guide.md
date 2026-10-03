@@ -6,8 +6,9 @@ see the [README](../README.md#install).
 The window has three tabs, **Copy**, **Mirror** and **Verify**, plus **Queue** and
 **Settings** on the right.
 
-Secopy is in English and Spanish: it follows the Mac's language (System Settings › General ›
-Language & Region). Reports and the command-line tool stay in English.
+Secopy is in English and Spanish. It starts in the Mac's language when it has it (English
+otherwise); **Settings › General › Language** chooses another. Reports and the command-line
+tool stay in English.
 
 ## Copy
 
@@ -241,6 +242,9 @@ preset with a setting this Secopy doesn't know can't be imported: update Secopy 
 
 **General**
 
+- **Language**: **Automatic** (the Mac's language when Secopy has it, English otherwise) or a
+  language of your choice, whatever the Mac's is. Secopy's words change when you press
+  **Save**; macOS's own windows (Open, Save, About) at the next launch.
 - **Notify when a job finishes**, when Secopy's window isn't in front.
 - **Keep jobs running in the menu bar when the window is closed** (on by default).
 
