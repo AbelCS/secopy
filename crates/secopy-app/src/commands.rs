@@ -345,10 +345,11 @@ impl AppState {
             .save(SETTINGS, &settings)
             .map_err(|e| msg!("errors.save.settings", why = e))?;
         *current = settings.clone();
-        drop(current);
+        // Under the settings lock: two saves in a row leave the language of the last one.
         if language_changed {
             crate::message::set_language(settings.language.as_deref());
         }
+        drop(current);
         session(self).set_mhl(settings.write_mhl);
         if list_changed {
             self.rescan(Change::Ignore(settings.patterns()));
@@ -2002,15 +2003,26 @@ pub async fn delete_copy_preset(app: AppHandle, id: String) -> Result<CopyPreset
 pub async fn set_settings(app: AppHandle, settings: Settings) -> Result<Settings, Message> {
     let (saved, language_changed) =
         blocking(app.clone(), move |state| state.save_settings(settings)).await??;
-    if language_changed {
-        // macOS's own windows follow from the next launch; Secopy's words change now.
-        crate::message::tell_macos(saved.language.as_deref());
-        if let Err(e) = crate::rebuild_menu(&app) {
-            eprintln!("Secopy: the menus stay in the previous language: {e}");
-        }
-        let _ = tauri::Emitter::emit(&app, crate::LANGUAGE_CHANGED, ());
-    }
+    language_saved(&app, language_changed);
     Ok(saved)
+}
+
+/// After Settings or an import were saved (#181): macOS is told the language saved last
+/// (every time, so a per-app language set elsewhere doesn't linger); when it changed, the
+/// menus are rebuilt on the main thread (where their items are greyed, so the two never
+/// wait on each other) and the windows draw again in it.
+fn language_saved(app: &AppHandle, changed: bool) {
+    let choice = app.state::<AppState>().chosen_language();
+    crate::message::tell_macos(choice.as_deref());
+    if changed {
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if let Err(e) = crate::rebuild_menu(&handle) {
+                eprintln!("Secopy: the menus stay in the previous language: {e}");
+            }
+        });
+        let _ = tauri::Emitter::emit(app, crate::LANGUAGE_CHANGED, ());
+    }
 }
 
 /// The language Automatic gives now (#181): the Mac's first one Secopy has, English otherwise.
@@ -2224,6 +2236,8 @@ impl AppState {
             if wants_settings && let Some(Ok(theirs)) = &contents.settings {
                 self.change_whole(&self.settings, SETTINGS, |_| Ok((theirs.clone(), ())))
                     .map_err(|e| (Kind::Settings, e))?;
+                // Imported settings are in use at once, the language too (#181).
+                crate::message::set_language(self.chosen_language().as_deref());
                 session(self).set_mhl(theirs.write_mhl);
                 self.rescan(Change::Ignore(theirs.patterns()));
                 done.2 = true;
@@ -2342,7 +2356,13 @@ pub async fn open_import(app: AppHandle, path: String) -> Result<ImportView, Mes
 #[tauri::command]
 #[specta::specta]
 pub async fn apply_import(app: AppHandle, choices: ImportChoices) -> Result<ImportDone, Message> {
-    blocking(app, move |s| s.apply_import(&choices)).await?
+    let before = app.state::<AppState>().chosen_language();
+    let done = blocking(app.clone(), move |s| s.apply_import(&choices)).await?;
+    if done.is_ok() {
+        let after = app.state::<AppState>().chosen_language();
+        language_saved(&app, before != after);
+    }
+    done
 }
 
 /// A `.secopy` file opened from Finder, once.
@@ -3937,6 +3957,42 @@ mod tests {
     }
 
     /// #77: export on one Mac, import on another: the same presets and settings.
+    /// #181 review: an imported language is the language in use, as if it were saved.
+    #[test]
+    fn an_imported_language_is_applied() {
+        let _guard = crate::message::language_guard();
+        crate::message::set_language(Some("en"));
+        let dir = tempfile::tempdir().unwrap();
+        let a = AppState::new(dir.path().join("a"));
+        a.set_settings(Settings {
+            language: Some("es".into()),
+            ..Settings::default()
+        })
+        .unwrap();
+        crate::message::set_language(Some("en"));
+        let file = dir.path().join("settings.secopy");
+        a.export_all(
+            &file,
+            &ExportWhat {
+                settings: true,
+                copy_presets: false,
+                mirror_presets: false,
+            },
+        )
+        .unwrap();
+        let b = AppState::new(dir.path().join("b"));
+        b.open_import(&file).unwrap();
+        b.apply_import(&ImportChoices {
+            settings: true,
+            copy_presets: vec![],
+            mirror_presets: vec![],
+        })
+        .unwrap();
+        assert_eq!(b.chosen_language().as_deref(), Some("es"));
+        assert_eq!(crate::message::language_in_use(), "es");
+        crate::message::set_language(None);
+    }
+
     #[test]
     fn exported_presets_import_on_another_mac() {
         let dir = tempfile::tempdir().unwrap();

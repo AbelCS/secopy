@@ -701,6 +701,8 @@ mod tests {
 
     #[test]
     fn a_check_counts_what_it_read() {
+        let _guard = crate::message::language_guard();
+        crate::message::set_language(Some("en"));
         let mut r = running(copying(0, 0));
         r.check = true;
         r.view = ProgressView {
@@ -840,6 +842,8 @@ mod tests {
 
     #[test]
     fn the_icon_starts_from_what_is_true_now() {
+        let _guard = crate::message::language_guard();
+        crate::message::set_language(Some("en"));
         let job = running(copying(600_000_000, 240_000_000));
         assert_eq!(title(&opening(None, false, Some(job.clone()))), "42%");
         assert_eq!(
