@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.1](https://github.com/AbelCS/secopy/compare/v0.25.0...v0.25.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **ui:** General comes first in Settings ([9c562b1](https://github.com/AbelCS/secopy/commit/9c562b1c665af17dfdc81056c2854b81af67cc92))
+
 ## [0.25.0](https://github.com/AbelCS/secopy/compare/v0.24.0...v0.25.0) (2026-10-03)
 
 
