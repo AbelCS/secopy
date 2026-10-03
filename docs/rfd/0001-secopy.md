@@ -417,16 +417,15 @@ derives speeds, ETAs and smoothing from them (§5.3).
   large buffers (default 4 × 4 MiB, tunable). Reading chunk N+1 overlaps writing chunk N.
   xxHash64 (≈10+ GB/s per core) runs over each chunk as it is read, so it is never the
   bottleneck.
-- **Sequential-access hints**: `posix_fadvise(SEQUENTIAL)`, `F_RDAHEAD`, `FILE_FLAG_SEQUENTIAL_SCAN`.
-- **Pre-allocation** of the destination file to its final size (`fallocate`,
-  `F_PREALLOCATE`, `SetFileInformationByHandle`) to reduce fragmentation and catch
-  "disk full" early.
-- **File-level concurrency, sized by file type**:
-  - Small files (< 8 MiB): up to 8–16 in flight to hide per-file metadata latency (open,
-    create, rename, set times). Metadata latency dominates copies of many small files.
-  - Large files: 1–2 in flight to avoid seek thrashing on spinning disks and card readers.
-  - Defaults are chosen per device class where it can be detected (SSD vs HDD). An
-    advanced setting allows overriding.
+- **File-level concurrency, sized by file type** (lanes):
+  - Small files (up to 4 MiB, one buffer): 8 in flight, to hide per-file metadata latency
+    (open, create, rename, set times), which dominates copies of many small files.
+  - Large files: **1** in flight. A card (or a spinning disk) reads fastest as one long
+    stream; two big files read at once make it jump between them.
+- **Planned, not built yet** (the performance work, §10): sequential-access hints
+  (`F_RDAHEAD`), pre-allocating the destination file to its final size (`F_PREALLOCATE`:
+  less fragmentation, "disk full" caught early), and lane defaults chosen per device class
+  (SSD or HDD, which macOS reports), with an advanced setting to override them.
 - **OS fast paths** (`copy_file_range`, `clonefile`, `CopyFileEx`) skip the copy through
   the app's own memory, but they never hand us the bytes, so nothing can be hashed. They
   are only used when no hash is needed: **plain Copy with the checksum file turned off**.
@@ -435,9 +434,9 @@ derives speeds, ETAs and smoothing from them (§5.3).
 
 ### 7.3 Verify pipeline
 
-- Verification of file N runs concurrently with the copy of file N+1. When source and
-  destination are different devices, the verify read (destination) and the copy read
-  (source) don't compete.
+- Verification of file N runs concurrently with the copy of file N+1 (2 verify lanes). When
+  source and destination are different devices, the verify read (destination) and the copy
+  read (source) don't compete. §7.5 says why this is parallel, not one after the other.
 - Cache bypass per FR-26. Direct I/O needs aligned buffers. The buffer pool allocates
   page-aligned memory for this.
 - **The source is read once, and the destination is read back.** The source hash comes
@@ -456,6 +455,57 @@ derives speeds, ETAs and smoothing from them (§5.3).
 - At the end of the job: one `fsync` per created directory (makes the renames durable), then
   one drive-cache flush for the whole volume (`F_FULLFSYNC` on macOS). When the summary
   shows, the destination can be ejected.
+
+### 7.5 Why verify runs in parallel with the copy
+
+The whole pipeline for a Copy & Verify job, for big files:
+
+1. **One copy lane reads the source from start to end** (one long stream, the fastest way to
+   read a card), computes xxHash64 over each chunk as it reads it, and writes the chunk to
+   the destination with the Mac's cache bypassed (so the read-back reads the drive).
+2. **Two verify lanes read finished files back from the destination** (cache bypassed),
+   hash them, and compare with the source hash, while the copy lane goes on with the next
+   file.
+3. **The source is read exactly once.** Verify never touches it: it only reads the
+   destination and compares against the hash taken while reading the source (§7.3).
+
+So "parallel or one after the other" never changes how the card is read; it only changes
+what the **destination** does: write and read at the same time, or first write everything
+and then read everything.
+
+- **Destination SSD** (internal or external; the common case): the card is the bottleneck
+  (about 90 MB/s for UHS-I, 250–300 MB/s for UHS-II), and an SSD writes at that pace while
+  reading back at 1–7 GB/s, with no penalty for mixing the two. Parallel hides almost all of
+  the verify time: the job takes about as long as the copy, plus verifying the last file.
+  Example: a 128 GB UHS-II card copies in about 8 min; reading 128 GB back from a 1 GB/s SSD
+  takes about 2 min. Parallel: about 8 min. One after the other: about 10 min (+25 %).
+  Verifying each file right after copying it (no overlap) is also slower: the card waits
+  during every verify.
+- **Destination HDD** (or a RAID of HDDs): an HDD streams 150–250 MB/s, but only when it
+  reads or writes in one place. A write stream and a read stream at once make the heads jump
+  between two places on the disk, milliseconds each time. Either way the HDD writes the data
+  once and reads it once; one after the other, both run at full speed, while mixed, the jumps
+  are lost time. Example: 128 GB at 200 MB/s is about 11 min of writing plus 11 of reading:
+  about 21 min one after the other, likely 25–35 min in parallel. Parallel there also slows
+  the copy itself, so the card stays busy longer.
+
+Two more effects of "copy everything, then verify":
+
+- **The source is free sooner.** Verify doesn't need it, so the card can be ejected (and the
+  next one started) when the copy phase ends. On a set with many cards, this matters more
+  than raw speed.
+- **A more meaningful read-back.** Bypassing the Mac's cache doesn't bypass the drive's own
+  (256 MB on an HDD, gigabytes on some SSDs): read back right after writing, the end of a
+  file can come from that cache instead of the disk. Flushing the drive's cache before the
+  read-back checks what reached the disk.
+
+**Decision:** parallel stays the default: on SSD destinations, by far the most common, it is
+the fastest. Not built yet, and to be decided with measurements (the performance work, with
+real footage: the same card to an internal SSD, an external SSD and an external HDD; total
+time, and when the card is free): a "copy everything, then verify" mode for HDD and RAID
+destinations (chosen automatically, since macOS reports whether a disk spins, or offered
+where freeing the card early matters), and flushing each file's data from the drive's cache
+before its read-back, which closes the cache gap in either mode.
 
 ## 8. Non-functional requirements
 
@@ -507,7 +557,8 @@ derives speeds, ETAs and smoothing from them (§5.3).
 
 - ~~**ASC MHL** output~~: done (FR-57, #154).
 
-**Later:** include system files (setting) · light theme · paranoid verify (a second,
+**Later:** "copy everything, then verify" for HDD/RAID destinations, and a drive-cache flush
+before each read-back (§7.5) · include system files (setting) · light theme · paranoid verify (a second,
 independent read of the source) · XXH3-64/XXH128 options · resume interrupted jobs ·
 CLI front-end on the same engine · extended
 attributes / Finder tags / ACLs · mirror: scheduling (intervals, when a drive connects),
@@ -618,3 +669,4 @@ The stack meets these constraints:
 | 2026-10-01 | **ASC MHL** (#154, FR-57): optional, off by default, next to the `.xxh64` file, written only (Verify doesn't read it), for copies only. An existing history is continued as the standard asks, the source's copied with the files by the normal copy and then appended to. Files already in the destination that no history records are read and recorded (guidelines §2.7). A history that changed during the job is never written over; a cancelled copy writes none. A path an earlier history recorded only as md5/sha1/c4 gets Secopy's xxh64 as `original` (not verified). Checked end to end with the ASC's reference tool: its `verify` and XSD checks pass, it appends to Secopy's history and Secopy continues its, nested histories included. |
 | 2026-10-01 | **Always ignore when copying** (#158, FR-12–14): the fixed system-file list becomes a Settings list of name patterns (`*`, `?`, case ignored; no paths), defaulting to it, with Restore defaults. Copies and mirrors follow it, and a mirror never removes, archives or compares an ignored file in its destination; Verify and ASC MHL follow it too. Secopy's own working files stay skipped outside the list. A queued job uses the list at its turn. |
 | 2026-10-02 | **Each copy and preset's own ignore list** (#164, FR-12): copy presets, mirror presets, New copy runs and queued jobs get Also ignore, added to Settings' list (never switching one of its patterns off). New copy's comes from the preset and marks it changed; a queued job keeps its own and takes Settings' list at its turn. Each list holds up to 128 patterns (Settings' went down from 200). An empty list isn't written, so files are as older versions wrote them; a preset with a list is refused by an older Secopy (#149). |
+| 2026-10-03 | **Copy and verify in parallel** (#170, §7.5): verify stays parallel with the copy by default (fastest on SSD destinations; the source is read once either way). A "copy everything, then verify" mode for HDD/RAID destinations and a drive-cache flush before each read-back are recorded for the performance work, to be decided with measurements. §7.2 now says which I/O hints and per-device defaults are planned rather than built. |
