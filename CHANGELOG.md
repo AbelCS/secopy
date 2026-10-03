@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.2](https://github.com/AbelCS/secopy/compare/v0.22.1...v0.22.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* **ui:** review fixes for the wording review ([#172](https://github.com/AbelCS/secopy/issues/172)) ([d72f799](https://github.com/AbelCS/secopy/commit/d72f7994045d04c14b0ef647ef0e574eb15a4684))
+* **ui:** wording review: precise terms, one word per thing, translatable ([#172](https://github.com/AbelCS/secopy/issues/172)) ([7f17181](https://github.com/AbelCS/secopy/commit/7f17181ad2f891b194e5ce39ed4f8cced11d1da6))
+
 ## [0.22.1](https://github.com/AbelCS/secopy/compare/v0.22.0...v0.22.1) (2026-10-02)
 
 
