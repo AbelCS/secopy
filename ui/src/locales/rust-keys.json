@@ -85,7 +85,6 @@
   "errors.mhl.conflicts",
   "errors.mhl.damaged",
   "errors.mhl.leavesOut",
-  "errors.mhl.notWritten",
   "errors.mhl.overwrites",
   "errors.mhl.twoHistories",
   "errors.mhl.unlistable",

@@ -96,7 +96,7 @@
       >
     {/if}
     {#if summary.mhlFolder}<p class="muted">{t("summary.mhlWritten")}</p>{/if}
-    {#if summary.mhlError}<Notice tone="danger">{say(summary.mhlError)}</Notice>{/if}
+    {#if summary.mhlError}<Notice tone="danger">{t("errors.mhl.notWritten", { why: say(summary.mhlError) })}</Notice>{/if}
     {#if summary.durabilityError}
       <Notice tone="danger">{t("summary.durabilityError", { why: say(summary.durabilityError) })}</Notice>
     {/if}

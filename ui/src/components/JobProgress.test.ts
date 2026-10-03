@@ -168,7 +168,7 @@ describe("JobProgress", () => {
     expect(screen.queryByText(/elapsed/)).toBeNull();
   });
 
-  test("a check: Verifying, one Checked bar, and nothing to remove on Cancel", async () => {
+  test("a check: Verifying, one Verified bar, and nothing to remove on Cancel", async () => {
     const { api } = fakeApi();
     render(JobProgress, {
       props: { progress: progressView({ verifiedBytes: 50, totalBytes: 200, copiedBytes: 0 }), check: true },
@@ -176,7 +176,7 @@ describe("JobProgress", () => {
     });
     screen.getByRole("heading", { name: "Verifying" });
     expect(screen.getAllByRole("progressbar", { name: /Copied|Verified|Checked/ }).map((b) => b.getAttribute("aria-label"))).toEqual([
-      "Checked",
+      "Verified",
     ]);
     within(screen.getByRole("region", { name: "Progress" })).getByText("25.0%");
     await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
@@ -189,6 +189,15 @@ describe("JobProgress", () => {
     render(JobProgress, { props: { progress: progressView(), mirror: true }, context: apiContext(api) });
     await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
     screen.getByRole("dialog", { name: "Cancel this job?" });
+  });
+
+  test("#172 review: Verify's small files are read, not copied", () => {
+    const { api } = fakeApi();
+    render(JobProgress, {
+      props: { progress: progressView({ smallFiles: { done: 1, total: 4 } }), check: true },
+      context: apiContext(api),
+    });
+    expect(hintOf(screen.getByText("Small files"))).toBe("Files under 8 MB, read several at once and counted together.");
   });
 
   test("big files get a row, small ones one steady row counted in files", () => {

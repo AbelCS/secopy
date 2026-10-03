@@ -96,10 +96,13 @@
       { text: t("copy.files", { count: source.files }) },
       { text: formatBytes(source.bytes) },
     ];
+    const patterns = [...settings.ignore, ...view.jobIgnore];
     if (settings.showSystemCount && source.ignored > 0)
       parts.push({
         text: t("copy.ignored", { count: source.ignored }),
-        hint: t("copy.ignoredHint", { patterns: [...settings.ignore, ...view.jobIgnore].join(t("format.comma")) }),
+        hint: patterns.length
+          ? t("copy.ignoredHint", { patterns: patterns.join(t("format.comma")) })
+          : t("copy.ignoredHintOwn"),
       });
     if (source.skippedSymlinks > 0) parts.push({ text: t("copy.symlinksSkipped", { count: source.skippedSymlinks }) });
     if (source.skippedSpecial > 0)
