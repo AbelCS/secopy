@@ -88,7 +88,7 @@ function row(i: number, status: FinishedRow["status"] = "verified"): FinishedRow
     finalPath: name,
     size: 2_300_000_000,
     millis: 2_100,
-    hash: `d78a9dd8afc9649${i % 10}`,
+    hash: `5b8f2a7c9e1d4f60d78a9dd8afc9649${i % 10}`,
     status,
     reason:
       status === "failed"
@@ -116,7 +116,7 @@ export const summary: SummaryView = {
   failures: [row(17, "failed")],
   finished: 40,
   copyRoot: "/Volumes/V001/Day01/CLIP",
-  checksumFile: "/Volumes/V001/Day01/secopy_2026-09-27_140302.xxh64",
+  checksumFile: "/Volumes/V001/Day01/secopy_2026-09-27_140302.xxh128",
   checksumError: null,
   checksumOff: false,
   reportFile: "/x/r.txt",

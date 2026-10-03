@@ -150,7 +150,7 @@ export function summaryView(over: Partial<SummaryView> = {}): SummaryView {
     millis: 252_000,
     failures: [],
     copyRoot: "/Volumes/RAID/Day01/DCIM",
-    checksumFile: "/Volumes/RAID/Day01/secopy_2026-09-27_140302.xxh64",
+    checksumFile: "/Volumes/RAID/Day01/secopy_2026-09-27_140302.xxh128",
     checksumError: null,
     checksumOff: false,
     reportFile: "/Users/me/Library/Application Support/com.latecommits.secopy/reports/r.txt",

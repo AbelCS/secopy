@@ -22,7 +22,7 @@ function row(i: number, over: Partial<FinishedRow> = {}): FinishedRow {
     finalPath: `DCIM/C${i}.mov`,
     size: 8_100_000_000,
     millis: 6_900,
-    hash: "9f3a07c1d4e2c21e",
+    hash: "06b05ab6733a618578af5f94892f3950",
     status: "verified",
     reason: null,
     ...over,
@@ -297,6 +297,14 @@ describe("JobProgress", () => {
     await fireEvent.scroll(viewport);
     await fireEvent.click(screen.getByLabelText("Failed only"));
     expect(viewport.scrollTop).toBe(0);
+  });
+
+  test("#178: a finished row's XXH128 is whole in its tooltip (a narrow window shortens it)", async () => {
+    const { api } = fakeApi();
+    api.finishedPage.mockResolvedValue([row(0)]);
+    render(JobProgress, { props: { progress: progressView({ filesDone: 1 }) }, context: apiContext(api) });
+    const hash = await screen.findByText("06b05ab6733a618578af5f94892f3950");
+    expect(hash.getAttribute("title")).toBe("06b05ab6733a618578af5f94892f3950");
   });
 
   test("a short page is asked for again once per update, not in a loop", async () => {

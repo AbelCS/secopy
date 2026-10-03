@@ -49,7 +49,7 @@ function isData(text: string): boolean {
   return (
     t.startsWith("/") ||
     /\.[\w…]{1,8}$/.test(t) ||
-    /^[0-9a-f]{16}$/.test(t) ||
+    /^[0-9a-f]{32}$/.test(t) ||
     ["Sony FX3", "DJI Mini 4", "Old camera", "Footage", "Footage → NAS", "Photos → Backup", "xxhsum -c"].includes(t)
   );
 }

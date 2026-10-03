@@ -144,7 +144,7 @@
           <span>{formatBytes(row.size)}</span>
           <span>{formatDuration(row.millis)}</span>
           <span>{formatSpeed(row.millis > 0 ? (row.size * 1000) / row.millis : null)}</span>
-          <span class="mono">{row.hash ?? t("format.unknown")}</span>
+          <span class="mono" title={row.hash ?? ""}>{row.hash ?? t("format.unknown")}</span>
           <!-- A short word; why is on hover, and in the summary's Failed list. -->
           <span class={row.status} title={row.reason ? say(row.reason) : ""}>{statusText(row)}</span>
         {:else}
@@ -187,8 +187,9 @@
     right: 0;
     height: 28px;
     display: grid;
-    /* The name gets whatever is left; its full path is in the tooltip. */
-    grid-template-columns: minmax(0, 1fr) 70px 56px 80px 136px 96px;
+    /* The name gets whatever is left, never less than 160px; its full path is in the
+       tooltip. The XXH128 shows whole from about 900px; narrower, it shortens (whole on hover). */
+    grid-template-columns: minmax(160px, 1fr) 70px 56px 80px minmax(0, 248px) 96px;
     gap: 8px;
     align-items: center;
     padding: 0 10px;
