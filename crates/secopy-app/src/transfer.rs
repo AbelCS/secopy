@@ -598,6 +598,7 @@ fn setting_label(key: &str) -> Option<Message> {
         "keepInMenuBar" => msg!("import.setting.menuBar"),
         "writeMhl" => msg!("import.setting.mhl"),
         "ignore" => msg!("import.setting.ignore"),
+        "language" => msg!("import.setting.language"),
         _ => return None,
     })
 }
@@ -645,6 +646,19 @@ pub fn settings_changes(from: &Settings, to: &Settings) -> Vec<Message> {
         (from.ignore != to.ignore)
             .then(|| msg!("import.changed", setting = msg!("import.setting.ignore"))),
     )
+    .chain((from.language != to.language).then(|| {
+        // Each language in its own name (#181), Automatic in the reader's.
+        let name = |tag: &Option<String>| match tag {
+            Some(tag) => Message::raw(msg!("language.name").in_language(tag)),
+            None => msg!("import.automatic"),
+        };
+        msg!(
+            "import.change",
+            setting = msg!("import.setting.language"),
+            from = name(&from.language),
+            to = name(&to.language)
+        )
+    }))
     .collect()
 }
 
@@ -860,6 +874,7 @@ mod tests {
             [
                 "import.setting.ignore",
                 "import.setting.menuBar",
+                "import.setting.language",
                 "import.setting.mhl"
             ]
         );
@@ -1333,6 +1348,30 @@ mod tests {
         assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(on)));
         let older = read(br#"{"secopy":1,"settings":{"writeChecksumFile":true,"showSystemCount":true,"reportNextToChecksum":false,"notifyWhenDone":true,"keepInMenuBar":true}}"#).unwrap();
         assert_eq!(older.settings_defaulted, ["ignore", "language", "writeMhl"]);
+    }
+
+    /// #181: the language travels; a change reads "Language: Automatic → Español", each
+    /// language in its own name; a file without one is Automatic, said as taking its default.
+    #[test]
+    fn the_language_travels() {
+        let spanish = Settings {
+            language: Some("es".into()),
+            ..Settings::default()
+        };
+        assert_eq!(
+            settings_changes(&Settings::default(), &spanish),
+            ["Language: Automatic → Español"]
+        );
+        assert_eq!(
+            settings_changes(&spanish, &Settings::default()),
+            ["Language: Español → Automatic"]
+        );
+        let text = export_text(Some(&spanish), &[], &[], "0.25.0", now());
+        assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(spanish)));
+        let older = read(br#"{"secopy":1,"settings":{"writeChecksumFile":true}}"#).unwrap();
+        assert!(older.settings_defaulted.contains(&"language".to_string()));
+        assert_eq!(older.settings.unwrap().unwrap().language, None);
+        assert_eq!(setting_label("language").en().as_deref(), Some("Language"));
     }
 
     /// #158: the list travels, and a change to it is named, not each pattern.

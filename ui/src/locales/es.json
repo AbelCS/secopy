@@ -30,6 +30,9 @@
       "other": "{count} días"
     }
   },
+  "language": {
+    "name": "Español"
+  },
   "summary": {
     "headline": {
       "cancelled": "Cancelado",
@@ -653,6 +656,7 @@
     },
     "on": "sí",
     "off": "no",
+    "automatic": "Automático",
     "problem": {
       "details": "No se pueden leer sus detalles ({detail}).",
       "newer": "Necesita un Secopy más reciente: tiene ajustes que este no conoce ({keys}).",
@@ -666,7 +670,8 @@
       "notify": "Avisar cuando termine una tarea",
       "menuBar": "Seguir con las tareas en la barra de menús al cerrar la ventana",
       "mhl": "Escribir ASC MHL",
-      "ignore": "Ignorar siempre al copiar"
+      "ignore": "Ignorar siempre al copiar",
+      "language": "Idioma"
     },
     "noName": {
       "copy": "Un preajuste de copia sin nombre",
