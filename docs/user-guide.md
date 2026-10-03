@@ -112,8 +112,8 @@ the figures, every file that failed and why, and every file with its checksum an
 ### The checksum file and the report
 
 Each copy writes a checksum file in the destination directory, named
-`secopy_2026-09-27_140302.xxh64`: one line per file, its xxHash64 and its path. It's a
-standard format; in Terminal, `cd` to the destination and run `xxhsum -c secopy_…xxh64` to
+`secopy_2026-09-27_140302.xxh128`: one line per file, its XXH128 and its path. It's a
+standard format; in Terminal, `cd` to the destination and run `xxhsum -c secopy_…xxh128` to
 check every file. A file that failed isn't listed.
 
 **ASC MHL** (Settings, off by default): the media industry's proof of copy, read by tools such
@@ -161,7 +161,7 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
   such a run doesn't start.
 - Links in the origin aren't followed, and what's under one is never removed from the backup:
   a folder moved to another disk and left as a link keeps its backup while that disk is away.
-- The destination keeps a checksum file of its own, `.secopy-checksums.xxh64`, so the backup
+- The destination keeps a checksum file of its own, `.secopy-checksums.xxh128`, so the backup
   can be verified. Every run records the files it verified, even one that didn't end cleanly.
 - **Archive** (under the editor): files, size and oldest run in the destination's
   `.secopy-archive`. **Show in Finder** opens it; **Delete archive…** deletes it, after asking.
@@ -173,7 +173,7 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
 Verify reads a copy again and compares every file with its checksum files, to find silent
 damage (a failing drive, a file changed by something else).
 
-**Choose…** a directory (a copy, a backup, or a whole drive): Secopy finds every `.xxh64`
+**Choose…** a directory (a copy, a backup, or a whole drive): Secopy finds every `.xxh128`
 checksum file inside it and shows how many files they list. **Start** reads each one again
 from the drive and marks it **Intact**, **Changed**, **Missing** or unreadable. Files no
 checksum file lists are counted as not checked. Nothing is written to the drive and nothing

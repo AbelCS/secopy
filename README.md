@@ -11,7 +11,7 @@ Secopy is built to never lose a file, and to never say "done" when something was
 ## Why trust it
 
 - **Every file is checked, not assumed.** In Copy & Verify, each copy is read back from the
-  destination drive (not from memory) and compared with the source by its xxHash64 checksum
+  destination drive (not from memory) and compared with the source by its XXH128 checksum
   before it gets its final name.
 - **A file with its final name is always complete.** Files are written under a temporary name,
   flushed to the drive and only then renamed, so a copy cut short by a pulled cable never
