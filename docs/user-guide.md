@@ -227,6 +227,14 @@ preset with a setting this Secopy doesn't know can't be imported: update Secopy 
 
 ## Settings
 
+**General**
+
+- **Language**: **Automatic** (the Mac's language when Secopy has it, English otherwise) or a
+  language of your choice, whatever the Mac's is. Secopy's words change when you press
+  **Save**; macOS's own windows (Open, Save, About) at the next launch.
+- **Notify when a job finishes**, when Secopy's window isn't in front.
+- **Keep jobs running in the menu bar when the window is closed** (on by default).
+
 **Copies**
 
 - **Write the checksum file to the destination** (on by default).
@@ -239,14 +247,6 @@ preset with a setting this Secopy doesn't know can't be imported: update Secopy 
   files computers leave behind; **Restore defaults** puts those back. It holds up to 128
   patterns. Copy and mirror presets have their own **Also ignore** list on top of it. In
   Terminal, `--ignore PATTERN` adds a pattern.
-
-**General**
-
-- **Language**: **Automatic** (the Mac's language when Secopy has it, English otherwise) or a
-  language of your choice, whatever the Mac's is. Secopy's words change when you press
-  **Save**; macOS's own windows (Open, Save, About) at the next launch.
-- **Notify when a job finishes**, when Secopy's window isn't in front.
-- **Keep jobs running in the menu bar when the window is closed** (on by default).
 
 Changes apply to the next job when you press **Save**; **Cancel** (or Esc) drops them.
 

@@ -94,6 +94,36 @@
   {#if banner}{@render banner()}{/if}
   {#if settingsError}<Notice tone="danger">{settingsError}</Notice>{/if}
 
+  <Section title={t("settings.general")}>
+    <div class="options">
+      <div class="language">
+        <Select
+          label={t("settings.language.label")}
+          value={draft.language ?? ""}
+          options={languageOptions}
+          onChange={(value) => (draft.language = value === "" ? null : value)}
+        />
+        <p class="muted help">{t("settings.language.help")}</p>
+      </div>
+      <Checkbox
+        label={t("settings.notify.label")}
+        checked={draft.notifyWhenDone}
+        onChange={(on) => (draft.notifyWhenDone = on)}
+      >
+        {#snippet help()}{t("settings.notify.help")}{/snippet}
+      </Checkbox>
+      <Checkbox
+        label={t("settings.menuBar.label")}
+        checked={draft.keepInMenuBar}
+        onChange={(on) => (draft.keepInMenuBar = on)}
+      >
+        {#snippet help()}
+          {t("settings.menuBar.help")}
+        {/snippet}
+      </Checkbox>
+    </div>
+  </Section>
+
   <Section title={t("settings.everyCopy")}>
     <div class="options">
       <Checkbox
@@ -140,36 +170,6 @@
       onChange={(list) => (draft.ignore = list)}
       onRestore={restoreDefaults}
     />
-  </Section>
-
-  <Section title={t("settings.general")}>
-    <div class="options">
-      <div class="language">
-        <Select
-          label={t("settings.language.label")}
-          value={draft.language ?? ""}
-          options={languageOptions}
-          onChange={(value) => (draft.language = value === "" ? null : value)}
-        />
-        <p class="muted help">{t("settings.language.help")}</p>
-      </div>
-      <Checkbox
-        label={t("settings.notify.label")}
-        checked={draft.notifyWhenDone}
-        onChange={(on) => (draft.notifyWhenDone = on)}
-      >
-        {#snippet help()}{t("settings.notify.help")}{/snippet}
-      </Checkbox>
-      <Checkbox
-        label={t("settings.menuBar.label")}
-        checked={draft.keepInMenuBar}
-        onChange={(on) => (draft.keepInMenuBar = on)}
-      >
-        {#snippet help()}
-          {t("settings.menuBar.help")}
-        {/snippet}
-      </Checkbox>
-    </div>
   </Section>
 
   {#if onExport || onImport}
