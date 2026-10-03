@@ -166,6 +166,12 @@ describe("Setup", () => {
     expect(hintOf(count)).toContain(".DS_Store, ._*, Thumbs.db");
   });
 
+  test("#172 review: with no patterns, the ignored count says it's Secopy's own files", () => {
+    const view = readyView({ source: { ...readyView().source!, ignored: 2 } });
+    setup(view, view, { settings: settingsView({ ignore: [] }) });
+    expect(hintOf(screen.getByText("2 ignored"))).toBe("Secopy’s own working files, left out of every copy.");
+  });
+
   test("Also ignore opens its list, and a change scans again (#164)", async () => {
     const { api } = setup(readyView({ jobIgnore: [".gitkeep"] }));
     await fireEvent.click(from().getByRole("button", { name: "Edit…" }));

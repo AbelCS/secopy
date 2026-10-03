@@ -26,7 +26,8 @@ describe("Summary", () => {
   });
 
   test("ASC MHL that couldn't be written says why", () => {
-    show(summaryView({ outcome: "failures", mhlError: raw("ASC MHL couldn’t be written: the disk is full") }));
+    // #172 review: Rust sends why; the sentence is said once (the queue says it in its own words).
+    show(summaryView({ outcome: "failures", mhlError: raw("the disk is full") }));
     screen.getByText("ASC MHL couldn’t be written: the disk is full");
     expect(screen.queryByRole("button", { name: "Show ASC MHL" })).toBeNull();
   });

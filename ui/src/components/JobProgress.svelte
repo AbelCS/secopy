@@ -251,7 +251,7 @@
               small.done,
               small.total,
               t("progress.smallFiles.of", { done: small.done, total: small.total }),
-              t("progress.smallFiles.help"),
+              t(check ? "progress.smallFiles.helpCheck" : "progress.smallFiles.help"),
             )}
           {/if}
           <!-- After the copy: files already there that ASC MHL records (#154). -->

@@ -232,7 +232,7 @@
     "timeLeft": "Time left",
     "timeLeftLabel": "Time left:",
     "bar": {
-      "checked": "Checked",
+      "checked": "Verified",
       "copied": "Copied",
       "verified": "Verified"
     },
@@ -256,7 +256,8 @@
     "smallFiles": {
       "name": "Small files",
       "of": "{done} of {total}",
-      "help": "Files under 8 MB, copied several at once and counted together."
+      "help": "Files under 8 MB, copied several at once and counted together.",
+      "helpCheck": "Files under 8 MB, read several at once and counted together."
     },
     "resume": "Resume",
     "resumeHelp": "Carries on from where it paused (Space).",
@@ -359,7 +360,8 @@
       "one": "{count} ignored",
       "other": "{count} ignored"
     },
-    "ignoredHint": "Ignored by name: {patterns}",
+    "ignoredHint": "Ignored by name: {patterns}. Secopy’s own working files are left out too.",
+    "ignoredHintOwn": "Secopy’s own working files, left out of every copy.",
     "symlinksSkipped": {
       "one": "{count} symlink skipped",
       "other": "{count} symlinks skipped"
@@ -418,7 +420,7 @@
     "modeCopy": "Copy",
     "modeVerify": "Copy & Verify",
     "aboutVerifying": "About verifying",
-    "aboutVerifyingText": "Copy & Verify reads each file back from the destination and compares it with the source’s checksum; a mismatch is copied again once. Copy is faster but checks nothing.",
+    "aboutVerifyingText": "Copy & Verify reads each file back from the destination and compares it with the source’s checksum; a mismatch is copied again once. Copy is faster but doesn’t read the copies back.",
     "addToQueue": "Add to queue",
     "addToQueueHelp": "Adds this copy, as set up now, to the queue.",
     "preflight": {
@@ -446,13 +448,13 @@
       },
       "more": "and {count} more",
       "identical": "Same size and date",
-      "identicalHint": "Same name, size and modification date (within 2 s) as a file in the destination: not copied or read.",
+      "identicalHint": "Same name, size and modification date (within 2 s) as a file in the destination: not copied or verified.",
       "identicalSkipped": {
         "one": "{count} file with the same size and date will be skipped (not checked).",
         "other": "{count} files with the same size and date will be skipped (not checked)."
       },
       "existing": "Existing files",
-      "existingHint": "Same name as a file in the destination, different size or date. Keep both: copied with a number added. Overwrite: replaces it. Skip: leaves it.",
+      "existingHint": "Same name as a file in the destination, different size or date. “Keep both”: copied with a number added. “Overwrite”: replaces it. “Skip”: leaves it.",
       "differ": {
         "one": "{count} file differs from what’s there",
         "other": "{count} files differ from what’s there"
@@ -653,7 +655,7 @@
     "everyCopy": "Copies",
     "checksumFile": {
       "label": "Write the checksum file to the destination",
-      "help": "A {file} file lists every copied file with its checksum, so the copy can be checked again later, for example with {command}."
+      "help": "A {file} file lists every copied file with its checksum, so the copy can be verified again later, for example with {command}."
     },
     "mhl": {
       "label": "Write ASC MHL",
@@ -661,7 +663,7 @@
     },
     "systemCount": {
       "label": "Show the count of ignored files",
-      "help": "How many files and directories “Always ignore when copying” and “Also ignore” left out. Every other file is copied, hidden or not."
+      "help": "How many files and directories “Always ignore when copying”, “Also ignore” and Secopy’s own working files left out. Hidden files are copied like any other."
     },
     "ignore": {
       "label": "Always ignore when copying",
@@ -1100,7 +1102,7 @@
       "changedWhileRead": "Can’t read back the copy: it changed while it was read",
       "hashMismatch": "Checksum mismatch (source {expected}, copy {actual})",
       "alreadyExists": "A file with this name already exists at the destination",
-      "nameClash": "Another file in this copy has the same name (on this destination, names that differ only in case are the same)",
+      "nameClash": "Another file in this copy would have the same name on this destination",
       "partialInUse": "Another copy is writing this file",
       "tooLarge": "The file is larger than the destination drive allows ({size})",
       "inTheWay": "Something is in the way at {path}",

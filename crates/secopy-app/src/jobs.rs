@@ -610,11 +610,7 @@ impl Job {
             check,
             mhl_folder: (!done.report.mhl_written.is_empty())
                 .then(|| show(&self.root().join(secopy_core::mhl::FOLDER))),
-            mhl_error: done
-                .report
-                .mhl_error
-                .as_ref()
-                .map(|e| msg!("errors.mhl.notWritten", why = say::io_failure(e))),
+            mhl_error: done.report.mhl_error.as_ref().map(say::io_failure),
             mhl_failed: count(done.report.mhl_failed.len()),
         })
     }
