@@ -624,6 +624,19 @@ mod tests {
         );
     }
 
+    /// By hand: the Mac's languages as Secopy reads them (`defaults read -g AppleLanguages`):
+    /// `cargo test -p secopy-app --lib mac_languages_by_hand -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mac_languages_by_hand() {
+        let mac = mac_languages();
+        eprintln!(
+            "the Mac's languages: {mac:?}; Automatic: {}",
+            language_for(&mac)
+        );
+        assert!(!mac.is_empty());
+    }
+
     /// #181: a chosen language wins; Automatic is the Mac's first language with a catalog,
     /// English otherwise; a language without a catalog is Automatic.
     #[test]
