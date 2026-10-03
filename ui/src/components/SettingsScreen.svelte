@@ -35,7 +35,7 @@
 
   const api = useApi();
   // File names and a command: shown as they are, in mono, inside the translated help.
-  const CODE = { file: "secopy_….xxh64", command: "xxhsum -c" };
+  const CODE = { file: "secopy_….xxh128", command: "xxhsum -c" };
   // The screen is recreated each time it opens, so the draft starts from the saved settings.
   // svelte-ignore state_referenced_locally
   let draft: Settings = $state({ ...settings });

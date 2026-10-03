@@ -1210,7 +1210,7 @@
     },
     "check": {
       "notALine": "No es una línea “<checksum>  <ruta>”",
-      "notAChecksum": "“{hex}” no es un checksum xxHash64",
+      "notAChecksum": "“{hex}” no es un checksum XXH128",
       "pathUnreadable": "No se puede leer la ruta",
       "unreadable": "No se pudo leer: {why}",
       "outside": "{path} apunta fuera del directorio verificado",

@@ -1162,7 +1162,7 @@
     },
     "check": {
       "notALine": "Not a “<checksum>  <path>” line",
-      "notAChecksum": "“{hex}” isn’t an xxHash64 checksum",
+      "notAChecksum": "“{hex}” isn’t an XXH128 checksum",
       "pathUnreadable": "The path can’t be read",
       "unreadable": "Couldn’t be read: {why}",
       "outside": "{path} points outside the checked directory",

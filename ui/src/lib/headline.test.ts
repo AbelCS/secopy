@@ -95,7 +95,7 @@ test("a check that stopped says so, not what it read so far", () => {
 });
 
 test("a check counts every checksum file problem, also past the ones listed", () => {
-  const check = { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: Array(1000).fill(raw("a.xxh64:1: bad line")) };
+  const check = { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: Array(1000).fill(raw("a.xxh128:1: bad line")) };
   expect(headline(summaryView({ outcome: "failures", check: { ...check, moreProblems: 234 } }))).toBe(
     "1,234 checksum file problems",
   );

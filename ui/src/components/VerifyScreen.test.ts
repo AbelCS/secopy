@@ -39,10 +39,10 @@ describe("VerifyScreen", () => {
 
   test("problems in checksum files are shown before starting", async () => {
     const { api } = show();
-    api.checkDirectory.mockResolvedValueOnce(checkView({ problems: [raw("a.xxh64:2: not a \"<checksum>  <path>\" line")] }));
+    api.checkDirectory.mockResolvedValueOnce(checkView({ problems: [raw("a.xxh128:2: not a \"<checksum>  <path>\" line")] }));
     api.pickDirectory.mockResolvedValueOnce("/Volumes/Backup/Day01");
     await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
-    await screen.findByText(/a\.xxh64:2/);
+    await screen.findByText(/a\.xxh128:2/);
   });
 
   test("Add to queue queues the directory", async () => {

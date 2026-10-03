@@ -128,11 +128,11 @@ describe("Summary", () => {
         outcome: "failures",
         failed: 1,
         checksumOff: true,
-        check: { intact: 5, changed: 1, missing: 0, failed: 0, notChecked: 12, checksumFiles: 2, problems: [raw("a.xxh64:3: bad line")] },
+        check: { intact: 5, changed: 1, missing: 0, failed: 0, notChecked: 12, checksumFiles: 2, problems: [raw("a.xxh128:3: bad line")] },
       }),
     );
     screen.getByRole("heading", { name: /1 file changed/ });
-    within(screen.getByRole("region", { name: "Problems" })).getByText("a.xxh64:3: bad line");
+    within(screen.getByRole("region", { name: "Problems" })).getByText("a.xxh128:3: bad line");
     expect(hintOf(screen.getByText("12 not checked"))).toMatch(/In no checksum file/);
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     expect(screen.queryByText(/No checksum file/)).toBeNull();
@@ -143,7 +143,7 @@ describe("Summary", () => {
       summaryView({
         outcome: "failures",
         failed: 0,
-        check: { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: [raw("a.xxh64:3: bad line")], moreProblems: 1_233 },
+        check: { intact: 5, changed: 0, missing: 0, failed: 0, notChecked: 0, checksumFiles: 1, problems: [raw("a.xxh128:3: bad line")], moreProblems: 1_233 },
       }),
     );
     screen.getByRole("heading", { name: /1,234 checksum file problems/ });
@@ -233,7 +233,7 @@ describe("Summary", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Show in Finder" }));
     expect(api.reveal).toHaveBeenCalledWith("/Volumes/RAID/Day01/DCIM");
     await fireEvent.click(screen.getByRole("button", { name: "Open checksum file" }));
-    expect(api.openFile).toHaveBeenCalledWith("/Volumes/RAID/Day01/secopy_2026-09-27_140302.xxh64");
+    expect(api.openFile).toHaveBeenCalledWith("/Volumes/RAID/Day01/secopy_2026-09-27_140302.xxh128");
     await fireEvent.click(screen.getByRole("button", { name: "Save report…" }));
     await waitFor(() => expect(api.saveReport).toHaveBeenCalledWith("/tmp/report.txt"));
     expect(api.pickReportPath).toHaveBeenCalledWith("r.txt");
@@ -265,7 +265,7 @@ describe("Summary", () => {
       summaryView({
         failed: 1,
         outcome: "failures",
-        checksumFile: "/Volumes/RAID/Day01/secopy.xxh64",
+        checksumFile: "/Volumes/RAID/Day01/secopy.xxh128",
       }),
     );
     const bar = within(screen.getByRole("group", { name: "Actions" }));

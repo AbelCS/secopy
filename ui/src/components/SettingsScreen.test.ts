@@ -157,6 +157,12 @@ describe("SettingsScreen", () => {
     screen.getByText(/also kept in the app/);
   });
 
+  test("#178: the checksum file's help names the .xxh128 file and xxhsum -c", () => {
+    show();
+    // The help sits under the checkbox, the file name and the command in code.
+    expect(document.body.textContent).toMatch(/A secopy_….xxh128 file lists every copied file.*xxhsum -c/);
+  });
+
   test("#172: copy options under Copies, the app's under General", () => {
     show();
     const copies = within(screen.getByRole("region", { name: "Copies" }));
