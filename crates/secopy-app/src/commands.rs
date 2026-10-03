@@ -2720,6 +2720,7 @@ mod tests {
                             keep_in_menu_bar: i % 11 == 0,
                             write_mhl: i % 13 == 0,
                             ignore: Settings::default().ignore,
+                            language: None,
                         };
                         let a = state.set_settings(settings).err();
                         let b = state

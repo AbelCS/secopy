@@ -42,6 +42,8 @@ pub struct Settings {
     pub write_mhl: bool,
     /// Names never copied or mirrored (#158), checked (`ignore::Patterns`).
     pub ignore: Vec<String>,
+    /// Secopy's language (#181): a catalog's tag, or `None` for Automatic (the Mac's).
+    pub language: Option<String>,
 }
 
 /// `settings.json` as read: missing fields take their defaults. Kept apart from
@@ -64,6 +66,9 @@ struct SettingsOnDisk {
     /// Read leniently: a bad pattern is dropped, never the settings.
     #[serde(default = "default_ignore")]
     ignore: Vec<String>,
+    /// Read leniently: a language Secopy has no catalog for is Automatic.
+    #[serde(default)]
+    language: Option<String>,
 }
 
 fn default_ignore() -> Vec<String> {
@@ -85,6 +90,9 @@ impl<'de> Deserialize<'de> for Settings {
             keep_in_menu_bar: s.keep_in_menu_bar,
             write_mhl: s.write_mhl,
             ignore: Patterns::lenient(s.ignore).as_slice().to_vec(),
+            language: s
+                .language
+                .filter(|tag| crate::message::CATALOGS.iter().any(|(t, _)| t == tag)),
         })
     }
 }
@@ -99,6 +107,7 @@ impl Default for Settings {
             keep_in_menu_bar: true,
             write_mhl: false,
             ignore: default_ignore(),
+            language: None,
         }
     }
 }
@@ -858,6 +867,29 @@ mod tests {
                 Some("".into()),
             ]),
         }
+    }
+
+    /// #181 review focus 1: a language Secopy has no catalog for reads as Automatic, and
+    /// the rest of the settings are kept.
+    #[test]
+    fn an_unknown_language_is_automatic() {
+        let s: Settings = serde_json::from_str(r#"{"language":"fr","writeMhl":true}"#).unwrap();
+        assert_eq!(s.language, None);
+        assert!(s.write_mhl);
+        let s: Settings = serde_json::from_str(r#"{"writeMhl":true}"#).unwrap();
+        assert_eq!(s.language, None);
+    }
+
+    #[test]
+    fn a_language_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().join("data"));
+        let settings = Settings {
+            language: Some("es".into()),
+            ..Settings::default()
+        };
+        store.save(SETTINGS, &settings).unwrap();
+        assert_eq!(store.load::<Settings>(SETTINGS), (settings, None));
     }
 
     #[test]

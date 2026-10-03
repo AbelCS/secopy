@@ -135,16 +135,73 @@ pub fn language_for(preferred: &[String]) -> &'static str {
     "en"
 }
 
-/// The Mac's language for Secopy, chosen once, as the UI chooses its own.
+/// The language Secopy uses (#181): the one Settings chose, or the Mac's. `None` until
+/// Settings are read at launch: the Mac's until then.
+static IN_USE: std::sync::RwLock<Option<&'static str>> = std::sync::RwLock::new(None);
+
+/// A chosen language Secopy has words for, or else the Mac's first one it has (English
+/// otherwise). `mac` is the Mac's list only, never Secopy's own choice.
+pub fn resolve(choice: Option<&str>, mac: &[String]) -> &'static str {
+    choice
+        .and_then(|tag| CATALOGS.iter().find(|(t, _)| *t == tag).map(|(t, _)| *t))
+        .unwrap_or_else(|| language_for(mac))
+}
+
+/// Sets the language Secopy uses from Settings' choice (`None` = Automatic).
+pub fn set_language(choice: Option<&str>) {
+    let tag = resolve(choice, &mac_languages());
+    *IN_USE.write().unwrap_or_else(|e| e.into_inner()) = Some(tag);
+}
+
+/// The language Secopy's own words are in: the menus, the menu bar icon, the UI's start.
+pub fn language_in_use() -> &'static str {
+    let in_use = *IN_USE.read().unwrap_or_else(|e| e.into_inner());
+    in_use.unwrap_or_else(|| language_for(&mac_languages()))
+}
+
 fn app_language() -> &'static str {
-    static LANGUAGE: std::sync::LazyLock<&str> = std::sync::LazyLock::new(|| {
-        let preferred: Vec<String> = objc2_foundation::NSLocale::preferredLanguages()
-            .iter()
-            .map(|tag| tag.to_string())
-            .collect();
-        language_for(&preferred)
-    });
-    &LANGUAGE
+    language_in_use()
+}
+
+/// The Mac's languages, in order, from the system's own setting: not the app's preferred
+/// languages, which carry Secopy's choice once it has told macOS (`tell_macos`).
+pub fn mac_languages() -> Vec<String> {
+    use objc2_foundation::{NSArray, NSString, NSUserDefaults, ns_string};
+    let defaults = NSUserDefaults::standardUserDefaults();
+    let Some(global) = defaults.persistentDomainForName(ns_string!("NSGlobalDomain")) else {
+        return Vec::new();
+    };
+    let Some(value) = global.objectForKey(ns_string!("AppleLanguages")) else {
+        return Vec::new();
+    };
+    let Ok(list) = value.downcast::<NSArray>() else {
+        return Vec::new();
+    };
+    list.iter()
+        .filter_map(|item| item.downcast::<NSString>().ok().map(|s| s.to_string()))
+        .collect()
+}
+
+/// Tells macOS Secopy's language, as System Settings' per-app language does, so its own
+/// windows (Open, Save, About) follow from the next launch; Automatic removes it.
+pub fn tell_macos(choice: Option<&str>) {
+    use objc2_foundation::{NSArray, NSString, NSUserDefaults, ns_string};
+    let defaults = NSUserDefaults::standardUserDefaults();
+    let key = ns_string!("AppleLanguages");
+    match choice {
+        Some(tag) => {
+            let list = NSArray::from_retained_slice(&[NSString::from_str(tag)]);
+            unsafe { defaults.setObject_forKey(Some(&list), key) };
+        }
+        None => defaults.removeObjectForKey(key),
+    }
+}
+
+/// Tests that set the language, or read Rust's words in it, take turns.
+#[cfg(test)]
+pub(crate) fn language_guard() -> std::sync::MutexGuard<'static, ()> {
+    static GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    GUARD.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 impl Arg {
@@ -567,9 +624,44 @@ mod tests {
         );
     }
 
+    /// #181: a chosen language wins; Automatic is the Mac's first language with a catalog,
+    /// English otherwise; a language without a catalog is Automatic.
+    #[test]
+    fn resolve_picks_the_choice_then_the_mac() {
+        let mac = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(resolve(Some("es"), &mac(&["en-US"])), "es");
+        assert_eq!(resolve(None, &mac(&["es-ES"])), "es");
+        assert_eq!(resolve(None, &mac(&["el-GR"])), "en");
+        assert_eq!(resolve(Some("fr"), &mac(&["es-ES"])), "es");
+    }
+
+    /// #181 review focus 2: Automatic reads only the Mac's list, never what Secopy chose.
+    #[test]
+    fn automatic_looks_past_secopys_own_choice() {
+        let _guard = language_guard();
+        set_language(Some("en"));
+        let mac = vec!["de-DE".to_string(), "es-ES".to_string()];
+        assert_eq!(resolve(None, &mac), "es");
+        set_language(None);
+    }
+
+    #[test]
+    fn text_follows_the_language_in_use() {
+        let _guard = language_guard();
+        set_language(Some("es"));
+        assert_eq!(language_in_use(), "es");
+        assert_eq!(crate::msg!("menu.file.start").text(), "Empezar");
+        set_language(Some("en"));
+        assert_eq!(crate::msg!("menu.file.start").text(), "Start");
+        set_language(None);
+    }
+
     #[test]
     fn in_english_text_is_english() {
+        let _guard = language_guard();
+        set_language(Some("en"));
         assert_eq!(crate::msg!("menu.file.start").text(), "Start");
+        set_language(None);
     }
 
     /// #84: what the app does never depends on its English words.

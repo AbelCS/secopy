@@ -863,6 +863,8 @@ export type Settings = {
 	writeMhl: boolean,
 	/**  Names never copied or mirrored (#158), checked (`ignore::Patterns`). */
 	ignore: string[],
+	/**  Secopy's language (#181): a catalog's tag, or `None` for Automatic (the Mac's). */
+	language: string | null,
 };
 
 export type SettingsImport = {

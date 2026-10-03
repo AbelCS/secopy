@@ -684,6 +684,8 @@ mod tests {
 
     #[test]
     fn the_title_is_the_work_done() {
+        let _guard = crate::message::language_guard();
+        crate::message::set_language(Some("en"));
         // Copy & Verify counts both passes: 600 + 240 of 2 × 1000 MB = 42 %.
         assert_eq!(title(&copying(600_000_000, 240_000_000)), "42%");
         let mut r = running(copying(600_000_000, 240_000_000));
