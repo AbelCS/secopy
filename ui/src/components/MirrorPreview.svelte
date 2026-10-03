@@ -58,7 +58,7 @@
       .catch((e) => (error = messageOf(e)));
   });
 
-  /** Start's help: what it copies, then what it does with files gone from the origin (FR-48, FR-49). */
+  /** Start's help: what it copies, then what it does with files deleted in the origin (FR-48, FR-49). */
   const startHelp = $derived.by(() => {
     const { newFiles, changedFiles, removedFiles } = preview;
     const copied =
@@ -67,7 +67,7 @@
         : newFiles > 0
           ? t("mirror.preview.copied.new", { count: newFiles })
           : t("mirror.preview.copied.changed", { count: changedFiles });
-    const removed = t("mirror.files", { count: removedFiles });
+    const removed = t("mirror.preview.removedFiles", { count: removedFiles });
     const archive = preview.archiveDays !== null;
     if (newFiles + changedFiles === 0) {
       if (removedFiles === 0) return "";
@@ -119,10 +119,12 @@
         <li><span class="sign" aria-hidden="true">↻</span><span>{t("mirror.preview.changed", { count: preview.changedFiles })}</span>
           <span class="muted">{formatBytes(preview.changedBytes)}</span></li>
         <li><span class="sign" aria-hidden="true">−</span><span>
-          {t("mirror.preview.removed", { count: preview.removedFiles })}
-          {#if preview.archiveDays === null}{t("mirror.preview.deleted")}{:else}<Hint
-              text={t("mirror.preview.archivedHelp", { days: preview.archiveDays })}
-              >{t("mirror.preview.archived", { days: preview.archiveDays })}</Hint
+          {#if preview.archiveDays === null}{t("mirror.preview.removedDeleted", { count: preview.removedFiles })}{:else}<Hint
+              text={t("mirror.preview.archivedHelp", { days: t("format.days", { count: preview.archiveDays }) })}
+              >{t("mirror.preview.removedArchived", {
+                count: preview.removedFiles,
+                days: t("format.days", { count: preview.archiveDays }),
+              })}</Hint
             >{/if}
         </span></li>
         {#if preview.failing > 0}

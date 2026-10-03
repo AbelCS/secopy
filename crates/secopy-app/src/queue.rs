@@ -512,7 +512,7 @@ mod tests {
             prepare(&gone, &crate::store::Settings::default())
                 .err()
                 .unwrap()
-                .ends_with("isn't there any more.")
+                .ends_with("isn’t there any more.")
         );
         let no_dest = CopyJob {
             sources: vec![clip.clone()],

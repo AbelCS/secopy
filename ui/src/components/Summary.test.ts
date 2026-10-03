@@ -26,22 +26,22 @@ describe("Summary", () => {
   });
 
   test("ASC MHL that couldn't be written says why", () => {
-    show(summaryView({ outcome: "failures", mhlError: raw("ASC MHL couldn't be written: the disk is full") }));
-    screen.getByText("ASC MHL couldn't be written: the disk is full");
+    show(summaryView({ outcome: "failures", mhlError: raw("ASC MHL couldn’t be written: the disk is full") }));
+    screen.getByText("ASC MHL couldn’t be written: the disk is full");
     expect(screen.queryByRole("button", { name: "Show ASC MHL" })).toBeNull();
   });
 
   test("a mirror says which archived files it couldn't delete, and when they go", () => {
     const note = {
       key: "mirror.archiveNotDeleted",
-      args: { count: 2, why: { key: "errors.os.permissionDenied", args: {} }, days: 7 },
+      args: { count: 2, why: { key: "errors.os.permissionDenied", args: {} }, days: { key: "format.days", args: { count: 7 } } },
     };
     show(
       summaryView({
         mirror: { new: 1, updated: 0, removed: 0, archived: false, removalFailures: [], nothingRemoved: null, archiveNotDeleted: note, archiveNotCleaned: null },
       }),
     );
-    screen.getByText("2 archived files couldn't be deleted (Permission denied). They're removed once they're 7 days old.");
+    screen.getByText("2 archived files couldn’t be deleted (Permission denied). They’re removed once they’re 7 days old.");
   });
 
   test("a mirror says which old archived files its clean-up couldn't remove (#136)", () => {
@@ -54,7 +54,7 @@ describe("Summary", () => {
         mirror: { new: 1, updated: 0, removed: 0, archived: false, removalFailures: [], nothingRemoved: null, archiveNotDeleted: null, archiveNotCleaned: note },
       }),
     );
-    screen.getByText("3 archived files past the preset's days couldn't be removed (Permission denied). Secopy tries again at the next run.");
+    screen.getByText("3 archived files older than the days to keep couldn’t be removed (Permission denied). Secopy tries again at the next run.");
   });
 
   test("a mirror: its headline, why nothing was removed, what couldn't be, and Done", async () => {
@@ -72,7 +72,7 @@ describe("Summary", () => {
       },
       context: apiContext(api),
     });
-    screen.getByRole("heading", { name: /1 file couldn't be removed/ });
+    screen.getByRole("heading", { name: /1 file couldn’t be removed/ });
     within(screen.getByRole("region", { name: "Not removed" })).getByText("Permission denied", { exact: false });
     expect(screen.queryByRole("button", { name: "New copy" })).toBeNull();
     await fireEvent.click(screen.getByRole("button", { name: "Done" }));
@@ -83,9 +83,9 @@ describe("Summary", () => {
     show(summaryView({ outcome: "cancelled", failed: 1, undone: { removed: 5, notRestored: 2, failed: 1 } }));
     // Retrying only the failed files would leave a partial copy: the others were removed.
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
-    screen.getByRole("heading", { name: /Cancelled: the copied files were removed/ });
-    screen.getByText("2 files this job replaced couldn't be brought back: their new versions stay.");
-    screen.getByText("1 file couldn't be removed (see the report).");
+    screen.getByRole("heading", { name: /Cancelled: not everything could be put back/ });
+    screen.getByText("2 files this job replaced couldn’t be restored: their new versions stay.");
+    screen.getByText("1 file couldn’t be removed (see the report).");
   });
 
   test("a mirror cancelled with its copies removed says only that", () => {
@@ -112,7 +112,7 @@ describe("Summary", () => {
         unread: 1,
         dirErrors: 1,
         failures: [
-          { ...row, path: "DCIM/locked", reason: raw("Couldn't be read: permission denied") },
+          { ...row, path: "DCIM/locked", reason: raw("Couldn’t be read: permission denied") },
           { ...row, path: "EMPTY", reason: raw("Empty directory not created: file exists") },
           { ...row, path: "A001.mov", reason: raw("Hash mismatch") },
         ],
@@ -132,7 +132,7 @@ describe("Summary", () => {
     );
     screen.getByRole("heading", { name: /1 file changed/ });
     within(screen.getByRole("region", { name: "Problems" })).getByText("a.xxh64:3: bad line");
-    expect(hintOf(screen.getByText("12 not checked"))).toMatch(/no checksum file lists/);
+    expect(hintOf(screen.getByText("12 not checked"))).toMatch(/In no checksum file/);
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     expect(screen.queryByText(/No checksum file/)).toBeNull();
   });
@@ -190,12 +190,12 @@ describe("Summary", () => {
 
   test("a report that couldn't be saved says why", () => {
     show(summaryView({ reportFile: null, reportErrors: [raw("/Users/me/reports: Permission denied")] }));
-    screen.getByText("The report could not be saved: /Users/me/reports: Permission denied");
+    screen.getByText("The report couldn’t be saved: /Users/me/reports: Permission denied");
   });
 
   test("a complete job: status, figures and no Retry", () => {
     show(summaryView({ skippedIdentical: 284 }));
-    expect(screen.getByRole("status").textContent).toContain("All 1,284 files copied and verified");
+    expect(screen.getByRole("status").textContent).toContain("1,284 files copied and verified");
     screen.getByText("212.4 GB written");
     screen.getByText("took 4:12");
     screen.getByText("284 already at the destination, not checked");
@@ -246,8 +246,13 @@ describe("Summary", () => {
 
   test("a checksum file that couldn't be written is shown", () => {
     show(summaryView({ checksumFile: null, checksumError: raw("Permission denied") }));
-    screen.getByText(/checksum file could not be written: Permission denied/);
+    screen.getByText(/checksum file couldn’t be written: Permission denied/);
     expect(screen.queryByRole("button", { name: "Open checksum file" })).toBeNull();
+  });
+  test("#172: a mirror's checksum file says whose, in one sentence", () => {
+    const mirror = { new: 1, updated: 0, removed: 0, archived: false, removalFailures: [], nothingRemoved: null, archiveNotDeleted: null, archiveNotCleaned: null };
+    show(summaryView({ checksumFile: null, checksumError: raw("Permission denied"), mirror }));
+    screen.getByText("The mirror’s checksum file couldn’t be written: Permission denied");
   });
   test("no checksum file when it's off in Settings", () => {
     show(summaryView({ checksumFile: null, checksumOff: true }));
@@ -277,14 +282,14 @@ describe("Summary: help on Retry", () => {
   test("Retry says how many failed files it sets up again", () => {
     show(summaryView({ outcome: "failures", failed: 3 }));
     expect(helpOf(screen.getByRole("button", { name: "Retry" }))).toBe(
-      "Sets up a new copy of just the 3 failed files; press Start to run it.",
+      "Sets up a new copy of just the 3 failed files; press “Start” to run it.",
     );
   });
 
   test("one failed file", () => {
     show(summaryView({ outcome: "failures", failed: 1 }));
     expect(helpOf(screen.getByRole("button", { name: "Retry" }))).toBe(
-      "Sets up a new copy of just the 1 failed file; press Start to run it.",
+      "Sets up a new copy of just the 1 failed file; press “Start” to run it.",
     );
   });
 

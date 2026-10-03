@@ -54,7 +54,7 @@ describe("QueueSummary", () => {
         summary: {
           complete: 0, count: 1, millis: 1000,
           results: [{ job: queuedJob({ kind: "unknown", supported: false, source: raw(""), destination: "" }), result: "failed", reason: raw("Needs a newer Secopy."), summary: null }],
-          saveError: raw("Couldn't save the queue: permission denied"),
+          saveError: raw("Couldn’t save the queue: permission denied"),
         },
         onOpen: () => {},
         onDone: () => {},
@@ -62,7 +62,7 @@ describe("QueueSummary", () => {
     });
     screen.getByText("A job for a newer Secopy");
     expect(screen.queryByText("→")).toBeNull();
-    screen.getByText("Couldn't save the queue: permission denied");
+    screen.getByText("Couldn’t save the queue: permission denied");
     expect(screen.getByRole("list")).toBeTruthy();
   });
 
@@ -72,7 +72,7 @@ describe("QueueSummary", () => {
         summary: {
           complete: 1, count: 1, millis: 1000,
           results: [{ job: queuedJob(), result: "complete", reason: null, summary: null }],
-          saveError: raw("Couldn't save the queue: permission denied"),
+          saveError: raw("Couldn’t save the queue: permission denied"),
         },
         onOpen: () => {},
         onDone: () => {},

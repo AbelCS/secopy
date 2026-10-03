@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn in_english_text_is_english() {
-        assert_eq!(crate::msg!("menu.file.start").text(), "Start Copy");
+        assert_eq!(crate::msg!("menu.file.start").text(), "Start");
     }
 
     /// #84: what the app does never depends on its English words.
@@ -512,7 +512,7 @@ mod tests {
             "errors.file.readSource",
             why = crate::msg!("errors.os.permissionDenied")
         );
-        assert_eq!(nested.english(), "Cannot read source: Permission denied");
+        assert_eq!(nested.english(), "Can’t read the source: Permission denied");
         let parts = vec![
             crate::msg!("queue.reason.part.changed", count = 2u32),
             crate::msg!("queue.reason.part.missing", count = 1u32),

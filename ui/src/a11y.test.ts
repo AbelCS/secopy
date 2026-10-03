@@ -74,7 +74,7 @@ describe("accessibility (axe-core)", () => {
   test("Queue", async () => {
     const { api } = fakeApi();
     const { container } = render(QueueScreen, {
-      props: { queue: queueView({ jobs: [queuedJob(), queuedJob({ lastError: raw("CARD isn't connected.") })] }), onQueue: () => {}, onRun: () => {} },
+      props: { queue: queueView({ jobs: [queuedJob(), queuedJob({ lastError: raw("CARD isn’t connected.") })] }), onQueue: () => {}, onRun: () => {} },
       context: apiContext(api),
     });
     expect(await violations(container)).toEqual([]);
@@ -92,7 +92,7 @@ describe("accessibility (axe-core)", () => {
   test("Cancel's question", async () => {
     const { api } = fakeApi();
     const { container } = render(JobProgress, { props: { progress: progressView() }, context: apiContext(api) });
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
     screen.getByRole("dialog");
     expect(await violations(container.ownerDocument.body)).toEqual([]);
   });
@@ -109,7 +109,7 @@ describe("accessibility (axe-core)", () => {
   test("Mirror preview", async () => {
     const { api } = fakeApi();
     const { container } = render(MirrorPreview, {
-      props: { preview: mirrorPreview({ guard: raw("3 of the destination's 3 files would be removed.") }), onRun: () => {}, onQueue: () => {}, onCancel: () => {} },
+      props: { preview: mirrorPreview({ guard: raw("3 of the destination’s 3 files would be removed.") }), onRun: () => {}, onQueue: () => {}, onCancel: () => {} },
       context: apiContext(api),
     });
     expect(await violations(container)).toEqual([]);

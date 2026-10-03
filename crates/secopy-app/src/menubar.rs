@@ -794,7 +794,7 @@ mod tests {
         assert!(should_hide(true, true, false));
         assert!(
             !should_hide(false, true, false),
-            "setting off: today's question"
+            "setting off: today’s question"
         );
         assert!(!should_hide(true, false, false), "nothing runs: quit");
         assert!(!should_hide(true, true, true), "a quit is never a hide");

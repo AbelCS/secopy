@@ -101,8 +101,8 @@ describe("QueueScreen", () => {
   });
 
   test("a failed job says why; a newer job says so", () => {
-    show(queueView({ jobs: [queuedJob({ lastError: raw("CARD_A isn't connected.") }), queuedJob({ kind: "unknown", supported: false, lastError: raw("Needs a newer Secopy.") })] }));
-    screen.getByText("CARD_A isn't connected.");
+    show(queueView({ jobs: [queuedJob({ lastError: raw("CARD_A isn’t connected.") }), queuedJob({ kind: "unknown", supported: false, lastError: raw("Needs a newer Secopy.") })] }));
+    screen.getByText("CARD_A isn’t connected.");
     screen.getByText("Needs a newer Secopy.");
   });
 

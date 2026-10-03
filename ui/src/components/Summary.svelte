@@ -89,7 +89,11 @@
     {/if}
     {#if summary.checksumOff && !summary.mirror && !summary.check}<p class="muted">{t("summary.noChecksumFile")}</p>{/if}
     {#if summary.checksumError}
-      <Notice tone="danger">{t("summary.checksumError", { why: say(summary.checksumError) })}</Notice>
+      <Notice tone="danger"
+        >{t(summary.mirror ? "summary.mirrorChecksumError" : "summary.checksumError", {
+          why: say(summary.checksumError),
+        })}</Notice
+      >
     {/if}
     {#if summary.mhlFolder}<p class="muted">{t("summary.mhlWritten")}</p>{/if}
     {#if summary.mhlError}<Notice tone="danger">{say(summary.mhlError)}</Notice>{/if}

@@ -44,7 +44,7 @@ describe("MirrorScreen", () => {
       "Size and modification date.",
     );
     const said = document.getElementById(paranoid.getAttribute("aria-describedby")!)?.textContent ?? "";
-    expect(said).toContain("Byte-for-byte comparison of both copies.");
+    expect(said).toContain("Compares the checksums of both copies.");
     expect(said).toContain("Very slow: reads all data on both sides.");
     await fireEvent.click(paranoid);
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -136,7 +136,7 @@ describe("MirrorScreen", () => {
     api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null }));
     await fireEvent.click(archive.getByRole("button", { name: "Delete archive…" }));
     expect(api.confirm).toHaveBeenCalledWith(
-      "124 files (38.2 GB) are deleted. This can't be undone.",
+      "124 files (38.2 GB) are deleted. This can’t be undone.",
       "Delete archive?",
       "Delete",
       "Keep",
@@ -263,9 +263,9 @@ describe("MirrorScreen", () => {
     api.mirrorArchive.mockResolvedValue({ destination: "/Volumes/Media/Footage", files: 0, bytes: 0, oldest: null, connected: false, busy: false });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
-    within(dialog).getByText("The destination isn't connected, so its archive can't be checked.");
+    within(dialog).getByText("The destination isn’t connected, so its archive can’t be checked.");
     expect(within(dialog).queryByRole("button", { name: "Delete them now" })).toBeNull();
-    await fireEvent.click(within(dialog).getByRole("button", { name: "Delete it at the next run" }));
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Delete them at the next run" }));
     await waitFor(() => expect(api.clearMirrorArchiveNextRun).toHaveBeenCalledWith("m1"));
     expect(api.editMirrorPreset).toHaveBeenCalled();
   });
@@ -275,8 +275,8 @@ describe("MirrorScreen", () => {
     api.mirrorArchive.mockResolvedValue({ destination: "/Volumes/Media/Footage", files: 3, bytes: 5, oldest: null, connected: true, busy: true });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
-    within(dialog).getByText("A job is running, so the archive can't be deleted now.");
-    within(dialog).getByRole("button", { name: "Delete it at the next run" });
+    within(dialog).getByText("A job is running, so the archive can’t be deleted now.");
+    within(dialog).getByRole("button", { name: "Delete them at the next run" });
     within(dialog).getByRole("button", { name: "Keep archived files 30 days" });
   });
 
@@ -309,7 +309,7 @@ describe("MirrorScreen", () => {
   test("Delete permanently asks what it means", async () => {
     show();
     await fireEvent.click(screen.getByLabelText("Delete them"));
-    screen.getByText(/can't be undone/);
+    screen.getByText(/can’t be undone/);
     expect(screen.queryByRole("spinbutton", { name: "Days to keep" })).toBeNull();
   });
 
@@ -334,8 +334,8 @@ describe("MirrorScreen", () => {
 
   test("with no presets it explains mirrors", async () => {
     show([]);
-    screen.getByText(/keeps a copy of a directory identical/);
-    await fireEvent.click(screen.getByRole("button", { name: "+ New mirror" }));
+    screen.getByText(/keeps a destination identical to its origin/);
+    await fireEvent.click(screen.getByRole("button", { name: "+ New mirror…" }));
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "");
   });
 });
@@ -344,7 +344,7 @@ describe("MirrorScreen: help on Add to queue", () => {
   test("says the mirror is worked out again when it runs; Preview… has none", () => {
     show();
     expect(helpOf(screen.getByRole("button", { name: "Add to queue" }))).toBe(
-      "Adds this mirror to the Queue; what to copy and remove is worked out again when it runs.",
+      "Adds this mirror to the queue; what to copy and remove is worked out again when it runs.",
     );
     expect(helpOf(screen.getByRole("button", { name: "Preview…" }))).toBeNull();
   });

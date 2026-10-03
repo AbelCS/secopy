@@ -27,8 +27,8 @@ const typeInput = () => screen.getByLabelText("Add a file type");
 describe("CopyPresetsScreen", () => {
   test("with no presets it explains what they are", async () => {
     show([]);
-    screen.getByText(/A copy preset saves a source and its settings/);
-    await fireEvent.click(screen.getByRole("button", { name: "+ New preset" }));
+    screen.getByText(/A copy preset saves a source and its options/);
+    await fireEvent.click(screen.getByRole("button", { name: "+ New preset…" }));
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "");
   });
 
@@ -137,7 +137,7 @@ describe("CopyPresetsScreen", () => {
     expect(screen.getByRole("textbox", { name: "Name" }).getAttribute("aria-describedby")).toBe(nameError.id);
     api.editCopyPreset.mockRejectedValueOnce(new AppError({ key: "errors.field.source.notFull", args: {} }));
     await fireEvent.click(save());
-    const sourceError = await screen.findByText("The source must be a full path, like /Volumes/CARD_A/DCIM.");
+    const sourceError = await screen.findByText("The source must be a full path, like /Volumes/Untitled/DCIM.");
     expect(screen.getByRole("textbox", { name: "Source" }).getAttribute("aria-describedby")).toBe(sourceError.id);
   });
 
@@ -147,7 +147,7 @@ describe("CopyPresetsScreen", () => {
     api.editCopyPreset.mockRejectedValueOnce(new AppError({ key: "errors.save.preset", args: { why } }));
     await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "FX3 A-cam" } });
     await fireEvent.click(save());
-    await screen.findByText("Couldn't save the preset: File name too long");
+    await screen.findByText("Couldn’t save the preset: File name too long");
     expect(screen.getByRole("textbox", { name: "Name" }).getAttribute("aria-describedby")).toBeNull();
   });
 
@@ -163,7 +163,7 @@ describe("CopyPresetsScreen", () => {
 
   test("a new preset is created and selected", async () => {
     const { api, calls } = show();
-    await fireEvent.click(screen.getByRole("button", { name: "+ New preset" }));
+    await fireEvent.click(screen.getByRole("button", { name: "+ New preset…" }));
     await fireEvent.input(screen.getByRole("textbox", { name: "Name" }), { target: { value: "GoPro" } });
     await fireEvent.input(screen.getByRole("textbox", { name: "Source" }), { target: { value: "/Volumes/GOPRO/DCIM" } });
     await fireEvent.click(save());
@@ -202,7 +202,7 @@ describe("CopyPresetsScreen", () => {
     await fireEvent.click(screen.getByRole("button", { name: "DJI Mini 4" }));
     await waitFor(() =>
       expect(api.confirm).toHaveBeenCalledWith(
-        "Your changes to “Sony FX3” aren't saved.",
+        "Your changes to “Sony FX3” aren’t saved.",
         "Discard changes?",
         "Discard",
         "Keep editing",

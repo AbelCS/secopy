@@ -47,7 +47,7 @@ describe("JobProgress", () => {
     expect(screen.getAllByRole("progressbar", { name: /Copied|Verified/ })).toHaveLength(2);
     screen.getByText("148.2 GB of 212.4 GB");
     // Copying and verifying are half of the job each.
-    within(screen.getByRole("region", { name: "Progress" })).getByText("68.1 %");
+    within(screen.getByRole("region", { name: "Progress" })).getByText("68.1%");
     screen.getByText("902 / 1,284 files");
   });
 
@@ -81,15 +81,15 @@ describe("JobProgress", () => {
   test("with the checksum file off, Cancel doesn't mention one", async () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), checksumFile: false }, context: apiContext(api) });
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    const dialog = screen.getByRole("dialog", { name: "Stop copying?" });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel this job?" });
     within(dialog).getByText("Files already copied stay; the file in progress is removed.");
   });
 
   test("Cancel asks in a dialog: Continue keeps copying", async () => {
     const { api } = show(progressView());
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    const dialog = screen.getByRole("dialog", { name: "Stop copying?" });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel this job?" });
     within(dialog).getByText(/the file in progress is removed/);
     expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Continue" }));
     await fireEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
@@ -99,25 +99,25 @@ describe("JobProgress", () => {
 
   test("Stop keeps the files already copied unless asked to remove them", async () => {
     const { api } = show(progressView());
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
     let dialog = screen.getByRole("dialog");
     const remove = within(dialog).getByRole("checkbox", { name: "Also remove the files already copied" });
     expect(remove).toHaveProperty("checked", false);
-    await fireEvent.click(within(dialog).getByRole("button", { name: "Stop" }));
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Cancel job" }));
     expect(api.cancelJob).toHaveBeenLastCalledWith(false);
     expect(screen.queryByRole("dialog")).toBeNull();
 
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
     dialog = screen.getByRole("dialog");
     await fireEvent.click(within(dialog).getByRole("checkbox", { name: "Also remove the files already copied" }));
     within(dialog).getByText("The file in progress and the files already copied are removed.");
-    await fireEvent.click(within(dialog).getByRole("button", { name: "Stop" }));
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Cancel job" }));
     expect(api.cancelJob).toHaveBeenLastCalledWith(true);
   });
 
   test("Esc closes the dialog and keeps copying", async () => {
     const { api } = show(progressView());
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
     await fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(api.cancelJob).not.toHaveBeenCalled();
@@ -132,7 +132,7 @@ describe("JobProgress", () => {
     screen.getByText("Putting the destination back as it was…");
     expect(screen.queryByText(/Deleting/)).toBeNull();
     expect(screen.getByRole("button", { name: "Pause" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "Cancel" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Cancel…" })).toHaveProperty("disabled", true);
   });
 
   test("while a mirror archives, Pause and Cancel are off", async () => {
@@ -142,7 +142,7 @@ describe("JobProgress", () => {
       context: apiContext(api),
     });
     expect(screen.getByRole("button", { name: "Pause" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "Cancel" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Cancel…" })).toHaveProperty("disabled", true);
     component.cancel(); // ⌘. from the menu
     await Promise.resolve();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -151,7 +151,7 @@ describe("JobProgress", () => {
   test("the question closes when a mirror starts removing", async () => {
     const { api } = fakeApi();
     const { rerender } = render(JobProgress, { props: { progress: progressView() }, context: apiContext(api) });
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
     screen.getByRole("dialog");
     await rerender({ progress: progressView({ phase: "removing", removing: 2, archiving: true }) });
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -163,7 +163,7 @@ describe("JobProgress", () => {
       props: { progress: progressView(), checking: true, queue: { index: 0, count: 2 } },
       context: apiContext(api),
     });
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
     expect(screen.queryByRole("checkbox", { name: "Also remove the files already copied" })).toBeNull();
     expect(screen.queryByText(/elapsed/)).toBeNull();
   });
@@ -178,17 +178,17 @@ describe("JobProgress", () => {
     expect(screen.getAllByRole("progressbar", { name: /Copied|Verified|Checked/ }).map((b) => b.getAttribute("aria-label"))).toEqual([
       "Checked",
     ]);
-    within(screen.getByRole("region", { name: "Progress" })).getByText("25.0 %");
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    screen.getByRole("dialog", { name: "Stop verifying?" });
+    within(screen.getByRole("region", { name: "Progress" })).getByText("25.0%");
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
+    screen.getByRole("dialog", { name: "Cancel this job?" });
     expect(screen.queryByRole("checkbox", { name: "Also remove the files already copied" })).toBeNull();
   });
 
   test("a mirror asks Stop mirroring?", async () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), mirror: true }, context: apiContext(api) });
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    screen.getByRole("dialog", { name: "Stop mirroring?" });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
+    screen.getByRole("dialog", { name: "Cancel this job?" });
   });
 
   test("big files get a row, small ones one steady row counted in files", () => {
@@ -366,8 +366,8 @@ describe("JobProgress", () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), queue: { index: 1, count: 3 } }, context: apiContext(api) });
     within(screen.getByRole("group", { name: "Actions" })).getByText(/^Job 2 of 3 · /);
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    screen.getByRole("dialog", { name: "Stop copying and stop the queue?" });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
+    screen.getByRole("dialog", { name: "Cancel this job and stop the queue?" });
     expect(api.confirm).not.toHaveBeenCalled();
   });
 
@@ -377,12 +377,12 @@ describe("JobProgress", () => {
       props: { progress: progressView(), queue: { index: 0, count: 2 }, check: true },
       context: apiContext(api),
     });
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    screen.getByRole("dialog", { name: "Stop verifying and stop the queue?" });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
+    screen.getByRole("dialog", { name: "Cancel this job and stop the queue?" });
     await fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await rerender({ check: false, mirror: true });
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    screen.getByRole("dialog", { name: "Stop mirroring and stop the queue?" });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
+    screen.getByRole("dialog", { name: "Cancel this job and stop the queue?" });
   });
 
   test("while a queue job is checked, Cancel stops the queue and nothing of the job was written", async () => {
@@ -391,16 +391,16 @@ describe("JobProgress", () => {
       props: { progress: progressView(), checking: true, queue: { index: 0, count: 2 } },
       context: apiContext(api),
     });
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
     const dialog = screen.getByRole("dialog", { name: "Stop the queue?" });
-    within(dialog).getByText("This job hasn't started yet: nothing was written for it.");
+    within(dialog).getByText("This job hasn’t started yet: nothing was written for it.");
   });
 
   test("a mirror's Cancel says files deleted in the origin stay, and no checksum file", async () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), mirror: true }, context: apiContext(api) });
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    const dialog = screen.getByRole("dialog", { name: "Stop mirroring?" });
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel this job?" });
     within(dialog).getByText(
       "Files already copied stay; the file in progress is removed. Files deleted in the origin are left in the destination.",
     );
@@ -413,7 +413,7 @@ describe("JobProgress: help on the buttons", () => {
     expect(helpOf(screen.getByRole("button", { name: "Pause" }))).toBe(
       "Stops reading and writing until you resume (Space).",
     );
-    expect(helpOf(screen.getByRole("button", { name: "Cancel" }))).toBe("Asks first, then stops the job (⌘.).");
+    expect(helpOf(screen.getByRole("button", { name: "Cancel…" }))).toBe("Asks first, then cancels the job (⌘.).");
     await rerender({ progress: progressView({ paused: true }) });
     expect(helpOf(screen.getByRole("button", { name: "Resume" }))).toBe("Carries on from where it paused (Space).");
   });
@@ -422,22 +422,22 @@ describe("JobProgress: help on the buttons", () => {
     const { api } = fakeApi();
     render(JobProgress, { props: { progress: progressView(), check: true, queue: { index: 0, count: 2 } }, context: apiContext(api) });
     expect(helpOf(screen.getByRole("button", { name: "Pause" }))).toBe("Stops reading until you resume (Space).");
-    expect(helpOf(screen.getByRole("button", { name: "Cancel" }))).toBe(
-      "Asks first, then stops this job and the queue (⌘.).",
+    expect(helpOf(screen.getByRole("button", { name: "Cancel…" }))).toBe(
+      "Asks first, then cancels this job and stops the queue (⌘.).",
     );
   });
 
   test("done: the buttons are off and give no help", () => {
     show(progressView({ phase: "done" }));
     expect(helpOf(screen.getByRole("button", { name: "Pause" }))).toBeNull();
-    expect(helpOf(screen.getByRole("button", { name: "Cancel" }))).toBeNull();
+    expect(helpOf(screen.getByRole("button", { name: "Cancel…" }))).toBeNull();
   });
 });
 
 describe("JobProgress before its first figures (#117)", () => {
-  test("a total not known yet shows nothing done, not 100 %", () => {
+  test("a total not known yet shows nothing done, not 100%", () => {
     const { container } = show(progressView({ totalBytes: 0, copiedBytes: 0, verifiedBytes: 0, phase: "copying" }));
-    expect(screen.getByText(/^0(\.0)?\s%$/)).toBeTruthy();
+    expect(screen.getByText(/^0(\.0)?%$/)).toBeTruthy();
     for (const bar of container.querySelectorAll("[role=progressbar]")) {
       expect(bar.getAttribute("aria-valuenow")).toBe("0");
     }

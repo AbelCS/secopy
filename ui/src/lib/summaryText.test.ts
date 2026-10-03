@@ -22,7 +22,7 @@ describe("summaryText", () => {
 
   test("a notification says the headline and the main figures", () => {
     expect(notificationFor(summaryView())).toEqual({
-      title: "✓ All 1,284 files copied and verified",
+      title: "✓ 1,284 files copied and verified",
       body: "1,284 files · 212.4 GB written · took 4:12",
     });
     expect(notificationFor(summaryView({ outcome: "failures", failed: 3 })).title).toBe("✗ 3 files failed");
@@ -44,11 +44,11 @@ describe("summaryText", () => {
     expect(queueNotification(queue(["complete", "complete"])).body).toBe("Every job finished.");
     expect(queueNotification(queue(["complete", "cancelled", "notRun"])).body).toBe("1 cancelled · 1 not run");
     expect(queueNotification(queue(["failed", "notRun", "notRun"])).body).toBe("1 job failed · 2 not run");
-    expect(queueNotification(queue(["complete"], raw("Couldn't save the queue."))).body).toBe(
-      "Couldn't save the queue.",
+    expect(queueNotification(queue(["complete"], raw("Couldn’t save the queue."))).body).toBe(
+      "Couldn’t save the queue.",
     );
-    expect(queueNotification(queue(["failed", "complete"], raw("Couldn't save the queue."))).body).toBe(
-      "1 job failed · Couldn't save the queue.",
+    expect(queueNotification(queue(["failed", "complete"], raw("Couldn’t save the queue."))).body).toBe(
+      "1 job failed · Couldn’t save the queue.",
     );
   });
 });

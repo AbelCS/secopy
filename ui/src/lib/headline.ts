@@ -63,7 +63,7 @@ export function headline(s: SummaryView): string {
       const done = s.copied + s.verified;
       // Skip left files out: a different file has their name. Never "All" then.
       if (s.skippedDifferent > 0) {
-        const kept = t("summary.headline.keptDifferent", { count: s.skippedDifferent });
+        const kept = t("summary.headline.differentFiles", { count: s.skippedDifferent });
         if (done === 0) return t("summary.headline.nothingCopied", { kept });
         return t(s.verify ? "summary.headline.someVerified" : "summary.headline.someCopied", { count: done, kept });
       }

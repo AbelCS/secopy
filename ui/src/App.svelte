@@ -513,7 +513,7 @@
       }
       if (!(await api.jobRunning())) return;
       // Settings can't change during a copy, so these are the running job's.
-      const quit = quitQuestion(runningKind);
+      const quit = quitQuestion();
       const removing = progress?.phase === "removing";
       const stop = removing
         ? await api.confirm(

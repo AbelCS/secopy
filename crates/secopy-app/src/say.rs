@@ -304,13 +304,13 @@ pub fn archive_not_deleted(
             "mirror.archiveNotDeleted",
             count = done.remaining,
             why = why(),
-            days = days,
+            days = msg!("format.days", count = days),
         ))
     } else if done.error.is_some() {
         Some(msg!(
             "mirror.archiveNotDeletedAll",
             why = why(),
-            days = days
+            days = msg!("format.days", count = days)
         ))
     } else {
         None
@@ -332,6 +332,20 @@ mod tests {
     use secopy_core::scan::{ScanProblem, ScanProblemKind};
 
     use crate::message::{Arg, Message};
+
+    /// #172: an archive kept one day says "1 day", not "1 days".
+    #[test]
+    fn an_archive_kept_one_day_says_day() {
+        let done = secopy_core::mirror::ArchiveDeleted {
+            removed: 0,
+            remaining: 2,
+            error: None,
+        };
+        assert_eq!(
+            archive_not_deleted(&done, 1).unwrap(),
+            "2 archived files couldn’t be deleted (Secopy hit an internal error). They’re removed once they’re 1 day old."
+        );
+    }
 
     #[test]
     fn a_quota_isnt_a_full_drive() {
@@ -504,7 +518,7 @@ mod tests {
         assert_eq!(
             text(&m, "line"),
             "1234",
-            "a line number isn't a count: no separators"
+            "a line number isn’t a count: no separators"
         );
         assert_eq!(text(&nested(&m, "why"), "hex"), "zz");
     }
