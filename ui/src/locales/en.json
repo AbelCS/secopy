@@ -30,6 +30,9 @@
       "other": "{count} days"
     }
   },
+  "language": {
+    "name": "English"
+  },
   "summary": {
     "headline": {
       "cancelled": "Cancelled",
@@ -629,6 +632,7 @@
     },
     "on": "on",
     "off": "off",
+    "automatic": "Automatic",
     "problem": {
       "details": "Its details can’t be read ({detail}).",
       "newer": "Needs a newer Secopy: it has settings this one doesn’t know ({keys}).",
@@ -642,7 +646,8 @@
       "notify": "Notify when a job finishes",
       "menuBar": "Keep jobs running in the menu bar when the window is closed",
       "mhl": "Write ASC MHL",
-      "ignore": "Always ignore when copying"
+      "ignore": "Always ignore when copying",
+      "language": "Language"
     },
     "noName": {
       "copy": "A copy preset with no name",
