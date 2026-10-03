@@ -66,6 +66,14 @@ Before you can start, Secopy checks and shows:
 - **Copy** doesn't read back, which is faster; the checksum file is still written from the
   source.
 
+How Copy & Verify works: Secopy reads each file from the source once, from start to end,
+computing its checksum as it reads, and writes it to the destination. While it copies the next
+file, it reads the finished one back from the destination drive (bypassing the Mac's cache, so
+it really reads the drive) and compares the checksums. The source is never read twice, and on
+an SSD destination the read-back costs almost no extra time: it happens while the card is
+still being read. (On a spinning hard drive, writing and reading at the same time is slower;
+see the RFD, §7.5, for why Secopy works this way and what may change.)
+
 Press **Start** (⌘↩), or **Add to queue** to run it later. Start checks the destination
 again first; if it changed since (files added or gone, another drive), it doesn't start and
 shows it as it is now.
