@@ -178,7 +178,7 @@ export function copyPreset(over: Partial<CopyPreset> = {}): CopyPreset {
 }
 
 export function settingsView(over: Partial<Settings> = {}): Settings {
-  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false, ignore: [".DS_Store", "._*", "Thumbs.db"], ...over };
+  return { writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false, ignore: [".DS_Store", "._*", "Thumbs.db"], language: null, ...over };
 }
 
 export function startView(over: Partial<StartView> = {}): StartView {

@@ -839,7 +839,7 @@ mod tests {
         assert_eq!(c.settings_unknown, ["turbo"]);
         assert_eq!(
             c.settings_defaulted,
-            ["ignore", "keepInMenuBar", "writeMhl"]
+            ["ignore", "keepInMenuBar", "language", "writeMhl"]
         );
         assert_eq!(c.app.as_deref(), Some("0.1.0"));
         let view = plan(
@@ -1332,7 +1332,7 @@ mod tests {
         let text = export_text(Some(&on), &[], &[], "0.19.0", now());
         assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(on)));
         let older = read(br#"{"secopy":1,"settings":{"writeChecksumFile":true,"showSystemCount":true,"reportNextToChecksum":false,"notifyWhenDone":true,"keepInMenuBar":true}}"#).unwrap();
-        assert_eq!(older.settings_defaulted, ["ignore", "writeMhl"]);
+        assert_eq!(older.settings_defaulted, ["ignore", "language", "writeMhl"]);
     }
 
     /// #158: the list travels, and a change to it is named, not each pattern.
