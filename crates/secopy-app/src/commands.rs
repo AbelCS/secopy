@@ -2013,6 +2013,13 @@ pub async fn set_settings(app: AppHandle, settings: Settings) -> Result<Settings
     Ok(saved)
 }
 
+/// The language Automatic gives now (#181): the Mac's first one Secopy has, English otherwise.
+#[tauri::command]
+#[specta::specta]
+pub fn automatic_language() -> String {
+    crate::message::language_for(&crate::message::mac_languages()).to_string()
+}
+
 /// The language Secopy's words are in (#181): the UI's windows draw in it.
 #[tauri::command]
 #[specta::specta]

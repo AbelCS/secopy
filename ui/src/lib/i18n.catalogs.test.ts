@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import en from "../locales/en.json";
-import { languageFor, setLocale, t } from "./i18n";
+import { languageFor, languages, setLocale, t } from "./i18n";
 import { formatBytes, formatPercent } from "./format";
 
 type Node = string | { [k: string]: Node };
@@ -71,6 +71,14 @@ describe.each(translations)("%s", (file) => {
 
 describe("Spanish", () => {
   afterEach(() => setLocale("en"));
+
+  test("#181: each language is named in its own words", () => {
+    setLocale("es");
+    expect(languages()).toEqual([
+      { tag: "en", name: "English" },
+      { tag: "es", name: "Español" },
+    ]);
+  });
 
   test("a Mac in Spanish gets Spanish; other languages English", () => {
     expect(languageFor(["es-ES", "en-US"])).toBe("es");

@@ -39,6 +39,12 @@ let catalog: Catalog = catalogs[current];
 let plurals = new Intl.PluralRules(current);
 let numbers = new Intl.NumberFormat(current);
 
+/** Each language Secopy has, named in its own words ("English", "Español"): a menu of
+ *  languages reads the same in any of them (#181). */
+export function languages(): { tag: string; name: string }[] {
+  return Object.entries(catalogs).map(([tag, c]) => ({ tag, name: lookupIn(c, "language.name") ?? tag }));
+}
+
 export function locale(): string {
   return current;
 }
@@ -54,7 +60,17 @@ export function setLocale(tag: string, next: Catalog = catalogs[tag] ?? en): voi
 const strict = import.meta.env.MODE === "test";
 
 function lookup(key: string): Entry | undefined {
-  let node: unknown = catalog;
+  return lookupEntry(catalog, key);
+}
+
+/** A plain text in one catalog, whichever language is in use. */
+function lookupIn(c: Catalog, key: string): string | undefined {
+  const entry = lookupEntry(c, key);
+  return typeof entry === "string" ? entry : undefined;
+}
+
+function lookupEntry(c: Catalog, key: string): Entry | undefined {
+  let node: unknown = c;
   for (const part of key.split(".")) {
     if (node === null || typeof node !== "object") return undefined;
     node = (node as Record<string, unknown>)[part];

@@ -726,7 +726,12 @@
       "about": "Lleva tus ajustes y preajustes a otro Mac, o comparte preajustes, en un archivo .secopy.",
       "exportHelp": "Exporta tus ajustes guardados; guarda primero para incluir estos cambios."
     },
-    "general": "General"
+    "general": "General",
+    "language": {
+      "label": "Idioma",
+      "automatic": "Automático ({name})",
+      "help": "Automático usa el idioma del Mac si Secopy lo tiene; si no, inglés. Las ventanas propias de macOS (Abrir, Guardar, Acerca de) cambian en el próximo arranque."
+    }
   },
   "verify": {
     "title": "Verificación",
