@@ -168,7 +168,7 @@ describe("Setup", () => {
 
   test("Also ignore opens its list, and a change scans again (#164)", async () => {
     const { api } = setup(readyView({ jobIgnore: [".gitkeep"] }));
-    await fireEvent.click(from().getByRole("button", { name: "Edit" }));
+    await fireEvent.click(from().getByRole("button", { name: "Edit…" }));
     await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.LRF" } });
     await fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(api.setJobIgnore).toHaveBeenCalledWith([".gitkeep", "*.LRF"]);
@@ -178,7 +178,7 @@ describe("Setup", () => {
     const { api } = setup(readyView({ jobIgnore: [".gitkeep"] }));
     let answer: (v: SessionView) => void = () => {};
     api.setJobIgnore.mockReturnValueOnce(new Promise((r) => (answer = r)));
-    await fireEvent.click(from().getByRole("button", { name: "Edit" }));
+    await fireEvent.click(from().getByRole("button", { name: "Edit…" }));
     await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.xml" } });
     await fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(screen.getByRole("button", { name: "Add" })).toHaveProperty("disabled", true);
@@ -256,7 +256,7 @@ describe("Setup", () => {
     setup(
       readyView({
         destination: destinationView({
-          problems: [{ path: "DCIM/a:b.mov", reason: raw("the name contains \":\", which this drive doesn't allow") }],
+          problems: [{ path: "DCIM/a:b.mov", reason: raw("the name contains \":\", which this drive doesn’t allow") }],
           problemCount: 3,
         }),
       }),
@@ -270,8 +270,8 @@ describe("Setup", () => {
     const { api } = setup(
       readyView({ destination: destinationView({ identical: 284, differs: 12, stalePartials: 2 }) }),
     );
-    screen.getByText("284 identical files will be skipped (not checked).");
-    expect(hintOf(screen.getByText("Identical"))).toMatch(/same name, size and date/);
+    screen.getByText("284 files with the same size and date will be skipped (not checked).");
+    expect(hintOf(screen.getByText("Same size and date"))).toMatch(/Same name, size and modification date/);
     expect(hintOf(screen.getByText("Existing files"))).toMatch(/Keep both/);
     screen.getByText("2 unfinished files from an interrupted copy will be replaced.");
     expect(screen.getByLabelText("Keep both")).toHaveProperty("checked", true);
@@ -340,7 +340,7 @@ describe("Setup", () => {
     setup(readyView({ jobIgnore: [".gitkeep", "*.LRF"] }));
     from().getByText(".gitkeep, *.LRF");
     expect(screen.queryByLabelText("Name pattern")).toBeNull();
-    const edit = from().getByRole("button", { name: "Edit" });
+    const edit = from().getByRole("button", { name: "Edit…" });
     expect(edit.getAttribute("aria-expanded")).toBe("false");
     await fireEvent.click(edit);
     screen.getByLabelText("Name pattern");
@@ -402,9 +402,9 @@ describe("Setup", () => {
 
   test("a command error is shown where it happened", async () => {
     const { api } = setup(sessionView({ source: sourceView() }));
-    api.setDestination.mockRejectedValueOnce(new Error("Can't write to the destination"));
+    api.setDestination.mockRejectedValueOnce(new Error("Can’t write to the destination"));
     await fireEvent.click(to().getByRole("button", { name: "Choose…" }));
-    await screen.findByText("Can't write to the destination");
+    await screen.findByText("Can’t write to the destination");
   });
 
   test("choosing a preset selects it; Manage presets… opens Copy presets", async () => {
@@ -675,17 +675,17 @@ describe("Setup: help on the buttons", () => {
   test("Add to queue says the copy runs later, from the Queue", () => {
     setup(readyView());
     expect(helpOf(screen.getByRole("button", { name: "Add to queue" }))).toBe(
-      "Adds this copy, as set up now, to the Queue; it runs when you start the queue.",
+      "Adds this copy, as set up now, to the queue.",
     );
   });
 
   test("Update and Save as… say what they save", () => {
     setup(readyView({ presetId: "fx3", presetChanged: true }), readyView(), { presets: [copyPreset()] });
     expect(helpOf(screen.getByRole("button", { name: "Update" }))).toBe(
-      "Saves this source and these choices into the preset “Sony FX3”.",
+      "Saves this source and these options into the preset “Sony FX3”.",
     );
     expect(helpOf(screen.getByRole("button", { name: "Save as…" }))).toBe(
-      "Saves this source and these choices as a new preset.",
+      "Saves this source and these options as a new preset.",
     );
   });
 });

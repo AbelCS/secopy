@@ -902,8 +902,8 @@ mod tests {
         assert_eq!(settings, Settings::default());
         let warning = warning.unwrap();
         assert!(
-            warning.starts_with("settings.json couldn't be read (key must be a string"),
-            "the parser's own words, as before: {warning}"
+            warning.starts_with("settings.json couldn’t be read (key must be a string"),
+            "the parser’s own words, as before: {warning}"
         );
         assert!(!dir.path().join(SETTINGS).exists());
         let aside: Vec<_> = fs::read_dir(dir.path())
@@ -993,7 +993,7 @@ mod tests {
         );
         assert_eq!(
             err(presets.add(input("A", "DCIM"))),
-            "The source must be a full path, like /Volumes/CARD_A/DCIM."
+            "The source must be a full path, like /Volumes/Untitled/DCIM."
         );
         assert_eq!(
             presets.add(input("B", " ")).unwrap().source,
@@ -1022,7 +1022,7 @@ mod tests {
         );
         assert!(
             presets.edit(&a.id, input("b", "")).is_err(),
-            "B's name is taken"
+            "B’s name is taken"
         );
         assert!(
             presets.edit(&a.id, input("a2", "")).is_ok(),
@@ -1133,11 +1133,11 @@ mod tests {
         );
         assert_eq!(
             err(m.add(mirror_input("C", "/x", "/x/backup"))),
-            "The destination can't be inside the origin."
+            "The destination can’t be inside the origin."
         );
         assert_eq!(
             err(m.add(mirror_input("D", "/x/sub", "/x"))),
-            "The origin can't be inside the destination."
+            "The origin can’t be inside the destination."
         );
         let mut zero = mirror_input("E", "/a", "/b");
         zero.deleted.days = 0;
@@ -1190,7 +1190,7 @@ mod tests {
         };
         assert_eq!(
             MirrorPresets::normalized(mirror).unwrap_err(),
-            "The destination can't be inside the origin."
+            "The destination can’t be inside the origin."
         );
     }
 

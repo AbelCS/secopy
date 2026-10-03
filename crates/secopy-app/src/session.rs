@@ -985,13 +985,13 @@ mod tests {
         assert!(view.source.is_none());
         assert_eq!(
             view.pick_problem.en(),
-            Some(format!("{} isn't there any more.", show(&gone)))
+            Some(format!("{} isn’t there any more.", show(&gone)))
         );
         let card = Path::new("/Volumes/SECOPY_NO_SUCH_CARD/DCIM");
         let view = apply(&mut s, Change::CopyPreset(Some(preset(card, None))));
         assert_eq!(
             view.pick_problem.en().as_deref(),
-            Some("SECOPY_NO_SUCH_CARD isn't connected.")
+            Some("SECOPY_NO_SUCH_CARD isn’t connected.")
         );
         s.set_destination(Some(f.dest.clone()));
         assert!(s.ready().is_none());
@@ -1094,7 +1094,7 @@ mod tests {
         assert_eq!(
             updated.extensions,
             Some(vec![Some("wav".into()), Some("xml".into())]),
-            ".wav isn't on this card, so it stays; .mp4 was turned off, .xml on"
+            ".wav isn’t on this card, so it stays; .mp4 was turned off, .xml on"
         );
         let view = s.preset_saved(updated);
         assert!(!view.preset_changed);
@@ -1152,7 +1152,7 @@ mod tests {
         assert_eq!(
             s.updated_preset(),
             None,
-            "the choices belong to the old preset's scan"
+            "the choices belong to the old preset’s scan"
         );
         assert_eq!(s.choices(), None);
         drop(pending);
@@ -1188,7 +1188,7 @@ mod tests {
         let view = s.finish_scan(second, second_scan);
         assert_eq!(
             view.selected_files, 3,
-            "a new pick starts with every file type, not the old card's"
+            "a new pick starts with every file type, not the old card’s"
         );
         assert!(!s.scan_pending());
     }
@@ -1247,7 +1247,7 @@ mod tests {
         assert!(view.source.is_none());
         assert_eq!(
             view.pick_problem.en().as_deref(),
-            Some("Pick one directory, or only files — not both.")
+            Some("Choose one directory or only files, not both.")
         );
     }
 
@@ -1443,7 +1443,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             missing.blocker.en().as_deref(),
-            Some("The destination is not an existing directory")
+            Some("The destination isn’t an existing directory")
         );
     }
 

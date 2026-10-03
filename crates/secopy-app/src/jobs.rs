@@ -1113,13 +1113,14 @@ fn panel_from(source: &Source, shown: &Message) -> Message {
     }
 }
 
-/// The summary's checksum error: a mirror's own checksum file says so.
+/// The summary's checksum error: a mirror's own checksum file first (the summary and the queue
+/// say it was the mirror's).
 fn checksum_error(
     mirror: Option<&secopy_core::error::IoFailure>,
     report: Option<&secopy_core::error::IoFailure>,
 ) -> Option<Message> {
     match (mirror, report) {
-        (Some(e), _) => Some(msg!("summary.mirrorChecksum", why = say::io_failure(e))),
+        (Some(e), _) => Some(say::io_failure(e)),
         (None, e) => e.map(say::io_failure),
     }
 }
@@ -1192,16 +1193,21 @@ mod tests {
         assert_eq!(panel_from(&files, &retry), "Retry: 3 failed files");
     }
 
-    /// Review: a mirror's checksum file that couldn't be written says it was the mirror's.
+    /// Review: a mirror's checksum file that couldn't be written is the one said (the summary
+    /// and the queue say whose, in one sentence: #172).
     #[test]
-    fn a_mirrors_checksum_error_says_whose() {
+    fn a_mirrors_checksum_error_comes_first() {
         let io = secopy_core::error::IoFailure {
             kind: std::io::ErrorKind::Other,
             message: "Input/output error (os error 5)".into(),
         };
+        let other = secopy_core::error::IoFailure {
+            kind: std::io::ErrorKind::Other,
+            message: "Permission denied (os error 13)".into(),
+        };
         assert_eq!(
-            checksum_error(Some(&io), None).unwrap(),
-            "the mirror's checksum file: Input/output error (os error 5)"
+            checksum_error(Some(&io), Some(&other)).unwrap(),
+            "Input/output error (os error 5)"
         );
         assert_eq!(
             checksum_error(None, Some(&io)).unwrap(),
@@ -1437,7 +1443,7 @@ mod tests {
         assert_eq!(last.phase, JobPhase::Done);
         assert!(
             last.copied_bytes < last.total_bytes && last.verified_bytes < last.total_bytes,
-            "a cancelled job doesn't show full bars: {} / {} / {}",
+            "a cancelled job doesn’t show full bars: {} / {} / {}",
             last.copied_bytes,
             last.verified_bytes,
             last.total_bytes
@@ -1487,7 +1493,7 @@ mod tests {
                 .en()
                 .as_deref()
                 .unwrap()
-                .starts_with("Couldn't be read"),
+                .starts_with("Couldn’t be read"),
             "{row:?}"
         );
     }
@@ -1748,7 +1754,7 @@ mod tests {
                 .en()
                 .as_deref()
                 .unwrap()
-                .starts_with("Cannot read source")
+                .starts_with("Can’t read the source")
         );
         let (_, sel) = f.jobs.retry().unwrap();
         assert_eq!(sel.files.len(), 1);
@@ -1983,7 +1989,7 @@ mod tests {
             dir.path(),
             &preset(&o, &d, crate::store::DeletedMode::Delete),
         );
-        assert!(!expired.exists(), "older than the preset's 30 days");
+        assert!(!expired.exists(), "older than the preset’s 30 days");
         assert!(young.exists());
     }
 
@@ -2070,7 +2076,7 @@ mod tests {
             crate::mirrors::prepare(&p, &JobControl::new(), &|_, _| {})
                 .err()
                 .unwrap(),
-            "SECOPY_NO_SUCH isn't connected."
+            "SECOPY_NO_SUCH isn’t connected."
         );
     }
 
@@ -2321,7 +2327,7 @@ mod tests {
             )
             .unwrap();
         f.jobs.wait();
-        let view = f.jobs.progress_view().expect("the last job's figures");
+        let view = f.jobs.progress_view().expect("the last job’s figures");
         assert_eq!(view.total_files, 3);
         assert_eq!(view.files_done, 3);
     }

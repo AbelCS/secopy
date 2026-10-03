@@ -11,7 +11,7 @@ const view = (over: Partial<ImportView> = {}): ImportView => ({
   copyPresets: [
     { name: "Sony FX3", paths: ["/Volumes/CARD_A/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, replaceNotes: [], section: false },
     { name: "DJI", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI", missing: ["/Volumes/DJI/DCIM"], problem: null, replaceNotes: [], section: false },
-    { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can't be read (…)."), replaceNotes: [], section: false },
+    { name: "Bad", paths: [], clash: null, newName: "Bad", missing: [], problem: raw("Its details can’t be read (…)."), replaceNotes: [], section: false },
   ],
   mirrorPresets: [],
   ...over,
@@ -19,7 +19,7 @@ const view = (over: Partial<ImportView> = {}): ImportView => ({
 
 describe("ImportScreen", () => {
   test("a list of presets that can't be read is named as the list", () => {
-    const section = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("This part of the file can't be read."), replaceNotes: [], section: true };
+    const section = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("This part of the file can’t be read."), replaceNotes: [], section: true };
     render(ImportScreen, {
       props: { view: view({ copyPresets: [section], mirrorPresets: [section] }), onImport: vi.fn(), onBack: () => {} },
     });
@@ -49,7 +49,7 @@ describe("ImportScreen", () => {
   });
 
   test("a preset with no name in the file says so", () => {
-    const unnamed = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("Its details can't be read."), replaceNotes: [], section: false };
+    const unnamed = { name: "", paths: [], clash: null, newName: "", missing: [], problem: raw("Its details can’t be read."), replaceNotes: [], section: false };
     render(ImportScreen, {
       props: { view: view({ copyPresets: [unnamed], mirrorPresets: [unnamed] }), onImport: vi.fn(), onBack: () => {} },
     });
@@ -67,8 +67,8 @@ describe("ImportScreen", () => {
     const madeBy = { key: "import.madeBy", args: { theirs: "0.19.0", ours: "0.17.6" } };
     render(ImportScreen, { props: { view: view({ madeBy, settings }), onImport: vi.fn(), onBack: () => {} } });
     screen.getByText("Made by Secopy 0.19.0; this is 0.17.6.");
-    screen.getByText("“turbo” isn't imported: it's from a newer Secopy.");
-    screen.getByText("Keep copying in the menu bar: not in the file, so set to its default.");
+    screen.getByText("“turbo” isn’t imported: it’s from a newer Secopy.");
+    screen.getByText("Keep jobs running in the menu bar when the window is closed: not in the file, so set to its default.");
   });
 
   test("shows what's in the file, what changes and what clashes", () => {
@@ -76,8 +76,8 @@ describe("ImportScreen", () => {
     screen.getByRole("heading", { name: "Import" });
     screen.getByText("Team presets.secopy");
     screen.getByText("Write the checksum file: on → off");
-    screen.getByText("/Volumes/DJI/DCIM isn't connected now.");
-    screen.getByText("Its details can't be read (…).");
+    screen.getByText("/Volumes/DJI/DCIM isn’t connected now.");
+    screen.getByText("Its details can’t be read (…).");
     expect(screen.getByRole("checkbox", { name: "Bad" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("radio", { name: "Keep both, as “Sony FX3 (2)”" })).toHaveProperty("checked", true);
   });

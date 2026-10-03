@@ -91,7 +91,7 @@ describe("VerifyScreen: help on the buttons", () => {
       "Reads the 1,284 listed files (212.4 GB) and compares each with its checksum; nothing is written.",
     );
     expect(helpOf(screen.getByRole("button", { name: "Add to queue" }))).toBe(
-      "Adds this directory to the Queue; it's verified when the queue gets to it.",
+      "Adds this directory to the queue.",
     );
   });
 });

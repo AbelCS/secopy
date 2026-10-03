@@ -79,6 +79,7 @@
   {#snippet header()}<ScreenHeader title={t("settings.title")} />{/snippet}
 
   {#if banner}{@render banner()}{/if}
+  {#if settingsError}<Notice tone="danger">{settingsError}</Notice>{/if}
 
   <Section title={t("settings.everyCopy")}>
     <div class="options">
@@ -115,6 +116,21 @@
       >
         {#snippet help()}{t("settings.report.help")}{/snippet}
       </Checkbox>
+    </div>
+  </Section>
+
+  <Section title={t("settings.ignore.label")}>
+    <p class="muted">{t("settings.ignore.help")}</p>
+    <IgnoreList
+      label={t("settings.ignore.label")}
+      patterns={draft.ignore}
+      onChange={(list) => (draft.ignore = list)}
+      onRestore={restoreDefaults}
+    />
+  </Section>
+
+  <Section title={t("settings.general")}>
+    <div class="options">
       <Checkbox
         label={t("settings.notify.label")}
         checked={draft.notifyWhenDone}
@@ -132,17 +148,6 @@
         {/snippet}
       </Checkbox>
     </div>
-    {#if settingsError}<Notice tone="danger">{settingsError}</Notice>{/if}
-  </Section>
-
-  <Section title={t("settings.ignore.label")}>
-    <p class="muted">{t("settings.ignore.help")}</p>
-    <IgnoreList
-      label={t("settings.ignore.label")}
-      patterns={draft.ignore}
-      onChange={(list) => (draft.ignore = list)}
-      onRestore={restoreDefaults}
-    />
   </Section>
 
   {#if onExport || onImport}

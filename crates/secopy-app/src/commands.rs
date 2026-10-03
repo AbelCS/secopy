@@ -1005,7 +1005,11 @@ fn failure_reason(s: &SummaryView) -> Message {
         return note;
     }
     if let Some(e) = &s.checksum_error {
-        return msg!("queue.reason.checksum", why = e);
+        return if s.mirror.is_some() {
+            msg!("queue.reason.mirrorChecksum", why = e)
+        } else {
+            msg!("queue.reason.checksum", why = e)
+        };
     }
     match &s.durability_error {
         Some(e) => msg!("queue.reason.durability", why = e),
@@ -2390,7 +2394,7 @@ mod tests {
         let later = AppState::new(dir.path().join("data")).start_view();
         assert_eq!(
             later.last_preset, None,
-            "its card isn't there: nothing to load, and no error at launch"
+            "its card isn’t there: nothing to load, and no error at launch"
         );
     }
 
@@ -2461,7 +2465,7 @@ mod tests {
         assert_eq!(
             fs::read_to_string(dir.path().join(COPY_PRESETS)).unwrap(),
             COPY_PRESETS_0_10,
-            "nothing to put right, so the file isn't rewritten"
+            "nothing to put right, so the file isn’t rewritten"
         );
     }
 
@@ -2618,7 +2622,7 @@ mod tests {
         state.rescan(Change::Pick(vec![card.join("DCIM/a.jpg")]));
         assert_eq!(
             state.save_copy_preset_as("One file".into()).unwrap_err(),
-            "A preset saves a directory as its source; pick a directory first."
+            "A preset saves a directory as its source; choose a directory first."
         );
     }
 
@@ -2786,7 +2790,7 @@ mod tests {
         fs::remove_dir_all(&card).unwrap(); // the card was ejected
         let error = state.retry_failed().unwrap_err();
         assert!(
-            error.starts_with("The source isn't there any more"),
+            error.starts_with("The source isn’t there any more"),
             "{error}"
         );
         assert!(!state.jobs.is_running(), "nothing started");
@@ -2877,7 +2881,7 @@ mod tests {
                 .en()
                 .as_deref()
                 .unwrap()
-                .ends_with("isn't there any more.")
+                .ends_with("isn’t there any more.")
         );
         assert_eq!(summary.results[1].result, QueueResult::Complete);
         let left = state.queue_view().jobs;
@@ -2900,7 +2904,7 @@ mod tests {
         assert_eq!(summary.results[0].result, QueueResult::Failed);
         assert_eq!(
             summary.results[0].reason.en().as_deref(),
-            Some("1 item couldn't be read.")
+            Some("1 item couldn’t be read.")
         );
         assert_eq!(state.queue_view().jobs.len(), 1, "it stays queued");
     }
@@ -2983,9 +2987,9 @@ mod tests {
                 (QueueResult::Failed, stopped.clone()),
                 (QueueResult::Failed, stopped),
             ],
-            "every job, A's result included"
+            "every job, A’s result included"
         );
-        assert!(summary.results[0].summary.is_some(), "A's summary opens");
+        assert!(summary.results[0].summary.is_some(), "A’s summary opens");
         assert_eq!(state.queue_view().jobs.len(), 2, "B and C stay queued");
     }
 
@@ -3036,7 +3040,7 @@ mod tests {
         let summary = state.after_panic(&entries, std::time::Instant::now());
         assert_eq!(summary.results[0].result, QueueResult::Complete);
         assert_eq!(summary.complete, 1);
-        assert!(state.queue_view().jobs.is_empty(), "A isn't run again");
+        assert!(state.queue_view().jobs.is_empty(), "A isn’t run again");
     }
 
     /// #69: a panic while a lock was held doesn't fail every later command.
@@ -3072,7 +3076,7 @@ mod tests {
         state.claim_queue_run().unwrap();
         assert_eq!(
             state.claim_queue_run().unwrap_err(),
-            "A copy or the queue is already running."
+            "A job or the queue is already running."
         );
         let summary = state.run_claimed(Events::default());
         assert_eq!(summary.complete, 1);
@@ -3094,8 +3098,8 @@ mod tests {
             state.queue_view().jobs.is_empty(),
             "no duplicate on a re-run"
         );
-        let error = summary.save_error.expect("says the queue wasn't saved");
-        assert!(error.starts_with("Couldn't save the queue"), "{error}");
+        let error = summary.save_error.expect("says the queue wasn’t saved");
+        assert!(error.starts_with("Couldn’t save the queue"), "{error}");
     }
 
     /// #57: the queue can't be changed while it runs.
@@ -3183,7 +3187,7 @@ mod tests {
         lock(&state.queue_run).running = true;
         assert_eq!(
             state.run_queue(Events::default()).unwrap_err(),
-            "A copy or the queue is already running."
+            "A job or the queue is already running."
         );
         assert_eq!(
             state.start(true, Sink::default()).unwrap_err(),
@@ -3363,7 +3367,7 @@ mod tests {
         state.preview_mirror(&id, &|_, _| {}).unwrap();
         state.run_mirror(&id, Sink::default()).unwrap();
         state.jobs.wait();
-        assert!(run.exists(), "A's archive is no longer this mirror's");
+        assert!(run.exists(), "A’s archive is no longer this mirror’s");
         let _ = o;
     }
 
@@ -3425,7 +3429,7 @@ mod tests {
         assert_eq!(s.outcome, JobOutcome::Failures);
         assert_eq!(
             s.mirror.unwrap().archive_not_deleted.unwrap(),
-            "The archive couldn't be deleted (Permission denied). What's in it is removed once it's 30 days old."
+            "The archive couldn’t be deleted (Permission denied). What’s in it is removed once it’s 30 days old."
         );
     }
 
@@ -3461,7 +3465,7 @@ mod tests {
         fs::set_permissions(&run, fs::Permissions::from_mode(0o755)).unwrap();
         let s = state.jobs.summary().unwrap();
         assert_eq!(s.outcome, JobOutcome::Failures);
-        let said = "1 archived file couldn't be deleted (Permission denied). It's removed once it's 30 days old.";
+        let said = "1 archived file couldn’t be deleted (Permission denied). It’s removed once it’s 30 days old.";
         assert_eq!(failure_reason(&s), said, "the queue says why");
         assert_eq!(s.mirror.unwrap().archive_not_deleted.unwrap(), said);
     }
@@ -3514,7 +3518,7 @@ mod tests {
         assert_eq!((p.new_files, p.removed_files, p.unchanged), (1, 3, 0));
         assert_eq!(
             p.guard.en().as_deref(),
-            Some("3 of the destination's 3 files would be removed.")
+            Some("3 of the destination’s 3 files would be removed.")
         );
         let removed = state.mirror_preview_page(Some(PreviewKind::Removed), 0, 10);
         assert_eq!(removed.len(), 3);
@@ -3727,7 +3731,7 @@ mod tests {
         assert_eq!(summary.results[0].result, QueueResult::Failed);
         assert_eq!(
             summary.results[0].reason.en().as_deref(),
-            Some("3 of the destination's 3 files would be removed.")
+            Some("3 of the destination’s 3 files would be removed.")
         );
         assert!(d.join("x.mov").exists(), "nothing removed");
     }
@@ -3843,7 +3847,7 @@ mod tests {
             state
                 .start_check(&show(dir.path()), Sink::default())
                 .unwrap_err(),
-            "No checksum files here: there's nothing to verify."
+            "No checksum files here: nothing to verify."
         );
     }
 
@@ -3949,7 +3953,7 @@ mod tests {
         let view = done.session.expect("New copy reloaded");
         let source = view.source.unwrap();
         assert_eq!(source.folder, Some(show(&b)));
-        assert!(source.contents_only, "the imported preset's choice");
+        assert!(source.contents_only, "the imported preset’s choice");
         assert!(!view.preset_changed);
     }
 
@@ -4017,12 +4021,12 @@ mod tests {
         assert!(done.failed);
         assert!(
             done.message
-                .starts_with("Imported 1 copy preset. The mirror presets couldn't be saved:"),
+                .starts_with("Imported 1 copy preset. The mirror presets couldn’t be saved:"),
             "{}",
             done.message
         );
         assert!(
-            done.message.ends_with(" The settings weren't imported."),
+            done.message.ends_with(" The settings weren’t imported."),
             "{}",
             done.message
         );

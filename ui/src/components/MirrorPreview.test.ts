@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, test } from "vitest";
 import { raw } from "../test/fake-api";
 import { apiContext } from "../lib/api";
@@ -54,7 +54,15 @@ describe("MirrorPreview", () => {
 
   test("where archived files go is explained", () => {
     show(mirrorPreview({ removedFiles: 5, archiveDays: 30 }));
-    expect(hintOf(screen.getByText("archived, kept 30 days"))).toMatch(/\.secopy-archive/);
+    expect(hintOf(screen.getByText("5 deleted in the origin → archived, kept 30 days"))).toMatch(/\.secopy-archive/);
+  });
+
+  test("#172: one day is a day, and deleting says so in one line", () => {
+    show(mirrorPreview({ removedFiles: 5, archiveDays: 1 }));
+    expect(hintOf(screen.getByText("5 deleted in the origin → archived, kept 1 day"))).toMatch(/older than 1 day\./);
+    cleanup();
+    show(mirrorPreview({ removedFiles: 5, archiveDays: null }));
+    screen.getByText("5 deleted in the origin → deleted");
   });
 
   test("files that will fail are counted, and never \"Already in sync\"", () => {
@@ -71,9 +79,9 @@ describe("MirrorPreview", () => {
 
   test("a tripped guard is shown and Run asks first", async () => {
     const { api, calls } = show(
-      mirrorPreview({ removedFiles: 3, guard: raw("3 of the destination's 3 files would be removed.") }),
+      mirrorPreview({ removedFiles: 3, guard: raw("3 of the destination’s 3 files would be removed.") }),
     );
-    screen.getByText("3 of the destination's 3 files would be removed.");
+    screen.getByText("3 of the destination’s 3 files would be removed.");
     api.confirm.mockResolvedValueOnce(false);
     await fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(api.confirm).toHaveBeenCalled());
@@ -94,22 +102,22 @@ describe("MirrorPreview: help on the buttons", () => {
   test("Start says what it copies and what it does with deleted files", () => {
     show(mirrorPreview());
     expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe(
-      "Copies and verifies 2 new and 1 changed files, then archives 1 file gone from the origin.",
+      "Copies and verifies 2 new and 1 changed files, then archives 1 file deleted in the origin.",
     );
     expect(helpOf(screen.getByRole("button", { name: "Add to queue" }))).toBe(
-      "Adds this mirror to the Queue; what to copy and remove is worked out again when it runs.",
+      "Adds this mirror to the queue; what to copy and remove is worked out again when it runs.",
     );
   });
 
   test("parts that are 0 are left out; a preset that deletes says so", () => {
     show(mirrorPreview({ newFiles: 1, changedFiles: 0, removedFiles: 4, archiveDays: null }));
     expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe(
-      "Copies and verifies 1 new file, then deletes 4 files gone from the origin.",
+      "Copies and verifies 1 new file, then deletes 4 files deleted in the origin.",
     );
   });
 
   test("only removals", () => {
     show(mirrorPreview({ newFiles: 0, changedFiles: 0, removedFiles: 1 }));
-    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe("Archives 1 file gone from the origin.");
+    expect(helpOf(screen.getByRole("button", { name: "Start" }))).toBe("Archives 1 file deleted in the origin.");
   });
 });

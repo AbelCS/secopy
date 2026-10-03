@@ -111,7 +111,8 @@
   /** Also remove the files already copied (#54); off each time it opens. */
   let removeCopied = $state(false);
   const kind: JobKind = $derived(check ? "check" : mirror ? "mirror" : "copy");
-  const question = $derived(queue && checking ? t("progress.stop.queueOnly") : stopQuestion(kind, !!queue));
+  const queueOnly = $derived(!!queue && checking);
+  const question = $derived(queueOnly ? t("progress.stop.queueOnly") : stopQuestion(!!queue));
   // A job that ends (or starts removing) while the question is open has nothing to stop.
   $effect(() => {
     if (finishing) asking = false;
@@ -317,7 +318,7 @@
     {/if}
     {#snippet actions()}
       <Button data-autofocus onclick={() => (asking = false)}>{t("progress.stop.continue")}</Button>
-      <Button variant="danger" onclick={stop}>{t("progress.stop.stop")}</Button>
+      <Button variant="danger" onclick={stop}>{t(queueOnly ? "progress.stop.stopQueue" : "progress.stop.stop")}</Button>
     {/snippet}
   </Dialog>
 {/if}

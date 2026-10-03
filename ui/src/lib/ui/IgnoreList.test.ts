@@ -27,11 +27,11 @@ describe("IgnoreList (#164)", () => {
   test("refuses a /, a repeat, and one Settings has already", async () => {
     const { onChange } = show({ global: [".DS_Store"] });
     await add("a/b");
-    screen.getByText("A pattern is a name: it can't contain /.");
+    screen.getByText("A pattern is a name: it can’t contain /.");
     await add(".GITKEEP");
-    screen.getByText("It's already in the list.");
+    screen.getByText("It’s already in the list.");
     await add(".ds_store");
-    screen.getByText("It's already in Settings › Always ignore when copying.");
+    screen.getByText("It’s already in Settings › Always ignore when copying.");
     expect(onChange).not.toHaveBeenCalled();
   });
 

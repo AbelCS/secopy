@@ -10,7 +10,7 @@
   "format": {
     "unknown": "—",
     "speed": "{size}/s",
-    "percent": "{value} %",
+    "percent": "{value}%",
     "bytes": {
       "b": "{value} B",
       "kb": "{value} KB",
@@ -24,49 +24,53 @@
     "raw": "{text}",
     "list2": "{a} and {b}",
     "list3": "{a}, {b} and {c}",
-    "semicolon": "; "
+    "semicolon": "; ",
+    "days": {
+      "one": "{count} day",
+      "other": "{count} days"
+    }
   },
   "summary": {
     "headline": {
       "cancelled": "Cancelled",
       "stopped": "Stopped: {why}",
       "mhlFailed": {
-        "one": "{count} file doesn't match its ASC MHL history",
-        "other": "{count} files don't match their ASC MHL history"
+        "one": "{count} file doesn’t match its ASC MHL history",
+        "other": "{count} files don’t match their ASC MHL history"
       },
-      "mhlNotWritten": "ASC MHL couldn't be written",
-      "checkCannotContinue": "the check could not continue",
-      "copyCannotContinue": "the copy could not continue",
+      "mhlNotWritten": "ASC MHL couldn’t be written",
+      "checkCannotContinue": "verifying couldn’t continue",
+      "copyCannotContinue": "the copy couldn’t continue",
       "check": {
         "changed": {
           "one": "{count} file changed",
           "other": "{count} files changed"
         },
         "missing": "{count} missing",
-        "unreadable": "{count} couldn't be read",
+        "unreadable": "{count} couldn’t be read",
         "problems": {
           "one": "{count} checksum file problem",
           "other": "{count} checksum file problems"
         },
         "intact": {
-          "one": "All {count} file intact",
-          "other": "All {count} files intact"
+          "one": "{count} file intact",
+          "other": "{count} files intact"
         }
       },
       "unread": {
-        "one": "{count} item couldn't be read",
-        "other": "{count} items couldn't be read"
+        "one": "{count} item couldn’t be read",
+        "other": "{count} items couldn’t be read"
       },
       "notRemoved": {
-        "one": "{count} file couldn't be removed",
-        "other": "{count} files couldn't be removed"
+        "one": "{count} file couldn’t be removed",
+        "other": "{count} files couldn’t be removed"
       },
       "dirErrors": {
-        "one": "{count} empty directory couldn't be created",
-        "other": "{count} empty directories couldn't be created"
+        "one": "{count} empty directory couldn’t be created",
+        "other": "{count} empty directories couldn’t be created"
       },
-      "checksumFailed": "The checksum file couldn't be written",
-      "notDurable": "The destination couldn't confirm the files are saved",
+      "checksumFailed": "The checksum file couldn’t be written",
+      "notDurable": "The destination couldn’t confirm the files are saved",
       "mirror": {
         "new": "{count} new",
         "updated": "{count} updated",
@@ -76,35 +80,35 @@
         "done": "Mirrored: {parts}"
       },
       "undoneBack": "Cancelled: the destination is back as it was",
-      "undoneRemoved": "Cancelled: the copied files were removed",
+      "undoneRemoved": "Cancelled: not everything could be put back",
       "failed": {
         "one": "{count} file failed",
         "other": "{count} files failed"
       },
-      "keptDifferent": {
-        "one": "{count} different file left as it was",
-        "other": "{count} different files left as they were"
-      },
-      "nothingCopied": "Nothing copied: {kept}",
+      "nothingCopied": "Nothing copied: {kept} left unchanged",
       "someVerified": {
-        "one": "{count} file copied and verified; {kept}",
-        "other": "{count} files copied and verified; {kept}"
+        "one": "{count} file copied and verified; {kept} left unchanged",
+        "other": "{count} files copied and verified; {kept} left unchanged"
       },
       "someCopied": {
-        "one": "{count} file copied; {kept}",
-        "other": "{count} files copied; {kept}"
+        "one": "{count} file copied; {kept} left unchanged",
+        "other": "{count} files copied; {kept} left unchanged"
       },
       "nothingToCopy": "Nothing to copy: everything was already there",
       "allVerified": {
-        "one": "All {count} file copied and verified",
-        "other": "All {count} files copied and verified"
+        "one": "{count} file copied and verified",
+        "other": "{count} files copied and verified"
       },
       "allCopied": {
-        "one": "All {count} file copied",
-        "other": "All {count} files copied"
+        "one": "{count} file copied",
+        "other": "{count} files copied"
       },
-      "archiveNotDeleted": "Archived files couldn't all be deleted",
-      "archiveNotCleaned": "Old archived files couldn't all be removed"
+      "archiveNotDeleted": "Archived files couldn’t all be deleted",
+      "archiveNotCleaned": "Old archived files couldn’t all be removed",
+      "differentFiles": {
+        "one": "{count} different file",
+        "other": "{count} different files"
+      }
     },
     "stats": {
       "files": {
@@ -113,7 +117,7 @@
       },
       "took": "took {time}",
       "notChecked": "{count} not checked",
-      "notCheckedHint": "Files no checksum file lists: nothing to compare them with.",
+      "notCheckedHint": "In no checksum file: nothing to compare them with.",
       "written": "{size} written",
       "average": "{speed} average",
       "alreadyThere": "{count} already at the destination, not checked",
@@ -122,21 +126,21 @@
         "other": "{count} different files left as they were"
       },
       "notStarted": "{count} not started",
-      "notStartedHint": "Files the job didn't reach because it was cancelled or stopped."
+      "notStartedHint": "Not reached: the job was cancelled or stopped."
     },
     "title": "Summary",
     "notRestored": {
-      "one": "{count} file this job replaced couldn't be brought back: their new versions stay.",
-      "other": "{count} files this job replaced couldn't be brought back: their new versions stay."
+      "one": "{count} file this job replaced couldn’t be restored: its new version stays.",
+      "other": "{count} files this job replaced couldn’t be restored: their new versions stay."
     },
     "notRemovedUndo": {
-      "one": "{count} file couldn't be removed (see the report).",
-      "other": "{count} files couldn't be removed (see the report)."
+      "one": "{count} file couldn’t be removed (see the report).",
+      "other": "{count} files couldn’t be removed (see the report)."
     },
     "noChecksumFile": "No checksum file (off in Settings)",
-    "checksumError": "The checksum file could not be written: {why}",
+    "checksumError": "The checksum file couldn’t be written: {why}",
     "durabilityError": "The destination reported an error while the files were saved to disk: {why}. Check the drive and run the copy again.",
-    "reportError": "The report could not be saved: {why}",
+    "reportError": "The report couldn’t be saved: {why}",
     "failed": "Failed",
     "more": "and {count} more (see the report)",
     "problems": "Problems",
@@ -144,8 +148,8 @@
     "files": "Files",
     "retry": "Retry",
     "retryHelp": {
-      "one": "Sets up a new copy of just the {count} failed file; press Start to run it.",
-      "other": "Sets up a new copy of just the {count} failed files; press Start to run it."
+      "one": "Sets up a new copy of just the {count} failed file; press “Start” to run it.",
+      "other": "Sets up a new copy of just the {count} failed files; press “Start” to run it."
     },
     "showInFinder": "Show in Finder",
     "openChecksumFile": "Open checksum file",
@@ -157,65 +161,46 @@
     "reason": {
       "differs": "A different file with this name was kept",
       "dirNotCreated": "Empty directory not created: {why}",
-      "mhlFailed": "Doesn't match its ASC MHL history",
+      "mhlFailed": "Doesn’t match its ASC MHL history",
       "identical": "Already at the destination (not checked)",
       "notRemoved": "Not removed: {why}",
-      "unread": "Couldn't be read: {why}"
+      "unread": "Couldn’t be read: {why}"
     },
-    "mirrorChecksum": "the mirror's checksum file: {why}"
+    "mirrorChecksumError": "The mirror’s checksum file couldn’t be written: {why}"
   },
   "progress": {
     "stop": {
-      "question": {
-        "copy": "Stop copying?",
-        "mirror": "Stop mirroring?",
-        "check": "Stop verifying?"
-      },
-      "questionQueue": {
-        "copy": "Stop copying and stop the queue?",
-        "mirror": "Stop mirroring and stop the queue?",
-        "check": "Stop verifying and stop the queue?"
-      },
+      "question": "Cancel this job?",
+      "questionQueue": "Cancel this job and stop the queue?",
       "queueOnly": "Stop the queue?",
-      "notStarted": "This job hasn't started yet: nothing was written for it.",
+      "notStarted": "This job hasn’t started yet: nothing was written for it.",
       "left": {
-        "check": "Nothing was changed: a check only reads files.",
+        "check": "Nothing was changed: verifying only reads files.",
         "mirror": "Files already copied stay; the file in progress is removed. Files deleted in the origin are left in the destination.",
         "copyListed": "Files already copied stay and are listed in the checksum file; the file in progress is removed.",
         "copy": "Files already copied stay; the file in progress is removed."
       },
-      "checkedSoFar": "Nothing was changed: the files checked so far are in the summary.",
+      "checkedSoFar": "Nothing was changed: the files verified so far are in the summary.",
       "removeCopied": "The file in progress and the files already copied are removed.",
       "alsoRemove": "Also remove the files already copied",
-      "alsoRemoveHelp": "The destination goes back to how it was. Files this job replaced come back only from a mirror's archive.",
+      "alsoRemoveHelp": "Removes what this job copied. Files it replaced come back only from a mirror’s archive.",
       "continue": "Continue",
-      "stop": "Stop"
+      "stop": "Cancel job",
+      "stopQueue": "Stop the queue"
     },
     "quit": {
-      "question": {
-        "copy": "Stop copying and quit?",
-        "mirror": "Stop mirroring and quit?",
-        "check": "Stop verifying and quit?"
-      },
-      "stop": {
-        "copy": "Stop copying",
-        "mirror": "Stop mirroring",
-        "check": "Stop verifying"
-      },
-      "keep": {
-        "copy": "Keep copying",
-        "mirror": "Keep mirroring",
-        "check": "Keep verifying"
-      },
+      "question": "Cancel this job and quit?",
+      "stop": "Cancel job and quit",
+      "keep": "Continue",
       "queueQuestion": "Stop the queue and quit?",
       "queueStop": "Stop the queue",
       "queueKeep": "Continue",
       "finishing": {
-        "undo": "Secopy finishes putting the destination back as it was first, then quits.",
-        "archive": "Secopy finishes archiving the files gone from the origin first, then quits.",
-        "delete": "Secopy finishes deleting the files gone from the origin first, then quits."
+        "undo": "Secopy first finishes putting the destination back, then quits.",
+        "archive": "Secopy first finishes archiving the files deleted in the origin, then quits.",
+        "delete": "Secopy first finishes deleting the files deleted in the origin, then quits."
       },
-      "whenDone": "Quit when it's done?",
+      "whenDone": "Quit when it’s done?",
       "quit": "Quit",
       "keepOpen": "Keep open"
     },
@@ -242,7 +227,7 @@
     "stopped": "Stopped: {why}",
     "title": "Progress",
     "comparing": "Comparing contents: {done} of {files}",
-    "lookingAtSource": "Looking at the source and the destination before this job starts…",
+    "lookingAtSource": "Checking the source and the destination…",
     "estimating": "Estimating…",
     "timeLeft": "Time left",
     "timeLeftLabel": "Time left:",
@@ -271,7 +256,7 @@
     "smallFiles": {
       "name": "Small files",
       "of": "{done} of {total}",
-      "help": "Files under 8 MB. Many are copied at once, so they're counted together instead of getting a bar each."
+      "help": "Files under 8 MB, copied several at once and counted together."
     },
     "resume": "Resume",
     "resumeHelp": "Carries on from where it paused (Space).",
@@ -280,10 +265,10 @@
       "check": "Stops reading until you resume (Space).",
       "copy": "Stops reading and writing until you resume (Space)."
     },
-    "cancel": "Cancel",
+    "cancel": "Cancel…",
     "cancelHelp": {
-      "queue": "Asks first, then stops this job and the queue (⌘.).",
-      "job": "Asks first, then stops the job (⌘.)."
+      "queue": "Asks first, then cancels this job and stops the queue (⌘.).",
+      "job": "Asks first, then cancels the job (⌘.)."
     }
   },
   "notify": {
@@ -322,9 +307,9 @@
     "exportName": "Secopy settings {date}.secopy",
     "warning": {
       "damaged": "{detail}",
-      "newerKept": "{file} is from a newer Secopy (version {version}): it's left as it is, and the defaults are used.",
-      "setAside": "{file} couldn't be read ({why}). It was set aside as {aside} in {dir}, and the defaults are used.",
-      "notSetAside": "{file} couldn't be read ({why}) or set aside ({error}). The defaults are used."
+      "newerKept": "{file} is from a newer Secopy (version {version}): it’s left as it is, and the defaults are used.",
+      "setAside": "{file} couldn’t be read ({why}). It was set aside as {aside} in {dir}, and the defaults are used.",
+      "notSetAside": "{file} couldn’t be read ({why}) or set aside ({error}). The defaults are used."
     }
   },
   "ui": {
@@ -348,7 +333,7 @@
       "title": "Discard changes?",
       "discard": "Discard",
       "keep": "Keep editing",
-      "named": "Your changes to “{name}” aren't saved."
+      "named": "Your changes to “{name}” aren’t saved."
     },
     "back": "Back",
     "export": "Export…",
@@ -368,13 +353,13 @@
     "alsoIgnore": "Also ignore",
     "alsoIgnoreHint": "Names this copy (and its preset) never copies, on top of Settings › Always ignore when copying.",
     "alsoIgnoreNone": "None",
-    "alsoIgnoreEdit": "Edit",
+    "alsoIgnoreEdit": "Edit…",
     "alsoIgnoreDone": "Done",
     "ignored": {
       "one": "{count} ignored",
       "other": "{count} ignored"
     },
-    "ignoredHint": "Left out by Settings › Always ignore when copying: {patterns}",
+    "ignoredHint": "Ignored by name: {patterns}",
     "symlinksSkipped": {
       "one": "{count} symlink skipped",
       "other": "{count} symlinks skipped"
@@ -385,13 +370,13 @@
     },
     "specialHint": "Not files with data: a FIFO, a socket or a device. Never copied.",
     "queued": {
-      "one": "Added to the queue ({count} job).",
-      "other": "Added to the queue ({count} jobs)."
+      "one": "Added to the queue (now {count} job).",
+      "other": "Added to the queue (now {count} jobs)."
     },
     "status": {
       "scanning": "Waiting for the scan…",
       "checking": "Waiting for the destination check…",
-      "noSource": "Pick what to copy.",
+      "noSource": "Choose a source.",
       "noDestination": "Choose where to copy to.",
       "blocked": "Something above blocks the copy.",
       "nothing": "Nothing to copy.",
@@ -411,8 +396,8 @@
     "source": "Source",
     "scanning": "Scanning…",
     "unreadable": {
-      "one": "{count} item couldn't be read",
-      "other": "{count} items couldn't be read"
+      "one": "{count} item couldn’t be read",
+      "other": "{count} items couldn’t be read"
     },
     "dropSource": "Drop a directory or files here, or choose them.",
     "choose": "Choose…",
@@ -433,15 +418,15 @@
     "modeCopy": "Copy",
     "modeVerify": "Copy & Verify",
     "aboutVerifying": "About verifying",
-    "aboutVerifyingText": "Copy & Verify reads every copy back from the destination and checks it against the source's checksum; a copy that doesn't match is copied again. Copy only copies: faster, but nothing is checked.",
+    "aboutVerifyingText": "Copy & Verify reads each file back from the destination and compares it with the source’s checksum; a mismatch is copied again once. Copy is faster but checks nothing.",
     "addToQueue": "Add to queue",
-    "addToQueueHelp": "Adds this copy, as set up now, to the Queue; it runs when you start the queue.",
+    "addToQueueHelp": "Adds this copy, as set up now, to the queue.",
     "preflight": {
       "keepBoth": "Keep both",
       "overwrite": "Overwrite",
       "skip": "Skip",
       "filesGoTo": "Files go to",
-      "purgeable": "Needs purgeable space: {needed} needed, {free} free now",
+      "purgeable": "Needs purgeable space: {needed} needed, {free} available now",
       "mhlNew": "ASC MHL: new history",
       "mhlContinues": "ASC MHL: continues the history (generation {n})",
       "mhlAlsoReads": {
@@ -449,10 +434,10 @@
         "other": "Also records {count} files already here ({size})."
       },
       "aboutPurgeable": "About purgeable space",
-      "purgeableHelp": "Space macOS frees on demand (Time Machine local snapshots, caches), not always in time. If it isn't freed, the copy stops when the disk is full. To free it first, delete the local snapshots in Disk Utility.",
+      "purgeableHelp": "Space macOS frees on demand (Time Machine local snapshots, caches), not always in time. If it isn’t freed, the copy stops when the disk is full. To free it first, delete the local snapshots in Disk Utility.",
       "notEmpty": {
-        "one": "Already contains {count} item. Identical files will be skipped.",
-        "other": "Already contains {count} items. Identical files will be skipped."
+        "one": "Already contains {count} item. Files with the same size and date are skipped.",
+        "other": "Already contains {count} items. Files with the same size and date are skipped."
       },
       "problems": "Problems",
       "willFail": {
@@ -460,17 +445,17 @@
         "other": "{count} files will fail"
       },
       "more": "and {count} more",
-      "identical": "Identical",
-      "identicalHint": "Files with the same name, size and date (within 2 seconds) as one already in the destination. They aren't copied or read.",
+      "identical": "Same size and date",
+      "identicalHint": "Same name, size and modification date (within 2 s) as a file in the destination: not copied or read.",
       "identicalSkipped": {
-        "one": "{count} identical file will be skipped (not checked).",
-        "other": "{count} identical files will be skipped (not checked)."
+        "one": "{count} file with the same size and date will be skipped (not checked).",
+        "other": "{count} files with the same size and date will be skipped (not checked)."
       },
       "existing": "Existing files",
-      "existingHint": "Files with the same name as one already in the destination, but a different size or date. Keep both: the new one is copied with a number added to its name. Overwrite: the one there is replaced. Skip: the one there is left as it is.",
+      "existingHint": "Same name as a file in the destination, different size or date. Keep both: copied with a number added. Overwrite: replaces it. Skip: leaves it.",
       "differ": {
-        "one": "{count} file differs from what's there",
-        "other": "{count} files differ from what's there"
+        "one": "{count} file differs from what’s there",
+        "other": "{count} files differ from what’s there"
       },
       "leftovers": "Leftovers",
       "stale": {
@@ -479,8 +464,8 @@
       }
     },
     "pick": {
-      "nothing": "Nothing was picked.",
-      "mixed": "Pick one directory, or only files — not both."
+      "nothing": "Nothing was chosen.",
+      "mixed": "Choose one directory or only files, not both."
     },
     "picked": {
       "files": {
@@ -509,38 +494,38 @@
     "new": "New preset…",
     "changed": "Changed for this run",
     "update": "Update",
-    "updateHelp": "Saves this source and these choices into the preset “{name}”.",
+    "updateHelp": "Saves this source and these options into the preset “{name}”.",
     "saveAs": "Save as…",
-    "saveAsHelp": "Saves this source and these choices as a new preset.",
+    "saveAsHelp": "Saves this source and these options as a new preset.",
     "name": "Name",
     "namePlaceholder": "e.g. Sony FX3",
     "cancel": "Cancel",
     "save": "Save",
-    "discardNew": "Your changes to the new preset aren't saved.",
+    "discardNew": "Your changes to the new preset aren’t saved.",
     "delete": {
-      "message": "The preset “{name}” is deleted. Its source and the copies are not touched.",
+      "message": "The preset “{name}” is deleted. Its source and the copies aren’t touched.",
       "title": "Delete preset?",
       "ok": "Delete",
       "keep": "Keep"
     },
     "title": "Copy presets",
     "all": "All presets",
-    "addNew": "+ New preset",
+    "addNew": "+ New preset…",
     "newTitle": "New preset",
     "about": "About copy presets",
     "empty": {
-      "what": "A copy preset saves a source and its settings (whether that directory itself is copied, and which file types), so a copy you do often is set up in one step: choose the preset in the main window.",
-      "how": "Create one with “+ New preset”, or with “Save as…” in the main window."
+      "what": "A copy preset saves a source and its options (the directory itself or only what’s in it, file types, Also ignore): choose it in New copy to set up a frequent copy in one step.",
+      "how": "Create one with “+ New preset…”, or with “Save as…” in New copy."
     },
     "unsaved": "Unsaved changes",
     "editor": {
       "name": "Name",
       "source": "Source",
-      "sourcePlaceholder": "e.g. /Volumes/CARD_A/PRIVATE/M4ROOT/CLIP",
+      "sourcePlaceholder": "e.g. /Volumes/Untitled/PRIVATE/M4ROOT/CLIP",
       "options": "Options",
       "includeNamed": "Include the “{name}” directory",
       "alsoIgnoreHint": "Names this preset never copies, on top of Settings › Always ignore when copying.",
-      "includePicked": "Include the picked directory itself",
+      "includePicked": "Include the chosen directory itself",
       "fileTypes": "File types",
       "allTypes": "All types",
       "onlyThese": "Only these",
@@ -555,7 +540,7 @@
     "repaired": {
       "noName": "A copy preset in {file} had no name; it is now “{name}”.",
       "sameName": "Two copy presets in {file} were called “{wanted}”; the second is now “{name}”.",
-      "notFullPath": "The copy preset “{name}” had a source that isn't a full path ({source}); choose its directory again."
+      "notFullPath": "The copy preset “{name}” had a source that isn’t a full path ({source}); choose its directory again."
     }
   },
   "finished": {
@@ -583,7 +568,7 @@
   },
   "export": {
     "title": "Export",
-    "about": "Choose what goes in the file. The queue and this Mac's recent destinations stay here.",
+    "about": "Choose what goes in the file. The queue and this Mac’s recent destinations stay here.",
     "settings": "Settings",
     "copyPresets": "Copy presets {count}",
     "mirrorPresets": "Mirror presets {count}",
@@ -606,12 +591,12 @@
   },
   "import": {
     "title": "Import",
-    "notConnected": "{path} isn't connected now.",
+    "notConnected": "{path} isn’t connected now.",
     "renamed": "Imported as “{name}”: the file has this name twice.",
     "clash": "You already have “{name}”",
     "keepBoth": "Keep both, as “{name}”",
     "replace": "Replace yours",
-    "replaceDeletes": "Replacing deletes files removed from the origin instead of archiving them.",
+    "replaceDeletes": "Replacing it, files deleted in the origin are deleted instead of archived.",
     "replaceShortens": {
       "one": "Replacing removes archived files older than {count} day at its next run.",
       "other": "Replacing removes archived files older than {count} days at its next run."
@@ -623,18 +608,18 @@
     "mirrorPresets": "Mirror presets",
     "import": "Import",
     "andNot": {
-      "both": "{message} The mirror presets and the settings weren't imported.",
-      "mirrors": "{message} The mirror presets weren't imported.",
-      "settings": "{message} The settings weren't imported."
+      "both": "{message} The mirror presets and the settings weren’t imported.",
+      "mirrors": "{message} The mirror presets weren’t imported.",
+      "settings": "{message} The settings weren’t imported."
     },
     "change": "{setting}: {from} → {to}",
     "changed": "{setting}: changed",
     "madeBy": "Made by Secopy {theirs}; this is {ours}.",
-    "notImported": "“{setting}” isn't imported: it's from a newer Secopy.",
+    "notImported": "“{setting}” isn’t imported: it’s from a newer Secopy.",
     "defaulted": "{setting}: not in the file, so set to its default.",
     "done": "Imported {what}.",
-    "failed": "{what} couldn't be saved: {why}",
-    "partly": "Imported {done}. {what} couldn't be saved: {why}",
+    "failed": "{what} couldn’t be saved: {why}",
+    "partly": "Imported {done}. {what} couldn’t be saved: {why}",
     "kind": {
       "copyPresets": "The copy presets",
       "mirrorPresets": "The mirror presets",
@@ -643,17 +628,17 @@
     "on": "on",
     "off": "off",
     "problem": {
-      "details": "Its details can't be read ({detail}).",
-      "newer": "Needs a newer Secopy: it has settings this one doesn't know ({keys}).",
-      "section": "This part of the file can't be read.",
-      "settings": "The settings in this file can't be read."
+      "details": "Its details can’t be read ({detail}).",
+      "newer": "Needs a newer Secopy: it has settings this one doesn’t know ({keys}).",
+      "section": "This part of the file can’t be read.",
+      "settings": "The settings in this file can’t be read."
     },
     "setting": {
-      "checksumFile": "Write the checksum file",
+      "checksumFile": "Write the checksum file to the destination",
       "systemCount": "Show the count of ignored files",
       "report": "Save the report next to the checksum file",
-      "notify": "Notify when a copy finishes",
-      "menuBar": "Keep copying in the menu bar",
+      "notify": "Notify when a job finishes",
+      "menuBar": "Keep jobs running in the menu bar when the window is closed",
       "mhl": "Write ASC MHL",
       "ignore": "Always ignore when copying"
     },
@@ -664,52 +649,53 @@
   },
   "settings": {
     "title": "Settings",
-    "discard": "Your changes to the settings aren't saved.",
-    "everyCopy": "Every copy",
+    "discard": "Your changes to the settings aren’t saved.",
+    "everyCopy": "Copies",
     "checksumFile": {
       "label": "Write the checksum file to the destination",
       "help": "A {file} file lists every copied file with its checksum, so the copy can be checked again later, for example with {command}."
     },
     "mhl": {
       "label": "Write ASC MHL",
-      "help": "The media industry's proof of copy (ASC Media Hash List), read by tools such as Silverstack and Hedge. Kept in an ascmhl folder with the copied files; a history the files already have is continued. Files already in the destination are read too, so the history lists them."
+      "help": "ASC Media Hash List, the media industry’s proof of copy (Silverstack, Hedge). Written to an ascmhl directory with the files; an existing history is continued and lists files already there too."
     },
     "systemCount": {
       "label": "Show the count of ignored files",
-      "help": "Shows how many files and directories Always ignore when copying left out. Every other file is copied, hidden or not."
+      "help": "How many files and directories “Always ignore when copying” and “Also ignore” left out. Every other file is copied, hidden or not."
     },
     "ignore": {
       "label": "Always ignore when copying",
-      "help": "Files and directories with these names are never copied or mirrored, and a mirror never removes them from its backup. * stands for any characters, ? for one.",
+      "help": "Files and directories with these names are never copied or mirrored, and a mirror never removes them from its destination. * stands for any characters, ? for one.",
       "field": "Name pattern",
       "add": "Add",
       "restore": "Restore defaults",
-      "repeat": "It's already in the list.",
-      "inGlobal": "It's already in Settings › Always ignore when copying.",
+      "repeat": "It’s already in the list.",
+      "inGlobal": "It’s already in Settings › Always ignore when copying.",
       "placeholder": "Add a name pattern, e.g. *.LRF",
-      "empty": "No patterns. Secopy's own working files are still left out.",
+      "empty": "No patterns. Secopy’s own working files are still left out.",
       "count": {
         "one": "{count} pattern",
         "other": "{count} patterns"
       }
     },
     "report": {
-      "label": "Also save the job report next to the checksum file",
-      "help": "Every job's report is also kept in the app; this adds a copy next to the checksum file."
+      "label": "Save the report next to the checksum file",
+      "help": "Every job’s report is also kept in the app; this adds a copy next to the checksum file."
     },
     "notify": {
-      "label": "Notify when a copy finishes",
-      "help": "Only when Secopy's window isn't in front. macOS asks for permission the first time."
+      "label": "Notify when a job finishes",
+      "help": "Only when Secopy’s window isn’t in front. macOS asks for permission the first time."
     },
     "menuBar": {
-      "label": "Keep copying in the menu bar when the window is closed",
-      "help": "Closing the window during a job hides it; a menu bar icon shows the progress and brings it back. When off, closing asks to stop the job."
+      "label": "Keep jobs running in the menu bar when the window is closed",
+      "help": "Closing the window during a job hides it; a menu bar icon shows the progress and brings it back. When off, closing asks to cancel the job."
     },
     "transfer": {
       "title": "Settings and presets",
       "about": "Move your settings and presets to a new Mac, or share presets, in a .secopy file.",
       "exportHelp": "Exports your saved settings; save first to include these changes."
-    }
+    },
+    "general": "General"
   },
   "verify": {
     "title": "Verify",
@@ -728,14 +714,14 @@
         "other": "{count} files not listed"
       }
     },
-    "about": "Choose the directory of a copy, or a whole drive: Secopy reads every file its checksum files list and compares it. Nothing is written to it.",
+    "about": "A copy’s directory or a whole drive: every file its checksum files list is read and compared with its checksum. Nothing is written.",
     "pick": "Directory to verify",
-    "nothing": "No checksum files here: there's nothing to verify. Secopy writes one with every copy and every mirror.",
+    "nothing": "No checksum files here: nothing to verify. Copies write one (unless it’s off in Settings); mirrors always do.",
     "addToQueue": "Add to queue",
-    "addToQueueHelp": "Adds this directory to the Queue; it's verified when the queue gets to it.",
+    "addToQueueHelp": "Adds this directory to the queue.",
     "start": "Start",
     "startHelp": {
-      "one": "Reads the {count} listed file ({size}) and compares each with its checksum; nothing is written.",
+      "one": "Reads the {count} listed file ({size}) and compares it with its checksum; nothing is written.",
       "other": "Reads the {count} listed files ({size}) and compares each with its checksum; nothing is written."
     }
   },
@@ -747,7 +733,7 @@
       "clear": "Clear",
       "keep": "Keep"
     },
-    "empty": "Nothing queued. Set up a copy, a mirror or a verify and press Add to queue: it runs here, one after another with the others.",
+    "empty": "Nothing queued. Set up a copy, mirror or verify and press “Add to queue”.",
     "jobs": "Queued jobs",
     "mode": {
       "verify": "Verify",
@@ -786,7 +772,7 @@
     },
     "name": {
       "check": "Verify · {source}",
-      "mirror": "Mirror {name}",
+      "mirror": "Mirror · {name}",
       "job": "{kind} · {source} to {destination}"
     },
     "done": {
@@ -801,35 +787,36 @@
     "reason": {
       "cancelled": "Cancelled.",
       "check": "{parts}.",
-      "checksum": "The checksum file couldn't be written: {why}.",
+      "checksum": "The checksum file couldn’t be written: {why}.",
+      "mirrorChecksum": "The mirror’s checksum file couldn’t be written: {why}.",
       "dirs": {
-        "one": "{count} empty directory couldn't be created.",
-        "other": "{count} empty directories couldn't be created."
+        "one": "{count} empty directory couldn’t be created.",
+        "other": "{count} empty directories couldn’t be created."
       },
-      "durability": "The destination couldn't confirm the files are saved: {why}.",
+      "durability": "The destination couldn’t confirm the files are saved: {why}.",
       "filesFailed": {
         "one": "{count} file failed.",
         "other": "{count} files failed."
       },
-      "mhl": "ASC MHL couldn't be written: {why}.",
+      "mhl": "ASC MHL couldn’t be written: {why}.",
       "mhlFailed": {
-        "one": "{count} file doesn't match its ASC MHL history.",
-        "other": "{count} files don't match their ASC MHL history."
+        "one": "{count} file doesn’t match its ASC MHL history.",
+        "other": "{count} files don’t match their ASC MHL history."
       },
-      "incomplete": "It didn't complete.",
+      "incomplete": "It didn’t complete.",
       "internal": "Secopy hit an internal error; the queue stopped.",
       "newer": "Needs a newer Secopy.",
       "nothingToCopy": "Nothing to copy.",
       "overwriteChanged": "Files to overwrite changed. Queue it again.",
       "notRemoved": {
-        "one": "{count} file couldn't be removed.",
-        "other": "{count} files couldn't be removed."
+        "one": "{count} file couldn’t be removed.",
+        "other": "{count} files couldn’t be removed."
       },
       "notRun": "Not run: the queue stopped.",
       "part": {
         "changed": "{count} changed",
         "missing": "{count} missing",
-        "unreadable": "{count} couldn't be read",
+        "unreadable": "{count} couldn’t be read",
         "problems": {
           "one": "{count} checksum file problem",
           "other": "{count} checksum file problems"
@@ -838,28 +825,28 @@
       "stopped": "Stopped.",
       "stoppedBecause": "{why}.",
       "unread": {
-        "one": "{count} item couldn't be read.",
-        "other": "{count} items couldn't be read."
+        "one": "{count} item couldn’t be read.",
+        "other": "{count} items couldn’t be read."
       }
     }
   },
   "mirror": {
     "title": "Mirror",
-    "discardNew": "Your changes to the new mirror aren't saved.",
+    "discardNew": "Your changes to the new mirror aren’t saved.",
     "delete": {
-      "message": "The mirror “{name}” is deleted. Its origin, destination and archive are not touched.",
+      "message": "The mirror “{name}” is deleted. Its origin, destination and archive aren’t touched.",
       "title": "Delete mirror?",
       "ok": "Delete",
       "keep": "Keep"
     },
     "all": "All mirrors",
     "list": "Mirrors",
-    "addNew": "+ New mirror",
+    "addNew": "+ New mirror…",
     "newTitle": "New mirror",
     "about": "About mirrors",
     "empty": {
-      "what": "A mirror keeps a copy of a directory identical to it: new and changed files are copied and verified, and files deleted in the origin are archived (or deleted) in the destination. Nothing is ever written to the origin, and every run shows a preview first.",
-      "how": "Create one with “+ New mirror”."
+      "what": "A mirror keeps a destination identical to its origin: new and changed files are copied and verified; files deleted in the origin are archived (or deleted) in the destination. Nothing is written to the origin.",
+      "how": "Create one with “+ New mirror…”."
     },
     "unsaved": "Unsaved changes",
     "comparing": "Comparing contents: {done} of {files}",
@@ -869,15 +856,15 @@
     },
     "previewing": "Working out the preview…",
     "addToQueue": "Add to queue",
-    "addToQueueHelp": "Adds this mirror to the Queue; what to copy and remove is worked out again when it runs.",
+    "addToQueueHelp": "Adds this mirror to the queue; what to copy and remove is worked out again when it runs.",
     "preview": {
       "open": "Preview…",
       "startHelp": {
         "copy": "Copies and verifies {copied}.",
-        "archive": "Archives {removed} gone from the origin.",
-        "delete": "Deletes {removed} gone from the origin.",
-        "copyArchive": "Copies and verifies {copied}, then archives {removed} gone from the origin.",
-        "copyDelete": "Copies and verifies {copied}, then deletes {removed} gone from the origin."
+        "archive": "Archives {removed}.",
+        "delete": "Deletes {removed}.",
+        "copyArchive": "Copies and verifies {copied}, then archives {removed}.",
+        "copyDelete": "Copies and verifies {copied}, then deletes {removed}."
       },
       "copied": {
         "new": {
@@ -902,13 +889,10 @@
       "inSync": "Already in sync.",
       "new": "{count} new",
       "changed": "{count} changed",
-      "removed": "{count} deleted in the origin →",
-      "deleted": "deleted",
-      "archived": "archived, kept {days} days",
-      "archivedHelp": "Moved into the hidden .secopy-archive directory in the destination. Each run first removes archived files older than {days} days.",
+      "archivedHelp": "Moved into the hidden .secopy-archive directory in the destination. Each run first removes archived files older than {days}.",
       "failing": {
-        "one": "{count} file will fail: a name the destination can't take, or something in the way",
-        "other": "{count} files will fail: a name the destination can't take, or something in the way"
+        "one": "{count} file will fail: a name the destination can’t take, or something in the way",
+        "other": "{count} files will fail: a name the destination can’t take, or something in the way"
       },
       "unchanged": "{count} unchanged",
       "files": "Files",
@@ -926,6 +910,12 @@
         "changed": "Changed in the origin",
         "contentsDiffer": "Contents differ",
         "deleted": "Deleted in the origin"
+      },
+      "removedDeleted": "{count} deleted in the origin → deleted",
+      "removedArchived": "{count} deleted in the origin → archived, kept {days}",
+      "removedFiles": {
+        "one": "{count} file deleted in the origin",
+        "other": "{count} files deleted in the origin"
       }
     },
     "editor": {
@@ -941,7 +931,7 @@
       "delete": "Delete them",
       "days": "Days to keep",
       "daysHelp": "In .secopy-archive on the destination. Each run deletes those older than this.",
-      "deleteNote": "Files deleted in the origin are deleted in the destination too. This can't be undone.",
+      "deleteNote": "Files deleted in the origin are deleted in the destination too. This can’t be undone.",
       "verifyNote": "New and changed files are always verified after copying.",
       "alsoIgnoreHint": "Names this mirror never copies or removes, on top of Settings › Always ignore when copying.",
       "daysShorter": {
@@ -952,20 +942,20 @@
       "standard": "Standard",
       "standardHelp": "Size and modification date.",
       "paranoid": "Paranoid",
-      "paranoidHelp": "Byte-for-byte comparison of both copies.",
+      "paranoidHelp": "Compares the checksums of both copies.",
       "paranoidWarning": "Very slow: reads all data on both sides."
     },
     "guard": {
       "unread": {
-        "one": "{count} item in the origin couldn't be read ({path}: {why}). Nothing is removed from the destination this run.",
-        "other": "{count} items in the origin couldn't be read ({path}: {why}). Nothing is removed from the destination this run."
+        "one": "{count} item in the origin couldn’t be read ({path}: {why}). Nothing is removed from the destination this run.",
+        "other": "{count} items in the origin couldn’t be read ({path}: {why}). Nothing is removed from the destination this run."
       },
       "destinationUnread": {
-        "one": "{count} directory in the destination couldn't be read ({path}). Nothing is removed from the destination this run.",
-        "other": "{count} directories in the destination couldn't be read ({path}). Nothing is removed from the destination this run."
+        "one": "{count} directory in the destination couldn’t be read ({path}). Nothing is removed from the destination this run.",
+        "other": "{count} directories in the destination couldn’t be read ({path}). Nothing is removed from the destination this run."
       },
       "emptyOrigin": "The origin has no files: every file in the destination would be removed.",
-      "tooMany": "{removals} of the destination's {files} files would be removed."
+      "tooMany": "{removals} of the destination’s {files} files would be removed."
     },
     "notRemoved": {
       "cancelled": "Files deleted in the origin were left in the destination: the mirror was cancelled.",
@@ -974,14 +964,14 @@
         "one": "Files deleted in the origin were left in the destination: {count} file failed.",
         "other": "Files deleted in the origin were left in the destination: {count} files failed."
       },
-      "notClean": "Files deleted in the origin were left in the destination: the copy didn't end cleanly."
+      "notClean": "Files deleted in the origin were left in the destination: the copy didn’t end cleanly."
     },
     "removal": {
       "changed": "It changed after the preview, so it was kept."
     },
     "archiveNotDeleted": {
-      "one": "{count} archived file couldn't be deleted ({why}). It's removed once it's {days} days old.",
-      "other": "{count} archived files couldn't be deleted ({why}). They're removed once they're {days} days old."
+      "one": "{count} archived file couldn’t be deleted ({why}). It’s removed once it’s {days} old.",
+      "other": "{count} archived files couldn’t be deleted ({why}). They’re removed once they’re {days} old."
     },
     "switch": {
       "title": "Files already archived",
@@ -989,10 +979,10 @@
         "one": "The archive holds {count} file ({size}) from earlier runs.",
         "other": "The archive holds {count} files ({size}) from earlier runs."
       },
-      "unavailable": "The destination isn't connected, so its archive can't be checked.",
-      "busy": "A job is running, so the archive can't be deleted now.",
+      "unavailable": "The destination isn’t connected, so its archive can’t be checked.",
+      "busy": "A job is running, so the archive can’t be deleted now.",
       "deleteNow": "Delete them now",
-      "deleteNextRun": "Delete it at the next run",
+      "deleteNextRun": "Delete them at the next run",
       "keep": {
         "one": "Keep them {count} day",
         "other": "Keep them {count} days"
@@ -1020,17 +1010,17 @@
       "busy": "Wait until the job finishes.",
       "confirmTitle": "Delete archive?",
       "confirm": {
-        "one": "{count} file ({size}) is deleted. This can't be undone.",
-        "other": "{count} files ({size}) are deleted. This can't be undone."
+        "one": "{count} file ({size}) is deleted. This can’t be undone.",
+        "other": "{count} files ({size}) are deleted. This can’t be undone."
       },
       "delete": "Delete archive…"
     },
-    "archiveNotDeletedAll": "The archive couldn't be deleted ({why}). What's in it is removed once it's {days} days old.",
+    "archiveNotDeletedAll": "The archive couldn’t be deleted ({why}). What’s in it is removed once it’s {days} old.",
     "archiveNotCleaned": {
-      "one": "{count} archived file past the preset's days couldn't be removed ({why}). Secopy tries again at the next run.",
-      "other": "{count} archived files past the preset's days couldn't be removed ({why}). Secopy tries again at the next run."
+      "one": "{count} archived file older than the days to keep couldn’t be removed ({why}). Secopy tries again at the next run.",
+      "other": "{count} archived files older than the days to keep couldn’t be removed ({why}). Secopy tries again at the next run."
     },
-    "archiveNotCleanedAll": "The archive couldn't be cleaned up ({why}). Secopy tries again at the next run."
+    "archiveNotCleanedAll": "The archive couldn’t be cleaned up ({why}). Secopy tries again at the next run."
   },
   "menubar": {
     "removing": "Removing files…",
@@ -1084,33 +1074,33 @@
   },
   "errors": {
     "os": {
-      "notFound": "It isn't there",
+      "notFound": "It isn’t there",
       "permissionDenied": "Permission denied",
       "readOnly": "The drive is read-only",
       "full": "The drive is full",
       "tooLarge": "The file is too large for this drive",
-      "badName": "The drive doesn't accept this name",
+      "badName": "The drive doesn’t accept this name",
       "notADirectory": "Not a directory",
-      "isADirectory": "It's a directory",
+      "isADirectory": "It’s a directory",
       "exists": "It already exists",
-      "notEmpty": "The directory isn't empty",
+      "notEmpty": "The directory isn’t empty",
       "timedOut": "The drive took too long to answer",
       "endedEarly": "The file ended sooner than expected",
-      "busy": "It's in use",
-      "network": "The network drive can't be reached",
-      "stale": "The network drive's file is no longer valid",
-      "unsupported": "The drive doesn't support this",
+      "busy": "It’s in use",
+      "network": "The network drive can’t be reached",
+      "stale": "The network drive’s file is no longer valid",
+      "unsupported": "The drive doesn’t support this",
       "unknown": "{text}",
-      "quota": "The drive's quota is used up"
+      "quota": "The drive’s quota is used up"
     },
     "file": {
-      "readSource": "Cannot read source: {why}",
-      "writeDest": "Cannot write destination: {why}",
-      "readBack": "Cannot read back the copy: {why}",
-      "changedWhileRead": "Cannot read back the copy: it changed while it was read",
-      "hashMismatch": "Hash mismatch (source {expected}, copy {actual})",
+      "readSource": "Can’t read the source: {why}",
+      "writeDest": "Can’t write to the destination: {why}",
+      "readBack": "Can’t read back the copy: {why}",
+      "changedWhileRead": "Can’t read back the copy: it changed while it was read",
+      "hashMismatch": "Checksum mismatch (source {expected}, copy {actual})",
       "alreadyExists": "A file with this name already exists at the destination",
-      "nameClash": "Another file in this copy has the same name (names are compared ignoring case)",
+      "nameClash": "Another file in this copy has the same name (on this destination, names that differ only in case are the same)",
       "partialInUse": "Another copy is writing this file",
       "tooLarge": "The file is larger than the destination drive allows ({size})",
       "inTheWay": "Something is in the way at {path}",
@@ -1119,16 +1109,16 @@
       "sourceChanged": "The source file changed while it was copied",
       "changed": "Changed since it was copied (expected {expected}, found {actual})",
       "missing": "Missing",
-      "isLink": "Is a link, not checked (links aren't followed)",
+      "isLink": "Is a symlink, not checked (symlinks aren’t followed)",
       "isDirectory": "Is a directory, not a file",
-      "notAFile": "Isn't a regular file, not checked",
+      "notAFile": "Isn’t a regular file, not checked",
       "cancelled": "Cancelled"
     },
     "name": {
       "controlChar": "The name contains a control character",
-      "invalidChar": "The name contains \"{char}\", which this drive doesn't allow",
+      "invalidChar": "The name contains “{char}”, which this drive doesn’t allow",
       "reserved": "The name is reserved on Windows",
-      "trailingDotOrSpace": "The name ends with a dot or a space, which this drive doesn't allow",
+      "trailingDotOrSpace": "The name ends with a dot or a space, which this drive doesn’t allow",
       "tooLong": "The name is longer than this drive allows ({max} characters)"
     },
     "fatal": {
@@ -1138,8 +1128,8 @@
     },
     "internal": "Secopy hit an internal error",
     "blocker": {
-      "destMissing": "The destination is not an existing directory",
-      "destNotWritable": "Can't write to the destination: {why}",
+      "destMissing": "The destination isn’t an existing directory",
+      "destNotWritable": "Can’t write to the destination: {why}",
       "destInsideSource": "The destination is the source directory or inside it",
       "notEnoughSpace": "Not enough space: {needed} needed, {available} available"
     },
@@ -1147,32 +1137,32 @@
       "pattern": "“{pattern}”: {why}"
     },
     "pattern": {
-      "slash": "A pattern is a name: it can't contain /.",
+      "slash": "A pattern is a name: it can’t contain /.",
       "tooLong": "A pattern can have up to {max} characters.",
       "tooMany": "The list can have up to {max} patterns.",
-      "badChar": "A pattern can't contain control characters."
+      "badChar": "A pattern can’t contain control characters."
     },
     "mhl": {
       "twoHistories": "The source and the destination have different ASC MHL histories. Choose another destination, or turn off ASC MHL in Settings.",
-      "overwrites": "Overwriting files its ASC MHL history lists would break it. Choose Skip or Keep both, or turn off ASC MHL in Settings.",
+      "overwrites": "Overwriting files the destination’s ASC MHL history lists would break it. Choose “Skip” or “Keep both”, or turn off ASC MHL in Settings.",
       "damaged": "The ASC MHL history in {path} is damaged. Nothing in it is changed; turn off ASC MHL in Settings to copy anyway.",
-      "leavesOut": "This copy leaves out files the source's ASC MHL history lists. Copy every file type, or turn off ASC MHL in Settings.",
-      "unlistable": "ASC MHL can't list {path}: its name has characters a history can't hold.",
-      "conflicts": "{path} is in the source's ASC MHL history but would be copied under another name or skipped. Choose Overwrite, or turn off ASC MHL in Settings.",
-      "unreadable": "ASC MHL can't read {path}, so it can't list what's there. Turn off ASC MHL in Settings to copy anyway.",
-      "notWritten": "ASC MHL couldn't be written: {why}"
+      "leavesOut": "This copy leaves out files the source’s ASC MHL history lists. Copy every file type, or turn off ASC MHL in Settings.",
+      "unlistable": "ASC MHL can’t list {path}: its name has characters a history can’t hold.",
+      "conflicts": "{path} is in the source’s ASC MHL history but would be copied under another name or skipped. Choose “Overwrite”, or turn off ASC MHL in Settings.",
+      "unreadable": "ASC MHL can’t read {path}, so it can’t list what’s there. Turn off ASC MHL in Settings to copy anyway.",
+      "notWritten": "ASC MHL couldn’t be written: {why}"
     },
     "scan": {
       "notAFile": "Not a regular file",
-      "loop": "It links back to a directory that holds it",
+      "loop": "It’s a symlink to a directory that holds it",
       "problem": "{path}: {why}",
       "driveRoot": "A drive root has no directory name; copy only its contents instead"
     },
     "check": {
-      "notALine": "Not a \"<checksum>  <path>\" line",
-      "notAChecksum": "\"{hex}\" isn't an xxHash64 checksum",
-      "pathUnreadable": "The path can't be read",
-      "unreadable": "Couldn't be read: {why}",
+      "notALine": "Not a “<checksum>  <path>” line",
+      "notAChecksum": "“{hex}” isn’t an xxHash64 checksum",
+      "pathUnreadable": "The path can’t be read",
+      "unreadable": "Couldn’t be read: {why}",
       "outside": "{path} points outside the checked directory",
       "atLine": "{file}:{line}: {why}",
       "inFile": "{file}: {why}",
@@ -1180,23 +1170,23 @@
       "listedInOnly": "Listed in {file}."
     },
     "mirror": {
-      "originMissing": "The origin isn't there: {path}",
+      "originMissing": "The origin isn’t there: {path}",
       "same": "The origin and the destination are the same directory.",
-      "destinationInOrigin": "The destination can't be inside the origin.",
-      "originInDestination": "The origin can't be inside the destination.",
-      "archiveNotDir": "The destination's .secopy-archive isn't a directory (it's a link or a file). Move it away, or choose to delete removed files.",
+      "destinationInOrigin": "The destination can’t be inside the origin.",
+      "originInDestination": "The origin can’t be inside the destination.",
+      "archiveNotDir": "The destination’s .secopy-archive isn’t a directory (it’s a symlink or a file). Move it away, or choose “Delete them” for deleted files.",
       "previewCancelled": "Cancelled.",
       "changedSincePreview": "The mirror changed since its preview. Preview it again.",
       "gone": "That mirror no longer exists.",
       "presetGone": "The mirror preset no longer exists.",
       "previewFirst": "Preview the mirror first.",
       "archiveBusy": "Delete the archive when the current job has finished.",
-      "archiveMoved": "The mirror's destination changed. Look at its archive again."
+      "archiveMoved": "The mirror’s destination changed. Look at its archive again."
     },
     "export": {
-      "notAFileName": "That isn't a file name.",
+      "notAFileName": "That isn’t a file name.",
       "nothing": "Choose something to export.",
-      "notSaved": "The file couldn't be saved: {why}"
+      "notSaved": "The file couldn’t be saved: {why}"
     },
     "field": {
       "ignore": "“{pattern}”: {why}",
@@ -1206,7 +1196,7 @@
         "tooMany": "Keep archived files for at most {max} days."
       },
       "destination": {
-        "inOrigin": "The destination can't be inside the origin.",
+        "inOrigin": "The destination can’t be inside the origin.",
         "notFull": "The destination must be a full path, like /Volumes/NAS/Footage."
       },
       "name": {
@@ -1217,74 +1207,74 @@
         "tooLong": "The name is too long: {max} characters at most."
       },
       "origin": {
-        "inDestination": "The origin can't be inside the destination.",
+        "inDestination": "The origin can’t be inside the destination.",
         "notFull": "The origin must be a full path, like /Volumes/SSD/Footage.",
         "same": "The origin and the destination are the same directory."
       },
       "source": {
-        "notFull": "The source must be a full path, like /Volumes/CARD_A/DCIM."
+        "notFull": "The source must be a full path, like /Volumes/Untitled/DCIM."
       }
     },
     "import": {
-      "cantImport": "That preset can't be imported.",
-      "cantOpen": "The file can't be opened: {why}",
-      "cantRead": "The file can't be read: {why}",
+      "cantImport": "That preset can’t be imported.",
+      "cantOpen": "The file can’t be opened: {why}",
+      "cantRead": "The file can’t be read: {why}",
       "changed": "Your presets or settings changed since this file was opened. Open it again to see what it would change.",
       "newer": "This file was made by a newer Secopy (format {format}). Update Secopy to import it.",
       "noFile": "There is no file to import.",
       "nothing": "There is nothing in this file to import.",
-      "notSecopy": "This isn't a Secopy file.",
+      "notSecopy": "This isn’t a Secopy file.",
       "tooBig": "This file is too big to be a Secopy file.",
       "tooMany": "This file has too many presets. Secopy imports up to {max} of each kind.",
-      "twoReplace": "Two presets in the file would replace “{name}”; choose Keep both for one of them.",
+      "twoReplace": "Two presets in the file would replace “{name}”; choose “Keep both” for one of them.",
       "waits": "Import it when the current job has finished."
     },
     "job": {
-      "alreadyRunning": "A copy is already running.",
+      "alreadyRunning": "A job is already running.",
       "cantStart": "Nothing to copy, or something blocks the copy.",
-      "changed": "The destination changed. Check and press Start again.",
+      "changed": "The destination changed. Check and press “Start” again.",
       "noneFailed": "No files failed.",
-      "retrySourceGone": "The source isn't there any more ({path}). Connect the source again to retry."
+      "retrySourceGone": "The source isn’t there any more ({path}). Connect the source again to retry."
     },
     "legacy": "{text}",
     "preset": {
       "gone": "That preset no longer exists.",
-      "needsDirectory": "A preset saves a directory as its source; pick a directory first.",
+      "needsDirectory": "A preset saves a directory as its source; choose a directory first.",
       "noneSelected": "No preset is selected.",
       "scanning": "Wait until the scan finishes."
     },
     "queue": {
-      "busy": "A copy or the queue is already running.",
+      "busy": "A job or the queue is already running.",
       "jobGone": "That job is no longer in the queue.",
       "running": "The queue is running.",
       "setUpFirst": "Set up a copy first: a source, a destination and something to copy."
     },
     "report": {
       "dir": "{path}: {why}",
-      "jsonTaken": "{path} is already there and isn't a Secopy report. Choose another name.",
+      "jsonTaken": "{path} is already there and isn’t a Secopy report. Choose another name.",
       "nextToChecksum": "next to the checksum file: {why}",
       "noJob": "That job has no report.",
       "none": "Secopy hit an internal error before the job ended, so there is no report.",
       "noneYet": "There is no report yet.",
-      "running": "The copy is still running."
+      "running": "The job is still running."
     },
     "save": {
       "file": "{path}: {why}",
-      "mirror": "Couldn't save the mirror: {why}",
-      "preset": "Couldn't save the preset: {why}",
-      "queue": "Couldn't save the queue: {why}",
-      "settings": "Couldn't save the settings: {why}",
+      "mirror": "Couldn’t save the mirror: {why}",
+      "preset": "Couldn’t save the preset: {why}",
+      "queue": "Couldn’t save the queue: {why}",
+      "settings": "Couldn’t save the settings: {why}",
       "newer": "{file} is from a newer Secopy: not saved over"
     },
     "source": {
-      "gone": "{path} isn't there any more.",
-      "notConnected": "{drive} isn't connected."
+      "gone": "{path} isn’t there any more.",
+      "notConnected": "{drive} isn’t connected."
     },
     "verify": {
       "cantRead": "{path}: {why}",
       "chooseAgain": "Choose the directory again.",
       "notADirectory": "Choose a directory.",
-      "nothing": "No checksum files here: there's nothing to verify."
+      "nothing": "No checksum files here: nothing to verify."
     }
   },
   "menu": {
@@ -1301,8 +1291,8 @@
       "title": "File",
       "chooseSource": "Choose Source…",
       "chooseDestination": "Choose Destination…",
-      "start": "Start Copy",
-      "cancel": "Cancel Copy",
+      "start": "Start",
+      "cancel": "Cancel Job…",
       "import": "Import…",
       "export": "Export…"
     },

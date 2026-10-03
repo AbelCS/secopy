@@ -201,9 +201,9 @@ apply when saved (Save); Cancel or Esc drops them.
 |---|---|---|
 | Write checksum file to destination | On | FR-29. |
 | Show count of skipped system files | On | FR-13. |
-| Also save the job report next to the checksum file | Off | FR-35. |
-| Notify when a copy finishes | On | Only when the window isn't in front. |
-| Keep copying in the menu bar when the window is closed | On | FR-56. |
+| Save the report next to the checksum file | Off | FR-35. |
+| Notify when a job finishes | On | Only when the window isn't in front. |
+| Keep jobs running in the menu bar when the window is closed | On | FR-56. |
 | Advanced: files in flight, buffer size | Auto | §7.2. Folded under "Advanced". Plan 4 (performance). |
 | Include system files | — | Reserved (FR-14). Not shown in v1. |
 

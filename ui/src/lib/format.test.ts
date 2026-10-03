@@ -25,14 +25,14 @@ describe("format", () => {
   });
 
   test("percent treats an empty total as done", () => {
-    expect(formatPercent(0, 0)).toBe("100.0 %");
-    expect(formatPercent(1482, 2124)).toBe("69.8 %");
+    expect(formatPercent(0, 0)).toBe("100.0%");
+    expect(formatPercent(1482, 2124)).toBe("69.8%");
   });
 
   test("halves round as they always did (toFixed), not the locale's way", () => {
     expect(formatBytes(1_150_000)).toBe("1.1 MB");
     expect(formatBytes(1_450_000)).toBe("1.4 MB");
-    expect(formatPercent(23, 2000)).toBe("1.1 %");
+    expect(formatPercent(23, 2000)).toBe("1.1%");
   });
 });
 
@@ -45,7 +45,7 @@ describe("formatting follows the locale", () => {
     expect(formatBytes(999)).toBe("999 B");
     expect(formatSpeed(1_200_000_000)).toBe("1.2 GB/s");
     expect(formatSpeed(null)).toBe("—");
-    expect(formatPercent(698, 1000)).toBe("69.8 %");
+    expect(formatPercent(698, 1000)).toBe("69.8%");
   });
 
   test("another locale changes the separators", () => {

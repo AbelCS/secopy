@@ -907,7 +907,7 @@ mod tests {
         let bad = read.copy_presets[1].clone().unwrap_err();
         assert_eq!(bad.name, "Bad");
         assert!(
-            bad.why.starts_with("Its details can't be read"),
+            bad.why.starts_with("Its details can’t be read"),
             "{}",
             bad.why
         );
@@ -1133,7 +1133,7 @@ mod tests {
         );
         assert_eq!(
             view.mirror_presets[0].problem.en().as_deref(),
-            Some("The destination can't be inside the origin.")
+            Some("The destination can’t be inside the origin.")
         );
         assert!(
             apply_mirrors(
@@ -1166,7 +1166,7 @@ mod tests {
                 .en()
                 .as_deref()
                 .unwrap()
-                .starts_with("Its details can't be read")
+                .starts_with("Its details can’t be read")
         );
     }
 
@@ -1181,8 +1181,8 @@ mod tests {
         assert_eq!(
             settings_changes(&mine, &theirs),
             [
-                "Write the checksum file: on → off",
-                "Notify when a copy finishes: on → off"
+                "Write the checksum file to the destination: on → off",
+                "Notify when a job finishes: on → off"
             ]
         );
         assert!(settings_changes(&mine, &mine).is_empty());
@@ -1227,7 +1227,7 @@ mod tests {
         let read = read(text.as_bytes()).unwrap();
         let bad = read.mirror_presets[0].clone().unwrap_err();
         assert_eq!(bad.name, "", "a section has no name; the UI names it");
-        assert_eq!(bad.why, "This part of the file can't be read.");
+        assert_eq!(bad.why, "This part of the file can’t be read.");
     }
 
     /// Review: a file with thousands of presets is refused before any work.
@@ -1300,7 +1300,7 @@ mod tests {
         ];
         assert_eq!(
             apply_copy(&contents(text), &both, &copy_presets()).unwrap_err(),
-            "Two presets in the file would replace “Sony FX3”; choose Keep both for one of them."
+            "Two presets in the file would replace “Sony FX3”; choose “Keep both” for one of them."
         );
     }
 
@@ -1312,7 +1312,7 @@ mod tests {
         };
         assert_eq!(
             settings_changes(&Settings::default(), &off),
-            ["Keep copying in the menu bar: on → off"]
+            ["Keep jobs running in the menu bar when the window is closed: on → off"]
         );
         let text = export_text(Some(&off), &[], &[], "0.12.0", now());
         assert_eq!(read(text.as_bytes()).unwrap().settings, Some(Ok(off)));

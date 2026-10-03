@@ -38,7 +38,7 @@ describe("SettingsScreen", () => {
 
   test("an empty list says every file is copied", async () => {
     show(settingsView({ ignore: [] }));
-    screen.getByText("No patterns. Secopy's own working files are still left out.");
+    screen.getByText("No patterns. Secopy’s own working files are still left out.");
   });
 
   test("a pattern is added and removed, and Save sends the list (#158)", async () => {
@@ -64,11 +64,11 @@ describe("SettingsScreen", () => {
     const field = screen.getByLabelText("Name pattern");
     await fireEvent.input(field, { target: { value: "a/b" } });
     await fireEvent.click(screen.getByRole("button", { name: "Add" }));
-    screen.getByText("A pattern is a name: it can't contain /.");
+    screen.getByText("A pattern is a name: it can’t contain /.");
     expect(screen.queryByText("a/b")).toBeNull();
     await fireEvent.input(field, { target: { value: ".ds_store" } });
     await fireEvent.click(screen.getByRole("button", { name: "Add" }));
-    screen.getByText("It's already in the list.");
+    screen.getByText("It’s already in the list.");
     expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(3);
   });
 
@@ -129,7 +129,7 @@ describe("SettingsScreen", () => {
 
   test("the report option is off while there is no checksum file", async () => {
     show();
-    const report = () => screen.getByLabelText("Also save the job report next to the checksum file");
+    const report = () => screen.getByLabelText("Save the report next to the checksum file");
     expect(report()).toHaveProperty("disabled", false);
     await fireEvent.click(screen.getByLabelText("Write the checksum file to the destination"));
     expect(report()).toHaveProperty("disabled", true);
@@ -137,10 +137,10 @@ describe("SettingsScreen", () => {
 
   test("a save error is shown, and nothing is left", async () => {
     const { api, calls } = show();
-    api.setSettings.mockRejectedValueOnce(new Error("Couldn't save the settings: disk full"));
+    api.setSettings.mockRejectedValueOnce(new Error("Couldn’t save the settings: disk full"));
     await fireEvent.click(screen.getByLabelText("Show the count of ignored files"));
     await fireEvent.click(save());
-    await screen.findByText("Couldn't save the settings: disk full");
+    await screen.findByText("Couldn’t save the settings: disk full");
     expect(calls.done).toBe(0);
     expect(calls.settings).toEqual([]);
   });
@@ -157,16 +157,27 @@ describe("SettingsScreen", () => {
     screen.getByText(/also kept in the app/);
   });
 
+  test("#172: copy options under Copies, the app's under General", () => {
+    show();
+    const copies = within(screen.getByRole("region", { name: "Copies" }));
+    copies.getByRole("checkbox", { name: "Write the checksum file to the destination" });
+    copies.getByRole("checkbox", { name: "Save the report next to the checksum file" });
+    const general = within(screen.getByRole("region", { name: "General" }));
+    general.getByRole("checkbox", { name: "Notify when a job finishes" });
+    general.getByRole("checkbox", { name: "Keep jobs running in the menu bar when the window is closed" });
+    expect(copies.queryByRole("checkbox", { name: "Notify when a job finishes" })).toBeNull();
+  });
+
   test("notifications can be turned off", async () => {
     const { api } = show();
-    await fireEvent.click(screen.getByLabelText("Notify when a copy finishes"));
+    await fireEvent.click(screen.getByLabelText("Notify when a job finishes"));
     await fireEvent.click(save());
     await waitFor(() => expect(api.setSettings).toHaveBeenCalledWith(settingsView({ notifyWhenDone: false })));
   });
 
   test("the menu bar setting is on, and saving keeps it off when unticked", async () => {
     const { api } = show();
-    const box = screen.getByRole("checkbox", { name: "Keep copying in the menu bar when the window is closed" });
+    const box = screen.getByRole("checkbox", { name: "Keep jobs running in the menu bar when the window is closed" });
     expect(box).toHaveProperty("checked", true);
     await fireEvent.click(box);
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));

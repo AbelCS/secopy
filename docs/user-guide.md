@@ -51,7 +51,7 @@ Before you can start, Secopy checks and shows:
   refuse `: * ? " < > |`, for example), a file too large for FAT32's 4 GB limit, something
   in the way, two names that are one file on the drive, or a file that would land on a source
   file. You can start anyway; those files are listed as failed. Names are never changed.
-- **Files already there.** Identical files (same size and date) are skipped and counted as
+- **Files already there.** Files with the same size and date are skipped and counted as
   "already at the destination, not checked". For files that **differ**, choose once:
   **Keep both** (the new copy is named `name (1).ext`), **Overwrite** (the old file is
   replaced only once the new one is complete and verified) or **Skip**. The choice is for the
@@ -87,8 +87,9 @@ shows the files in progress (small files together), and the list below every fil
 finished, with its checksum and status; **Failed only** filters it.
 
 - **Pause** (Space) stops reading and writing until **Resume**.
-- **Cancel** (⌘.) asks first. Files already copied stay, and the file in progress is removed.
-  Tick **Also remove the files already copied** to put the destination back as it was.
+- **Cancel…** (⌘.) asks first. Files already copied stay, and the file in progress is removed.
+  Tick **Also remove the files already copied** to remove what the job copied (files it
+  replaced come back only from a mirror's archive).
 - **Close the window** and the copy goes on, with its progress in the menu bar (see
   [Menu bar](#menu-bar)). Quitting asks first.
 
@@ -132,7 +133,7 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
 - **New mirror** asks for a **Name**, the **Origin** and the **Destination**, what happens to
   **files deleted in the origin** (**Archive them** for a number of days, 30 by default, or
   **Delete them**), and the **Comparison**: **Standard** (size and modification date) or **Paranoid**
-  (byte-for-byte comparison of both copies; very slow: reads all data on both sides).
+  (compares the checksums of both copies; very slow: reads all data on both sides).
 - **Preview…** works out what a run would do before anything is touched:
 
 ![Mirror preview](images/mirror-preview.png)
@@ -222,18 +223,23 @@ preset with a setting this Secopy doesn't know can't be imported: update Secopy 
 
 ## Settings
 
+**Copies**
+
 - **Write the checksum file to the destination** (on by default).
 - **Write ASC MHL** (off by default): see [The checksum file and the report](#the-checksum-file-and-the-report).
 - **Show the count of ignored files.**
+- **Save the report next to the checksum file.**
 - **Always ignore when copying**: names never copied or mirrored, like `*.LRF` or `.gitkeep`
   (`*` is any characters, `?` one; case doesn't matter). A matching directory is left out with
-  everything in it, and a mirror never removes these files from its backup. It starts with the
+  everything in it, and a mirror never removes these files from its destination. It starts with the
   files computers leave behind; **Restore defaults** puts those back. It holds up to 128
   patterns. Copy and mirror presets have their own **Also ignore** list on top of it. In
   Terminal, `--ignore PATTERN` adds a pattern.
-- **Also save the job report next to the checksum file.**
-- **Notify when a copy finishes**, when Secopy's window isn't in front.
-- **Keep copying in the menu bar when the window is closed** (on by default).
+
+**General**
+
+- **Notify when a job finishes**, when Secopy's window isn't in front.
+- **Keep jobs running in the menu bar when the window is closed** (on by default).
 
 Changes apply to the next job when you press **Save**; **Cancel** (or Esc) drops them.
 

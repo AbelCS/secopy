@@ -40,7 +40,7 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "Copying & verifying" });
     state.progress!(progressView({ copiedBytes: 1000, elapsedMs: 500 }));
     state.progress!(progressView({ phase: "done" }));
-    await screen.findByText(/All 1,284 files copied and verified/);
+    await screen.findByText(/1,284 files copied and verified/);
   });
 
   test("a summary that can't be loaded goes back with the reason, not stuck on Done (#117)", async () => {
@@ -179,11 +179,11 @@ describe("App", () => {
 
   test("a saved file that couldn't be read is shown once", async () => {
     const { api, state } = fakeApi(readyView());
-    state.start = startView({ session: readyView(), warnings: [raw("settings.json couldn't be read (…).")] });
+    state.start = startView({ session: readyView(), warnings: [raw("settings.json couldn’t be read (…).")] });
     render(App, { props: { api } });
-    await screen.findByText("settings.json couldn't be read (…).");
+    await screen.findByText("settings.json couldn’t be read (…).");
     await fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(screen.queryByText("settings.json couldn't be read (…).")).toBeNull();
+    expect(screen.queryByText("settings.json couldn’t be read (…).")).toBeNull();
   });
 
   test("the mode is remembered", async () => {
@@ -202,9 +202,9 @@ describe("App", () => {
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenCalledWith(
       "Files already copied stay; the file in progress is removed.",
-      "Stop copying and quit?",
-      "Stop copying",
-      "Keep copying",
+      "Cancel this job and quit?",
+      "Cancel job and quit",
+      "Continue",
     );
   });
 
@@ -220,10 +220,10 @@ describe("App", () => {
     api.jobRunning.mockResolvedValue(true);
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenCalledWith(
-      "Nothing was changed: a check only reads files.",
-      "Stop verifying and quit?",
-      "Stop verifying",
-      "Keep verifying",
+      "Nothing was changed: verifying only reads files.",
+      "Cancel this job and quit?",
+      "Cancel job and quit",
+      "Continue",
     );
   });
 
@@ -239,9 +239,9 @@ describe("App", () => {
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenCalledWith(
       "Files already copied stay; the file in progress is removed. Files deleted in the origin are left in the destination.",
-      "Stop mirroring and quit?",
-      "Stop mirroring",
-      "Keep mirroring",
+      "Cancel this job and quit?",
+      "Cancel job and quit",
+      "Continue",
     );
   });
 
@@ -275,16 +275,16 @@ describe("App", () => {
     state.progress!(progressView({ phase: "removing", removing: 3, archiving: true }));
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenLastCalledWith(
-      "Secopy finishes archiving the files gone from the origin first, then quits.",
-      "Quit when it's done?",
+      "Secopy first finishes archiving the files deleted in the origin, then quits.",
+      "Quit when it’s done?",
       "Quit",
       "Keep open",
     );
     state.progress!(progressView({ phase: "removing", undoing: true }));
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenLastCalledWith(
-      "Secopy finishes putting the destination back as it was first, then quits.",
-      "Quit when it's done?",
+      "Secopy first finishes putting the destination back, then quits.",
+      "Quit when it’s done?",
       "Quit",
       "Keep open",
     );
@@ -302,7 +302,7 @@ describe("App", () => {
     await screen.findByRole("heading", { level: 1, name: "Checking…" });
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenLastCalledWith(
-      "This job hasn't started yet: nothing was written for it.",
+      "This job hasn’t started yet: nothing was written for it.",
       "Stop the queue and quit?",
       "Stop the queue",
       "Continue",
@@ -311,10 +311,10 @@ describe("App", () => {
     await screen.findByRole("heading", { level: 1, name: "Verifying" });
     await state.close!(() => {});
     expect(api.confirm).toHaveBeenLastCalledWith(
-      "Nothing was changed: a check only reads files.",
-      "Stop verifying and quit?",
-      "Stop verifying",
-      "Keep verifying",
+      "Nothing was changed: verifying only reads files.",
+      "Cancel this job and quit?",
+      "Cancel job and quit",
+      "Continue",
     );
   });
 
@@ -336,7 +336,7 @@ describe("App", () => {
     state.progress!(progressView({ phase: "done" }));
     await waitFor(() =>
       expect(api.notify).toHaveBeenCalledWith(
-        "✓ All 1,284 files copied and verified",
+        "✓ 1,284 files copied and verified",
         "1,284 files · 212.4 GB written · took 4:12",
       ),
     );
@@ -349,7 +349,7 @@ describe("App", () => {
     api.windowFocused.mockReturnValue(false);
     await fireEvent.click(await startButton());
     state.progress!(progressView({ phase: "done" }));
-    await screen.findByText(/All 1,284 files copied and verified/);
+    await screen.findByText(/1,284 files copied and verified/);
     expect(api.notify).not.toHaveBeenCalled();
   });
 
@@ -364,7 +364,7 @@ describe("App", () => {
     await waitFor(() => expect(api.startJob).toHaveBeenCalled());
     await screen.findByRole("heading", { name: "Copying & verifying" });
     state.menu!("cancel-copy");
-    await screen.findByRole("dialog", { name: "Stop copying?" });
+    await screen.findByRole("dialog", { name: "Cancel this job?" });
   });
 
   test("the File menu only starts a copy Start would start", async () => {
@@ -568,7 +568,7 @@ describe("App", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByRole("heading", { level: 1, name: "Verifying" });
     state.progress!(progressView({ phase: "done" }));
-    await screen.findByText("All 2 files intact");
+    await screen.findByText("2 files intact");
     await fireEvent.click(screen.getByRole("button", { name: "Done" }));
     await screen.findByRole("heading", { level: 1, name: "Verify" });
   });
