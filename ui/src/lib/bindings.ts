@@ -141,6 +141,8 @@ export const commands = {
 	retryFailed: () => typedError<SessionView, Message>(__TAURI_INVOKE("retry_failed")),
 	/**  The UI says which File menu items apply. */
 	setMenuState: (setup: boolean, canStart: boolean, copying: boolean, busy: boolean) => __TAURI_INVOKE<void>("set_menu_state", { setup, canStart, copying, busy }),
+	/**  The language Secopy's words are in (#181): the UI's windows draw in it. */
+	appLanguage: () => __TAURI_INVOKE<string>("app_language"),
 	queue: () => typedError<QueueView, Message>(__TAURI_INVOKE("queue")),
 	addToQueue: (verify: boolean) => typedError<QueueView, Message>(__TAURI_INVOKE("add_to_queue", { verify })),
 	removeFromQueue: (index: number) => typedError<QueueView, Message>(__TAURI_INVOKE("remove_from_queue", { index })),

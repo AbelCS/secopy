@@ -79,6 +79,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::save_report,
             commands::retry_failed,
             commands::set_menu_state,
+            commands::app_language,
             commands::queue,
             commands::add_to_queue,
             commands::remove_from_queue,
@@ -173,15 +174,20 @@ pub fn run() {
                     eprintln!("Secopy: the 0.2.0 reports stay in {}: {e}", old.display());
                 }
             }
-            app.manage(AppState::new(data));
+            let state = AppState::new(data);
+            // Secopy's language (#181): the menus were built in the Mac's; rebuilt below.
+            message::set_language(state.chosen_language().as_deref());
+            app.manage(state);
             app.manage(menubar::MenuBar::default());
             // Ready before it's needed, so it opens at once; without it the icon opens Secopy.
             if let Err(e) = menubar::make_panel(app.handle()) {
                 eprintln!("Secopy: no menu bar panel: {e}");
             }
-            // Its items, to grey out what doesn't apply (`set_menu_state`).
-            if let Some(file) = app.menu().as_ref().and_then(FileMenu::find) {
-                app.manage(file);
+            // The menus in Secopy's language, and the File items kept to grey out what doesn't
+            // apply (`set_menu_state`).
+            app.manage(std::sync::Mutex::new(MenuState::default()));
+            if let Err(e) = rebuild_menu(app.handle()) {
+                eprintln!("Secopy: the menus stay in the Mac's language: {e}");
             }
             if let Some(window) = app.get_webview_window("main") {
                 if let Some(saved) = app.state::<AppState>().saved_window() {
@@ -270,6 +276,31 @@ const MENU_ITEMS: [&str; 10] = [
     SHOW_VERIFY,
     SHOW_QUEUE,
 ];
+
+/// Tells the windows that Secopy's language changed (#181): they draw again in it.
+pub const LANGUAGE_CHANGED: &str = "language-changed";
+
+/// The File menu now, and the last state it was given (to give it again after a rebuild).
+#[derive(Default)]
+pub struct MenuState {
+    pub file: Option<FileMenu<tauri::Wry>>,
+    pub last: Option<(bool, bool, bool, bool)>,
+}
+
+/// Builds the menus in Secopy's language and puts them in place; the File items keep their
+/// greyed state (#181).
+pub fn rebuild_menu(app: &AppHandle<tauri::Wry>) -> tauri::Result<()> {
+    let new = menu(app)?;
+    app.set_menu(new.clone())?;
+    if let Some(state) = app.try_state::<std::sync::Mutex<MenuState>>() {
+        let mut state = state.lock().unwrap_or_else(|e| e.into_inner());
+        state.file = FileMenu::find(&new);
+        if let (Some(file), Some((setup, can_start, copying, busy))) = (&state.file, state.last) {
+            file.update(setup, can_start, copying, busy);
+        }
+    }
+    Ok(())
+}
 
 /// The File menu's items, kept to grey them out.
 pub struct FileMenu<R: Runtime> {
