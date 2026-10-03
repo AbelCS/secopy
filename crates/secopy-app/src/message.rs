@@ -44,17 +44,22 @@ impl Message {
     /// today's words. Numbers and sizes read as the UI shows them in English; a key the
     /// catalog lacks shows as itself.
     pub fn english(&self) -> String {
-        self.render(&[catalog("en")])
+        self.in_language("en")
     }
 
     /// The message in the app's language (the Mac's, when Secopy has its words): for what
     /// Rust shows itself, the menus and the menu bar icon. What that catalog lacks is said
     /// in English.
     pub fn text(&self) -> String {
-        self.render(&[catalog(app_language()), catalog("en")])
+        self.in_language(app_language())
     }
 
-    fn render(&self, catalogs: &[&serde_json::Value]) -> String {
+    /// The message in `tag`'s words and number format; what its catalog lacks in English.
+    pub fn in_language(&self, tag: &str) -> String {
+        self.render(&[catalog(tag), catalog("en")], Numbers::of(tag))
+    }
+
+    fn render(&self, catalogs: &[&serde_json::Value], numbers: Numbers) -> String {
         let entry = catalogs.iter().find_map(|c| {
             self.key
                 .split('.')
@@ -79,7 +84,7 @@ impl Message {
             let after = &rest[open + 1..];
             match after.find('}').map(|close| (&after[..close], close)) {
                 Some((name, close)) if self.args.contains_key(name) => {
-                    out.push_str(&self.args[name].render(catalogs));
+                    out.push_str(&self.args[name].render(catalogs, numbers));
                     rest = &after[close + 1..];
                 }
                 _ => {
@@ -95,7 +100,10 @@ impl Message {
 
 /// The catalogs Secopy has words in, as the UI's `ui/src/locales/<tag>.json` (a test keeps
 /// the two lists the same). Adding a language adds its line here.
-pub const CATALOGS: &[(&str, &str)] = &[("en", include_str!("../../../ui/src/locales/en.json"))];
+pub const CATALOGS: &[(&str, &str)] = &[
+    ("en", include_str!("../../../ui/src/locales/en.json")),
+    ("es", include_str!("../../../ui/src/locales/es.json")),
+];
 
 /// The catalog for `tag` (one of [`CATALOGS`]).
 fn catalog(tag: &str) -> &'static serde_json::Value {
@@ -139,13 +147,13 @@ fn app_language() -> &'static str {
 }
 
 impl Arg {
-    fn render(&self, catalogs: &[&serde_json::Value]) -> String {
+    fn render(&self, catalogs: &[&serde_json::Value], numbers: Numbers) -> String {
         match self {
-            Arg::Number(n) => grouped(*n),
+            Arg::Number(n) => numbers.format(*n),
             Arg::Text(t) => t.clone(),
             Arg::List(items) => items
                 .iter()
-                .map(|m| m.render(catalogs))
+                .map(|m| m.render(catalogs, numbers))
                 .collect::<Vec<_>>()
                 .join(", "),
             Arg::Size { bytes } => {
@@ -156,30 +164,62 @@ impl Arg {
                     unit += 1;
                 }
                 if unit == 0 {
-                    format!("{} B", grouped(*bytes))
+                    format!("{} B", numbers.format(*bytes))
                 } else {
-                    format!("{value:.1} {}", UNITS[unit])
+                    format!("{} {}", numbers.one_decimal(value), UNITS[unit])
                 }
             }
-            Arg::Message(m) => m.render(catalogs),
+            Arg::Message(m) => m.render(catalogs, numbers),
         }
     }
 }
 
-/// 1284 → "1,284", as the UI's English number format.
-fn grouped(n: f64) -> String {
-    if n.fract() != 0.0 {
-        return n.to_string();
-    }
-    let digits = (n.abs() as u64).to_string();
-    let mut out = String::new();
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(',');
+/// A language's number format, as the UI's `Intl.NumberFormat`: English groups thousands with
+/// a comma from four digits on ("1,284"); Spanish with a point from five ("1284", "12.845"),
+/// and writes a decimal comma.
+#[derive(Clone, Copy)]
+struct Numbers {
+    group: char,
+    decimal: char,
+    /// The fewest digits that are grouped.
+    min_digits: usize,
+}
+
+impl Numbers {
+    fn of(tag: &str) -> Self {
+        match tag.split('-').next().unwrap_or(tag) {
+            "es" => Numbers {
+                group: '.',
+                decimal: ',',
+                min_digits: 5,
+            },
+            _ => Numbers {
+                group: ',',
+                decimal: '.',
+                min_digits: 4,
+            },
         }
-        out.push(c);
     }
-    if n < 0.0 { format!("-{out}") } else { out }
+
+    fn format(self, n: f64) -> String {
+        if n.fract() != 0.0 {
+            return n.to_string().replace('.', &self.decimal.to_string());
+        }
+        let digits = (n.abs() as u64).to_string();
+        let mut out = String::new();
+        for (i, c) in digits.chars().enumerate() {
+            if i > 0 && digits.len() >= self.min_digits && (digits.len() - i).is_multiple_of(3) {
+                out.push(self.group);
+            }
+            out.push(c);
+        }
+        if n < 0.0 { format!("-{out}") } else { out }
+    }
+
+    /// One decimal: 212.4 → "212.4" or "212,4".
+    fn one_decimal(self, value: f64) -> String {
+        format!("{value:.1}").replace('.', &self.decimal.to_string())
+    }
 }
 
 /// `msg!("errors.file.inTheWay", path = &p)`: a [`Message`] with a literal key, so the
@@ -432,6 +472,8 @@ mod tests {
         assert_eq!(language_for(&tags(&["de-DE", "en-US"])), "en");
         assert_eq!(language_for(&tags(&["en-GB"])), "en");
         assert_eq!(language_for(&tags(&["xx"])), "en");
+        assert_eq!(language_for(&tags(&["es-ES", "en-US"])), "es");
+        assert_eq!(language_for(&tags(&["de-DE", "es-419"])), "es");
         assert_eq!(language_for(&[]), "en");
     }
 
@@ -449,6 +491,55 @@ mod tests {
         let mut built_in: Vec<String> = CATALOGS.iter().map(|(tag, _)| tag.to_string()).collect();
         built_in.sort();
         assert_eq!(built_in, files);
+    }
+
+    /// Spanish: its words, plurals and number format (as the UI's `Intl.NumberFormat("es")`:
+    /// a point groups thousands from five digits on, a comma before decimals).
+    #[test]
+    fn in_spanish_text_is_spanish() {
+        let files = |done: u64, count: u64| {
+            crate::msg!("menubar.files", done = done, count = count).in_language("es")
+        };
+        assert_eq!(files(1, 1), "1 de 1 archivo");
+        assert_eq!(files(1284, 12845), "1284 de 12.845 archivos");
+        let space = crate::msg!(
+            "errors.blocker.notEnoughSpace",
+            needed = Size(212_400_000_000),
+            available = Size(999)
+        );
+        assert_eq!(
+            space.in_language("es"),
+            "No hay espacio suficiente: 212,4 GB necesarios, 999 B disponibles"
+        );
+        assert_eq!(
+            space.in_language("en"),
+            "Not enough space: 212.4 GB needed, 999 B available"
+        );
+    }
+
+    /// macOS shows its own panels (Open, Save, About) and the .secopy file type in the
+    /// app's languages only when the bundle says it has them: each catalog has an `.lproj`.
+    #[test]
+    fn the_bundle_has_every_language() {
+        let app = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let plist = std::fs::read_to_string(app.join("Info.plist")).unwrap();
+        let conf = std::fs::read_to_string(app.join("tauri.conf.json")).unwrap();
+        for (tag, _) in CATALOGS {
+            let file = format!(
+                r#""Resources/{tag}.lproj/InfoPlist.strings": "./infoplist/{tag}.lproj/InfoPlist.strings""#
+            );
+            assert!(conf.contains(&file), "tauri.conf.json bundles {tag}.lproj");
+            assert!(
+                plist.contains(&format!("<string>{tag}</string>")),
+                "{tag} in Info.plist"
+            );
+            let strings = app.join(format!("infoplist/{tag}.lproj/InfoPlist.strings"));
+            let text = std::fs::read_to_string(&strings).unwrap_or_default();
+            assert!(
+                text.contains("\"Secopy settings\" ="),
+                "{tag}: the file type's name"
+            );
+        }
     }
 
     #[test]

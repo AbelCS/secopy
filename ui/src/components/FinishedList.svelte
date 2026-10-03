@@ -188,7 +188,7 @@
     height: 28px;
     display: grid;
     /* The name gets whatever is left; its full path is in the tooltip. */
-    grid-template-columns: minmax(0, 1fr) 70px 44px 80px 136px 96px;
+    grid-template-columns: minmax(0, 1fr) 70px 56px 80px 136px 96px;
     gap: 8px;
     align-items: center;
     padding: 0 10px;

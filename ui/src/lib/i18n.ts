@@ -1,6 +1,7 @@
 // Translation (#84): every text the UI writes comes from a catalog, `ui/src/locales/<lang>.json`.
-// Only English exists; the app uses the Mac's language when there's a catalog for it (none yet).
+// The app uses the Mac's language when there's a catalog for it: English and Spanish.
 import en from "../locales/en.json";
+import es from "../locales/es.json";
 
 export type Catalog = typeof en;
 type Plural = { one: string; other: string; zero?: string; two?: string; few?: string; many?: string };
@@ -17,11 +18,12 @@ type Leaves<T, P extends string = ""> = {
 export type Key = Leaves<Catalog>;
 export type Values = Record<string, string | number>;
 
-const catalogs: Record<string, Catalog> = { en };
+// A translation's plurals have the forms its language uses, so its shape differs from English;
+// a test checks its keys and placeholders.
+const catalogs: Record<string, Catalog> = { en, es: es as unknown as Catalog };
 
-/** The Mac's first language that has a catalog; English otherwise. */
-function pick(): string {
-  const wanted = typeof navigator === "undefined" ? [] : navigator.languages ?? [navigator.language];
+/** The first of `wanted` (the Mac's languages, in order) that has a catalog; English otherwise. */
+export function languageFor(wanted: readonly string[]): string {
   for (const tag of wanted) {
     const base = tag.split("-")[0];
     if (catalogs[tag]) return tag;
@@ -30,7 +32,9 @@ function pick(): string {
   return "en";
 }
 
-let current = pick();
+let current = languageFor(
+  typeof navigator === "undefined" ? [] : (navigator.languages ?? [navigator.language]),
+);
 let catalog: Catalog = catalogs[current];
 let plurals = new Intl.PluralRules(current);
 let numbers = new Intl.NumberFormat(current);
