@@ -183,6 +183,15 @@ describe("SettingsScreen", () => {
     await tick();
   });
 
+  test("General comes first, then Copies and Always ignore when copying", () => {
+    show();
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "General",
+      "Copies",
+      "Always ignore when copying",
+    ]);
+  });
+
   test("#181: Automatic saves no language", async () => {
     const { api } = show(settingsView({ language: "es" }));
     const menu = screen.getByRole("combobox", { name: "Language" });
