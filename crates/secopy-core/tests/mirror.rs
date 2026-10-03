@@ -685,7 +685,10 @@ fn a_failed_mirror_keeps_the_previous_checksums() {
     let (_dir, o, d) = pair();
     write(
         &d,
-        &[(".secopy-checksums.xxh64", b"0000000000000001  a.mov\n")],
+        &[(
+            ".secopy-checksums.xxh128",
+            b"00000000000000000000000000000001  a.mov\n",
+        )],
     );
     write(&o, &[("a.mov", b"a")]);
     let p = mirror::plan(&o, &d, &opts()).unwrap();
@@ -694,8 +697,8 @@ fn a_failed_mirror_keeps_the_previous_checksums() {
     assert!(finished.is_err());
     // The caller writes checksums only after Ok(finished); the file is as it was.
     assert_eq!(
-        fs::read(d.join(".secopy-checksums.xxh64")).unwrap(),
-        b"0000000000000001  a.mov\n"
+        fs::read(d.join(".secopy-checksums.xxh128")).unwrap(),
+        b"00000000000000000000000000000001  a.mov\n"
     );
 }
 
@@ -703,7 +706,7 @@ fn a_failed_mirror_keeps_the_previous_checksums() {
 fn the_checksum_file_is_never_planned_for_removal() {
     let (_dir, o, d) = pair();
     write(&o, &[("a.mov", b"a")]);
-    write(&d, &[("a.mov", b"a"), (".secopy-checksums.xxh64", b"x")]);
+    write(&d, &[("a.mov", b"a"), (".secopy-checksums.xxh128", b"x")]);
     same_time(&o.join("a.mov"), &d.join("a.mov"));
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     assert!(p.removals.is_empty(), "{:?}", p.removals);
@@ -722,7 +725,7 @@ fn a_deep_check_records_the_hashes_it_compared() {
     let p = mirror::plan(&o, &d, &deep).unwrap();
     assert_eq!(
         p.same.get(Path::new("a.mov")),
-        Some(&secopy_core::hash::hash_bytes(b"a"))
+        Some(&secopy_core::hash::Hash::of(b"a"))
     );
 }
 
@@ -746,10 +749,10 @@ fn the_checksum_file_follows_renames_and_drops_gone_files() {
     let (_dir, o, d) = pair();
     write(&o, &[("A.MOV", b"new contents")]);
     write(&d, &[("a.mov", b"old")]);
-    let old = secopy_core::hash::hash_bytes(b"old");
+    let old = secopy_core::hash::Hash::of(b"old");
     fs::write(
-        d.join(".secopy-checksums.xxh64"),
-        format!("{old:016x}  a.mov\n{old:016x}  b.mov\n"),
+        d.join(".secopy-checksums.xxh128"),
+        format!("{old}  a.mov\n{old}  b.mov\n"),
     )
     .unwrap();
     let p = mirror::plan(&o, &d, &opts()).unwrap();
@@ -780,15 +783,18 @@ fn an_unreadable_checksum_file_is_kept() {
     use std::os::unix::fs::PermissionsExt;
     let (_dir, o, d) = pair();
     write(&o, &[("a.mov", b"a")]);
-    let sums = d.join(".secopy-checksums.xxh64");
-    fs::write(&sums, b"0000000000000001  old.mov\n").unwrap();
+    let sums = d.join(".secopy-checksums.xxh128");
+    fs::write(&sums, b"00000000000000000000000000000001  old.mov\n").unwrap();
     fs::set_permissions(&sums, fs::Permissions::from_mode(0o000)).unwrap();
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     let (report, finished) = run(&p, None);
     let result = mirror::write_checksums(&p, &report, Some(&finished.unwrap()));
     fs::set_permissions(&sums, fs::Permissions::from_mode(0o644)).unwrap();
     assert!(result.is_err());
-    assert_eq!(fs::read(&sums).unwrap(), b"0000000000000001  old.mov\n");
+    assert_eq!(
+        fs::read(&sums).unwrap(),
+        b"00000000000000000000000000000001  old.mov\n"
+    );
 }
 
 /// QA review (#114): a folder moved to another disk, left as a link. Links aren't followed, so
@@ -883,22 +889,26 @@ fn a_run_that_isnt_clean_still_records_what_it_verified() {
     write(&d, &[("a.mov", b"old")]);
     let first = mirror::plan(&o, &d, &opts()).unwrap();
     fs::write(
-        d.join(".secopy-checksums.xxh64"),
-        "0000000000000001  a.mov\n",
+        d.join(".secopy-checksums.xxh128"),
+        "00000000000000000000000000000001  a.mov\n",
     )
     .unwrap();
     fs::remove_file(o.join("b.mov")).unwrap(); // gone before the run: it fails
     let (report, finished) = run(&first, None);
     assert!(finished.is_err(), "not clean");
     mirror::write_checksums(&first, &report, None).unwrap();
-    let text = fs::read_to_string(d.join(".secopy-checksums.xxh64")).unwrap();
+    let text = fs::read_to_string(d.join(".secopy-checksums.xxh128")).unwrap();
     let (sums, _) = secopy_core::check::parse(&text);
     let a = sums
         .iter()
         .find(|(p, _)| p == std::path::Path::new("a.mov"))
         .unwrap()
         .1;
-    assert_ne!(a, 1, "the new version's hash, not the old one");
+    assert_ne!(
+        a,
+        secopy_core::hash::Hash::from_u128(1),
+        "the new version's hash, not the old one"
+    );
 }
 
 /// QA review (#114): lines of the previous checksum file that can't be read aren't dropped
@@ -908,14 +918,14 @@ fn a_checksum_file_with_bad_lines_is_set_aside_not_shortened() {
     let (_dir, o, d) = pair();
     write(&o, &[("a.mov", b"a")]);
     let p = mirror::plan(&o, &d, &opts()).unwrap();
-    fs::write(d.join(".secopy-checksums.xxh64"), "not a checksum line\n").unwrap();
+    fs::write(d.join(".secopy-checksums.xxh128"), "not a checksum line\n").unwrap();
     let (report, finished) = run(&p, None);
     mirror::write_checksums(&p, &report, Some(&finished.unwrap())).unwrap();
     let aside: Vec<_> = fs::read_dir(&d)
         .unwrap()
         .filter_map(Result::ok)
         .map(|e| e.file_name().to_string_lossy().into_owned())
-        .filter(|n| n.starts_with(".secopy-checksums.xxh64.damaged-"))
+        .filter(|n| n.starts_with(".secopy-checksums.xxh128.damaged-"))
         .collect();
     assert_eq!(aside.len(), 1, "{aside:?}");
     assert_eq!(
@@ -923,7 +933,7 @@ fn a_checksum_file_with_bad_lines_is_set_aside_not_shortened() {
         "not a checksum line\n"
     );
     // Set aside twice in the same second: both kept.
-    fs::write(d.join(".secopy-checksums.xxh64"), "still not one\n").unwrap();
+    fs::write(d.join(".secopy-checksums.xxh128"), "still not one\n").unwrap();
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     let (report, finished) = run(&p, None);
     mirror::write_checksums(&p, &report, Some(&finished.unwrap())).unwrap();
@@ -934,7 +944,7 @@ fn a_checksum_file_with_bad_lines_is_set_aside_not_shortened() {
             .filter(|e| {
                 e.file_name()
                     .to_string_lossy()
-                    .starts_with(".secopy-checksums.xxh64.damaged-")
+                    .starts_with(".secopy-checksums.xxh128.damaged-")
             })
             .count()
     };
@@ -957,8 +967,8 @@ fn a_checksum_entry_for_a_file_that_cant_be_looked_at_stays() {
     write(&d, &[("locked/old.mov", b"o")]);
     let p = mirror::plan(&o, &d, &opts()).unwrap();
     fs::write(
-        d.join(".secopy-checksums.xxh64"),
-        "0000000000000007  locked/old.mov\n",
+        d.join(".secopy-checksums.xxh128"),
+        "00000000000000000000000000000007  locked/old.mov\n",
     )
     .unwrap();
     let (report, _) = run(&p, None);
@@ -966,7 +976,7 @@ fn a_checksum_entry_for_a_file_that_cant_be_looked_at_stays() {
     let written = mirror::write_checksums(&p, &report, None);
     fs::set_permissions(d.join("locked"), fs::Permissions::from_mode(0o755)).unwrap();
     written.unwrap();
-    let text = fs::read_to_string(d.join(".secopy-checksums.xxh64")).unwrap();
+    let text = fs::read_to_string(d.join(".secopy-checksums.xxh128")).unwrap();
     assert!(text.contains("locked/old.mov"), "{text}");
 }
 
@@ -1181,4 +1191,30 @@ fn a_removed_default_is_mirrored_like_any_file() {
             .any(|f| f.entry.rel.ends_with(".DS_Store"))
     );
     assert_eq!(p.removals, [std::path::PathBuf::from("Thumbs.db")]);
+}
+
+/// #178 review focus 4: an old xxh64 mirror checksum file is no longer Secopy's own: the
+/// preview lists it as deleted in the origin, and the run archives it.
+#[test]
+fn an_old_mirror_checksum_file_is_an_ordinary_file() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("a.mov", b"a")]);
+    write(
+        &d,
+        &[
+            ("a.mov", b"a"),
+            (".secopy-checksums.xxh64", b"0000000000000001  a.mov\n"),
+        ],
+    );
+    same_time(&o.join("a.mov"), &d.join("a.mov"));
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    assert_eq!(
+        p.removals,
+        [std::path::PathBuf::from(".secopy-checksums.xxh64")]
+    );
+    let archive = d.join(".secopy-archive/run");
+    let (_, finished) = run(&p, Some(&archive));
+    assert!(finished.is_ok());
+    assert!(!d.join(".secopy-checksums.xxh64").exists());
+    assert!(archive.join(".secopy-checksums.xxh64").exists());
 }

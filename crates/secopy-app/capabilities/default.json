@@ -12,6 +12,6 @@
     "notification:allow-request-permission",
     "notification:allow-notify",
     "opener:allow-reveal-item-in-dir",
-    { "identifier": "opener:allow-open-path", "allow": [{ "path": "/**/*.xxh64" }] }
+    { "identifier": "opener:allow-open-path", "allow": [{ "path": "/**/*.xxh128" }] }
   ]
 }

@@ -63,8 +63,8 @@ fn a_drive_root_is_told_apart() {
 fn a_check_problem_says_what_it_is() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join("a.xxh64"),
-        "not a line\nzz00000000000000  a.mov\n0000000000000001  ../out.mov\n",
+        dir.path().join("a.xxh128"),
+        "not a line\nzz000000000000000000000000000000  a.mov\n00000000000000000000000000000001  ../out.mov\n",
     )
     .unwrap();
     let plan = check::plan(dir.path(), &secopy_core::ignore::Patterns::defaults()).unwrap();
@@ -74,7 +74,7 @@ fn a_check_problem_says_what_it_is() {
         vec![
             ProblemKind::NotALine,
             ProblemKind::NotAChecksum {
-                hex: "zz00000000000000".into()
+                hex: "zz000000000000000000000000000000".into()
             },
             ProblemKind::Outside {
                 path: PathBuf::from("../out.mov")
@@ -86,7 +86,7 @@ fn a_check_problem_says_what_it_is() {
         reasons,
         vec![
             "not a \"<checksum>  <path>\" line",
-            "\"zz00000000000000\" isn't an xxHash64 checksum",
+            "\"zz000000000000000000000000000000\" isn't an XXH128 checksum",
             "../out.mov points outside the checked directory",
         ]
     );

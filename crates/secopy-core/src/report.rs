@@ -54,7 +54,7 @@ pub struct ReportFile {
     pub status: &'static str,
     /// Why it was skipped or failed.
     pub reason: Option<String>,
-    pub xxh64: Option<String>,
+    pub xxh128: Option<String>,
     pub in_checksum_file: bool,
     /// A check: the checksum file that listed it, relative to the checked directory.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,7 +144,7 @@ impl Report {
                         size: planned.entry.size,
                         status: "not started",
                         reason: None,
-                        xxh64: None,
+                        xxh128: None,
                         in_checksum_file: false,
                         listed_in: None,
                     };
@@ -186,7 +186,7 @@ impl Report {
                     size: o.size,
                     status,
                     reason,
-                    xxh64: o.hash.map(crate::hash::to_hex),
+                    xxh128: o.hash.map(|h| h.to_hex()),
                     in_checksum_file: o.in_checksum_file,
                     listed_in: None,
                 }
@@ -262,7 +262,7 @@ impl Report {
                     size: f.size,
                     status,
                     reason,
-                    xxh64: Some(crate::hash::to_hex(f.expected)),
+                    xxh128: Some(f.expected.to_hex()),
                     in_checksum_file: true,
                     listed_in: Some(slash_path(&f.from)),
                 }
@@ -536,8 +536,8 @@ impl Report {
         let _ = writeln!(t);
         let _ = writeln!(t, "FILES");
         for f in &self.files {
-            let hash = f.xxh64.as_deref().unwrap_or("-");
-            let _ = write!(t, "  {:<11} {hash:<16}  {}", f.status, f.path);
+            let hash = f.xxh128.as_deref().unwrap_or("-");
+            let _ = write!(t, "  {:<11} {hash:<32}  {}", f.status, f.path);
             if let Some(to) = &f.copied_to {
                 let _ = write!(t, " -> {to}");
             }

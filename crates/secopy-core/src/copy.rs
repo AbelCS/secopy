@@ -8,7 +8,8 @@ use std::sync::mpsc;
 
 use crate::control::JobControl;
 use crate::error::FileError;
-use crate::{hash, metadata, os};
+use crate::hash::{Hash, Hasher};
+use crate::{metadata, os};
 
 /// Tuning for the copy pipeline.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,8 +38,8 @@ impl Default for CopyConfig {
 #[derive(Debug)]
 pub struct PartialCopy {
     pub partial: PathBuf,
-    /// xxHash64 of the bytes read from the source.
-    pub hash: u64,
+    /// XXH128 of the bytes read from the source.
+    pub hash: Hash,
     pub bytes: u64,
     /// A partial file left by an interrupted job was removed to make room for this one.
     pub removed_stale: bool,
@@ -132,8 +133,8 @@ pub fn partial_path(final_path: &Path) -> PathBuf {
     if partial.len() <= MAX_NAME && partial.to_string_lossy().encode_utf16().count() <= MAX_NAME {
         return final_path.with_file_name(partial);
     }
-    let key = hash::hash_bytes(name.to_string_lossy().to_lowercase().as_bytes());
-    final_path.with_file_name(format!(".secopy-{}.partial", hash::to_hex(key)))
+    let key = Hash::of(name.to_string_lossy().to_lowercase().as_bytes());
+    final_path.with_file_name(format!(".secopy-{}.partial", key.to_hex()))
 }
 
 /// Copies `src` to the partial path of `final_path`, hashing the bytes as they are read,
@@ -242,7 +243,7 @@ fn copy_inner(
     cfg: &CopyConfig,
     progress: &dyn Fn(u64),
     control: &JobControl,
-) -> Result<(u64, u64), FileError> {
+) -> Result<(Hash, u64), FileError> {
     let src_meta = reader.metadata().map_err(FileError::read_source)?;
     let len = src_meta.len();
     if cfg.uncached_write {
@@ -265,7 +266,7 @@ fn copy_small(
     len: u64,
     progress: &dyn Fn(u64),
     control: &JobControl,
-) -> Result<(u64, u64), FileError> {
+) -> Result<(Hash, u64), FileError> {
     control.checkpoint()?;
     let mut buf = Vec::with_capacity(len as usize);
     // One byte past its size at most: enough to tell a file that grew since the scan (it
@@ -276,7 +277,7 @@ fn copy_small(
         .map_err(FileError::read_source)?;
     writer.write_all(&buf).map_err(FileError::write_dest)?;
     progress(buf.len() as u64);
-    Ok((hash::hash_bytes(&buf), buf.len() as u64))
+    Ok((Hash::of(&buf), buf.len() as u64))
 }
 
 /// Large files: a reader thread fills and hashes buffers while this thread writes them,
@@ -287,7 +288,7 @@ fn copy_pipelined(
     cfg: &CopyConfig,
     progress: &dyn Fn(u64),
     control: &JobControl,
-) -> Result<(u64, u64), FileError> {
+) -> Result<(Hash, u64), FileError> {
     let buffers = cfg.buffers.max(2);
     let (full_tx, full_rx) = mpsc::sync_channel::<(Vec<u8>, usize)>(buffers);
     let (empty_tx, empty_rx) = mpsc::sync_channel::<Vec<u8>>(buffers);
@@ -297,8 +298,8 @@ fn copy_pipelined(
             .expect("channel has room for every buffer");
     }
     std::thread::scope(|s| {
-        let reader_thread = s.spawn(move || -> Result<u64, FileError> {
-            let mut hasher = hash::hasher();
+        let reader_thread = s.spawn(move || -> Result<Hash, FileError> {
+            let mut hasher = Hasher::new();
             while let Ok(mut buf) = empty_rx.recv() {
                 // Pausing stops the reader too, not only the writer (FR-22).
                 control.checkpoint()?;

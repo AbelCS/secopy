@@ -7,6 +7,8 @@ pub mod read;
 pub mod run;
 pub mod write;
 
+use crate::hash::Hash;
+
 /// The history's folder, at the root of the folder it covers.
 pub const FOLDER: &str = "ascmhl";
 /// The chain file inside it.
@@ -37,7 +39,7 @@ pub struct Record {
     pub rel: String,
     pub size: u64,
     pub modified: Option<std::time::SystemTime>,
-    pub xxh64: u64,
+    pub xxh128: Hash,
     pub action: Action,
 }
 

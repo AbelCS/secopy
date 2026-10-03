@@ -8,6 +8,7 @@ use quick_xml::Reader;
 use quick_xml::events::{BytesStart, Event};
 
 use super::{CHAIN, ChainEntry, FOLDER};
+use crate::hash::Hash;
 
 /// A history as read, checked against its chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,8 +18,8 @@ pub struct History {
     pub entries: Vec<ChainEntry>,
     /// Every path any generation lists (files and folders), relative to the scope.
     pub recorded: HashSet<String>,
-    /// The first `original` xxh64 per path; paths only another format recorded aren't here.
-    pub first_xxh64: HashMap<String, u64>,
+    /// The first `original` XXH128 per path; paths only another format recorded aren't here.
+    pub first_xxh128: HashMap<String, Hash>,
     /// The latest generation's ignore patterns (the standard's defaults if it has none).
     pub ignore: Vec<String>,
 }
@@ -66,7 +67,7 @@ pub fn read(scope: &Path) -> Result<Option<History>, Damage> {
         chain_bytes: chain_bytes.clone(),
         entries: entries.clone(),
         recorded: HashSet::new(),
-        first_xxh64: HashMap::new(),
+        first_xxh128: HashMap::new(),
         ignore: super::ignore::standard_defaults(),
     };
     for e in &entries {
@@ -86,12 +87,12 @@ pub fn read(scope: &Path) -> Result<Option<History>, Damage> {
             // A file another tool renamed: its record moves to the new name.
             if let Some(previous) = &r.previous {
                 history.recorded.remove(previous);
-                if let Some(old) = history.first_xxh64.remove(previous) {
-                    history.first_xxh64.entry(r.path.clone()).or_insert(old);
+                if let Some(old) = history.first_xxh128.remove(previous) {
+                    history.first_xxh128.entry(r.path.clone()).or_insert(old);
                 }
             }
-            if let Some(h) = r.xxh64 {
-                history.first_xxh64.entry(r.path.clone()).or_insert(h);
+            if let Some(h) = r.xxh128 {
+                history.first_xxh128.entry(r.path.clone()).or_insert(h);
             }
             history.recorded.insert(r.path);
         }
@@ -123,8 +124,9 @@ struct HashRecord {
     path: String,
     /// Its `previousPath`: the file was renamed.
     previous: Option<String>,
-    /// Its xxh64 when it was `original` or `verified` (a known-good hash), not `failed`.
-    xxh64: Option<u64>,
+    /// Its XXH128 when it was `original` or `verified` (a known-good hash), not `failed`. An
+    /// xxh64 (Secopy before #178), md5, sha1 or c4 is another format: the path only.
+    xxh128: Option<Hash>,
 }
 
 fn local(e: &BytesStart) -> String {
@@ -250,14 +252,14 @@ fn manifest(text: &str) -> Option<Manifest> {
     let mut hashes = Vec::new();
     let mut references = Vec::new();
     let mut ignore: Option<Vec<String>> = None;
-    let (mut path, mut previous, mut xxh64, mut good) = (None, None, None, false);
+    let (mut path, mut previous, mut xxh128, mut good) = (None, None, None, false);
     let (mut ref_path, mut ref_c4) = (None, None);
     walk(text, "hashlist", |step| {
         match step {
             Step::Start {
                 name: "hash" | "directoryhash",
                 ..
-            } => (path, previous, xxh64) = (None, None, None),
+            } => (path, previous, xxh128) = (None, None, None),
             Step::Start {
                 name: "path",
                 parents,
@@ -266,7 +268,7 @@ fn manifest(text: &str) -> Option<Manifest> {
                 previous = attr(element, "previousPath")?;
             }
             Step::Start {
-                name: "xxh64",
+                name: "xxh128",
                 parents,
                 element,
             } if parent(parents) == Some("hash") => {
@@ -306,11 +308,11 @@ fn manifest(text: &str) -> Option<Manifest> {
                 path = Some(text.to_string());
             }
             Step::End {
-                name: "xxh64",
+                name: "xxh128",
                 parents,
                 text,
             } if parent(parents) == Some("hash") && good => {
-                xxh64 = Some(u64::from_str_radix(text.trim(), 16).ok()?);
+                xxh128 = Some(Hash::from_hex(text.trim())?);
             }
             Step::End {
                 name: "pattern",
@@ -323,7 +325,7 @@ fn manifest(text: &str) -> Option<Manifest> {
             } => hashes.push(HashRecord {
                 path: path.take()?,
                 previous: previous.take(),
-                xxh64: xxh64.take(),
+                xxh128: xxh128.take(),
             }),
             _ => {}
         }
@@ -362,12 +364,12 @@ mod tests {
         }
     }
 
-    fn rec(rel: &str, xxh64: u64, action: Action) -> Record {
+    fn rec(rel: &str, xxh128: u128, action: Action) -> Record {
         Record {
             rel: rel.into(),
             size: 1,
             modified: None,
-            xxh64,
+            xxh128: Hash::from_u128(xxh128),
             action,
         }
     }
@@ -397,8 +399,8 @@ mod tests {
         second.ignore.push("*.bak".into());
         append(d.path(), Some(&h1.chain_bytes), &h1.entries, &second, at()).unwrap();
         let h = read(d.path()).unwrap().unwrap();
-        assert_eq!(h.first_xxh64["A/a.mov"], 7);
-        assert_eq!(h.first_xxh64["b.wav"], 3);
+        assert_eq!(h.first_xxh128["A/a.mov"], Hash::from_u128(7));
+        assert_eq!(h.first_xxh128["b.wav"], Hash::from_u128(3));
         assert!(h.recorded.contains("A/a.mov"));
         assert!(h.ignore.contains(&"*.bak".to_string()));
         assert_eq!(h.entries.len(), 2);
@@ -407,7 +409,7 @@ mod tests {
 
     #[test]
     fn another_format_is_recorded_as_original() {
-        // A manifest by another tool, md5 only: the path is recorded, with no xxh64 to check.
+        // A manifest by another tool, md5 only: the path is recorded, with no XXH128 to check.
         let d = tempfile::tempdir().unwrap();
         let folder = d.path().join("ascmhl");
         std::fs::create_dir(&folder).unwrap();
@@ -428,7 +430,7 @@ mod tests {
         .unwrap();
         let h = read(d.path()).unwrap().unwrap();
         assert!(h.recorded.contains("a.mov"));
-        assert!(!h.first_xxh64.contains_key("a.mov"));
+        assert!(!h.first_xxh128.contains_key("a.mov"));
     }
 
     #[test]
@@ -442,7 +444,11 @@ mod tests {
         let h = read(d.path()).unwrap().unwrap();
         assert_eq!(h.entries.len(), 1);
         assert!(h.recorded.contains("Clips/A002C006_141024_R2EC.mov"));
-        assert!(h.first_xxh64.contains_key("Clips/A002C006_141024_R2EC.mov"));
+        // The ASC's sample records xxh64: another format since #178, so the path only.
+        assert!(
+            !h.first_xxh128
+                .contains_key("Clips/A002C006_141024_R2EC.mov")
+        );
     }
 
     #[test]
@@ -516,9 +522,9 @@ mod tests {
         std::fs::write(folder.join("ascmhl_chain.xml"), chain_xml(&entries)).unwrap();
     }
 
-    /// Review #10: an xxh64 added later as `verified` (after md5) is the known-good hash.
+    /// Review #10: an XXH128 added later as `verified` (after md5) is the known-good hash.
     #[test]
-    fn a_verified_xxh64_after_another_format_counts() {
+    fn a_verified_xxh128_after_another_format_counts() {
         let d = tempfile::tempdir().unwrap();
         hand_written(
             d.path(),
@@ -526,10 +532,10 @@ mod tests {
         );
         hand_written(
             d.path(),
-            "  <hashes>\n    <hash>\n      <path size=\"1\">a.mov</path>\n      <md5 action=\"verified\">0cc175b9c0f1b6a831c399e269772661</md5>\n      <xxh64 action=\"verified\">00000000000000aa</xxh64>\n    </hash>\n  </hashes>\n",
+            "  <hashes>\n    <hash>\n      <path size=\"1\">a.mov</path>\n      <md5 action=\"verified\">0cc175b9c0f1b6a831c399e269772661</md5>\n      <xxh128 action=\"verified\">000000000000000000000000000000aa</xxh128>\n    </hash>\n  </hashes>\n",
         );
         let h = read(d.path()).unwrap().unwrap();
-        assert_eq!(h.first_xxh64["a.mov"], 0xaa);
+        assert_eq!(h.first_xxh128["a.mov"], Hash::from_u128(0xaa));
     }
 
     /// Review #11: a file renamed by another tool is recorded under its new name only.
@@ -538,15 +544,15 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         hand_written(
             d.path(),
-            "  <hashes>\n    <hash>\n      <path size=\"1\">old.mov</path>\n      <xxh64 action=\"original\">00000000000000bb</xxh64>\n    </hash>\n  </hashes>\n",
+            "  <hashes>\n    <hash>\n      <path size=\"1\">old.mov</path>\n      <xxh128 action=\"original\">000000000000000000000000000000bb</xxh128>\n    </hash>\n  </hashes>\n",
         );
         hand_written(
             d.path(),
-            "  <hashes>\n    <hash>\n      <path size=\"1\" previousPath=\"old.mov\">new.mov</path>\n      <xxh64 action=\"verified\">00000000000000bb</xxh64>\n    </hash>\n  </hashes>\n",
+            "  <hashes>\n    <hash>\n      <path size=\"1\" previousPath=\"old.mov\">new.mov</path>\n      <xxh128 action=\"verified\">000000000000000000000000000000bb</xxh128>\n    </hash>\n  </hashes>\n",
         );
         let h = read(d.path()).unwrap().unwrap();
         assert!(h.recorded.contains("new.mov") && !h.recorded.contains("old.mov"));
-        assert_eq!(h.first_xxh64["new.mov"], 0xbb);
+        assert_eq!(h.first_xxh128["new.mov"], Hash::from_u128(0xbb));
     }
 
     /// Review #9: a reference to a nested manifest that's missing or altered is damage.
@@ -556,7 +562,7 @@ mod tests {
         let child = d.path().join("A001");
         hand_written(
             &child,
-            "  <hashes>\n    <hash>\n      <path size=\"1\">a.mov</path>\n      <xxh64 action=\"original\">0000000000000001</xxh64>\n    </hash>\n  </hashes>\n",
+            "  <hashes>\n    <hash>\n      <path size=\"1\">a.mov</path>\n      <xxh128 action=\"original\">00000000000000000000000000000001</xxh128>\n    </hash>\n  </hashes>\n",
         );
         let child_manifest = "A001/ascmhl/0001_x_2026-10-01_081500Z.mhl";
         let good = crate::mhl::c4::c4(&std::fs::read(d.path().join(child_manifest)).unwrap());

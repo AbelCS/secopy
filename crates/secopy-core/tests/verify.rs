@@ -6,7 +6,7 @@ use std::fs;
 use common::pattern;
 use secopy_core::control::JobControl;
 use secopy_core::error::FileError;
-use secopy_core::hash::hash_bytes;
+use secopy_core::hash::Hash;
 use secopy_core::verify::{CacheBypass, hash_from_device};
 
 #[test]
@@ -19,7 +19,7 @@ fn hashes_the_file_in_chunks_and_reports_progress() {
     let last = Cell::new(0);
 
     let (hash, _) = hash_from_device(&path, 4096, &|b| last.set(b), &JobControl::new()).unwrap();
-    assert_eq!(hash, hash_bytes(&data));
+    assert_eq!(hash, Hash::of(&data));
     assert_eq!(last.get(), data.len() as u64);
 }
 
@@ -38,7 +38,7 @@ fn empty_file_hashes_to_the_empty_hash() {
     let path = dir.path().join("a.bin");
     fs::write(&path, b"").unwrap();
     let (hash, _) = hash_from_device(&path, 4096, &|_| {}, &JobControl::new()).unwrap();
-    assert_eq!(hash, 0xef46_db37_51d8_e999);
+    assert_eq!(hash.to_hex(), "99aa06d3014798d86001c324468d497f");
 }
 
 #[test]

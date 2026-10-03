@@ -9,7 +9,7 @@ use common::{pattern, read_tree, write_files};
 use secopy_core::copy::CopyConfig;
 use secopy_core::error::{FatalError, FileError};
 use secopy_core::filter::ExtensionFilter;
-use secopy_core::hash::{hash_bytes, to_hex};
+use secopy_core::hash::Hash;
 use secopy_core::job::{
     Event, FileStatus, Hooks, JobControl, JobOptions, JobReport, Progress, SkipReason, run_job,
     undo,
@@ -114,7 +114,7 @@ fn copy_mode_copies_everything_and_writes_the_checksum_file() {
     assert_eq!(report.cache_bypass, None);
 
     let sums = fs::read_to_string(report.checksum_file.unwrap()).unwrap();
-    let line = format!("{}  CARD/A001.mov", to_hex(hash_bytes(&pattern(1000))));
+    let line = format!("{}  CARD/A001.mov", Hash::of(&pattern(1000)).to_hex());
     assert!(sums.lines().any(|l| l == line), "{sums}");
     assert_eq!(sums.lines().count(), 4);
 }
@@ -240,11 +240,12 @@ fn checksum_file_can_be_turned_off() {
     let plan = plan(&f.src, &f.dest);
     let (report, _) = run(&plan, &o);
     assert_eq!(report.checksum_file, None);
-    assert!(
-        fs::read_dir(&f.dest)
-            .unwrap()
-            .all(|e| { e.unwrap().path().extension().is_none_or(|x| x != "xxh64") })
-    );
+    assert!(fs::read_dir(&f.dest).unwrap().all(|e| {
+        e.unwrap()
+            .path()
+            .extension()
+            .is_none_or(|x| x != secopy_core::checksum_file::EXT)
+    }));
     // Nothing may suggest a checksum file that wasn't written.
     assert!(report.checksum_off);
     assert!(report.outcomes.iter().all(|o| !o.in_checksum_file));
@@ -477,7 +478,7 @@ fn concurrent_jobs_into_one_destination_never_report_foreign_bytes() {
             if matches!(o.status, FileStatus::Copied | FileStatus::Verified) {
                 let on_disk = fs::read(dest.join(&o.rel)).unwrap();
                 assert_eq!(
-                    Some(hash_bytes(&on_disk)),
+                    Some(Hash::of(&on_disk)),
                     o.hash,
                     "{} reported ok but holds other bytes (verify={verify})",
                     o.rel.display()
@@ -521,7 +522,7 @@ fn names_equal_after_unicode_normalization_never_mix() {
                 .collect();
             assert_eq!(ok.len(), 1, "{report:?}");
             let on_disk = fs::read(dest.join(&ok[0].rel)).unwrap();
-            assert_eq!(Some(hash_bytes(&on_disk)), ok[0].hash, "verify={verify}");
+            assert_eq!(Some(Hash::of(&on_disk)), ok[0].hash, "verify={verify}");
         }
     }
 }

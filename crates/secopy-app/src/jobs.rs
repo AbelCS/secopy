@@ -1002,7 +1002,8 @@ impl Job {
             .and_then(Path::file_stem)
         {
             Some(stem) => stem.to_string_lossy().into_owned(),
-            None => checksum_file::file_name(self.started).replace(".xxh64", ""),
+            None => checksum_file::file_name(self.started)
+                .replace(&format!(".{}", checksum_file::EXT), ""),
         };
         let text = self
             .report(done)
@@ -1156,7 +1157,7 @@ fn row(o: &FileOutcome, check: Option<&CheckPlan>) -> FinishedRow {
         final_path: show(&o.final_rel),
         size: o.size,
         millis: o.elapsed.as_millis() as u64,
-        hash: o.hash.map(secopy_core::hash::to_hex),
+        hash: o.hash.map(|h| h.to_hex()),
         status,
         reason,
     }
@@ -1347,7 +1348,7 @@ mod tests {
                 rel: "C0000.mov".into(),
                 size: 10,
                 modified: None,
-                xxh64: 1,
+                xxh128: secopy_core::hash::Hash::from_u128(1),
                 action: Action::Original,
             }],
             references: Vec::new(),
@@ -1778,7 +1779,7 @@ mod tests {
                     .unwrap()
                     .path()
                     .extension()
-                    .is_some_and(|x| x == "xxh64")
+                    .is_some_and(|x| x == secopy_core::checksum_file::EXT)
             })
             .collect();
         assert!(xxh.is_empty());
@@ -2083,8 +2084,8 @@ mod tests {
         fs::write(root.join("a.mov"), b"a").unwrap();
         fs::write(root.join("b.mov"), b"b").unwrap();
         let entries = vec![
-            (PathBuf::from("a.mov"), secopy_core::hash::hash_bytes(b"a")),
-            (PathBuf::from("b.mov"), secopy_core::hash::hash_bytes(b"b")),
+            (PathBuf::from("a.mov"), secopy_core::hash::Hash::of(b"a")),
+            (PathBuf::from("b.mov"), secopy_core::hash::Hash::of(b"b")),
         ];
         secopy_core::checksum_file::write(&root, &entries, Local::now()).unwrap();
         (dir, root)

@@ -38,7 +38,7 @@ pub fn record(
     progress: &dyn Fn(u64),
 ) -> Recorded {
     let started = Utc::now();
-    let mut files: Vec<(PathBuf, u64)> = outcomes
+    let mut files: Vec<(PathBuf, crate::hash::Hash)> = outcomes
         .iter()
         .filter(|o| matches!(o.status, FileStatus::Copied | FileStatus::Verified))
         .filter_map(|o| Some((plan.dest.join(&o.final_rel), o.hash?)))
@@ -60,7 +60,7 @@ pub fn record(
     // Each file in its closest history, with what that history said of it before.
     let mut failed = Vec::new();
     let mut by_scope: HashMap<&Path, Vec<Record>> = HashMap::new();
-    for (path, xxh64) in files {
+    for (path, xxh128) in files {
         let Some(scope) = job.plan.scope_of(&path) else {
             continue;
         };
@@ -76,9 +76,9 @@ pub fn record(
             Ok(m) => m,
             Err(e) => return failure(e),
         };
-        let action = match scope.continues().and_then(|h| h.first_xxh64.get(&rel)) {
+        let action = match scope.continues().and_then(|h| h.first_xxh128.get(&rel)) {
             None => Action::Original,
-            Some(&before) if before == xxh64 => Action::Verified,
+            Some(&before) if before == xxh128 => Action::Verified,
             Some(_) => {
                 failed.push(path.strip_prefix(&root).unwrap_or(&path).to_path_buf());
                 Action::Failed
@@ -88,7 +88,7 @@ pub fn record(
             rel,
             size: meta.len(),
             modified: meta.modified().ok(),
-            xxh64,
+            xxh128,
             action,
         });
     }

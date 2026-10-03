@@ -7,7 +7,7 @@ use common::pattern;
 use secopy_core::control::JobControl;
 use secopy_core::copy::{Commit, CopyConfig, copy_to_partial, partial_path};
 use secopy_core::error::FileError;
-use secopy_core::hash::hash_bytes;
+use secopy_core::hash::Hash;
 
 fn small_buffers() -> CopyConfig {
     CopyConfig {
@@ -37,7 +37,7 @@ fn small_file_is_copied_hashed_and_committed() {
         &JobControl::new(),
     )
     .unwrap();
-    assert_eq!(pc.hash, hash_bytes(b"hello secopy"));
+    assert_eq!(pc.hash, Hash::of(b"hello secopy"));
     assert_eq!(pc.bytes, 12);
     assert!(!dst.exists(), "final name only appears on commit");
 
@@ -63,7 +63,7 @@ fn large_file_goes_through_the_pipeline_in_chunks() {
         &JobControl::new(),
     )
     .unwrap();
-    assert_eq!(pc.hash, hash_bytes(&data));
+    assert_eq!(pc.hash, Hash::of(&data));
     assert_eq!(last.get(), 1000);
     assert_eq!(fs::read(&pc.partial).unwrap(), data);
 }
@@ -81,7 +81,7 @@ fn empty_file_has_the_empty_hash() {
         &JobControl::new(),
     )
     .unwrap();
-    assert_eq!(pc.hash, 0xef46_db37_51d8_e999);
+    assert_eq!(pc.hash.to_hex(), "99aa06d3014798d86001c324468d497f");
     assert_eq!(pc.bytes, 0);
 }
 
@@ -140,7 +140,7 @@ fn sizes_around_the_buffer_size_copy_exactly() {
         let data = pattern(size);
         fs::write(&src, &data).unwrap();
         let pc = copy_to_partial(&src, &dst, &cfg, &|_| {}, &JobControl::new()).unwrap();
-        assert_eq!(pc.hash, hash_bytes(&data), "size {size}");
+        assert_eq!(pc.hash, Hash::of(&data), "size {size}");
         assert_eq!(fs::read(&pc.partial).unwrap(), data, "size {size}");
     }
 }

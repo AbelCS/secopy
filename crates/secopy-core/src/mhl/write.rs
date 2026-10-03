@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Local, SecondsFormat, Utc};
 
 use super::{Action, CHAIN, ChainEntry, FOLDER, Generation};
-use crate::hash::to_hex;
 
 /// Characters XML 1.0 allows: a name with others can't be listed.
 pub fn xml_can_hold(s: &str) -> bool {
@@ -72,10 +71,10 @@ pub fn manifest_xml(g: &Generation) -> String {
             };
             let _ = write!(
                 x,
-                "    <hash>\n      <path size=\"{}\"{modified}>{}</path>\n      <xxh64 action=\"{action}\">{}</xxh64>\n    </hash>\n",
+                "    <hash>\n      <path size=\"{}\"{modified}>{}</path>\n      <xxh128 action=\"{action}\">{}</xxh128>\n    </hash>\n",
                 r.size,
                 esc(&r.rel),
-                to_hex(r.xxh64)
+                r.xxh128.to_hex()
             );
         }
         x.push_str("  </hashes>\n");
@@ -304,6 +303,7 @@ pub fn revert(w: &Written) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hash::Hash;
     use crate::mhl::{Action, Generation, Record};
     use chrono::TimeZone;
 
@@ -322,7 +322,7 @@ mod tests {
                     rel: "b & c/<C0002>.MP4".into(),
                     size: 5,
                     modified: None,
-                    xxh64: 0x26c7827d889f6da3,
+                    xxh128: Hash::from_u128(0x26c7827d889f6da3),
                     action: Action::Original,
                 },
                 Record {
@@ -331,7 +331,7 @@ mod tests {
                     modified: Some(
                         std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_790_000_000),
                     ),
-                    xxh64: 1,
+                    xxh128: Hash::from_u128(1),
                     action: Action::Verified,
                 },
             ],
@@ -362,9 +362,13 @@ mod tests {
         valid(&xml, "ASCMHL.xsd");
         assert!(xml.contains("<process>transfer</process>"));
         assert!(xml.contains(r#"<tool version="0.19.0">Secopy</tool>"#));
-        assert!(xml.contains(r#"<xxh64 action="original">26c7827d889f6da3</xxh64>"#));
+        assert!(
+            xml.contains(r#"<xxh128 action="original">000000000000000026c7827d889f6da3</xxh128>"#)
+        );
         assert!(xml.contains("b &amp; c/&lt;C0002&gt;.MP4"));
-        assert!(xml.contains(r#"<xxh64 action="verified">0000000000000001</xxh64>"#));
+        assert!(
+            xml.contains(r#"<xxh128 action="verified">00000000000000000000000000000001</xxh128>"#)
+        );
     }
 
     #[test]
