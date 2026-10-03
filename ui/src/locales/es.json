@@ -1,0 +1,1372 @@
+{
+  "test": {
+    "plain": "Texto sencillo",
+    "named": "Hola “{name}”",
+    "files": {
+      "one": "{count} archivo",
+      "other": "{count} archivos"
+    }
+  },
+  "format": {
+    "unknown": "—",
+    "speed": "{size}/s",
+    "percent": "{value} %",
+    "bytes": {
+      "b": "{value} B",
+      "kb": "{value} KB",
+      "mb": "{value} MB",
+      "gb": "{value} GB",
+      "tb": "{value} TB",
+      "pb": "{value} PB"
+    },
+    "dot": " · ",
+    "comma": ", ",
+    "raw": "{text}",
+    "list2": "{a} y {b}",
+    "list3": "{a}, {b} y {c}",
+    "semicolon": "; ",
+    "days": {
+      "one": "{count} día",
+      "other": "{count} días"
+    }
+  },
+  "summary": {
+    "headline": {
+      "cancelled": "Cancelado",
+      "stopped": "Detenido: {why}",
+      "mhlFailed": {
+        "one": "{count} archivo no coincide con su historial ASC MHL",
+        "other": "{count} archivos no coinciden con su historial ASC MHL"
+      },
+      "mhlNotWritten": "No se pudo escribir ASC MHL",
+      "checkCannotContinue": "la verificación no pudo continuar",
+      "copyCannotContinue": "la copia no pudo continuar",
+      "check": {
+        "changed": {
+          "one": "{count} archivo cambiado",
+          "other": "{count} archivos cambiados"
+        },
+        "missing": {
+          "one": "falta {count}",
+          "other": "faltan {count}"
+        },
+        "unreadable": {
+          "one": "{count} ilegible",
+          "other": "{count} ilegibles"
+        },
+        "problems": {
+          "one": "{count} problema en archivos de checksums",
+          "other": "{count} problemas en archivos de checksums"
+        },
+        "intact": {
+          "one": "{count} archivo intacto",
+          "other": "{count} archivos intactos"
+        }
+      },
+      "unread": {
+        "one": "No se pudo leer {count} elemento",
+        "other": "No se pudieron leer {count} elementos"
+      },
+      "notRemoved": {
+        "one": "No se pudo eliminar {count} archivo",
+        "other": "No se pudieron eliminar {count} archivos"
+      },
+      "dirErrors": {
+        "one": "No se pudo crear {count} directorio vacío",
+        "other": "No se pudieron crear {count} directorios vacíos"
+      },
+      "checksumFailed": "No se pudo escribir el archivo de checksums",
+      "notDurable": "El destino no pudo confirmar que los archivos están guardados",
+      "mirror": {
+        "new": {
+          "one": "{count} nuevo",
+          "other": "{count} nuevos"
+        },
+        "updated": {
+          "one": "{count} actualizado",
+          "other": "{count} actualizados"
+        },
+        "archived": {
+          "one": "{count} archivado",
+          "other": "{count} archivados"
+        },
+        "deleted": {
+          "one": "{count} borrado",
+          "other": "{count} borrados"
+        },
+        "inSync": "Ya está sincronizado",
+        "done": "Espejo hecho: {parts}"
+      },
+      "undoneBack": "Cancelado: el destino ha vuelto a como estaba",
+      "undoneRemoved": "Cancelado: no se pudo devolver todo a como estaba",
+      "failed": {
+        "one": "{count} archivo falló",
+        "other": "{count} archivos fallaron"
+      },
+      "nothingCopied": "No se copió nada: {kept} sin cambios",
+      "someVerified": {
+        "one": "{count} archivo copiado y verificado; {kept} sin cambios",
+        "other": "{count} archivos copiados y verificados; {kept} sin cambios"
+      },
+      "someCopied": {
+        "one": "{count} archivo copiado; {kept} sin cambios",
+        "other": "{count} archivos copiados; {kept} sin cambios"
+      },
+      "nothingToCopy": "Nada que copiar: todo estaba ya allí",
+      "allVerified": {
+        "one": "{count} archivo copiado y verificado",
+        "other": "{count} archivos copiados y verificados"
+      },
+      "allCopied": {
+        "one": "{count} archivo copiado",
+        "other": "{count} archivos copiados"
+      },
+      "archiveNotDeleted": "No se pudieron borrar todos los archivados",
+      "archiveNotCleaned": "No se pudieron eliminar todos los archivados antiguos",
+      "differentFiles": {
+        "one": "{count} archivo distinto",
+        "other": "{count} archivos distintos"
+      }
+    },
+    "stats": {
+      "files": {
+        "one": "{count} archivo",
+        "other": "{count} archivos"
+      },
+      "took": "en {time}",
+      "notChecked": "{count} sin verificar",
+      "notCheckedHint": "En ningún archivo de checksums: no hay con qué compararlos.",
+      "written": "{size} escritos",
+      "average": "{speed} de media",
+      "alreadyThere": "{count} ya en el destino, sin verificar",
+      "keptDifferent": {
+        "one": "{count} archivo distinto, sin cambios",
+        "other": "{count} archivos distintos, sin cambios"
+      },
+      "notStarted": "{count} sin empezar",
+      "notStartedHint": "No alcanzados: la tarea se canceló o se detuvo."
+    },
+    "title": "Resumen",
+    "notRestored": {
+      "one": "No se pudo restaurar {count} archivo que esta tarea reemplazó: se queda su versión nueva.",
+      "other": "No se pudieron restaurar {count} archivos que esta tarea reemplazó: se quedan sus versiones nuevas."
+    },
+    "notRemovedUndo": {
+      "one": "No se pudo eliminar {count} archivo (consulta el informe).",
+      "other": "No se pudieron eliminar {count} archivos (consulta el informe)."
+    },
+    "noChecksumFile": "Sin archivo de checksums (desactivado en Ajustes)",
+    "checksumError": "No se pudo escribir el archivo de checksums: {why}",
+    "durabilityError": "El destino informó de un error al guardar los archivos en el disco: {why}. Revisa la unidad y vuelve a hacer la copia.",
+    "reportError": "No se pudo guardar el informe: {why}",
+    "failed": "Fallidos",
+    "more": "y {count} más (consulta el informe)",
+    "problems": "Problemas",
+    "notRemoved": "Sin eliminar",
+    "files": "Archivos",
+    "retry": "Reintentar",
+    "retryHelp": {
+      "one": "Prepara una copia nueva solo del archivo fallido; pulsa “Empezar” para hacerla.",
+      "other": "Prepara una copia nueva solo de los {count} archivos fallidos; pulsa “Empezar” para hacerla."
+    },
+    "showInFinder": "Mostrar en el Finder",
+    "openChecksumFile": "Abrir el archivo de checksums",
+    "showMhl": "Mostrar ASC MHL",
+    "mhlWritten": "ASC MHL escrito.",
+    "saveReport": "Guardar informe…",
+    "done": "Hecho",
+    "newCopy": "Copia nueva",
+    "reason": {
+      "differs": "Se conservó un archivo distinto con este nombre",
+      "dirNotCreated": "Directorio vacío sin crear: {why}",
+      "mhlFailed": "No coincide con su historial ASC MHL",
+      "identical": "Ya en el destino (sin verificar)",
+      "notRemoved": "Sin eliminar: {why}",
+      "unread": "No se pudo leer: {why}"
+    },
+    "mirrorChecksumError": "No se pudo escribir el archivo de checksums del espejo: {why}"
+  },
+  "progress": {
+    "stop": {
+      "question": "¿Cancelar esta tarea?",
+      "questionQueue": "¿Cancelar esta tarea y detener la cola?",
+      "queueOnly": "¿Detener la cola?",
+      "notStarted": "Esta tarea aún no ha empezado: no se ha escrito nada de ella.",
+      "left": {
+        "check": "No se ha cambiado nada: verificar solo lee archivos.",
+        "mirror": "Los archivos ya copiados se quedan; el archivo en curso se elimina. Los archivos borrados en el origen se dejan en el destino.",
+        "copyListed": "Los archivos ya copiados se quedan y figuran en el archivo de checksums; el archivo en curso se elimina.",
+        "copy": "Los archivos ya copiados se quedan; el archivo en curso se elimina."
+      },
+      "checkedSoFar": "No se ha cambiado nada: los archivos verificados hasta ahora están en el resumen.",
+      "removeCopied": "Se eliminan el archivo en curso y los archivos ya copiados.",
+      "alsoRemove": "Eliminar también los archivos ya copiados",
+      "alsoRemoveHelp": "Elimina lo que copió esta tarea. Lo que reemplazó solo vuelve desde los archivados de un espejo.",
+      "continue": "Continuar",
+      "stop": "Cancelar tarea",
+      "stopQueue": "Detener la cola"
+    },
+    "quit": {
+      "question": "¿Cancelar esta tarea y salir?",
+      "stop": "Cancelar tarea y salir",
+      "keep": "Continuar",
+      "queueQuestion": "¿Detener la cola y salir?",
+      "queueStop": "Detener la cola",
+      "queueKeep": "Continuar",
+      "finishing": {
+        "undo": "Secopy termina primero de devolver el destino a como estaba y luego sale.",
+        "archive": "Secopy termina primero de archivar los archivos borrados en el origen y luego sale.",
+        "delete": "Secopy termina primero de borrar los archivos borrados en el origen y luego sale."
+      },
+      "whenDone": "¿Salir cuando termine?",
+      "quit": "Salir",
+      "keepOpen": "Mantener abierto"
+    },
+    "phase": {
+      "done": "Terminado",
+      "paused": "En pausa",
+      "checking": "Comprobando…",
+      "verifying": "Verificando",
+      "mirroring": "Espejo en curso",
+      "copyingVerifying": "Copiando y verificando",
+      "copying": "Copiando"
+    },
+    "status": {
+      "job": "Tarea {index} de {count}",
+      "files": "{done} / {files}",
+      "skipped": {
+        "one": "{count} omitido",
+        "other": "{count} omitidos"
+      },
+      "failed": {
+        "one": "{count} fallido",
+        "other": "{count} fallidos"
+      }
+    },
+    "files": {
+      "one": "{count} archivo",
+      "other": "{count} archivos"
+    },
+    "elapsed": "{time} transcurrido",
+    "stopped": "Detenido: {why}",
+    "title": "Progreso",
+    "comparing": "Comparando contenido: {done} de {files}",
+    "lookingAtSource": "Comprobando el origen y el destino…",
+    "estimating": "Calculando…",
+    "timeLeft": "Tiempo restante",
+    "timeLeftLabel": "Tiempo restante:",
+    "bar": {
+      "checked": "Verificado",
+      "copied": "Copiado",
+      "verified": "Verificado"
+    },
+    "undoing": "Devolviendo el destino a como estaba…",
+    "archiving": {
+      "one": "Archivando {count} archivo",
+      "other": "Archivando {count} archivos"
+    },
+    "deleting": {
+      "one": "Borrando {count} archivo",
+      "other": "Borrando {count} archivos"
+    },
+    "active": "En curso",
+    "starting": "Empezando…",
+    "file": {
+      "verifying": "Verificando",
+      "copying": "Copiando",
+      "of": "{done} de {size}"
+    },
+    "recordingMhl": "Registrando ASC MHL",
+    "smallFiles": {
+      "name": "Archivos pequeños",
+      "of": "{done} de {total}",
+      "help": "Archivos de menos de 8 MB, copiados varios a la vez y contados juntos.",
+      "helpCheck": "Archivos de menos de 8 MB, leídos varios a la vez y contados juntos."
+    },
+    "resume": "Reanudar",
+    "resumeHelp": "Sigue desde donde se pausó (espacio).",
+    "pause": "Pausar",
+    "pauseHelp": {
+      "check": "Deja de leer hasta que reanudes (espacio).",
+      "copy": "Deja de leer y escribir hasta que reanudes (espacio)."
+    },
+    "cancel": "Cancelar…",
+    "cancelHelp": {
+      "queue": "Pregunta primero y luego cancela esta tarea y detiene la cola (⌘.).",
+      "job": "Pregunta primero y luego cancela la tarea (⌘.)."
+    }
+  },
+  "notify": {
+    "job": {
+      "title": "{mark} {headline}",
+      "reportNotSaved": "Informe sin guardar"
+    },
+    "queue": {
+      "title": {
+        "one": "Cola terminada: {complete} de {count} tarea completa",
+        "other": "Cola terminada: {complete} de {count} tareas completas"
+      },
+      "failed": {
+        "one": "{count} tarea fallida",
+        "other": "{count} tareas fallidas"
+      },
+      "cancelled": {
+        "one": "{count} cancelada",
+        "other": "{count} canceladas"
+      },
+      "notRun": {
+        "one": "{count} sin ejecutar",
+        "other": "{count} sin ejecutar"
+      },
+      "allFinished": "Todas las tareas han terminado."
+    }
+  },
+  "app": {
+    "dismiss": "Cerrar",
+    "settings": "Ajustes",
+    "tabs": {
+      "copy": "Copia",
+      "mirror": "Espejo",
+      "verify": "Verificación"
+    },
+    "exportName": "Ajustes de Secopy {date}.secopy",
+    "warning": {
+      "damaged": "{detail}",
+      "newerKept": "{file} es de un Secopy más reciente (versión {version}): se deja como está y se usan los valores por omisión.",
+      "setAside": "No se pudo leer {file} ({why}). Se apartó como {aside} en {dir} y se usan los valores por omisión.",
+      "notSetAside": "No se pudo leer {file} ({why}) ni apartar ({error}). Se usan los valores por omisión."
+    }
+  },
+  "ui": {
+    "actions": "Acciones",
+    "sections": "Secciones",
+    "queue": {
+      "label": "Cola",
+      "withCount": {
+        "one": "Cola, {count} tarea",
+        "other": "Cola, {count} tareas"
+      }
+    },
+    "progress": {
+      "figures": "{done} de {total}",
+      "withSpeed": "{done} de {total} · {speed}"
+    },
+    "hint": {
+      "more": "Más información"
+    },
+    "discard": {
+      "title": "¿Descartar los cambios?",
+      "discard": "Descartar",
+      "keep": "Seguir editando",
+      "named": "Tus cambios en “{name}” no están guardados."
+    },
+    "back": "Atrás",
+    "export": "Exportar…",
+    "delete": "Borrar…",
+    "revert": "Revertir",
+    "save": "Guardar",
+    "choose": "Elegir…",
+    "cancel": "Cancelar",
+    "importFile": "Importar…",
+    "remove": "Quitar {name}"
+  },
+  "copy": {
+    "files": {
+      "one": "{count} archivo",
+      "other": "{count} archivos"
+    },
+    "alsoIgnore": "Ignorar también",
+    "alsoIgnoreHint": "Nombres que esta copia (y su preajuste) nunca copia, además de Ajustes › Ignorar siempre al copiar.",
+    "alsoIgnoreNone": "Ninguno",
+    "alsoIgnoreEdit": "Editar…",
+    "alsoIgnoreDone": "Hecho",
+    "ignored": {
+      "one": "{count} ignorado",
+      "other": "{count} ignorados"
+    },
+    "ignoredHint": "Ignorados por nombre: {patterns}. Los archivos de trabajo propios de Secopy también se dejan fuera.",
+    "ignoredHintOwn": "Archivos de trabajo propios de Secopy, fuera de todas las copias.",
+    "symlinksSkipped": {
+      "one": "{count} enlace simbólico omitido",
+      "other": "{count} enlaces simbólicos omitidos"
+    },
+    "specialSkipped": {
+      "one": "{count} archivo especial omitido",
+      "other": "{count} archivos especiales omitidos"
+    },
+    "specialHint": "No son archivos con datos: un FIFO, un socket o un dispositivo. Nunca se copian.",
+    "queued": {
+      "one": "Añadida a la cola (ahora {count} tarea).",
+      "other": "Añadida a la cola (ahora {count} tareas)."
+    },
+    "status": {
+      "scanning": "Esperando al análisis…",
+      "checking": "Esperando a la comprobación del destino…",
+      "noSource": "Elige un origen.",
+      "noDestination": "Elige dónde copiar.",
+      "blocked": "Algo de arriba impide la copia.",
+      "nothing": "Nada que copiar.",
+      "ready": "{files} · {size}",
+      "replaces": {
+        "one": "reemplaza {count} archivo",
+        "other": "reemplaza {count} archivos"
+      }
+    },
+    "start": {
+      "help": "Copia {files} ({size}) en {path} (⌘↩).",
+      "helpVerify": "Copia {files} ({size}) en {path} y los verifica (⌘↩).",
+      "label": "Empezar"
+    },
+    "title": "Copia nueva",
+    "from": "Desde",
+    "source": "Origen",
+    "scanning": "Analizando…",
+    "unreadable": {
+      "one": "No se pudo leer {count} elemento",
+      "other": "No se pudieron leer {count} elementos"
+    },
+    "dropSource": "Suelta aquí un directorio o archivos, o elígelos.",
+    "choose": "Elegir…",
+    "preset": "Preajuste",
+    "options": "Opciones",
+    "includeFolder": "Incluir el directorio “{name}”",
+    "fileTypes": "Tipos de archivo",
+    "all": "Todos",
+    "none": "Ninguno",
+    "to": "Hacia",
+    "destination": "Destino",
+    "checking": "Comprobando…",
+    "free": "{size} disponibles · {kind}",
+    "dropDestination": "Suelta aquí el directorio de destino, o elígelo.",
+    "recent": "Destinos recientes",
+    "recentPlaceholder": "Recientes…",
+    "mode": "Modo",
+    "modeCopy": "Copia",
+    "modeVerify": "Copia y verificación",
+    "aboutVerifying": "Sobre la verificación",
+    "aboutVerifyingText": "Copia y verificación vuelve a leer cada archivo del destino y lo compara con el checksum del origen; si no coincide, se vuelve a copiar una vez. Copia es más rápida, pero no vuelve a leer las copias.",
+    "addToQueue": "Añadir a la cola",
+    "addToQueueHelp": "Añade esta copia, tal como está ahora, a la cola.",
+    "preflight": {
+      "keepBoth": "Conservar ambos",
+      "overwrite": "Sobrescribir",
+      "skip": "Omitir",
+      "filesGoTo": "Se copian en",
+      "purgeable": "Necesita espacio purgable: {needed} necesarios, {free} disponibles ahora",
+      "mhlNew": "ASC MHL: historial nuevo",
+      "mhlContinues": "ASC MHL: continúa el historial (generación {n})",
+      "mhlAlsoReads": {
+        "one": "También registra {count} archivo que ya está aquí ({size}).",
+        "other": "También registra {count} archivos que ya están aquí ({size})."
+      },
+      "aboutPurgeable": "Sobre el espacio purgable",
+      "purgeableHelp": "Espacio que macOS libera cuando hace falta (instantáneas locales de Time Machine, cachés), no siempre a tiempo. Si no se libera, la copia se detiene cuando el disco se llena. Para liberarlo antes, borra las instantáneas locales en Utilidad de Discos.",
+      "notEmpty": {
+        "one": "Ya contiene {count} elemento. Los archivos con el mismo tamaño y fecha se omiten.",
+        "other": "Ya contiene {count} elementos. Los archivos con el mismo tamaño y fecha se omiten."
+      },
+      "problems": "Problemas",
+      "willFail": {
+        "one": "{count} archivo fallará",
+        "other": "{count} archivos fallarán"
+      },
+      "more": "y {count} más",
+      "identical": "Mismo tamaño y fecha",
+      "identicalHint": "Mismo nombre, tamaño y fecha de modificación (con 2 s de margen) que un archivo del destino: no se copia ni se verifica.",
+      "identicalSkipped": {
+        "one": "Se omitirá {count} archivo con el mismo tamaño y fecha (sin verificar).",
+        "other": "Se omitirán {count} archivos con el mismo tamaño y fecha (sin verificar)."
+      },
+      "existing": "Archivos existentes",
+      "existingHint": "Mismo nombre que un archivo del destino, distinto tamaño o fecha. “Conservar ambos”: se copia con un número añadido. “Sobrescribir”: lo reemplaza. “Omitir”: lo deja.",
+      "differ": {
+        "one": "{count} archivo es distinto del que hay",
+        "other": "{count} archivos son distintos de los que hay"
+      },
+      "leftovers": "Restos",
+      "stale": {
+        "one": "Se reemplazará {count} archivo sin terminar de una copia interrumpida.",
+        "other": "Se reemplazarán {count} archivos sin terminar de una copia interrumpida."
+      }
+    },
+    "pick": {
+      "nothing": "No se eligió nada.",
+      "mixed": "Elige un directorio o solo archivos, no ambos."
+    },
+    "picked": {
+      "files": {
+        "one": "{count} archivo",
+        "other": "{count} archivos"
+      },
+      "retry": {
+        "one": "Reintentar: {count} archivo fallido",
+        "other": "Reintentar: {count} archivos fallidos"
+      }
+    },
+    "fs": {
+      "apfs": "APFS",
+      "hfs": "Mac OS Plus",
+      "exfat": "exFAT",
+      "fat32": "FAT32",
+      "ntfs": "NTFS",
+      "smb": "red (SMB)",
+      "nfs": "red (NFS)"
+    },
+    "noExtension": "(sin extensión)"
+  },
+  "presets": {
+    "none": "Ninguno",
+    "label": "Preajuste",
+    "new": "Nuevo preajuste…",
+    "changed": "Cambiado para esta vez",
+    "update": "Actualizar",
+    "updateHelp": "Guarda este origen y estas opciones en el preajuste “{name}”.",
+    "saveAs": "Guardar como…",
+    "saveAsHelp": "Guarda este origen y estas opciones como un preajuste nuevo.",
+    "name": "Nombre",
+    "namePlaceholder": "p. ej., Sony FX3",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "discardNew": "Tus cambios en el preajuste nuevo no están guardados.",
+    "delete": {
+      "message": "Se borra el preajuste “{name}”. Su origen y las copias no se tocan.",
+      "title": "¿Borrar el preajuste?",
+      "ok": "Borrar",
+      "keep": "Conservar"
+    },
+    "title": "Preajustes de copia",
+    "all": "Todos los preajustes",
+    "addNew": "+ Nuevo preajuste…",
+    "newTitle": "Nuevo preajuste",
+    "about": "Sobre los preajustes de copia",
+    "empty": {
+      "what": "Un preajuste de copia guarda un origen y sus opciones (el directorio en sí o solo su contenido, tipos de archivo, Ignorar también): elígelo en Copia nueva para preparar una copia frecuente de una vez.",
+      "how": "Crea uno con “+ Nuevo preajuste…”, o con “Guardar como…” en Copia nueva."
+    },
+    "unsaved": "Cambios sin guardar",
+    "editor": {
+      "name": "Nombre",
+      "source": "Origen",
+      "sourcePlaceholder": "p. ej., /Volumes/Untitled/PRIVATE/M4ROOT/CLIP",
+      "options": "Opciones",
+      "includeNamed": "Incluir el directorio “{name}”",
+      "alsoIgnoreHint": "Nombres que este preajuste nunca copia, además de Ajustes › Ignorar siempre al copiar.",
+      "includePicked": "Incluir el directorio elegido en sí",
+      "fileTypes": "Tipos de archivo",
+      "allTypes": "Todos los tipos",
+      "onlyThese": "Solo estos",
+      "addType": "Añadir un tipo de archivo",
+      "addTypePlaceholder": "+ añadir tipo",
+      "atLeastOne": "Añade al menos un tipo de archivo.",
+      "pickSource": "Origen",
+      "noExtension": "(sin extensión)"
+    },
+    "manage": "Gestionar preajustes…",
+    "noSource": "(aún sin origen)",
+    "repaired": {
+      "noName": "Un preajuste de copia en {file} no tenía nombre; ahora es “{name}”.",
+      "sameName": "Dos preajustes de copia en {file} se llamaban “{wanted}”; el segundo ahora es “{name}”.",
+      "notFullPath": "El preajuste de copia “{name}” tenía un origen que no es una ruta completa ({source}); vuelve a elegir su directorio."
+    }
+  },
+  "finished": {
+    "title": "Terminados",
+    "status": {
+      "verified": "✓ Verificado",
+      "copied": "✓ Copiado",
+      "skipped": "Omitido",
+      "failed": "✗ Fallido",
+      "cancelled": "Cancelado",
+      "intact": "✓ Intacto",
+      "changed": "✗ Cambiado",
+      "missing": "✗ Falta"
+    },
+    "failedOnly": "Solo fallidos",
+    "column": {
+      "file": "Archivo",
+      "size": "Tamaño",
+      "time": "Tiempo",
+      "speed": "Velocidad",
+      "checksum": "Checksum",
+      "status": "Estado"
+    },
+    "label": "Archivos terminados"
+  },
+  "export": {
+    "title": "Exportar",
+    "about": "Elige qué va en el archivo. La cola y los destinos recientes de este Mac se quedan aquí.",
+    "settings": "Ajustes",
+    "copyPresets": "Preajustes de copia {count}",
+    "mirrorPresets": "Preajustes de espejo {count}",
+    "count": "({count})",
+    "none": "(ninguno)",
+    "done": "Exportado: {what}.",
+    "doneNamed": "Exportado: “{name}”.",
+    "what": {
+      "copyPresets": {
+        "one": "{count} preajuste de copia",
+        "other": "{count} preajustes de copia"
+      },
+      "mirrorPresets": {
+        "one": "{count} preajuste de espejo",
+        "other": "{count} preajustes de espejo"
+      },
+      "nothing": "nada",
+      "settings": "los ajustes"
+    }
+  },
+  "import": {
+    "title": "Importar",
+    "notConnected": "{path} no está conectado ahora.",
+    "renamed": "Importado como “{name}”: el archivo tiene este nombre dos veces.",
+    "clash": "Ya tienes “{name}”",
+    "keepBoth": "Conservar ambos, como “{name}”",
+    "replace": "Reemplazar el tuyo",
+    "replaceDeletes": "Si lo reemplazas, los archivos borrados en el origen se borran en vez de archivarse.",
+    "replaceShortens": {
+      "one": "Si lo reemplazas, en su próxima ejecución se eliminan los archivados de hace más de {count} día.",
+      "other": "Si lo reemplazas, en su próxima ejecución se eliminan los archivados de hace más de {count} días."
+    },
+    "settings": "Ajustes",
+    "sameSettings": "Iguales que los tuyos",
+    "importSettings": "Importar los ajustes",
+    "copyPresets": "Preajustes de copia",
+    "mirrorPresets": "Preajustes de espejo",
+    "import": "Importar",
+    "andNot": {
+      "both": "{message} Los preajustes de espejo y los ajustes no se importaron.",
+      "mirrors": "{message} Los preajustes de espejo no se importaron.",
+      "settings": "{message} Los ajustes no se importaron."
+    },
+    "change": "{setting}: {from} → {to}",
+    "changed": "{setting}: cambiado",
+    "madeBy": "Hecho con Secopy {theirs}; este es {ours}.",
+    "notImported": "“{setting}” no se importa: es de un Secopy más reciente.",
+    "defaulted": "{setting}: no está en el archivo, así que toma su valor por omisión.",
+    "done": "Importado: {what}.",
+    "failed": "Error al guardar {what}: {why}",
+    "partly": "Importado: {done}. Error al guardar {what}: {why}",
+    "kind": {
+      "copyPresets": "los preajustes de copia",
+      "mirrorPresets": "los preajustes de espejo",
+      "settings": "los ajustes"
+    },
+    "on": "sí",
+    "off": "no",
+    "problem": {
+      "details": "No se pueden leer sus detalles ({detail}).",
+      "newer": "Necesita un Secopy más reciente: tiene ajustes que este no conoce ({keys}).",
+      "section": "No se puede leer esta parte del archivo.",
+      "settings": "No se pueden leer los ajustes de este archivo."
+    },
+    "setting": {
+      "checksumFile": "Escribir el archivo de checksums en el destino",
+      "systemCount": "Mostrar la cuenta de archivos ignorados",
+      "report": "Guardar el informe junto al archivo de checksums",
+      "notify": "Avisar cuando termine una tarea",
+      "menuBar": "Seguir con las tareas en la barra de menús al cerrar la ventana",
+      "mhl": "Escribir ASC MHL",
+      "ignore": "Ignorar siempre al copiar"
+    },
+    "noName": {
+      "copy": "Un preajuste de copia sin nombre",
+      "mirror": "Un preajuste de espejo sin nombre"
+    }
+  },
+  "settings": {
+    "title": "Ajustes",
+    "discard": "Tus cambios en los ajustes no están guardados.",
+    "everyCopy": "Copias",
+    "checksumFile": {
+      "label": "Escribir el archivo de checksums en el destino",
+      "help": "Un archivo {file} lista cada archivo copiado con su checksum, para poder verificar la copia más adelante, por ejemplo con {command}."
+    },
+    "mhl": {
+      "label": "Escribir ASC MHL",
+      "help": "ASC Media Hash List, la prueba de copia de la industria audiovisual (Silverstack, Hedge). Se escribe en un directorio ascmhl junto a los archivos; un historial existente se continúa y también lista los archivos que ya estaban."
+    },
+    "systemCount": {
+      "label": "Mostrar la cuenta de archivos ignorados",
+      "help": "Cuántos archivos y directorios han dejado fuera “Ignorar siempre al copiar”, “Ignorar también” y los archivos de trabajo propios de Secopy. Los archivos ocultos se copian como cualquier otro."
+    },
+    "ignore": {
+      "label": "Ignorar siempre al copiar",
+      "help": "Los archivos y directorios con estos nombres nunca se copian ni se reflejan, y un espejo nunca los elimina de su destino. * equivale a cualquier número de caracteres; ?, a uno.",
+      "field": "Patrón de nombre",
+      "add": "Añadir",
+      "restore": "Restaurar los valores por omisión",
+      "repeat": "Ya está en la lista.",
+      "inGlobal": "Ya está en Ajustes › Ignorar siempre al copiar.",
+      "placeholder": "Añade un patrón de nombre, p. ej., *.LRF",
+      "empty": "Sin patrones. Los archivos de trabajo propios de Secopy siguen fuera.",
+      "count": {
+        "one": "{count} patrón",
+        "other": "{count} patrones"
+      }
+    },
+    "report": {
+      "label": "Guardar el informe junto al archivo de checksums",
+      "help": "El informe de cada tarea también se guarda en la app; esto añade una copia junto al archivo de checksums."
+    },
+    "notify": {
+      "label": "Avisar cuando termine una tarea",
+      "help": "Solo cuando la ventana de Secopy no está delante. macOS pide permiso la primera vez."
+    },
+    "menuBar": {
+      "label": "Seguir con las tareas en la barra de menús al cerrar la ventana",
+      "help": "Cerrar la ventana durante una tarea la oculta; un icono en la barra de menús muestra el progreso y la vuelve a abrir. Si está desactivado, al cerrar se pregunta si cancelar la tarea."
+    },
+    "transfer": {
+      "title": "Ajustes y preajustes",
+      "about": "Lleva tus ajustes y preajustes a otro Mac, o comparte preajustes, en un archivo .secopy.",
+      "exportHelp": "Exporta tus ajustes guardados; guarda primero para incluir estos cambios."
+    },
+    "general": "General"
+  },
+  "verify": {
+    "title": "Verificación",
+    "directory": "Directorio",
+    "found": {
+      "checksumFiles": {
+        "one": "{count} archivo de checksums",
+        "other": "{count} archivos de checksums"
+      },
+      "listed": {
+        "one": "{count} archivo listado",
+        "other": "{count} archivos listados"
+      },
+      "notListed": {
+        "one": "{count} archivo sin listar",
+        "other": "{count} archivos sin listar"
+      }
+    },
+    "about": "El directorio de una copia o una unidad entera: cada archivo que listan sus archivos de checksums se lee y se compara con su checksum. No se escribe nada.",
+    "pick": "Directorio que verificar",
+    "nothing": "Aquí no hay archivos de checksums: nada que verificar. Las copias escriben uno (salvo si está desactivado en Ajustes); los espejos, siempre.",
+    "addToQueue": "Añadir a la cola",
+    "addToQueueHelp": "Añade este directorio a la cola.",
+    "start": "Empezar",
+    "startHelp": {
+      "one": "Lee el archivo listado ({size}) y lo compara con su checksum; no se escribe nada.",
+      "other": "Lee los {count} archivos listados ({size}) y compara cada uno con su checksum; no se escribe nada."
+    }
+  },
+  "queue": {
+    "title": "Cola",
+    "clear": {
+      "message": "Se quitan todas las tareas de la cola.",
+      "title": "¿Vaciar la cola?",
+      "clear": "Vaciar",
+      "keep": "Conservar"
+    },
+    "empty": "No hay nada en la cola. Prepara una copia, un espejo o una verificación y pulsa “Añadir a la cola”.",
+    "jobs": "Tareas en cola",
+    "mode": {
+      "verify": "Verificación",
+      "mirror": "Espejo · {name}",
+      "copyVerify": "Copia y verificación",
+      "copy": "Copia"
+    },
+    "unsupported": {
+      "mirror": "Un espejo que se borró",
+      "newer": "Una tarea de un Secopy más reciente"
+    },
+    "moveUp": "Subir la tarea {number}",
+    "moveDown": "Bajar la tarea {number}",
+    "remove": "Quitar la tarea {number}",
+    "onFailure": {
+      "title": "Si una tarea falla",
+      "continue": "Seguir con la siguiente tarea",
+      "stop": "Detener la cola"
+    },
+    "count": {
+      "one": "{count} tarea",
+      "other": "{count} tareas"
+    },
+    "clearButton": "Vaciar…",
+    "clearHelp": "Quita todas las tareas de la cola, tras preguntar.",
+    "start": "Empezar",
+    "startHelp": {
+      "one": "Ejecuta la única tarea de la cola.",
+      "other": "Ejecuta las {count} tareas una tras otra."
+    },
+    "result": {
+      "complete": "Completa",
+      "failed": "Fallida",
+      "cancelled": "Cancelada",
+      "notRun": "Sin ejecutar"
+    },
+    "name": {
+      "check": "Verificación · {source}",
+      "mirror": "Espejo · {name}",
+      "job": "{kind} · {source} a {destination}"
+    },
+    "done": {
+      "headline": "Cola terminada: {complete} de {jobs} completas",
+      "took": "en {time}",
+      "jobs": "Tareas",
+      "results": "Resultados de las tareas",
+      "summaryOf": "Resumen de la tarea {number}, {name}",
+      "summary": "Resumen",
+      "done": "Hecho"
+    },
+    "reason": {
+      "cancelled": "Cancelada.",
+      "check": "{parts}.",
+      "checksum": "No se pudo escribir el archivo de checksums: {why}.",
+      "mirrorChecksum": "No se pudo escribir el archivo de checksums del espejo: {why}.",
+      "dirs": {
+        "one": "No se pudo crear {count} directorio vacío.",
+        "other": "No se pudieron crear {count} directorios vacíos."
+      },
+      "durability": "El destino no pudo confirmar que los archivos están guardados: {why}.",
+      "filesFailed": {
+        "one": "{count} archivo falló.",
+        "other": "{count} archivos fallaron."
+      },
+      "mhl": "No se pudo escribir ASC MHL: {why}.",
+      "mhlFailed": {
+        "one": "{count} archivo no coincide con su historial ASC MHL.",
+        "other": "{count} archivos no coinciden con su historial ASC MHL."
+      },
+      "incomplete": "No se completó.",
+      "internal": "Secopy sufrió un error interno; la cola se detuvo.",
+      "newer": "Necesita un Secopy más reciente.",
+      "nothingToCopy": "Nada que copiar.",
+      "overwriteChanged": "Los archivos que sobrescribir cambiaron. Vuelve a ponerla en cola.",
+      "notRemoved": {
+        "one": "No se pudo eliminar {count} archivo.",
+        "other": "No se pudieron eliminar {count} archivos."
+      },
+      "notRun": "Sin ejecutar: la cola se detuvo.",
+      "part": {
+        "changed": {
+          "one": "{count} cambiado",
+          "other": "{count} cambiados"
+        },
+        "missing": {
+          "one": "falta {count}",
+          "other": "faltan {count}"
+        },
+        "unreadable": {
+          "one": "{count} ilegible",
+          "other": "{count} ilegibles"
+        },
+        "problems": {
+          "one": "{count} problema en archivos de checksums",
+          "other": "{count} problemas en archivos de checksums"
+        }
+      },
+      "stopped": "Detenida.",
+      "stoppedBecause": "{why}.",
+      "unread": {
+        "one": "No se pudo leer {count} elemento.",
+        "other": "No se pudieron leer {count} elementos."
+      }
+    }
+  },
+  "mirror": {
+    "title": "Espejo",
+    "discardNew": "Tus cambios en el espejo nuevo no están guardados.",
+    "delete": {
+      "message": "Se borra el espejo “{name}”. Su origen, su destino y sus archivados no se tocan.",
+      "title": "¿Borrar el espejo?",
+      "ok": "Borrar",
+      "keep": "Conservar"
+    },
+    "all": "Todos los espejos",
+    "list": "Espejos",
+    "addNew": "+ Nuevo espejo…",
+    "newTitle": "Nuevo espejo",
+    "about": "Sobre los espejos",
+    "empty": {
+      "what": "Un espejo mantiene un destino idéntico a su origen: los archivos nuevos y cambiados se copian y se verifican; los archivos borrados en el origen se archivan (o se borran) en el destino. En el origen no se escribe nada.",
+      "how": "Crea uno con “+ Nuevo espejo…”."
+    },
+    "unsaved": "Cambios sin guardar",
+    "comparing": "Comparando contenido: {done} de {files}",
+    "files": {
+      "one": "{count} archivo",
+      "other": "{count} archivos"
+    },
+    "previewing": "Preparando la vista previa…",
+    "addToQueue": "Añadir a la cola",
+    "addToQueueHelp": "Añade este espejo a la cola; qué copiar y qué eliminar se vuelve a calcular cuando se ejecuta.",
+    "preview": {
+      "open": "Vista previa…",
+      "startHelp": {
+        "copy": "Copia y verifica {copied}.",
+        "archive": "Archiva {removed}.",
+        "delete": "Borra {removed}.",
+        "copyArchive": "Copia y verifica {copied}; luego archiva {removed}.",
+        "copyDelete": "Copia y verifica {copied}; luego borra {removed}."
+      },
+      "copied": {
+        "new": {
+          "one": "{count} archivo nuevo",
+          "other": "{count} archivos nuevos"
+        },
+        "changed": {
+          "one": "{count} archivo cambiado",
+          "other": "{count} archivos cambiados"
+        },
+        "both": {
+          "one": "{count} archivos (nuevos: {new}; cambiados: {changed})",
+          "other": "{count} archivos (nuevos: {new}; cambiados: {changed})"
+        }
+      },
+      "guard": {
+        "title": "¿Ejecutar el espejo de todos modos?",
+        "run": "Ejecutar",
+        "cancel": "Cancelar"
+      },
+      "changes": "Cambios",
+      "inSync": "Ya está sincronizado.",
+      "new": {
+        "one": "{count} nuevo",
+        "other": "{count} nuevos"
+      },
+      "changed": {
+        "one": "{count} cambiado",
+        "other": "{count} cambiados"
+      },
+      "archivedHelp": "Se mueven al directorio oculto .secopy-archive del destino. Cada ejecución elimina primero los archivados de hace más de {days}.",
+      "failing": {
+        "one": "{count} archivo fallará: un nombre que el destino no admite, o algo en medio",
+        "other": "{count} archivos fallarán: un nombre que el destino no admite, o algo en medio"
+      },
+      "unchanged": {
+        "one": "{count} sin cambios",
+        "other": "{count} sin cambios"
+      },
+      "files": "Archivos",
+      "show": "Mostrar",
+      "shown": {
+        "all": "Todos",
+        "new": "Nuevos",
+        "changed": "Cambiados",
+        "removed": "Borrados"
+      },
+      "more": "y {count} más",
+      "start": "Empezar",
+      "reason": {
+        "new": "Nuevo en el origen",
+        "changed": "Cambiado en el origen",
+        "contentsDiffer": "El contenido es distinto",
+        "deleted": "Borrado en el origen"
+      },
+      "removedDeleted": {
+        "one": "{count} borrado en el origen → se borra",
+        "other": "{count} borrados en el origen → se borran"
+      },
+      "removedArchived": {
+        "one": "{count} borrado en el origen → se archiva durante {days}",
+        "other": "{count} borrados en el origen → se archivan durante {days}"
+      },
+      "removedFiles": {
+        "one": "{count} archivo borrado en el origen",
+        "other": "{count} archivos borrados en el origen"
+      }
+    },
+    "editor": {
+      "name": "Nombre",
+      "namePlaceholder": "p. ej., Material → NAS",
+      "origin": "Origen",
+      "originPlaceholder": "p. ej., /Volumes/SSD/Material",
+      "destination": "Destino",
+      "destinationPlaceholder": "p. ej., /Volumes/Media/Material",
+      "deleted": "Archivos borrados",
+      "deletedLegend": "Archivos borrados en el origen",
+      "archive": "Archivarlos",
+      "delete": "Borrarlos",
+      "days": "Días que conservar",
+      "daysHelp": "En .secopy-archive, en el destino. Cada ejecución borra los que superan esta antigüedad.",
+      "deleteNote": "Los archivos borrados en el origen también se borran en el destino. No se puede deshacer.",
+      "verifyNote": "Los archivos nuevos y cambiados siempre se verifican después de copiarlos.",
+      "alsoIgnoreHint": "Nombres que este espejo nunca copia ni elimina, además de Ajustes › Ignorar siempre al copiar.",
+      "daysShorter": {
+        "one": "En la próxima ejecución se eliminan los archivados hace más de {count} día.",
+        "other": "En la próxima ejecución se eliminan los archivados hace más de {count} días."
+      },
+      "comparison": "Comparación",
+      "standard": "Estándar",
+      "standardHelp": "Tamaño y fecha de modificación.",
+      "paranoid": "Paranoica",
+      "paranoidHelp": "Compara los checksums de ambas copias.",
+      "paranoidWarning": "Muy lenta: lee todos los datos de ambos lados."
+    },
+    "guard": {
+      "unread": {
+        "one": "No se pudo leer {count} elemento del origen ({path}: {why}). En esta ejecución no se elimina nada del destino.",
+        "other": "No se pudieron leer {count} elementos del origen ({path}: {why}). En esta ejecución no se elimina nada del destino."
+      },
+      "destinationUnread": {
+        "one": "No se pudo leer {count} directorio del destino ({path}). En esta ejecución no se elimina nada del destino.",
+        "other": "No se pudieron leer {count} directorios del destino ({path}). En esta ejecución no se elimina nada del destino."
+      },
+      "emptyOrigin": "El origen no tiene archivos: se eliminarían todos los archivos del destino.",
+      "tooMany": "Se eliminarían {removals} de los {files} archivos del destino."
+    },
+    "notRemoved": {
+      "cancelled": "Los archivos borrados en el origen se dejaron en el destino: el espejo se canceló.",
+      "stopped": "Los archivos borrados en el origen se dejaron en el destino: el espejo se detuvo.",
+      "failed": {
+        "one": "Los archivos borrados en el origen se dejaron en el destino: {count} archivo falló.",
+        "other": "Los archivos borrados en el origen se dejaron en el destino: {count} archivos fallaron."
+      },
+      "notClean": "Los archivos borrados en el origen se dejaron en el destino: la copia no terminó limpiamente."
+    },
+    "removal": {
+      "changed": "Cambió después de la vista previa, así que se conservó."
+    },
+    "archiveNotDeleted": {
+      "one": "No se pudo borrar {count} archivado ({why}). Se elimina cuando tenga {days} de antigüedad.",
+      "other": "No se pudieron borrar {count} archivados ({why}). Se eliminan cuando tengan {days} de antigüedad."
+    },
+    "switch": {
+      "title": "Archivos ya archivados",
+      "files": {
+        "one": "Archivados: {count} archivo ({size}) de ejecuciones anteriores.",
+        "other": "Archivados: {count} archivos ({size}) de ejecuciones anteriores."
+      },
+      "unavailable": "El destino no está conectado, así que no se pueden comprobar sus archivados.",
+      "busy": "Hay una tarea en curso, así que ahora no se pueden borrar los archivados.",
+      "deleteNow": "Borrarlos ahora",
+      "deleteNextRun": "Borrarlos en la próxima ejecución",
+      "keep": {
+        "one": "Conservarlos {count} día",
+        "other": "Conservarlos {count} días"
+      },
+      "keepArchived": {
+        "one": "Conservar los archivados {count} día",
+        "other": "Conservar los archivados {count} días"
+      }
+    },
+    "archive": {
+      "deleted": {
+        "one": "Se borró {count} archivado.",
+        "other": "Se borraron {count} archivados."
+      },
+      "title": "Archivados",
+      "files": {
+        "one": "{count} archivo",
+        "other": "{count} archivos"
+      },
+      "oldest": "el más antiguo, {date}",
+      "empty": "Vacío",
+      "notConnected": "Destino no conectado",
+      "pending": "Se borran en la próxima ejecución",
+      "show": "Mostrar en el Finder",
+      "busy": "Espera a que termine la tarea.",
+      "confirmTitle": "¿Borrar los archivados?",
+      "confirm": {
+        "one": "Se borra {count} archivo ({size}). No se puede deshacer.",
+        "other": "Se borran {count} archivos ({size}). No se puede deshacer."
+      },
+      "delete": "Borrar archivados…"
+    },
+    "archiveNotDeletedAll": "No se pudieron borrar los archivados ({why}). Lo que contienen se elimina cuando tenga {days} de antigüedad.",
+    "archiveNotCleaned": {
+      "one": "No se pudo eliminar {count} archivado más antiguo que los días que conservar ({why}). Secopy lo vuelve a intentar en la próxima ejecución.",
+      "other": "No se pudieron eliminar {count} archivados más antiguos que los días que conservar ({why}). Secopy lo vuelve a intentar en la próxima ejecución."
+    },
+    "archiveNotCleanedAll": "No se pudieron limpiar los archivados ({why}). Secopy lo vuelve a intentar en la próxima ejecución."
+  },
+  "menubar": {
+    "removing": "Eliminando archivos…",
+    "paused": "{files} · En pausa",
+    "nothing": "No hay nada en curso.",
+    "quit": "Salir de Secopy",
+    "quitAsk": "Salir de Secopy…",
+    "open": "Abrir Secopy",
+    "from": "Desde",
+    "to": "Hacia",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "ended": {
+      "complete": "Terminado: todos los archivos hechos",
+      "failures": "Terminado con problemas",
+      "cancelled": "Cancelado",
+      "stopped": "Detenido",
+      "stoppedBecause": "Detenido: {why}"
+    },
+    "heading": {
+      "secopy": "Secopy",
+      "verifying": "Verificando",
+      "mirroring": "Espejo: {name}",
+      "copyingVerifying": "Copiando y verificando",
+      "copying": "Copiando",
+      "checkingJob": "Comprobando la tarea {index} de {count}",
+      "inQueue": "Tarea {index} de {count} · {heading}"
+    },
+    "files": {
+      "one": "{done} de {count} archivo",
+      "other": "{done} de {count} archivos"
+    },
+    "left": "Quedan {time}",
+    "percent": "{value} %",
+    "title": {
+      "complete": "✓",
+      "notComplete": "✗",
+      "paused": "En pausa",
+      "removing": "Eliminando",
+      "starting": "…",
+      "inQueue": "{index}/{count} · {progress}"
+    }
+  },
+  "dialog": {
+    "chooseDirectory": "Elige un directorio",
+    "copyTo": "Copiar en",
+    "secopyFiles": "Ajustes de Secopy",
+    "textFiles": "Texto",
+    "chooseSource": "Elige un directorio, o uno o más archivos",
+    "choosePrompt": "Elegir"
+  },
+  "errors": {
+    "os": {
+      "notFound": "No está ahí",
+      "permissionDenied": "Permiso denegado",
+      "readOnly": "La unidad es de solo lectura",
+      "full": "La unidad está llena",
+      "tooLarge": "El archivo es demasiado grande para esta unidad",
+      "badName": "La unidad no acepta este nombre",
+      "notADirectory": "No es un directorio",
+      "isADirectory": "Es un directorio",
+      "exists": "Ya existe",
+      "notEmpty": "El directorio no está vacío",
+      "timedOut": "La unidad tardó demasiado en responder",
+      "endedEarly": "El archivo terminó antes de lo esperado",
+      "busy": "Está en uso",
+      "network": "No se puede acceder a la unidad de red",
+      "stale": "El archivo de la unidad de red ya no es válido",
+      "unsupported": "La unidad no admite esto",
+      "unknown": "{text}",
+      "quota": "Se ha agotado la cuota de la unidad"
+    },
+    "file": {
+      "readSource": "No se puede leer el origen: {why}",
+      "writeDest": "No se puede escribir en el destino: {why}",
+      "readBack": "No se puede volver a leer la copia: {why}",
+      "changedWhileRead": "No se puede volver a leer la copia: cambió mientras se leía",
+      "hashMismatch": "El checksum no coincide (origen {expected}, copia {actual})",
+      "alreadyExists": "Ya existe un archivo con este nombre en el destino",
+      "nameClash": "Otro archivo de esta copia tendría el mismo nombre en este destino",
+      "partialInUse": "Otra copia está escribiendo este archivo",
+      "tooLarge": "El archivo es más grande de lo que admite la unidad de destino ({size})",
+      "inTheWay": "Hay algo en medio en {path}",
+      "inSource": "Caería sobre un archivo del origen",
+      "keptInArchive": "{why}; la versión anterior está en los archivados: {path}",
+      "sourceChanged": "El archivo de origen cambió mientras se copiaba",
+      "changed": "Cambió desde que se copió (se esperaba {expected}, se encontró {actual})",
+      "missing": "Falta",
+      "isLink": "Es un enlace simbólico, sin verificar (los enlaces simbólicos no se siguen)",
+      "isDirectory": "Es un directorio, no un archivo",
+      "notAFile": "No es un archivo normal, sin verificar",
+      "cancelled": "Cancelado"
+    },
+    "name": {
+      "controlChar": "El nombre contiene un carácter de control",
+      "invalidChar": "El nombre contiene “{char}”, que esta unidad no admite",
+      "reserved": "El nombre está reservado en Windows",
+      "trailingDotOrSpace": "El nombre termina en un punto o un espacio, que esta unidad no admite",
+      "tooLong": "El nombre es más largo de lo que admite esta unidad ({max} caracteres)"
+    },
+    "fatal": {
+      "diskFull": "La unidad de destino está llena",
+      "destinationGone": "El destino ya no está disponible; ¿se desconectó?",
+      "sourceGone": "El origen ya no está disponible; ¿se desconectó?"
+    },
+    "internal": "Secopy sufrió un error interno",
+    "blocker": {
+      "destMissing": "El destino no es un directorio existente",
+      "destNotWritable": "No se puede escribir en el destino: {why}",
+      "destInsideSource": "El destino es el directorio de origen o está dentro de él",
+      "notEnoughSpace": "No hay espacio suficiente: {needed} necesarios, {available} disponibles"
+    },
+    "settings": {
+      "pattern": "“{pattern}”: {why}"
+    },
+    "pattern": {
+      "slash": "Un patrón es un nombre: no puede contener /.",
+      "tooLong": "Un patrón puede tener hasta {max} caracteres.",
+      "tooMany": "La lista puede tener hasta {max} patrones.",
+      "badChar": "Un patrón no puede contener caracteres de control."
+    },
+    "mhl": {
+      "twoHistories": "El origen y el destino tienen historiales ASC MHL distintos. Elige otro destino o desactiva ASC MHL en Ajustes.",
+      "overwrites": "Sobrescribir archivos que lista el historial ASC MHL del destino lo rompería. Elige “Omitir” o “Conservar ambos”, o desactiva ASC MHL en Ajustes.",
+      "damaged": "El historial ASC MHL de {path} está dañado. No se cambia nada en él; desactiva ASC MHL en Ajustes para copiar de todos modos.",
+      "leavesOut": "Esta copia deja fuera archivos que lista el historial ASC MHL del origen. Copia todos los tipos de archivo o desactiva ASC MHL en Ajustes.",
+      "unlistable": "ASC MHL no puede listar {path}: su nombre tiene caracteres que un historial no admite.",
+      "conflicts": "{path} está en el historial ASC MHL del origen, pero se copiaría con otro nombre o se omitiría. Elige “Sobrescribir” o desactiva ASC MHL en Ajustes.",
+      "unreadable": "ASC MHL no puede leer {path}, así que no puede listar lo que hay. Desactiva ASC MHL en Ajustes para copiar de todos modos.",
+      "notWritten": "No se pudo escribir ASC MHL: {why}"
+    },
+    "scan": {
+      "notAFile": "No es un archivo normal",
+      "loop": "Es un enlace simbólico a un directorio que lo contiene",
+      "problem": "{path}: {why}",
+      "driveRoot": "La raíz de una unidad no tiene nombre de directorio; copia solo su contenido"
+    },
+    "check": {
+      "notALine": "No es una línea “<checksum>  <ruta>”",
+      "notAChecksum": "“{hex}” no es un checksum xxHash64",
+      "pathUnreadable": "No se puede leer la ruta",
+      "unreadable": "No se pudo leer: {why}",
+      "outside": "{path} apunta fuera del directorio verificado",
+      "atLine": "{file}:{line}: {why}",
+      "inFile": "{file}: {why}",
+      "listedIn": "{why} Listado en {file}.",
+      "listedInOnly": "Listado en {file}."
+    },
+    "mirror": {
+      "originMissing": "El origen no está ahí: {path}",
+      "same": "El origen y el destino son el mismo directorio.",
+      "destinationInOrigin": "El destino no puede estar dentro del origen.",
+      "originInDestination": "El origen no puede estar dentro del destino.",
+      "archiveNotDir": "El .secopy-archive del destino no es un directorio (es un enlace simbólico o un archivo). Muévelo a otro sitio o elige “Borrarlos” para los archivos borrados.",
+      "previewCancelled": "Cancelado.",
+      "changedSincePreview": "El espejo cambió desde su vista previa. Vuelve a generar la vista previa.",
+      "gone": "Ese espejo ya no existe.",
+      "presetGone": "El preajuste de espejo ya no existe.",
+      "previewFirst": "Genera primero la vista previa del espejo.",
+      "archiveBusy": "Borra los archivados cuando termine la tarea actual.",
+      "archiveMoved": "El destino del espejo cambió. Vuelve a mirar sus archivados."
+    },
+    "export": {
+      "notAFileName": "Eso no es un nombre de archivo.",
+      "nothing": "Elige algo que exportar.",
+      "notSaved": "No se pudo guardar el archivo: {why}"
+    },
+    "field": {
+      "ignore": "“{pattern}”: {why}",
+      "ignoreInGlobal": "“{pattern}” ya está en Ajustes › Ignorar siempre al copiar.",
+      "days": {
+        "tooFew": "Conserva los archivados al menos 1 día.",
+        "tooMany": "Conserva los archivados como mucho {max} días."
+      },
+      "destination": {
+        "inOrigin": "El destino no puede estar dentro del origen.",
+        "notFull": "El destino debe ser una ruta completa, como /Volumes/NAS/Material."
+      },
+      "name": {
+        "mirrorEmpty": "El espejo necesita un nombre.",
+        "mirrorTaken": "Ya hay un espejo llamado “{name}”.",
+        "presetEmpty": "El preajuste necesita un nombre.",
+        "presetTaken": "Ya hay un preajuste llamado “{name}”.",
+        "tooLong": "El nombre es demasiado largo: {max} caracteres como mucho."
+      },
+      "origin": {
+        "inDestination": "El origen no puede estar dentro del destino.",
+        "notFull": "El origen debe ser una ruta completa, como /Volumes/SSD/Material.",
+        "same": "El origen y el destino son el mismo directorio."
+      },
+      "source": {
+        "notFull": "El origen debe ser una ruta completa, como /Volumes/Untitled/DCIM."
+      }
+    },
+    "import": {
+      "cantImport": "Ese preajuste no se puede importar.",
+      "cantOpen": "No se puede abrir el archivo: {why}",
+      "cantRead": "No se puede leer el archivo: {why}",
+      "changed": "Tus preajustes o ajustes cambiaron desde que se abrió este archivo. Vuelve a abrirlo para ver qué cambiaría.",
+      "newer": "Este archivo se hizo con un Secopy más reciente (formato {format}). Actualiza Secopy para importarlo.",
+      "noFile": "No hay ningún archivo que importar.",
+      "nothing": "No hay nada que importar en este archivo.",
+      "notSecopy": "Esto no es un archivo de Secopy.",
+      "tooBig": "Este archivo es demasiado grande para ser un archivo de Secopy.",
+      "tooMany": "Este archivo tiene demasiados preajustes. Secopy importa hasta {max} de cada tipo.",
+      "twoReplace": "Dos preajustes del archivo reemplazarían “{name}”; elige “Conservar ambos” para uno de ellos.",
+      "waits": "Impórtalo cuando termine la tarea actual."
+    },
+    "job": {
+      "alreadyRunning": "Ya hay una tarea en curso.",
+      "cantStart": "Nada que copiar, o algo impide la copia.",
+      "changed": "El destino cambió. Revísalo y vuelve a pulsar “Empezar”.",
+      "noneFailed": "No falló ningún archivo.",
+      "retrySourceGone": "El origen ya no está ahí ({path}). Vuelve a conectar el origen para reintentar."
+    },
+    "legacy": "{text}",
+    "preset": {
+      "gone": "Ese preajuste ya no existe.",
+      "needsDirectory": "Un preajuste guarda un directorio como origen; elige primero un directorio.",
+      "noneSelected": "No hay ningún preajuste seleccionado.",
+      "scanning": "Espera a que termine el análisis."
+    },
+    "queue": {
+      "busy": "Ya hay una tarea o la cola en curso.",
+      "jobGone": "Esa tarea ya no está en la cola.",
+      "running": "La cola está en curso.",
+      "setUpFirst": "Prepara primero una copia: un origen, un destino y algo que copiar."
+    },
+    "report": {
+      "dir": "{path}: {why}",
+      "jsonTaken": "{path} ya existe y no es un informe de Secopy. Elige otro nombre.",
+      "nextToChecksum": "junto al archivo de checksums: {why}",
+      "noJob": "Esa tarea no tiene informe.",
+      "none": "Secopy sufrió un error interno antes de que terminara la tarea, así que no hay informe.",
+      "noneYet": "Aún no hay informe.",
+      "running": "La tarea sigue en curso."
+    },
+    "save": {
+      "file": "{path}: {why}",
+      "mirror": "No se pudo guardar el espejo: {why}",
+      "preset": "No se pudo guardar el preajuste: {why}",
+      "queue": "No se pudo guardar la cola: {why}",
+      "settings": "No se pudieron guardar los ajustes: {why}",
+      "newer": "{file} es de un Secopy más reciente: no se sobrescribe"
+    },
+    "source": {
+      "gone": "{path} ya no está ahí.",
+      "notConnected": "{drive} no está conectado."
+    },
+    "verify": {
+      "cantRead": "{path}: {why}",
+      "chooseAgain": "Vuelve a elegir el directorio.",
+      "notADirectory": "Elige un directorio.",
+      "nothing": "Aquí no hay archivos de checksums: nada que verificar."
+    }
+  },
+  "menu": {
+    "app": {
+      "about": "Acerca de Secopy",
+      "settings": "Ajustes…",
+      "services": "Servicios",
+      "hide": "Ocultar Secopy",
+      "hideOthers": "Ocultar otros",
+      "showAll": "Mostrar todo",
+      "quit": "Salir de Secopy"
+    },
+    "file": {
+      "title": "Archivo",
+      "chooseSource": "Elegir origen…",
+      "chooseDestination": "Elegir destino…",
+      "start": "Empezar",
+      "cancel": "Cancelar tarea…",
+      "import": "Importar…",
+      "export": "Exportar…"
+    },
+    "edit": {
+      "title": "Edición",
+      "undo": "Deshacer",
+      "redo": "Rehacer",
+      "cut": "Cortar",
+      "copy": "Copiar",
+      "paste": "Pegar",
+      "selectAll": "Seleccionar todo"
+    },
+    "window": {
+      "title": "Ventana",
+      "minimize": "Minimizar",
+      "zoom": "Zoom",
+      "close": "Cerrar ventana"
+    },
+    "view": {
+      "title": "Visualización",
+      "copy": "Copia",
+      "mirror": "Espejo",
+      "verify": "Verificación",
+      "queue": "Cola"
+    }
+  }
+}

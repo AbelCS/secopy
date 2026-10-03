@@ -6,6 +6,9 @@ see the [README](../README.md#install).
 The window has three tabs, **Copy**, **Mirror** and **Verify**, plus **Queue** and
 **Settings** on the right.
 
+Secopy is in English and Spanish: it follows the Mac's language (System Settings › General ›
+Language & Region). Reports and the command-line tool stay in English.
+
 ## Copy
 
 ![New copy](images/setup.png)
