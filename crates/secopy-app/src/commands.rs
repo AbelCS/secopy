@@ -329,21 +329,36 @@ impl AppState {
 
     /// Saves, then applies (the next job uses it): settings that can't be saved aren't used
     /// either (#116).
-    pub fn set_settings(&self, mut settings: Settings) -> Result<Settings, Message> {
+    pub fn set_settings(&self, settings: Settings) -> Result<Settings, Message> {
+        self.save_settings(settings).map(|(saved, _)| saved)
+    }
+
+    /// Saves the settings; `true` when the language changed (#181): Rust's own words are in
+    /// the new one already, and the caller rebuilds the menus and tells the windows.
+    pub fn save_settings(&self, mut settings: Settings) -> Result<(Settings, bool), Message> {
         settings.ignore = checked_patterns(&settings.ignore)?.as_slice().to_vec();
         // Held across the save, so the last change in memory is also the last one on disk.
         let mut current = lock(&self.settings);
         let list_changed = current.ignore != settings.ignore;
+        let language_changed = current.language != settings.language;
         self.store
             .save(SETTINGS, &settings)
             .map_err(|e| msg!("errors.save.settings", why = e))?;
         *current = settings.clone();
         drop(current);
+        if language_changed {
+            crate::message::set_language(settings.language.as_deref());
+        }
         session(self).set_mhl(settings.write_mhl);
         if list_changed {
             self.rescan(Change::Ignore(settings.patterns()));
         }
-        Ok(settings)
+        Ok((settings, language_changed))
+    }
+
+    /// The language saved in Settings (`None` = Automatic).
+    pub fn chosen_language(&self) -> Option<String> {
+        lock(&self.settings).language.clone()
     }
 
     /// New copy's Also ignore (#164): each pattern checked, none Settings has already; the
@@ -1308,8 +1323,12 @@ pub async fn save_report(app: AppHandle, path: String) -> Result<(), Message> {
 #[tauri::command]
 #[specta::specta]
 pub fn set_menu_state(app: AppHandle, setup: bool, can_start: bool, copying: bool, busy: bool) {
-    if let Some(menu) = app.try_state::<crate::FileMenu<tauri::Wry>>() {
-        menu.update(setup, can_start, copying, busy);
+    if let Some(menu) = app.try_state::<std::sync::Mutex<crate::MenuState>>() {
+        let mut menu = lock(&menu);
+        menu.last = Some((setup, can_start, copying, busy));
+        if let Some(file) = &menu.file {
+            file.update(setup, can_start, copying, busy);
+        }
     }
 }
 
@@ -1981,7 +2000,24 @@ pub async fn delete_copy_preset(app: AppHandle, id: String) -> Result<CopyPreset
 #[tauri::command]
 #[specta::specta]
 pub async fn set_settings(app: AppHandle, settings: Settings) -> Result<Settings, Message> {
-    blocking(app, move |state| state.set_settings(settings)).await?
+    let (saved, language_changed) =
+        blocking(app.clone(), move |state| state.save_settings(settings)).await??;
+    if language_changed {
+        // macOS's own windows follow from the next launch; Secopy's words change now.
+        crate::message::tell_macos(saved.language.as_deref());
+        if let Err(e) = crate::rebuild_menu(&app) {
+            eprintln!("Secopy: the menus stay in the previous language: {e}");
+        }
+        let _ = tauri::Emitter::emit(&app, crate::LANGUAGE_CHANGED, ());
+    }
+    Ok(saved)
+}
+
+/// The language Secopy's words are in (#181): the UI's windows draw in it.
+#[tauri::command]
+#[specta::specta]
+pub fn app_language() -> String {
+    crate::message::language_in_use().to_string()
 }
 
 /// Settings › Always ignore when copying: Restore defaults (#158).
@@ -2747,6 +2783,27 @@ mod tests {
     }
 
     /// QA review (#116): settings that can't be saved aren't used either: the next job runs
+    /// #181: saving a new language switches Rust's own words and says it changed; saving
+    /// the same one says it didn't (no menu rebuild, no reload).
+    #[test]
+    fn saving_a_new_language_switches_rusts_words() {
+        let _guard = crate::message::language_guard();
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(dir.path().join("data"));
+        let spanish = Settings {
+            language: Some("es".into()),
+            ..Settings::default()
+        };
+        let (_, changed) = state.save_settings(spanish.clone()).unwrap();
+        assert!(changed);
+        assert_eq!(msg!("menu.file.start").text(), "Empezar");
+        let (_, changed) = state.save_settings(spanish).unwrap();
+        assert!(!changed, "saving_the_same_language_changes_nothing");
+        let (_, changed) = state.save_settings(Settings::default()).unwrap();
+        assert!(changed);
+        crate::message::set_language(None);
+    }
+
     /// with what's saved and shown.
     #[test]
     fn settings_that_cant_be_saved_arent_used() {
