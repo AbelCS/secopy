@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.24.0](https://github.com/AbelCS/secopy/compare/v0.23.0...v0.24.0) (2026-10-03)
+
+
+### Features
+
+* **core:** XXH128 hash type, from twox-hash ([#178](https://github.com/AbelCS/secopy/issues/178)) ([cb8ecf9](https://github.com/AbelCS/secopy/commit/cb8ecf93b63f893cbaba9639fffbfbae9cc70bc1))
+* **ui:** the full XXH128 in the finished list ([#178](https://github.com/AbelCS/secopy/issues/178)) ([53bb84a](https://github.com/AbelCS/secopy/commit/53bb84a9eb114cc52f0c7265ae81a5cc9d95f8dd))
+* XXH128 for every hash ([#178](https://github.com/AbelCS/secopy/issues/178)) ([8d659e3](https://github.com/AbelCS/secopy/commit/8d659e3818d6155e846d96e94360897f095d2f14))
+
 ## [0.23.0](https://github.com/AbelCS/secopy/compare/v0.22.2...v0.23.0) (2026-10-03)
 
 
