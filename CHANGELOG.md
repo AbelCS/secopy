@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.25.0](https://github.com/AbelCS/secopy/compare/v0.24.0...v0.25.0) (2026-10-03)
+
+
+### Features
+
+* **app:** a language setting, Automatic by default ([#181](https://github.com/AbelCS/secopy/issues/181)) ([15d2f90](https://github.com/AbelCS/secopy/commit/15d2f90f3397751b786ceb1c544942385f47933d))
+* **app:** the language applies at launch and on save ([#181](https://github.com/AbelCS/secopy/issues/181)) ([d0ecad8](https://github.com/AbelCS/secopy/commit/d0ecad8aee08ef5006b5aff5b969a2ce856a30ed))
+* **app:** the language travels with the settings ([#181](https://github.com/AbelCS/secopy/issues/181)) ([bb87162](https://github.com/AbelCS/secopy/commit/bb871623f532c9d2c9730ce0c4f6152e719713bb))
+* **ui:** Settings › Language ([#181](https://github.com/AbelCS/secopy/issues/181)) ([e9ca791](https://github.com/AbelCS/secopy/commit/e9ca791c886336bc1667bb198eb1acf6fc745863))
+
+
+### Bug Fixes
+
+* review fixes for the language setting ([#181](https://github.com/AbelCS/secopy/issues/181)) ([88186fe](https://github.com/AbelCS/secopy/commit/88186fe3c68136d630186bf06a730ca4543a44ce))
+
 ## [0.24.0](https://github.com/AbelCS/secopy/compare/v0.23.0...v0.24.0) (2026-10-03)
 
 
