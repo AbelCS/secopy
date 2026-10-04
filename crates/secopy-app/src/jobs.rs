@@ -2142,8 +2142,9 @@ mod tests {
                 .unwrap_or_default()
         };
         assert_eq!(reason(RowStatus::Missing), listed);
+        // The error, then the file: "Changed since it was copied (…); listed in x.xxh128."
         assert!(
-            reason(RowStatus::Changed).ends_with(&format!(" {listed}")),
+            reason(RowStatus::Changed).ends_with(&format!("); listed in {sum}.")),
             "{rows:?}"
         );
     }

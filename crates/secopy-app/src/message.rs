@@ -574,7 +574,7 @@ mod tests {
         );
         assert_eq!(
             space.in_language("es"),
-            "No hay espacio suficiente: 212,4 GB necesarios, 999 B disponibles"
+            "No hay espacio suficiente. Espacio necesario: 212,4 GB; disponible: 999 B"
         );
         assert_eq!(
             space.in_language("en"),

@@ -1178,7 +1178,7 @@
       "outside": "{path} points outside the checked directory",
       "atLine": "{file}:{line}: {why}",
       "inFile": "{file}: {why}",
-      "listedIn": "{why} Listed in {file}.",
+      "listedIn": "{why}; listed in {file}.",
       "listedInOnly": "Listed in {file}."
     },
     "mirror": {
