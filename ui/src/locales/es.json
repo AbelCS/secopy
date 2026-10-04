@@ -336,6 +336,7 @@
     "warning": {
       "damaged": "{detail}",
       "newerKept": "{file} es de un Secopy más reciente (versión {version}): se deja como está y se usan los valores por omisión.",
+      "unreadKept": "No se pudo leer {file} ({why}): se deja como está y se usan los valores por omisión hasta que vuelvas a abrir Secopy.",
       "setAside": "No se pudo leer {file} ({why}). Se apartó como {aside} en {dir} y se usan los valores por omisión.",
       "notSetAside": "No se pudo leer {file} ({why}) ni apartar ({error}). Se usan los valores por omisión."
     }
@@ -1323,7 +1324,8 @@
       "preset": "No se pudo guardar la plantilla: {why}",
       "queue": "No se pudo guardar la cola: {why}",
       "settings": "No se pudieron guardar los ajustes: {why}",
-      "newer": "{file} pertenece a una versión más reciente de Secopy: no se sobrescribe"
+      "newer": "{file} pertenece a una versión más reciente de Secopy: no se sobrescribe",
+      "unread": "No se pudo leer {file} al abrir Secopy: no se sobrescribe"
     },
     "source": {
       "gone": "Ya no se encuentra {path}.",

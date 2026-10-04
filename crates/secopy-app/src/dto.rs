@@ -60,8 +60,8 @@ pub struct SourceView {
     pub extensions: Vec<ExtensionView>,
     /// `None` = every extension; otherwise the selected keys (FR-8).
     pub selected_extensions: Option<Vec<ExtensionKey>>,
-    /// System files skipped (`.DS_Store`, `Thumbs.db`…); hidden files are copied (FR-12).
-    /// Files and directories the ignore list (or Secopy, its own) left out (#158).
+    /// Files and directories the ignore list (or Secopy, its own) left out (#158); hidden
+    /// files are copied (FR-12).
     pub ignored: u32,
     pub skipped_symlinks: u32,
     /// FIFOs, sockets and devices: never copied (#135).
