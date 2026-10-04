@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/AbelCS/secopy/compare/v1.0.2...v1.0.3) (2026-10-04)
+
+
+### Bug Fixes
+
+* **presets:** a field's problem goes when the field changes; invisible characters in a path ([fdb4a08](https://github.com/AbelCS/secopy/commit/fdb4a0815b533b4e1e885442803dcf45bb2a2cde)), closes [#202](https://github.com/AbelCS/secopy/issues/202)
+
 ## [1.0.2](https://github.com/AbelCS/secopy/compare/v1.0.1...v1.0.2) (2026-10-04)
 
 
