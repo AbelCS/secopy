@@ -3,6 +3,8 @@ name: ci
 # One macOS job after each merge, and on demand. PRs don't wait for CI: the checks in
 # AGENTS.md run locally before every commit, and the release workflow runs the full suite
 # again before building (RFD §9). Secopy is macOS only, so there are no other jobs.
+# Merging the release PR is skipped here: its commits (by release-please) only change
+# versions and the changelog, and the release build runs the full suite anyway.
 on:
   push:
     branches:
@@ -14,6 +16,7 @@ on:
 
 jobs:
   check:
+    if: github.event_name != 'push' || github.event.head_commit.author.name != 'github-actions[bot]'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7

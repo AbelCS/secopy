@@ -165,7 +165,8 @@ format exactly.
 - `xxhsum` must be installed locally (`brew install xxhash`). CI runs its compatibility
   test with `SECOPY_REQUIRE_XXHSUM=1` so it can't silently skip.
 - CI (`.github/workflows/ci.yml`) is one macOS job that runs after each merge to `main` and
-  on demand (`gh workflow run ci`), not on PRs, and skips docs-only changes. The local
+  on demand (`gh workflow run ci`), not on PRs, and skips docs-only changes and the
+  release PR's merge (release-please's commits; the release build runs the suite). The local
   checks above are what gate a commit; don't wait for CI before merging. If CI fails on
   `main`, open an issue and fix it before anything else.
 - Fault tests on real volumes (disk full, unplugging, FAT32/exFAT, case-sensitive APFS) use
