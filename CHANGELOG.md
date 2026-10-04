@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.0](https://github.com/AbelCS/secopy/compare/v0.25.2...v1.0.0) (2026-10-04)
+
+
+### Bug Fixes
+
+* **app:** app findings from GPT-6.1 Sol's review ([8bc01f0](https://github.com/AbelCS/secopy/commit/8bc01f0e44d5f9b07812bd750ceee176ac41d192)), closes [#192](https://github.com/AbelCS/secopy/issues/192)
+* **app:** app findings from the 1.0 code review ([0648111](https://github.com/AbelCS/secopy/commit/0648111d21bf527830a38532ea2a55365f02a694)), closes [#192](https://github.com/AbelCS/secopy/issues/192)
+* ASC MHL and mirror findings from GPT-6.1 Sol's engine review ([2299067](https://github.com/AbelCS/secopy/commit/2299067a1d064fecf0e0b79055fb4c538d998629)), closes [#192](https://github.com/AbelCS/secopy/issues/192)
+* CLI, UI and script findings from GPT-6.1 Sol's review ([9635008](https://github.com/AbelCS/secopy/commit/96350081aca14e6f79cd42fddfd3668ccfd7f042)), closes [#192](https://github.com/AbelCS/secopy/issues/192)
+* **cli:** CLI findings from the 1.0 code review ([896f83a](https://github.com/AbelCS/secopy/commit/896f83ae15aaeedcefae7bcbf3cb8c93e8f8b881)), closes [#192](https://github.com/AbelCS/secopy/issues/192)
+* **core:** engine findings from the 1.0 code review ([57895bc](https://github.com/AbelCS/secopy/commit/57895bc38b16e26cb4861d8a8152328ea05d83fd)), closes [#192](https://github.com/AbelCS/secopy/issues/192)
+* **core:** never write through a symlink; publish proof files whole ([9e7d164](https://github.com/AbelCS/secopy/commit/9e7d164f241f05f6af1b713860365175cf3735ba)), closes [#192](https://github.com/AbelCS/secopy/issues/192)
+* **i18n:** Spanish review applied; Listed in joins with a semicolon ([2f7d817](https://github.com/AbelCS/secopy/commit/2f7d817330e902019831e8ac2012328bcba64f32))
+* **i18n:** Spanish says Arrastra aquí ([b68d7a1](https://github.com/AbelCS/secopy/commit/b68d7a1826aa0a1b2936ad0af997cffb891e590e))
+* **ui:** UI findings from the 1.0 code review; docs follow ([b521e20](https://github.com/AbelCS/secopy/commit/b521e20e3c33f561e6cc24d39c8650af977524dc)), closes [#192](https://github.com/AbelCS/secopy/issues/192)
+
+
+### Miscellaneous Chores
+
+* release 1.0.0 ([3f59461](https://github.com/AbelCS/secopy/commit/3f594618987b251f63b5f99091dbdd83713bdd81))
+
 ## [0.25.2](https://github.com/AbelCS/secopy/compare/v0.25.1...v0.25.2) (2026-10-04)
 
 
