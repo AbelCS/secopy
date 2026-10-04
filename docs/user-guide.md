@@ -29,7 +29,8 @@ Drop a directory or files on **From**, or press **Choose…** (⌘O).
   its preset): for example `.gitkeep` for most copies but not for a Template backup. Files you
   pick one by one are copied even if a pattern matches them.
 - **Symlinks** are not followed; they're counted as skipped, like special files (FIFOs,
-  sockets, devices).
+  sockets, devices). Nothing is written through a symlinked directory in the destination
+  either: a file whose path goes through one fails, saying so.
 - **File types** lists every extension with its count and size, largest first. Click one to
   leave it out; **All** and **None** select every type or none.
 
@@ -156,7 +157,8 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
   **Delete them**), and the **Comparison**: **Standard** (size and modification date) or
   **Paranoid** (compares the checksums of both copies; very slow: reads all data on both
   sides).
-- **Preview…** works out what a run would do before anything is touched:
+- **Preview…** works out what a run would do before anything is touched, and lists every
+  change (**Show more** for the next page):
 
 ![Mirror preview](images/mirror-preview.png)
 
