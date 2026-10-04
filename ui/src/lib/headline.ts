@@ -27,6 +27,7 @@ export function headline(s: SummaryView): string {
   if (s.outcome === "failures" && s.failed === 0) {
     if (s.unread > 0) return t("summary.headline.unread", { count: s.unread });
     if (m && m.removalFailures.length > 0) return t("summary.headline.notRemoved", { count: m.removalFailures.length });
+    if (m?.renameFailures?.length) return t("summary.headline.notRenamed", { count: m.renameFailures.length });
     if (s.dirErrors > 0) return t("summary.headline.dirErrors", { count: s.dirErrors });
     if (m?.archiveNotDeleted) return t("summary.headline.archiveNotDeleted");
     if (m?.archiveNotCleaned) return t("summary.headline.archiveNotCleaned");

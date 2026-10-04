@@ -585,6 +585,8 @@ pub struct Finished {
     pub removals: Vec<Removal>,
     /// (destination name before, the origin's name).
     pub renamed: Vec<(PathBuf, PathBuf)>,
+    /// Renames that failed: (destination name, the origin's name, why) (#192).
+    pub not_renamed: Vec<(PathBuf, PathBuf, IoFailure)>,
 }
 
 /// `finish`'s result for the report.
@@ -598,6 +600,7 @@ pub fn report_part(
         removed: Vec::new(),
         not_removed: Vec::new(),
         renamed: Vec::new(),
+        not_renamed: Vec::new(),
         nothing_removed: None,
         archive_problem: None,
     };
@@ -613,6 +616,14 @@ pub fn report_part(
                 }
             }
             part.renamed = f.renamed.iter().map(|(a, b)| (show(a), show(b))).collect();
+            part.not_renamed = f
+                .not_renamed
+                .iter()
+                .map(|(a, b, why)| crate::report::Unread {
+                    path: format!("{} → {}", show(a), show(b)),
+                    reason: why.to_string(),
+                })
+                .collect();
         }
         Err(why) => part.nothing_removed = Some(why.to_string()),
     }
@@ -702,15 +713,18 @@ pub fn finish(
     for dir in &plan.remove_dirs {
         let _ = fs::remove_dir(dest.join(dir)); // only if it is empty now
     }
-    let mut renamed = Vec::new();
+    let (mut renamed, mut not_renamed) = (Vec::new(), Vec::new());
     for (from, to) in &plan.renames {
-        if respell(dest, from, to) {
-            renamed.push((from.clone(), to.clone()));
+        match respell(dest, from, to) {
+            Ok(true) => renamed.push((from.clone(), to.clone())),
+            Ok(false) => {}
+            Err(e) => not_renamed.push((from.clone(), to.clone(), e.into())),
         }
     }
     Ok(Finished {
         removals: done,
         renamed,
+        not_renamed,
     })
 }
 
@@ -863,26 +877,24 @@ fn move_new(from: &Path, to: &Path) -> std::io::Result<()> {
 /// Gives `from` the origin's spelling `to`, one name at a time from the top, so a directory
 /// spelled otherwise is renamed too (#114): renaming the file alone left it as it was, and
 /// every run reported it again. Only the spelling of the same file, never onto another one.
-/// True if a name changed.
-fn respell(dest: &Path, from: &Path, to: &Path) -> bool {
+/// `Ok(true)` if a name changed; an error if a rename failed.
+fn respell(dest: &Path, from: &Path, to: &Path) -> std::io::Result<bool> {
     let (from, to): (Vec<_>, Vec<_>) = (from.components().collect(), to.components().collect());
     if from.len() != to.len() {
-        return false;
+        return Ok(false);
     }
     let mut changed = false;
     let mut parent = dest.to_path_buf();
     for (a, b) in from.iter().zip(&to) {
         let (x, y) = (parent.join(a), parent.join(b));
         if a != b && same_file::is_same_file(&x, &y).unwrap_or(false) {
-            // Part of the way isn't renamed: it's reported only once it's spelled as asked.
-            if fs::rename(&x, &y).is_err() {
-                return false;
-            }
+            // Part of the way isn't renamed: it's reported as not renamed, with why.
+            fs::rename(&x, &y)?;
             changed = true;
         }
         parent = y;
     }
-    changed
+    Ok(changed)
 }
 
 /// `rel` is in the origin, or that can't be told, so it isn't removed from the backup: a link
@@ -1076,6 +1088,8 @@ mod tests {
             Path::new("Clips/A.mov"),
             Path::new("clips/a.mov"),
         );
+        assert!(done.is_err());
+        let done = done.unwrap_or(false);
         let c = crate::os::c_path(&dir.path().join("clips/A.mov")).unwrap();
         // SAFETY: as above; the flag is cleared so the directory can be removed.
         unsafe { libc::chflags(c.as_ptr(), 0) };

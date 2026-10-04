@@ -30,6 +30,10 @@ test("a mirror says what it did", () => {
   expect(
     headline(summaryView({ outcome: "failures", failed: 0, mirror: mirror({ removalFailures: [row, { ...row, id: 1 }] }) })),
   ).toBe("2 files couldn’t be removed");
+  // Code review (#192): names it couldn't change to the origin's.
+  expect(
+    headline(summaryView({ outcome: "failures", failed: 0, mirror: mirror({ renameFailures: [row] }) })),
+  ).toBe("1 name couldn’t be changed to match the origin");
   const note = { key: "format.raw", args: { text: "x" } };
   expect(
     headline(summaryView({ outcome: "failures", failed: 0, mirror: mirror({ archiveNotDeleted: note }) })),

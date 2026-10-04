@@ -445,6 +445,10 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
             if !finished.renamed.is_empty() {
                 println!("renamed to match the origin: {}", finished.renamed.len());
             }
+            for (from, to, e) in &finished.not_renamed {
+                eprintln!("NOT RENAMED {} → {}: {e}", from.display(), to.display());
+                ok = false;
+            }
             if let Err(e) = mirror::write_checksums(&plan, &report, Some(finished)) {
                 eprintln!("checksum file NOT written: {e}");
                 checksums_failed = Some(e);

@@ -233,6 +233,23 @@ fn overwriting_a_recorded_file_blocks() {
     );
 }
 
+/// Code review (#192): a history that spells a name in the other Unicode form (NFC against
+/// the source's NFD) still records that file: overwriting it blocks.
+#[test]
+fn overwriting_a_file_recorded_in_the_other_unicode_form_blocks() {
+    let f = fixture(&[("Cafe\u{301}.mov", b"new contents")]);
+    write_files(&f.dest, &[("A/Caf\u{e9}.mov", b"old")]);
+    history(&f.dest.join("A"), &[("Caf\u{e9}.mov", b"old")]);
+    let (mut plan, inputs) = planned(&f, &ExtensionFilter::All, DiffersPolicy::Overwrite);
+    let found = blockers(prepare(&mut plan, &inputs));
+    assert!(
+        found
+            .iter()
+            .any(|b| matches!(b, MhlBlocker::OverwritesRecorded { .. })),
+        "{found:?}"
+    );
+}
+
 #[test]
 fn a_damaged_history_blocks() {
     let f = fixture(&[("a.mov", b"aaa")]);
@@ -481,6 +498,21 @@ fn undo_reverts_the_mhl() {
     assert!(f.dest.join("A/old.mov").exists());
 }
 
+/// Code review (#192): undoing a copy that brought the source's history along takes all of
+/// it away: the chain this job put back is its own copy, not a file changed since.
+#[test]
+fn undo_of_a_history_that_came_from_the_source_removes_it() {
+    let f = fixture(&[("a.mov", b"aaa")]);
+    history(&f.src, &[("a.mov", b"aaa")]);
+    let (plan, result) = prepared(&f);
+    let report = run(&plan, Some(result.unwrap())).0;
+    assert!(report.is_success(), "{report:?}");
+    assert_eq!(manifests(&f.dest.join("A")).len(), 2);
+    let undone = undo(&plan, &report, None);
+    assert!(undone.failed.is_empty(), "{:?}", undone.failed);
+    assert!(!f.dest.join("A").exists(), "the destination is as it was");
+}
+
 #[test]
 fn undo_of_a_new_history_removes_its_folder() {
     let f = fixture(&[("a.mov", b"aaa")]);
@@ -640,6 +672,31 @@ fn the_report_says_when_the_mhl_failed() {
     };
     let report = secopy_core::report::Report::new(&plan, &job, &meta);
     assert_eq!(report.result, "1 file doesn't match its ASC MHL history");
+    // Code review (#192): which file, and where the history is, in both files.
+    let mhl = report.mhl.as_ref().expect("an ASC MHL part");
+    assert_eq!(mhl.failed, ["a.mov"]);
+    assert_eq!(mhl.histories.len(), 1, "{mhl:?}");
+    let json: serde_json::Value = serde_json::from_str(&report.to_json()).unwrap();
+    assert_eq!(json["mhl"]["failed"][0], "a.mov");
+    let text = report.to_text();
+    assert!(
+        text.contains("Doesn't match its ASC MHL history: 1\n  a.mov"),
+        "{text}"
+    );
+    // A history's own files, left out of the checksum file, aren't said to have bad names.
+    let chain = report
+        .files
+        .iter()
+        .find(|f| f.path.ends_with("ascmhl_chain.xml"))
+        .expect("the history's chain");
+    assert!(
+        chain
+            .reason
+            .as_deref()
+            .is_some_and(|r| r.contains("ASC MHL")),
+        "{:?}",
+        chain.reason
+    );
 }
 
 /// #158: the ignore list goes into the history's own.

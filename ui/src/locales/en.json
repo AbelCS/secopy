@@ -68,6 +68,10 @@
         "one": "{count} file couldn’t be removed",
         "other": "{count} files couldn’t be removed"
       },
+      "notRenamed": {
+        "one": "{count} name couldn’t be changed to match the origin",
+        "other": "{count} names couldn’t be changed to match the origin"
+      },
       "dirErrors": {
         "one": "{count} empty directory couldn’t be created",
         "other": "{count} empty directories couldn’t be created"
@@ -148,6 +152,7 @@
     "more": "and {count} more (see the report)",
     "problems": "Problems",
     "notRemoved": "Not removed",
+    "notRenamed": "Not renamed to match the origin",
     "files": "Files",
     "retry": "Retry",
     "retryHelp": {
@@ -824,6 +829,10 @@
       "notRemoved": {
         "one": "{count} file couldn’t be removed.",
         "other": "{count} files couldn’t be removed."
+      },
+      "notRenamed": {
+        "one": "{count} name couldn’t be changed to match the origin.",
+        "other": "{count} names couldn’t be changed to match the origin."
       },
       "notRun": "Not run: the queue stopped.",
       "part": {
