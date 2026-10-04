@@ -69,6 +69,11 @@ pub enum ProblemKind {
     },
     /// It would land on a source file: never written, so the source can't be replaced (#112).
     InSource,
+    /// A directory on its way in the destination is a symlink: never written through, so a
+    /// link can't lead a copy into the source or anywhere else (#192).
+    ThroughLink {
+        path: PathBuf,
+    },
 }
 
 impl ProblemKind {
@@ -80,6 +85,7 @@ impl ProblemKind {
             ProblemKind::NameClash => FileError::NameClash,
             ProblemKind::InTheWay { path } => FileError::InTheWay { path: path.clone() },
             ProblemKind::InSource => FileError::InSource,
+            ProblemKind::ThroughLink { path } => FileError::ThroughLink { path: path.clone() },
         }
     }
 }
@@ -233,6 +239,7 @@ impl Sources {
 fn check_files(sel: &Selection, dest: &Path, fs: &FsInfo, sources: &Sources) -> Checked {
     let mut out = Checked::default();
     let mut seen = HashSet::new();
+    let mut links = Links::default();
     for (id, entry) in sel.files.iter().enumerate() {
         if entry.rel.to_str().is_none() {
             out.checksum_omissions.push(id);
@@ -245,6 +252,8 @@ fn check_files(sel: &Selection, dest: &Path, fs: &FsInfo, sources: &Sources) -> 
             Some(ProblemKind::InvalidName(e))
         } else if let Some(limit) = fs.max_file_size.filter(|&l| entry.size > l) {
             Some(ProblemKind::TooLarge { limit })
+        } else if let Some(path) = links.on_the_way(dest, &entry.rel) {
+            Some(ProblemKind::ThroughLink { path })
         } else {
             match fs::symlink_metadata(&final_path) {
                 Ok(meta) if meta.is_file() && sources.has(&final_path, &meta, dest) => {
@@ -273,6 +282,29 @@ fn check_files(sel: &Selection, dest: &Path, fs: &FsInfo, sources: &Sources) -> 
         }
     }
     out
+}
+
+/// Directories under the destination already looked at: whether each is a symlink.
+#[derive(Default)]
+struct Links(std::collections::HashMap<PathBuf, bool>);
+
+impl Links {
+    /// The first directory on the way to `rel` (relative to `dest`) that is a symlink.
+    fn on_the_way(&mut self, dest: &Path, rel: &Path) -> Option<PathBuf> {
+        let mut dirs: Vec<&Path> = rel
+            .ancestors()
+            .skip(1)
+            .filter(|a| !a.as_os_str().is_empty())
+            .collect();
+        dirs.reverse();
+        dirs.into_iter()
+            .find(|d| {
+                *self.0.entry(d.to_path_buf()).or_insert_with(|| {
+                    fs::symlink_metadata(dest.join(d)).is_ok_and(|m| m.file_type().is_symlink())
+                })
+            })
+            .map(Path::to_path_buf)
+    }
 }
 
 fn conflict_kind(entry: &ScanEntry, existing: &Metadata) -> ConflictKind {

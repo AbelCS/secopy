@@ -1,6 +1,6 @@
 //! The xxhsum-compatible checksum file written to the destination (FR-29..FR-32).
 
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 
@@ -49,6 +49,27 @@ pub fn write(
     entries: &[(PathBuf, Hash)],
     now: DateTime<Local>,
 ) -> io::Result<PathBuf> {
+    write_via(dest, entries, now, |f, b| f.write_all(b))
+}
+
+fn write_via(
+    dest: &Path,
+    entries: &[(PathBuf, Hash)],
+    now: DateTime<Local>,
+    write_body: impl FnOnce(&mut File, &[u8]) -> io::Result<()>,
+) -> io::Result<PathBuf> {
+    let body = body_of(entries);
+    // Whole under a temporary name first: a crash leaves no short list under the real one.
+    let tmp = crate::os::write_temp(dest, |f| write_body(f, body.as_bytes()))?;
+    let published = publish_unique(&tmp, dest, now);
+    if published.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    published
+}
+
+/// The lines, sorted by path, each ending in LF.
+fn body_of(entries: &[(PathBuf, Hash)]) -> String {
     let mut lines: Vec<(String, String)> = entries
         .iter()
         .map(|(rel, hash)| (slash_path(rel), format_line(*hash, rel)))
@@ -59,26 +80,11 @@ pub fn write(
         body.push_str(line);
         body.push('\n');
     }
-    let (path, mut file) = create_unique(dest, now)?;
-    let written = file
-        .write_all(body.as_bytes())
-        .and_then(|()| crate::os::sync_durable(&file));
-    keep_only_if_written(path, written)
+    body
 }
 
-/// A checksum file cut short would look finished and list too few files: it goes.
-fn keep_only_if_written(path: PathBuf, written: io::Result<()>) -> io::Result<PathBuf> {
-    match written {
-        Ok(()) => Ok(path),
-        Err(e) => {
-            let _ = std::fs::remove_file(&path);
-            Err(e)
-        }
-    }
-}
-
-/// Writes `entries` to `path` whole or not at all: a temporary `<name>.partial` beside it
-/// (a Secopy partial file, which no copy or mirror picks up), synced, then renamed over it,
+/// Writes `entries` to `path` whole or not at all: a temporary file of this writer's own
+/// beside it (a Secopy partial file, which no copy or mirror picks up), synced, then renamed over it,
 /// and the directory synced so the new name is on disk (`F_FULLFSYNC`). A device error
 /// doing that is an error, even though the new file is in place.
 pub fn write_replacing(path: &Path, entries: &[(PathBuf, Hash)]) -> io::Result<()> {
@@ -91,42 +97,26 @@ fn replace_then_sync(
     entries: &[(PathBuf, Hash)],
     sync_dir: impl FnOnce(&Path) -> io::Result<()>,
 ) -> io::Result<()> {
-    let mut lines: Vec<(String, String)> = entries
-        .iter()
-        .map(|(rel, hash)| (slash_path(rel), format_line(*hash, rel)))
-        .collect();
-    lines.sort();
-    let mut body = String::new();
-    for (_, line) in &lines {
-        body.push_str(line);
-        body.push('\n');
-    }
-    let tmp = path.with_extension("partial");
-    // A fresh file of our own: whatever is there (a leftover, or a link to elsewhere) goes
-    // first, and the new one is never opened through a link.
-    let _ = std::fs::remove_file(&tmp);
-    let written = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&tmp)
-        .and_then(|mut f| {
-            f.write_all(body.as_bytes())
-                .and_then(|()| crate::os::sync_durable(&f))
-        });
-    if let Err(e) = written.and_then(|()| std::fs::rename(&tmp, path)) {
+    let body = body_of(entries);
+    let dir = path.parent().filter(|d| !d.as_os_str().is_empty());
+    let dir = dir.unwrap_or(Path::new("."));
+    // A fresh file of this writer's own, never opened through a link nor shared with another
+    // writer (two mirrors into one destination): the rename publishes only what it wrote.
+    let tmp = crate::os::write_temp(dir, |f| f.write_all(body.as_bytes()))?;
+    if let Err(e) = std::fs::rename(&tmp, path) {
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
     }
     // The rename is in the directory: until that is on disk, a power cut can bring the old
     // file back. As in a copy job, only a device error fails (not a file system that can't).
-    let dir = path.parent().filter(|d| !d.as_os_str().is_empty());
-    match sync_dir(dir.unwrap_or(Path::new("."))) {
+    match sync_dir(dir) {
         Err(e) if crate::os::is_device_error(&e) => Err(e),
         _ => Ok(()),
     }
 }
 
-fn create_unique(dest: &Path, now: DateTime<Local>) -> io::Result<(PathBuf, File)> {
+/// Gives `tmp` the first free name of `secopy_<time>.xxh128`, `…_2.xxh128`, …
+fn publish_unique(tmp: &Path, dest: &Path, now: DateTime<Local>) -> io::Result<PathBuf> {
     let name = file_name(now);
     let stem = name.trim_end_matches(&format!(".{EXT}"));
     for n in 1u32.. {
@@ -135,12 +125,8 @@ fn create_unique(dest: &Path, now: DateTime<Local>) -> io::Result<(PathBuf, File
         } else {
             dest.join(format!("{stem}_{n}.{EXT}"))
         };
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&candidate)
-        {
-            Ok(file) => return Ok((candidate, file)),
+        match crate::os::publish_noreplace(tmp, &candidate) {
+            Ok(()) => return Ok(candidate),
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(e) => return Err(e),
         }
@@ -158,11 +144,13 @@ mod tests {
     #[test]
     fn a_checksum_file_that_fails_while_written_is_removed() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("secopy_x.xxh128");
-        fs::write(&path, "half a li").unwrap();
-        let result = keep_only_if_written(path.clone(), Err(io::Error::other("disk full")));
+        let entries = [(PathBuf::from("a.mov"), Hash::from_u128(1))];
+        let result = write_via(dir.path(), &entries, at(9, 0, 0), |file, body| {
+            file.write_all(&body[..9])?;
+            Err(io::Error::other("disk full"))
+        });
         assert_eq!(result.unwrap_err().to_string(), "disk full");
-        assert!(!path.exists());
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0, "nothing left");
     }
 
     /// #69 V6: after the rename the directory is synced, or a power cut could bring the old
@@ -186,6 +174,45 @@ mod tests {
         assert_eq!(failed.unwrap_err().raw_os_error(), Some(libc::EIO));
         // As in a copy job: a file system that can't sync a directory is not a failure.
         assert!(replace_then_sync(&path, &entries, err(libc::ENOTSUP)).is_ok());
+    }
+
+    /// Code review (#192): a checksum file has its final name only once it's whole: a crash
+    /// while it's written leaves no short list that Verify would take for the whole copy.
+    #[test]
+    fn a_checksum_file_gets_its_name_only_when_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let entries = [(PathBuf::from("a.mov"), Hash::from_u128(1))];
+        let path = write_via(dir.path(), &entries, at(9, 0, 0), |file, body| {
+            let named = fs::read_dir(dir.path()).unwrap().any(|e| {
+                e.unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .ends_with(".xxh128")
+            });
+            assert!(!named, "no checksum file under its name while it's written");
+            file.write_all(body)
+        })
+        .unwrap();
+        assert!(path.exists());
+        assert_eq!(
+            fs::read_dir(dir.path()).unwrap().count(),
+            1,
+            "no temporary file left"
+        );
+    }
+
+    /// Code review (#192): replacing a checksum file never takes another writer's temporary
+    /// file (two mirrors into one destination): each writes its own.
+    #[test]
+    fn replacing_leaves_another_writers_temporary_file_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".secopy-checksums.xxh128");
+        let theirs = dir.path().join(".secopy-checksums.partial");
+        fs::write(&theirs, "being written\n").unwrap();
+        let entries = [(PathBuf::from("a.mov"), Hash::from_u128(1))];
+        write_replacing(&path, &entries).unwrap();
+        assert_eq!(fs::read_to_string(&theirs).unwrap(), "being written\n");
+        assert!(fs::read_to_string(&path).unwrap().ends_with("  a.mov\n"));
     }
 
     fn at(h: u32, m: u32, s: u32) -> DateTime<Local> {

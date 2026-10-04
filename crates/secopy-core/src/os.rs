@@ -93,6 +93,58 @@ pub fn rename_noreplace(from: &Path, to: &Path) -> io::Result<()> {
     }
 }
 
+/// Writes a new file of this writer's own in `dir`, under a temporary name no other writer
+/// uses (`.secopy-<pid>-<n>.partial`: a Secopy partial file, which no copy, mirror or Verify
+/// picks up), and makes it durable. Removed if it can't be written whole.
+pub fn write_temp(
+    dir: &Path,
+    write_body: impl FnOnce(&mut File) -> io::Result<()>,
+) -> io::Result<std::path::PathBuf> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let (tmp, mut file) = loop {
+        let n = NEXT.fetch_add(1, Ordering::Relaxed);
+        let tmp = dir.join(format!(".secopy-{}-{n}.partial", std::process::id()));
+        match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+            Ok(file) => break (tmp, file),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    };
+    let written = write_body(&mut file).and_then(|()| sync_durable(&file));
+    drop(file);
+    match written {
+        Ok(()) => Ok(tmp),
+        Err(e) => {
+            let _ = fs::remove_file(&tmp);
+            Err(e)
+        }
+    }
+}
+
+/// Gives `from` the name `to` unless `to` is taken (`AlreadyExists`). File systems without a
+/// no-replace rename (FAT and exFAT) fall back to a hard link, and then to check-then-rename.
+pub fn publish_noreplace(from: &Path, to: &Path) -> io::Result<()> {
+    match rename_noreplace(from, to) {
+        Err(e) if e.kind() == io::ErrorKind::Unsupported => {}
+        other => return other,
+    }
+    match fs::hard_link(from, to) {
+        Ok(()) => {
+            // Complete under its final name; a leftover temporary name is only clutter.
+            let _ = fs::remove_file(from);
+            Ok(())
+        }
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Err(e),
+        Err(_) => {
+            if fs::symlink_metadata(to).is_ok() {
+                return Err(io::ErrorKind::AlreadyExists.into());
+            }
+            fs::rename(from, to)
+        }
+    }
+}
+
 pub(crate) fn c_path(path: &Path) -> io::Result<std::ffi::CString> {
     use std::os::unix::ffi::OsStrExt;
     std::ffi::CString::new(path.as_os_str().as_bytes())

@@ -1166,6 +1166,7 @@
       "tooLarge": "El archivo es más grande de lo que admite la unidad de destino ({size})",
       "inTheWay": "Un elemento en {path} impide la copia",
       "inSource": "La copia sobrescribiría un archivo del origen",
+      "throughLink": "{path} es un enlace simbólico: Secopy no escribe a través de enlaces simbólicos",
       "keptInArchive": "{why}; la versión anterior está en los archivados: {path}",
       "sourceChanged": "El archivo de origen cambió mientras se copiaba",
       "changed": "Cambió desde que se copió (se esperaba {expected}, se encontró {actual})",

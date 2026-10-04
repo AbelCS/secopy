@@ -69,6 +69,7 @@ pub fn file_error(e: &FileError) -> Message {
         FileError::TooLarge { limit } => msg!("errors.file.tooLarge", size = Size(*limit)),
         FileError::InTheWay { path } => msg!("errors.file.inTheWay", path = path),
         FileError::InSource => msg!("errors.file.inSource"),
+        FileError::ThroughLink { path } => msg!("errors.file.throughLink", path = path),
         FileError::KeptInArchive { error, archived } => msg!(
             "errors.file.keptInArchive",
             why = file_error(error),
