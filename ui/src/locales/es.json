@@ -379,7 +379,7 @@
       "other": "{count} archivos"
     },
     "alsoIgnore": "Ignorar también",
-    "alsoIgnoreHint": "Nombres que esta copia (y su preajuste) nunca copia, además de Ajustes › Ignorar siempre al copiar.",
+    "alsoIgnoreHint": "Nombres que esta copia (y su plantilla) nunca copia, además de Ajustes › Ignorar siempre al copiar.",
     "alsoIgnoreNone": "Ninguno",
     "alsoIgnoreEdit": "Editar…",
     "alsoIgnoreDone": "Hecho",
@@ -430,7 +430,7 @@
     },
     "dropSource": "Suelta aquí un directorio o archivos, o elígelos.",
     "choose": "Elegir…",
-    "preset": "Preajuste",
+    "preset": "Plantilla",
     "options": "Opciones",
     "includeFolder": "Incluir el directorio “{name}”",
     "fileTypes": "Tipos de archivo",
@@ -518,33 +518,33 @@
     "noExtension": "(sin extensión)"
   },
   "presets": {
-    "none": "Ninguno",
-    "label": "Preajuste",
-    "new": "Nuevo preajuste…",
-    "changed": "Cambiado para esta vez",
+    "none": "Ninguna",
+    "label": "Plantilla",
+    "new": "Nueva plantilla…",
+    "changed": "Cambiada para esta vez",
     "update": "Actualizar",
-    "updateHelp": "Guarda este origen y estas opciones en el preajuste “{name}”.",
+    "updateHelp": "Guarda este origen y estas opciones en la plantilla “{name}”.",
     "saveAs": "Guardar como…",
-    "saveAsHelp": "Guarda este origen y estas opciones como un preajuste nuevo.",
+    "saveAsHelp": "Guarda este origen y estas opciones como una plantilla nueva.",
     "name": "Nombre",
     "namePlaceholder": "p. ej., Sony FX3",
     "cancel": "Cancelar",
     "save": "Guardar",
-    "discardNew": "Tus cambios en el preajuste nuevo no están guardados.",
+    "discardNew": "Tus cambios en la plantilla nueva no están guardados.",
     "delete": {
-      "message": "Se borra el preajuste “{name}”. Su origen y las copias no se tocan.",
-      "title": "¿Borrar el preajuste?",
+      "message": "Se borra la plantilla “{name}”. Su origen y las copias no se tocan.",
+      "title": "¿Borrar la plantilla?",
       "ok": "Borrar",
       "keep": "Conservar"
     },
-    "title": "Preajustes de copia",
-    "all": "Todos los preajustes",
-    "addNew": "+ Nuevo preajuste…",
-    "newTitle": "Nuevo preajuste",
-    "about": "Sobre los preajustes de copia",
+    "title": "Plantillas de copia",
+    "all": "Todas las plantillas",
+    "addNew": "+ Nueva plantilla…",
+    "newTitle": "Nueva plantilla",
+    "about": "Sobre las plantillas de copia",
     "empty": {
-      "what": "Un preajuste de copia guarda un origen y sus opciones (el directorio en sí o solo su contenido, tipos de archivo, Ignorar también): elígelo en Copia nueva para preparar una copia frecuente de una vez.",
-      "how": "Crea uno con “+ Nuevo preajuste…”, o con “Guardar como…” en Copia nueva."
+      "what": "Una plantilla de copia guarda un origen y sus opciones (el directorio en sí o solo su contenido, tipos de archivo, Ignorar también): elígela en Copia nueva para preparar una copia frecuente de una vez.",
+      "how": "Crea una con “+ Nueva plantilla…”, o con “Guardar como…” en Copia nueva."
     },
     "unsaved": "Cambios sin guardar",
     "editor": {
@@ -553,7 +553,7 @@
       "sourcePlaceholder": "p. ej., /Volumes/Untitled/PRIVATE/M4ROOT/CLIP",
       "options": "Opciones",
       "includeNamed": "Incluir el directorio “{name}”",
-      "alsoIgnoreHint": "Nombres que este preajuste nunca copia, además de Ajustes › Ignorar siempre al copiar.",
+      "alsoIgnoreHint": "Nombres que esta plantilla nunca copia, además de Ajustes › Ignorar siempre al copiar.",
       "includePicked": "Incluir el directorio elegido en sí",
       "fileTypes": "Tipos de archivo",
       "allTypes": "Todos los tipos",
@@ -564,12 +564,12 @@
       "pickSource": "Origen",
       "noExtension": "(sin extensión)"
     },
-    "manage": "Gestionar preajustes…",
+    "manage": "Gestionar plantillas…",
     "noSource": "(aún sin origen)",
     "repaired": {
-      "noName": "Un preajuste de copia en {file} no tenía nombre; ahora es “{name}”.",
-      "sameName": "Dos preajustes de copia en {file} se llamaban “{wanted}”; el segundo ahora es “{name}”.",
-      "notFullPath": "El preajuste de copia “{name}” tenía un origen que no es una ruta completa ({source}); vuelve a elegir su directorio."
+      "noName": "Una plantilla de copia en {file} no tenía nombre; ahora es “{name}”.",
+      "sameName": "Dos plantillas de copia en {file} se llamaban “{wanted}”; la segunda ahora es “{name}”.",
+      "notFullPath": "La plantilla de copia “{name}” tenía un origen que no es una ruta completa ({source}); vuelve a elegir su directorio."
     }
   },
   "finished": {
@@ -599,20 +599,20 @@
     "title": "Exportar",
     "about": "Elige qué va en el archivo. La cola y los destinos recientes de este Mac se quedan aquí.",
     "settings": "Ajustes",
-    "copyPresets": "Preajustes de copia {count}",
-    "mirrorPresets": "Preajustes de espejo {count}",
+    "copyPresets": "Plantillas de copia {count}",
+    "mirrorPresets": "Plantillas de espejo {count}",
     "count": "({count})",
     "none": "(ninguno)",
     "done": "Exportado: {what}.",
     "doneNamed": "Exportado: “{name}”.",
     "what": {
       "copyPresets": {
-        "one": "{count} preajuste de copia",
-        "other": "{count} preajustes de copia"
+        "one": "{count} plantilla de copia",
+        "other": "{count} plantillas de copia"
       },
       "mirrorPresets": {
-        "one": "{count} preajuste de espejo",
-        "other": "{count} preajustes de espejo"
+        "one": "{count} plantilla de espejo",
+        "other": "{count} plantillas de espejo"
       },
       "nothing": "nada",
       "settings": "los ajustes"
@@ -621,24 +621,24 @@
   "import": {
     "title": "Importar",
     "notConnected": "{path} no está conectado ahora.",
-    "renamed": "Importado como “{name}”: el archivo tiene este nombre dos veces.",
+    "renamed": "Importada como “{name}”: el archivo tiene este nombre dos veces.",
     "clash": "Ya tienes “{name}”",
-    "keepBoth": "Conservar ambos, como “{name}”",
-    "replace": "Reemplazar el tuyo",
-    "replaceDeletes": "Si lo reemplazas, los archivos borrados en el origen se borran en vez de archivarse.",
+    "keepBoth": "Conservar ambas, como “{name}”",
+    "replace": "Reemplazar la tuya",
+    "replaceDeletes": "Si la reemplazas, los archivos borrados en el origen se borran en vez de archivarse.",
     "replaceShortens": {
-      "one": "Si lo reemplazas, en su próxima ejecución se eliminan los archivados de hace más de {count} día.",
-      "other": "Si lo reemplazas, en su próxima ejecución se eliminan los archivados de hace más de {count} días."
+      "one": "Si la reemplazas, en su próxima ejecución se eliminan los archivados de hace más de {count} día.",
+      "other": "Si la reemplazas, en su próxima ejecución se eliminan los archivados de hace más de {count} días."
     },
     "settings": "Ajustes",
     "sameSettings": "Iguales que los tuyos",
     "importSettings": "Importar los ajustes",
-    "copyPresets": "Preajustes de copia",
-    "mirrorPresets": "Preajustes de espejo",
+    "copyPresets": "Plantillas de copia",
+    "mirrorPresets": "Plantillas de espejo",
     "import": "Importar",
     "andNot": {
-      "both": "{message} Los preajustes de espejo y los ajustes no se importaron.",
-      "mirrors": "{message} Los preajustes de espejo no se importaron.",
+      "both": "{message} Las plantillas de espejo y los ajustes no se importaron.",
+      "mirrors": "{message} Las plantillas de espejo no se importaron.",
       "settings": "{message} Los ajustes no se importaron."
     },
     "change": "{setting}: {from} → {to}",
@@ -650,8 +650,8 @@
     "failed": "Error al guardar {what}: {why}",
     "partly": "Importado: {done}. Error al guardar {what}: {why}",
     "kind": {
-      "copyPresets": "los preajustes de copia",
-      "mirrorPresets": "los preajustes de espejo",
+      "copyPresets": "las plantillas de copia",
+      "mirrorPresets": "las plantillas de espejo",
       "settings": "los ajustes"
     },
     "on": "sí",
@@ -674,8 +674,8 @@
       "language": "Idioma"
     },
     "noName": {
-      "copy": "Un preajuste de copia sin nombre",
-      "mirror": "Un preajuste de espejo sin nombre"
+      "copy": "Una plantilla de copia sin nombre",
+      "mirror": "Una plantilla de espejo sin nombre"
     }
   },
   "settings": {
@@ -722,8 +722,8 @@
       "help": "Cerrar la ventana durante una tarea la oculta; un icono en la barra de menús muestra el progreso y la vuelve a abrir. Si está desactivado, al cerrar se pregunta si cancelar la tarea."
     },
     "transfer": {
-      "title": "Ajustes y preajustes",
-      "about": "Lleva tus ajustes y preajustes a otro Mac, o comparte preajustes, en un archivo .secopy.",
+      "title": "Ajustes y plantillas",
+      "about": "Lleva tus ajustes y plantillas a otro Mac, o comparte plantillas, en un archivo .secopy.",
       "exportHelp": "Exporta tus ajustes guardados; guarda primero para incluir estos cambios."
     },
     "general": "General",
@@ -1238,7 +1238,7 @@
       "previewCancelled": "Cancelado.",
       "changedSincePreview": "El espejo cambió desde su vista previa. Vuelve a generar la vista previa.",
       "gone": "Ese espejo ya no existe.",
-      "presetGone": "El preajuste de espejo ya no existe.",
+      "presetGone": "La plantilla de espejo ya no existe.",
       "previewFirst": "Genera primero la vista previa del espejo.",
       "archiveBusy": "Borra los archivados cuando termine la tarea actual.",
       "archiveMoved": "El destino del espejo cambió. Vuelve a mirar sus archivados."
@@ -1262,8 +1262,8 @@
       "name": {
         "mirrorEmpty": "El espejo necesita un nombre.",
         "mirrorTaken": "Ya hay un espejo llamado “{name}”.",
-        "presetEmpty": "El preajuste necesita un nombre.",
-        "presetTaken": "Ya hay un preajuste llamado “{name}”.",
+        "presetEmpty": "La plantilla necesita un nombre.",
+        "presetTaken": "Ya hay una plantilla llamada “{name}”.",
         "tooLong": "El nombre es demasiado largo: {max} caracteres como mucho."
       },
       "origin": {
@@ -1276,17 +1276,17 @@
       }
     },
     "import": {
-      "cantImport": "Ese preajuste no se puede importar.",
+      "cantImport": "Esa plantilla no se puede importar.",
       "cantOpen": "No se puede abrir el archivo: {why}",
       "cantRead": "No se puede leer el archivo: {why}",
-      "changed": "Tus preajustes o ajustes cambiaron desde que se abrió este archivo. Vuelve a abrirlo para ver qué cambiaría.",
+      "changed": "Tus plantillas o ajustes cambiaron desde que se abrió este archivo. Vuelve a abrirlo para ver qué cambiaría.",
       "newer": "Este archivo se hizo con un Secopy más reciente (formato {format}). Actualiza Secopy para importarlo.",
       "noFile": "No hay ningún archivo que importar.",
       "nothing": "No hay nada que importar en este archivo.",
       "notSecopy": "Esto no es un archivo de Secopy.",
       "tooBig": "Este archivo es demasiado grande para ser un archivo de Secopy.",
-      "tooMany": "Este archivo tiene demasiados preajustes. Secopy importa hasta {max} de cada tipo.",
-      "twoReplace": "Dos preajustes del archivo reemplazarían “{name}”; elige “Conservar ambos” para uno de ellos.",
+      "tooMany": "Este archivo tiene demasiadas plantillas. Secopy importa hasta {max} de cada tipo.",
+      "twoReplace": "Dos plantillas del archivo reemplazarían “{name}”; elige “Conservar ambas” para una de ellas.",
       "waits": "Impórtalo cuando termine la tarea actual."
     },
     "job": {
@@ -1298,9 +1298,9 @@
     },
     "legacy": "{text}",
     "preset": {
-      "gone": "Ese preajuste ya no existe.",
-      "needsDirectory": "Un preajuste guarda un directorio como origen; elige primero un directorio.",
-      "noneSelected": "No hay ningún preajuste seleccionado.",
+      "gone": "Esa plantilla ya no existe.",
+      "needsDirectory": "Una plantilla guarda un directorio como origen; elige primero un directorio.",
+      "noneSelected": "No hay ninguna plantilla seleccionada.",
       "scanning": "Espera a que termine el análisis."
     },
     "queue": {
@@ -1321,7 +1321,7 @@
     "save": {
       "file": "{path}: {why}",
       "mirror": "No se pudo guardar el espejo: {why}",
-      "preset": "No se pudo guardar el preajuste: {why}",
+      "preset": "No se pudo guardar la plantilla: {why}",
       "queue": "No se pudo guardar la cola: {why}",
       "settings": "No se pudieron guardar los ajustes: {why}",
       "newer": "{file} es de un Secopy más reciente: no se sobrescribe"
