@@ -428,7 +428,7 @@
       "one": "No se pudo leer {count} elemento",
       "other": "No se pudieron leer {count} elementos"
     },
-    "dropSource": "Suelta aquí un directorio o archivos, o elígelos.",
+    "dropSource": "Arrastra aquí un directorio o archivos, o elígelos.",
     "choose": "Elegir…",
     "preset": "Plantilla",
     "options": "Opciones",
@@ -440,7 +440,7 @@
     "destination": "Destino",
     "checking": "Comprobando…",
     "free": "{size} disponibles · {kind}",
-    "dropDestination": "Suelta aquí el directorio de destino, o elígelo.",
+    "dropDestination": "Arrastra aquí el directorio de destino, o elígelo.",
     "recent": "Destinos recientes",
     "recentPlaceholder": "Recientes…",
     "mode": "Modo",
