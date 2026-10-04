@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.2](https://github.com/AbelCS/secopy/compare/v0.25.1...v0.25.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* **i18n:** Spanish says plantilla, not preajuste ([de7f680](https://github.com/AbelCS/secopy/commit/de7f680a8f17bb6db0138a697eee9af97e4d4da7))
+
 ## [0.25.1](https://github.com/AbelCS/secopy/compare/v0.25.0...v0.25.1) (2026-10-03)
 
 
