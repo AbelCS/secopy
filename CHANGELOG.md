@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/AbelCS/secopy/compare/v1.0.1...v1.0.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* one wording for a directory that isn't there; mirror errors stay put ([e8e8887](https://github.com/AbelCS/secopy/commit/e8e88876a5c581234b0c8dcee5177b54c5f449d2)), closes [#199](https://github.com/AbelCS/secopy/issues/199)
+
 ## [1.0.1](https://github.com/AbelCS/secopy/compare/v1.0.0...v1.0.1) (2026-10-04)
 
 
