@@ -637,9 +637,21 @@ impl Job {
             Ok(bytes) if path.is_file() && is_report(&bytes) => {}
             _ => return Err(msg!("errors.report.jsonTaken", path = &json)),
         }
-        // Each through a temporary name, so a failure never leaves half a report.
-        crate::transfer::write_file(path, &report.to_text())?;
-        crate::transfer::write_file(&json, &report.to_json())
+        // Both written whole under temporary names first, then named: a failure (a full disk)
+        // never leaves a new text beside an old JSON, nor half a report (#192).
+        let text = crate::transfer::stage(path, &report.to_text())?;
+        let json_tmp = match crate::transfer::stage(&json, &report.to_json()) {
+            Ok(tmp) => tmp,
+            Err(e) => {
+                let _ = fs::remove_file(&text);
+                return Err(e);
+            }
+        };
+        crate::transfer::publish(&text, path)
+            .inspect_err(|_| {
+                let _ = fs::remove_file(&json_tmp);
+            })
+            .and_then(|()| crate::transfer::publish(&json_tmp, &json))
     }
 
     fn running(&self) -> bool {
@@ -970,7 +982,10 @@ impl Job {
             }
             (Work::Copy { ready, .. }, _) => ready,
         };
-        let report = Report::new(&ready.plan, &job_report, &meta);
+        let mut report = Report::new(&ready.plan, &job_report, &meta);
+        if let Some(undone) = &done.undone {
+            report = report.with_undone(undone);
+        }
         match (&done.removals, self.mirror()) {
             (Some(removals), Some(m)) => {
                 let mut part = mirror::report_part(removals, m.archive.is_some());
@@ -1010,22 +1025,22 @@ impl Job {
             None => checksum_file::file_name(self.started)
                 .replace(&format!(".{}", checksum_file::EXT), ""),
         };
-        let text = self
-            .report(done)
+        self.report(done)
             .write(reports_dir, &stem)
             .map(|(text, _)| text)
-            .map_err(failed)?;
-        if let Some(undone) = &done.undone {
-            append_undone(&text, undone).map_err(failed)?;
-        }
-        Ok(text)
+            .map_err(failed)
     }
 }
 
-/// `bytes` is a report Secopy saved: its JSON, with the app's version and a result.
+/// A Secopy report's JSON, by its shape (every version has these), not two common keys.
 fn is_report(bytes: &[u8]) -> bool {
-    serde_json::from_slice::<serde_json::Value>(bytes)
-        .is_ok_and(|v| v.get("app_version").is_some() && v.get("result").is_some())
+    serde_json::from_slice::<serde_json::Value>(bytes).is_ok_and(|v| {
+        v["app_version"].is_string()
+            && v["result"].is_string()
+            && v["mode"].is_string()
+            && v["counts"].is_object()
+            && v["files"].is_array()
+    })
 }
 
 /// A mirror's figures: files copied as new or updated, and its removals.
@@ -1108,21 +1123,6 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
         rename_failures,
         nothing_removed,
     }
-}
-
-/// What Cancel's "Also remove the files already copied" did, at the end of the text report.
-fn append_undone(text: &Path, u: &Undone) -> std::io::Result<()> {
-    use std::io::Write;
-    let mut out = fs::OpenOptions::new().append(true).open(text)?;
-    writeln!(
-        out,
-        "\nRemoved after cancelling: {} copied, {} put back from the archive, {} replaced files not put back",
-        u.removed, u.restored, u.not_restored
-    )?;
-    for (path, why) in &u.failed {
-        writeln!(out, "  {} — NOT REMOVED: {why}", path.display())?;
-    }
-    Ok(())
 }
 
 /// Where the menu bar panel says a copy is from: a directory by its path (a retry too), picked
@@ -1470,6 +1470,13 @@ mod tests {
             b"{\"mine\": true}"
         );
         assert!(!other.exists(), "nothing written");
+        // Code review (#192): a JSON of the user's that happens to have those two keys isn't
+        // taken for a report: only one with a report's shape is.
+        fs::write(&other, b"notes").unwrap();
+        let theirs = br#"{"app_version": "2", "result": "ok", "notes": []}"#;
+        fs::write(other.with_extension("json"), theirs).unwrap();
+        assert!(f.jobs.save_report(&other).is_err());
+        assert_eq!(fs::read(other.with_extension("json")).unwrap(), theirs);
         // Another Secopy report where the JSON would go, with no text beside it: not the pair
         // the panel asked about, so it stays too.
         let lone = f.dir.path().join("lone.txt");
@@ -1672,8 +1679,20 @@ mod tests {
             0,
             "the destination is as it was"
         );
-        let report = fs::read_to_string(s.report_file.unwrap()).unwrap();
+        let text = s.report_file.unwrap();
+        let report = fs::read_to_string(&text).unwrap();
         assert!(report.contains("Removed after cancelling"), "{report}");
+        // Code review (#192): in the JSON too, and in a report saved by hand.
+        let json = fs::read_to_string(Path::new(&text).with_extension("json")).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(json["undone"]["removed"].as_u64().unwrap() >= 1, "{json}");
+        let mine = f.dir.path().join("mine.txt");
+        f.jobs.save_report(&mine).unwrap();
+        assert!(
+            fs::read_to_string(&mine)
+                .unwrap()
+                .contains("Removed after cancelling")
+        );
     }
 
     #[test]

@@ -694,7 +694,8 @@ impl MirrorPreset {
 
 /// A preset's origin or destination: a full path without a trailing `/`; `None` if it isn't one.
 fn full_path(text: &str) -> Option<String> {
-    let text = text.trim();
+    // Only spaces before it: a name may end in a space (#192).
+    let text = text.trim_start();
     if !text.starts_with('/') {
         return None;
     }
@@ -704,8 +705,7 @@ fn full_path(text: &str) -> Option<String> {
 
 /// A copy preset's source, normalized: a full path without a trailing `/`, or empty.
 fn source(text: &str) -> Result<String, Message> {
-    let text = text.trim();
-    if text.is_empty() {
+    if text.trim().is_empty() {
         return Ok(String::new());
     }
     full_path(text).ok_or_else(|| msg!("errors.field.source.notFull"))
@@ -939,6 +939,21 @@ mod tests {
         assert!(!dir.path().join("data").join("profiles.json.tmp").exists());
     }
 
+    /// Code review (#192): a path is kept as the Mac names it: a directory whose name ends in
+    /// a space is that directory, not another one.
+    #[test]
+    fn a_path_keeps_its_spaces() {
+        assert_eq!(
+            full_path("/Volumes/CARD/CLIP ").as_deref(),
+            Some("/Volumes/CARD/CLIP ")
+        );
+        assert_eq!(
+            full_path(" /Volumes/CARD/").as_deref(),
+            Some("/Volumes/CARD")
+        );
+        assert_eq!(source("  ").unwrap(), "");
+    }
+
     #[test]
     fn a_damaged_file_is_set_aside_and_the_defaults_are_used() {
         let dir = tempfile::tempdir().unwrap();
@@ -1048,7 +1063,7 @@ mod tests {
     fn copy_presets_are_checked_and_normalized() {
         let mut presets = CopyPresets::default();
         let p = presets
-            .add(input("  Sony FX3 ", " /Volumes/CARD/PRIVATE/M4ROOT/CLIP/ "))
+            .add(input("  Sony FX3 ", " /Volumes/CARD/PRIVATE/M4ROOT/CLIP/"))
             .unwrap();
         assert_eq!(p.name, "Sony FX3");
         assert_eq!(p.source, "/Volumes/CARD/PRIVATE/M4ROOT/CLIP");
