@@ -284,6 +284,7 @@
   "queue.reason.mirrorChecksum",
   "queue.reason.newer",
   "queue.reason.notRemoved",
+  "queue.reason.notRenamed",
   "queue.reason.notRun",
   "queue.reason.nothingToCopy",
   "queue.reason.overwriteChanged",

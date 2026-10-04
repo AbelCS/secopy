@@ -514,7 +514,7 @@ impl Job {
         };
         let removal_failed = mirror
             .as_ref()
-            .is_some_and(|m| !m.removal_failures.is_empty());
+            .is_some_and(|m| !m.removal_failures.is_empty() || !m.rename_failures.is_empty());
         // What only the app knows: a mirror's removals and archive, a check's problems.
         let more_problems = removal_failed
             || mirror.as_ref().is_some_and(|m| {
@@ -1071,6 +1071,24 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
         Some(Err(why)) => (0, Vec::new(), Some(say::not_removed(why))),
         None => (0, Vec::new(), None),
     };
+    let rename_failures = match &done.removals {
+        Some(Ok(finished)) => finished
+            .not_renamed
+            .iter()
+            .enumerate()
+            .map(|(i, (from, to, why))| FinishedRow {
+                id: count(i),
+                path: show(from),
+                final_path: show(to),
+                size: 0,
+                millis: 0,
+                hash: None,
+                status: RowStatus::Failed,
+                reason: Some(say::io_failure(why)),
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
     let archive_not_deleted = done
         .archive_deleted
         .as_ref()
@@ -1087,6 +1105,7 @@ fn mirror_summary(m: &MirrorRun, done: &Done, outcomes: &[FileOutcome]) -> Mirro
         removed: count(removed),
         archived: m.archive.is_some(),
         removal_failures,
+        rename_failures,
         nothing_removed,
     }
 }
@@ -1966,6 +1985,48 @@ mod tests {
         fs::set_permissions(o.join("a.mov"), fs::Permissions::from_mode(0o644)).unwrap();
         assert_eq!(jobs.summary().unwrap().failed, 1);
         assert!(jobs.retry().is_none());
+    }
+
+    /// Code review (#192): a name that couldn't be changed to the origin's is listed, and
+    /// the mirror isn't Complete.
+    #[test]
+    fn a_mirror_says_which_names_it_couldnt_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        fs::create_dir_all(o.join("clips")).unwrap();
+        fs::create_dir_all(d.join("Clips")).unwrap();
+        fs::write(o.join("clips/a.mov"), b"a").unwrap();
+        fs::write(d.join("Clips/A.mov"), b"a").unwrap();
+        if !d.join("clips/a.mov").exists() {
+            return; // a case-sensitive volume
+        }
+        let t = fs::metadata(o.join("clips/a.mov"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        fs::File::options()
+            .write(true)
+            .open(d.join("Clips/A.mov"))
+            .unwrap()
+            .set_modified(t)
+            .unwrap();
+        let c = std::ffi::CString::new(d.join("Clips/A.mov").to_str().unwrap()).unwrap();
+        // SAFETY: a NUL-terminated path; UF_IMMUTABLE makes the rename fail.
+        unsafe { libc::chflags(c.as_ptr(), libc::UF_IMMUTABLE as _) };
+        let s = run_mirror(
+            dir.path(),
+            &preset(&o, &d, crate::store::DeletedMode::Archive),
+        );
+        let c = std::ffi::CString::new(d.join("clips/A.mov").to_str().unwrap()).unwrap();
+        // SAFETY: as above; cleared so the test directory can be removed.
+        unsafe { libc::chflags(c.as_ptr(), 0) };
+        assert_eq!(s.outcome, JobOutcome::Failures);
+        let m = s.mirror.unwrap();
+        assert_eq!(m.rename_failures.len(), 1);
+        assert_eq!(
+            m.rename_failures[0].final_path,
+            show(Path::new("clips/a.mov"))
+        );
     }
 
     /// QA review (#134): the Mac stays awake for the whole job, a mirror's removals too, not

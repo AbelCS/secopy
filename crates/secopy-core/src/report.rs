@@ -100,6 +100,19 @@ pub struct Report {
     pub dir_errors: Vec<Unread>,
     /// A check's own parts (plan 8): its checksum files, their problems, what nothing lists.
     pub check: Option<CheckPart>,
+    /// ASC MHL, when the copy writes it (#154, #192).
+    pub mhl: Option<MhlPart>,
+}
+
+/// What a copy's ASC MHL did.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MhlPart {
+    /// The `ascmhl` directories a generation was written to.
+    pub histories: Vec<String>,
+    /// Why it couldn't be written (nothing of it was left).
+    pub error: Option<String>,
+    /// Files that don't match their earlier hash in the history, from the copy root.
+    pub failed: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -117,6 +130,8 @@ pub struct MirrorPart {
     pub removed: Vec<String>,
     pub not_removed: Vec<Unread>,
     pub renamed: Vec<(String, String)>,
+    /// Names that couldn't be changed to the origin's: "before → after", and why (#192).
+    pub not_renamed: Vec<Unread>,
     /// Why nothing was removed: the copy phase didn't end cleanly.
     pub nothing_removed: Option<String>,
     /// The archive kept more than asked: expired files, or a deletion, that didn't all go
@@ -171,8 +186,12 @@ impl Report {
                     FileStatus::Skipped(SkipReason::Differs) => {
                         Some("a different file with this name was kept".into())
                     }
-                    _ if !planned.in_checksum_file => {
+                    _ if !planned.in_checksum_file && planned.entry.rel.to_str().is_none() => {
                         Some("not in the checksum file: the name isn't valid UTF-8".into())
+                    }
+                    // A history's own files, added to after the copy (#154).
+                    _ if !planned.in_checksum_file => {
+                        Some("not in the checksum file: part of an ASC MHL history".into())
                     }
                     _ => None,
                 };
@@ -219,6 +238,15 @@ impl Report {
             durability_error: job.durability_error.as_ref().map(ToString::to_string),
             mirror: None,
             check: None,
+            mhl: (!job.mhl_off).then(|| MhlPart {
+                histories: job
+                    .mhl_written
+                    .iter()
+                    .map(|w| w.chain.parent().unwrap_or(&w.chain).display().to_string())
+                    .collect(),
+                error: job.mhl_error.as_ref().map(ToString::to_string),
+                failed: job.mhl_failed.iter().map(|p| slash_path(p)).collect(),
+            }),
             dir_errors: job
                 .dir_errors
                 .iter()
@@ -336,6 +364,7 @@ impl Report {
             durability_error: None,
             mirror: None,
             dir_errors: Vec::new(),
+            mhl: None,
             check: Some(CheckPart {
                 checksum_files: plan.checksum_files.iter().map(|p| shown(p)).collect(),
                 not_checked: r.not_checked.iter().map(|p| shown(p)).collect(),
@@ -360,6 +389,11 @@ impl Report {
             self.result = match part.not_removed.len() {
                 1 => "1 file couldn't be removed".to_string(),
                 n => format!("{n} files couldn't be removed"),
+            };
+        } else if self.result == "complete" && !part.not_renamed.is_empty() {
+            self.result = match part.not_renamed.len() {
+                1 => "1 name couldn't be changed to match the origin".to_string(),
+                n => format!("{n} names couldn't be changed to match the origin"),
             };
         } else if self.result == "complete" && part.archive_problem.is_some() {
             self.result = "archived files not removed as asked".to_string();
@@ -448,6 +482,20 @@ impl Report {
             }
             (None, None) => {}
         }
+        if let Some(m) = &self.mhl {
+            for h in &m.histories {
+                let _ = writeln!(t, "ASC MHL: {h}");
+            }
+            if let Some(e) = &m.error {
+                let _ = writeln!(t, "ASC MHL NOT written: {e}");
+            }
+            if !m.failed.is_empty() {
+                let _ = writeln!(t, "Doesn't match its ASC MHL history: {}", m.failed.len());
+                for f in &m.failed {
+                    let _ = writeln!(t, "  {f}");
+                }
+            }
+        }
         if let Some(e) = &self.durability_error {
             let _ = writeln!(t, "NOT CONFIRMED SAVED TO DISK: {e}");
         }
@@ -524,6 +572,16 @@ impl Report {
                 let _ = writeln!(t, "Renamed to match the origin: {}", m.renamed.len());
                 for (from, to) in &m.renamed {
                     let _ = writeln!(t, "  {from} → {to}");
+                }
+            }
+            if !m.not_renamed.is_empty() {
+                let _ = writeln!(
+                    t,
+                    "NOT renamed to match the origin: {}",
+                    m.not_renamed.len()
+                );
+                for n in &m.not_renamed {
+                    let _ = writeln!(t, "  {}: {}", n.path, n.reason);
                 }
             }
         }

@@ -76,9 +76,9 @@ pub fn record(
             Ok(m) => m,
             Err(e) => return failure(e),
         };
-        let action = match scope.continues().and_then(|h| h.first_xxh128.get(&rel)) {
+        let action = match scope.continues().and_then(|h| h.first_hash(&rel)) {
             None => Action::Original,
-            Some(&before) if before == xxh128 => Action::Verified,
+            Some(before) if before == xxh128 => Action::Verified,
             Some(_) => {
                 failed.push(path.strip_prefix(&root).unwrap_or(&path).to_path_buf());
                 Action::Failed
