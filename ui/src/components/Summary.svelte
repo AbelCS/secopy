@@ -147,6 +147,16 @@
     </Section>
   {/if}
 
+  {#if summary.mirror?.renameFailures?.length}
+    <Section title={t("summary.notRenamed")}>
+      <ul class="failures">
+        {#each summary.mirror.renameFailures as f, i (i)}
+          <li><span class="mono">{f.path} → {f.finalPath}</span>: {f.reason ? say(f.reason) : ""}</li>
+        {/each}
+      </ul>
+    </Section>
+  {/if}
+
   <!-- Every file with its status and checksum, as during the copy (RFD §5.4). -->
   <FinishedList
     title={t("summary.files")}

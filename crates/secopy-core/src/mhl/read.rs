@@ -16,12 +16,33 @@ pub struct History {
     pub scope: PathBuf,
     pub chain_bytes: Vec<u8>,
     pub entries: Vec<ChainEntry>,
-    /// Every path any generation lists (files and folders), relative to the scope.
+    /// Every path any generation lists (files and folders), relative to the scope, in NFC:
+    /// look one up with `records`.
     pub recorded: HashSet<String>,
-    /// The first `original` XXH128 per path; paths only another format recorded aren't here.
+    /// The first `original` XXH128 per path (NFC); paths only another format recorded aren't
+    /// here. Look one up with `first_hash`.
     pub first_xxh128: HashMap<String, Hash>,
     /// The latest generation's ignore patterns (the standard's defaults if it has none).
     pub ignore: Vec<String>,
+}
+
+impl History {
+    /// Whether a generation lists `rel`, however its name is spelled in Unicode: macOS file
+    /// systems take the NFC and NFD forms of a name for one file (#192).
+    pub fn records(&self, rel: &str) -> bool {
+        self.recorded.contains(&key(rel))
+    }
+
+    /// The first known-good XXH128 of `rel`, however it's spelled.
+    pub fn first_hash(&self, rel: &str) -> Option<Hash> {
+        self.first_xxh128.get(&key(rel)).copied()
+    }
+}
+
+/// A path in one Unicode form (NFC), to compare.
+pub(crate) fn key(rel: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    rel.nfc().collect()
 }
 
 /// Why a history can't be continued.
@@ -84,17 +105,18 @@ pub fn read(scope: &Path) -> Result<Option<History>, Damage> {
             .and_then(manifest)
             .ok_or_else(|| Damage::Unreadable(e.file.clone()))?;
         for r in m.hashes {
+            let path = key(&r.path);
             // A file another tool renamed: its record moves to the new name.
-            if let Some(previous) = &r.previous {
-                history.recorded.remove(previous);
-                if let Some(old) = history.first_xxh128.remove(previous) {
-                    history.first_xxh128.entry(r.path.clone()).or_insert(old);
+            if let Some(previous) = r.previous.as_deref().map(key) {
+                history.recorded.remove(&previous);
+                if let Some(old) = history.first_xxh128.remove(&previous) {
+                    history.first_xxh128.entry(path.clone()).or_insert(old);
                 }
             }
             if let Some(h) = r.xxh128 {
-                history.first_xxh128.entry(r.path.clone()).or_insert(h);
+                history.first_xxh128.entry(path.clone()).or_insert(h);
             }
-            history.recorded.insert(r.path);
+            history.recorded.insert(path);
         }
         for (path, c4) in m.references {
             let ok = !path
@@ -261,13 +283,6 @@ fn manifest(text: &str) -> Option<Manifest> {
                 ..
             } => (path, previous, xxh128) = (None, None, None),
             Step::Start {
-                name: "path",
-                parents,
-                element,
-            } if matches!(parent(parents), Some("hash" | "directoryhash")) => {
-                previous = attr(element, "previousPath")?;
-            }
-            Step::Start {
                 name: "xxh128",
                 parents,
                 element,
@@ -306,6 +321,13 @@ fn manifest(text: &str) -> Option<Manifest> {
                 text,
             } if matches!(parent(parents), Some("hash" | "directoryhash")) => {
                 path = Some(text.to_string());
+            }
+            Step::End {
+                name: "previousPath",
+                parents,
+                text,
+            } if matches!(parent(parents), Some("hash" | "directoryhash")) => {
+                previous = Some(text.to_string());
             }
             Step::End {
                 name: "xxh128",
@@ -538,7 +560,8 @@ mod tests {
         assert_eq!(h.first_xxh128["a.mov"], Hash::from_u128(0xaa));
     }
 
-    /// Review #11: a file renamed by another tool is recorded under its new name only.
+    /// Review #11, code review (#192): a file renamed by another tool is recorded under its
+    /// new name only. ASC MHL says so with a `<previousPath>` element after the hashes.
     #[test]
     fn a_renamed_file_is_recorded_under_its_new_name() {
         let d = tempfile::tempdir().unwrap();
@@ -548,7 +571,7 @@ mod tests {
         );
         hand_written(
             d.path(),
-            "  <hashes>\n    <hash>\n      <path size=\"1\" previousPath=\"old.mov\">new.mov</path>\n      <xxh128 action=\"verified\">000000000000000000000000000000bb</xxh128>\n    </hash>\n  </hashes>\n",
+            "  <hashes>\n    <hash>\n      <path size=\"1\">new.mov</path>\n      <xxh128 action=\"verified\">000000000000000000000000000000bb</xxh128>\n      <previousPath>old.mov</previousPath>\n    </hash>\n  </hashes>\n",
         );
         let h = read(d.path()).unwrap().unwrap();
         assert!(h.recorded.contains("new.mov") && !h.recorded.contains("old.mov"));

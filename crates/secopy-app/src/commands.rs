@@ -1010,6 +1010,10 @@ fn failure_reason(s: &SummaryView) -> Message {
     if n > 0 {
         return msg!("queue.reason.notRemoved", count = n);
     }
+    let n = s.mirror.as_ref().map_or(0, |m| m.rename_failures.len());
+    if n > 0 {
+        return msg!("queue.reason.notRenamed", count = n);
+    }
     if s.dir_errors > 0 {
         return msg!("queue.reason.dirs", count = s.dir_errors);
     }

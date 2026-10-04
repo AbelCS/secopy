@@ -257,7 +257,7 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
         if f.action == Action::Overwrite
             && let Some(s) = deepest(&at)
             && let Some(h) = &s.dest
-            && rel_to(&at, &s.scope).is_some_and(|rel| h.recorded.contains(&rel))
+            && rel_to(&at, &s.scope).is_some_and(|rel| h.records(&rel))
         {
             blockers.push(MhlBlocker::OverwritesRecorded { path: at.clone() });
         }
@@ -284,7 +284,7 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
         let recorded = [&s.dest, &s.source]
             .into_iter()
             .flatten()
-            .any(|h| h.recorded.contains(&rel));
+            .any(|h| h.records(&rel));
         if !recorded {
             to_read_bytes += size;
             to_read.push(path);
@@ -313,7 +313,7 @@ fn lands_elsewhere(plan: &Plan, at: &Path, h: &History) -> Vec<PathBuf> {
         .filter(|f| matches!(f.action, Action::KeepBoth { .. } | Action::SkipDiffers))
         .filter(|f| {
             rel_to(&f.entry.source, at)
-                .is_some_and(|rel| h.recorded.contains(&rel) && !ignore.matches(&rel, false))
+                .is_some_and(|rel| h.records(&rel) && !ignore.matches(&rel, false))
         })
         .map(|f| plan.dest.join(&f.entry.rel))
         .collect()
@@ -322,16 +322,18 @@ fn lands_elsewhere(plan: &Plan, at: &Path, h: &History) -> Vec<PathBuf> {
 /// Whether the copy leaves out files the source history at `at` lists, or the history's own
 /// files: the destination's copy of it would list files that aren't there.
 fn leaves_out(plan: &Plan, at: &Path, h: &History) -> bool {
-    let copied: HashSet<&Path> = plan
+    // In one Unicode form: the history and the disk may spell a name differently.
+    let key = |p: &Path| super::read::key(&p.to_string_lossy());
+    let copied: HashSet<String> = plan
         .files
         .iter()
         .filter(|f| !matches!(f.action, Action::Fail(_)))
-        .map(|f| f.entry.source.as_path())
+        .map(|f| key(&f.entry.source))
         .collect();
     let own = std::iter::once(CHAIN.to_string()).chain(h.entries.iter().map(|e| e.file.clone()));
     if own
         .map(|name| at.join(FOLDER).join(name))
-        .any(|p| !copied.contains(p.as_path()))
+        .any(|p| !copied.contains(&key(&p)))
     {
         return true;
     }
@@ -340,6 +342,6 @@ fn leaves_out(plan: &Plan, at: &Path, h: &History) -> bool {
         let path = at.join(rel);
         !ignore.matches(rel, false)
             && !fs::symlink_metadata(&path).is_ok_and(|m| m.is_dir())
-            && !copied.contains(path.as_path())
+            && !copied.contains(&key(&path))
     })
 }

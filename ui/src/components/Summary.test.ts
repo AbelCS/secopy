@@ -80,6 +80,26 @@ describe("Summary", () => {
     expect(calls.done).toBe(1);
   });
 
+  test("a mirror lists the names it couldn't change (code review, #192)", () => {
+    const { api } = fakeApi();
+    const row = { id: 0, path: "Clips/A.mov", finalPath: "clips/a.mov", size: 0, millis: 0, hash: null, status: "failed" as const, reason: raw("Operation not permitted") };
+    render(Summary, {
+      props: {
+        summary: summaryView({
+          outcome: "failures",
+          failed: 0,
+          mirror: { new: 0, updated: 0, removed: 0, archived: true, removalFailures: [], renameFailures: [row], nothingRemoved: null },
+        }),
+        onDone: () => {},
+      },
+      context: apiContext(api),
+    });
+    screen.getByRole("heading", { name: /1 name couldn’t be changed to match the origin/ });
+    const list = within(screen.getByRole("region", { name: "Not renamed to match the origin" }));
+    list.getByText("Clips/A.mov → clips/a.mov", { exact: false });
+    list.getByText("Operation not permitted", { exact: false });
+  });
+
   test("a cancel that removed files says what it couldn't put back", () => {
     show(summaryView({ outcome: "cancelled", failed: 1, undone: { removed: 5, notRestored: 2, failed: 1 } }));
     // Retrying only the failed files would leave a partial copy: the others were removed.

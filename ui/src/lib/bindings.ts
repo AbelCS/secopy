@@ -591,6 +591,8 @@ export type MirrorSummaryView_Deserialize = {
 	archived: boolean,
 	/**  Files that couldn't be archived or deleted, with why. */
 	removalFailures: FinishedRow[],
+	/**  Names that couldn't be changed to the origin's spelling, with why (#192). */
+	renameFailures?: FinishedRow[],
 	/**  Why nothing was removed: the copy phase failed or was cancelled. */
 	nothingRemoved: Message | null,
 	/**  Archived files the user asked to delete that couldn't be (#101), and when they go. */
@@ -611,6 +613,8 @@ export type MirrorSummaryView_Serialize = {
 	archived: boolean,
 	/**  Files that couldn't be archived or deleted, with why. */
 	removalFailures: FinishedRow[],
+	/**  Names that couldn't be changed to the origin's spelling, with why (#192). */
+	renameFailures?: FinishedRow[],
 	/**  Why nothing was removed: the copy phase failed or was cancelled. */
 	nothingRemoved: Message | null,
 	/**  Archived files the user asked to delete that couldn't be (#101), and when they go. */

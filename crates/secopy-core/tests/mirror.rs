@@ -342,6 +342,47 @@ fn a_rename_never_replaces_another_file() {
     assert_eq!(fs::read(d.join("A2.mp4")).unwrap(), b"new");
 }
 
+/// Code review (#192): a rename that fails (here, a locked file) is said, with why, and the
+/// report isn't "complete": the destination isn't spelled as the origin is.
+#[test]
+fn a_rename_that_fails_is_said() {
+    let (_dir, o, d) = pair();
+    write(&o, &[("clips/a.mov", b"a")]);
+    write(&d, &[("Clips/A.mov", b"a")]);
+    if !d.join("clips/a.mov").exists() {
+        return; // a case-sensitive volume
+    }
+    same_time(&o.join("clips/a.mov"), &d.join("Clips/A.mov"));
+    let p = mirror::plan(&o, &d, &opts()).unwrap();
+    assert_eq!(p.renames.len(), 1, "{:?}", p.renames);
+    let locked = std::ffi::CString::new(d.join("Clips/A.mov").to_str().unwrap()).unwrap();
+    // SAFETY: a NUL-terminated path; UF_IMMUTABLE makes the rename fail.
+    unsafe { libc::chflags(locked.as_ptr(), libc::UF_IMMUTABLE as _) };
+    let (report, finished) = run(&p, None);
+    let found = d.join("clips/A.mov");
+    let unlock = std::ffi::CString::new(found.to_str().unwrap()).unwrap();
+    // SAFETY: as above; cleared so the test directory can be removed.
+    unsafe { libc::chflags(unlock.as_ptr(), 0) };
+    let finished = finished.unwrap();
+    assert!(finished.renamed.is_empty());
+    assert_eq!(finished.not_renamed.len(), 1);
+    let meta = secopy_core::report::JobMeta {
+        app_version: "test".into(),
+        source: "o".into(),
+        verify: true,
+        started: chrono::Local::now(),
+        finished: chrono::Local::now(),
+    };
+    let r = secopy_core::report::Report::new(&p.copy, &report, &meta)
+        .with_mirror(mirror::report_part(&Ok(finished), true));
+    assert_eq!(r.result, "1 name couldn't be changed to match the origin");
+    assert!(
+        r.to_text().contains("NOT renamed to match the origin: 1"),
+        "{}",
+        r.to_text()
+    );
+}
+
 /// Final review 4: what a NAS keeps in a share is not the origin's.
 #[test]
 fn nas_bookkeeping_in_the_destination_is_never_removed() {
@@ -576,6 +617,7 @@ fn the_report_has_the_removals_and_their_failures() {
     let clean = mirror::Finished {
         removals: vec![],
         renamed: vec![],
+        not_renamed: vec![],
     };
     let mut part = mirror::report_part(&Ok(clean), false);
     part.archive_problem =
@@ -595,6 +637,7 @@ fn the_report_has_the_removals_and_their_failures() {
     let renamed = mirror::Finished {
         removals: vec![],
         renamed: vec![("IMG.jpg".into(), "img.jpg".into())],
+        not_renamed: vec![],
     };
     let part = mirror::report_part(&Ok(renamed), true);
     let text = secopy_core::report::Report::new(&p.copy, &report, &meta)

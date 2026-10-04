@@ -27,9 +27,16 @@ pub struct Undone {
 pub fn undo(plan: &Plan, report: &JobReport, archive: Option<&Path>) -> Undone {
     let mut done = Undone::default();
     // The ASC MHL generations first, newest first: the histories as they were (#154).
+    // A chain put back to what it was is rewritten (a new file): one this job copied is still
+    // its copy, to remove like the rest (#192).
+    let mut put_back = std::collections::HashSet::new();
     for w in report.mhl_written.iter().rev() {
-        if let Err(e) = crate::mhl::write::revert(w) {
-            done.failed.push((w.chain.clone(), e.to_string()));
+        match crate::mhl::write::revert(w) {
+            Ok(()) if w.chain_before.is_some() => {
+                put_back.insert(w.chain.clone());
+            }
+            Ok(()) => {}
+            Err(e) => done.failed.push((w.chain.clone(), e.to_string())),
         }
     }
     for o in &report.outcomes {
@@ -39,8 +46,10 @@ pub fn undo(plan: &Plan, report: &JobReport, archive: Option<&Path>) -> Undone {
         let landed = plan.dest.join(&o.final_rel);
         // Still the copy this job made? A file saved in its place since (another inode, or
         // another size) isn't ours to undo (#115).
-        if fs::symlink_metadata(&landed)
-            .is_ok_and(|m| m.len() != o.size || o.landed_as.is_some_and(|l| l != Landed::of(&m)))
+        if !put_back.contains(&landed)
+            && fs::symlink_metadata(&landed).is_ok_and(|m| {
+                m.len() != o.size || o.landed_as.is_some_and(|l| l != Landed::of(&m))
+            })
         {
             done.failed.push((
                 o.final_rel.clone(),

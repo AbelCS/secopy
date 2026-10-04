@@ -517,6 +517,10 @@ pub struct MirrorSummaryView {
     pub archived: bool,
     /// Files that couldn't be archived or deleted, with why.
     pub removal_failures: Vec<FinishedRow>,
+    /// Names that couldn't be changed to the origin's spelling, with why (#192).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[specta(optional)]
+    pub rename_failures: Vec<FinishedRow>,
     /// Why nothing was removed: the copy phase failed or was cancelled.
     pub nothing_removed: Option<Message>,
     /// Archived files the user asked to delete that couldn't be (#101), and when they go.

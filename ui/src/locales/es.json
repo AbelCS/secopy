@@ -74,6 +74,10 @@
         "one": "No se pudo eliminar {count} archivo",
         "other": "No se pudieron eliminar {count} archivos"
       },
+      "notRenamed": {
+        "one": "No se pudo cambiar {count} nombre como en el origen",
+        "other": "No se pudieron cambiar {count} nombres como en el origen"
+      },
       "dirErrors": {
         "one": "No se pudo crear {count} directorio vacío",
         "other": "No se pudieron crear {count} directorios vacíos"
@@ -166,6 +170,7 @@
     "more": "y {count} más (consulta el informe)",
     "problems": "Problemas",
     "notRemoved": "Sin eliminar",
+    "notRenamed": "Sin renombrar como en el origen",
     "files": "Archivos",
     "retry": "Reintentar",
     "retryHelp": {
@@ -848,6 +853,10 @@
       "notRemoved": {
         "one": "No se pudo eliminar {count} archivo.",
         "other": "No se pudieron eliminar {count} archivos."
+      },
+      "notRenamed": {
+        "one": "No se pudo cambiar {count} nombre como en el origen.",
+        "other": "No se pudieron cambiar {count} nombres como en el origen."
       },
       "notRun": "Sin ejecutar: la cola se detuvo.",
       "part": {
