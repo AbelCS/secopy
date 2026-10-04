@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  export type IconName = "settings" | "chevron-left" | "check" | "x" | "alert" | "info" | "list";
+  export type IconName = "settings" | "chevron-left" | "check" | "x" | "alert" | "info" | "list" | "grip";
 </script>
 
 <script lang="ts">
@@ -43,6 +43,13 @@
     <path d="M8 12h13" />
     <path d="M8 18h13" />
     <path d="M8 6h13" />
+  {:else if name === "grip"}
+    <circle cx="9" cy="12" r="1" />
+    <circle cx="9" cy="5" r="1" />
+    <circle cx="9" cy="19" r="1" />
+    <circle cx="15" cy="12" r="1" />
+    <circle cx="15" cy="5" r="1" />
+    <circle cx="15" cy="19" r="1" />
   {:else if name === "info"}
     <circle cx="12" cy="12" r="10" />
     <path d="M12 16v-4" />

@@ -83,7 +83,7 @@ Components use tokens only, never raw colours or sizes.
 | `Stats` | Figures in one line, "3 files · 7.0 GB written · took 0:06" |
 | `ProgressBar` | One phase's progress with speed and ETA |
 | `EmptyState` | What an empty part is for and how to fill it |
-| `Icon` | A few Lucide icons, always next to words |
+| `Icon` | A few Lucide icons, always next to words; the one exception is the Queue's drag grip, a quiet button with a label and a help tag |
 | `Hint` | A term that isn't clear on its own, explained on hover and keyboard focus: dotted underline, or an ⓘ mark with no term. `FormRow` (`hint`) and `Stats` items take one |
 | `Dialog` | A question over the screen: safe answer first and focused, the other on the right; Esc is the safe answer. `api.confirm` shows one through `ConfirmHost`; Export's choice of what goes in the file (`ExportDialog`) is another |
 | `IgnoreList` | A list of name patterns with a field to add one and a remove button per row (Settings, the preset editors, New copy's Also ignore) |

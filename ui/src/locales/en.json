@@ -763,8 +763,9 @@
       "mirror": "A mirror that was deleted",
       "newer": "A job for a newer Secopy"
     },
-    "moveUp": "Move job {number} up",
-    "moveDown": "Move job {number} down",
+    "grip": "Move job {number}",
+    "gripHelp": "Drag it, or press ⌥↑ or ⌥↓.",
+    "moved": "Job moved to position {position} of {count}.",
     "remove": "Remove job {number}",
     "onFailure": {
       "title": "If a job fails",

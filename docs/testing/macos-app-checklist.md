@@ -76,7 +76,8 @@ the `.dmg` with `xattr`; or build it with `npm run tauri build` from `ui/`. Then
     pauses and resumes; ⌘. asks to cancel; ⌘1–⌘4 switch tabs and open the Queue; Esc cancels
     Settings and leaves Copy presets.
 20. **VoiceOver.** With VoiceOver on (⌘F5), do a whole copy with the keyboard: every control
-    is read with its name, each new screen reads its title, and the end is announced.
+    is read with its name, each new screen reads its title, and the end is announced. In the
+    Queue, ⌥↓ on a job's grip moves it, and its new place is read.
 21. **Drops.** Drop a card (or a directory on it) on From: Source shows it with its files
     and size. Drop a directory on To: it becomes the destination, not the source.
 22. **Closing and quitting.** With no job running, the red button closes the window and the
@@ -86,7 +87,7 @@ the `.dmg` with `xattr`; or build it with `npm run tauri build` from `ui/`. Then
 
 ## Queue
 
-23. **Queue.** Set up three copies (two cards, one directory) with Add to queue; reorder them;
+23. **Queue.** Set up three copies (two cards, one directory) with Add to queue; drag one by its grip to another place (the others make room), and move one with ⌥↑ / ⌥↓;
     Start the queue with the window in the background: one notification at the end; the queue
     summary opens each job's summary; the queue is empty.
 24. **Queue failures.** Queue a card, take it out, start the queue with "Continue with the next

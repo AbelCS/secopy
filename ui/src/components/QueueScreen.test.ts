@@ -49,13 +49,63 @@ describe("QueueScreen", () => {
     expect(within(row).queryByText("→")).toBeNull();
   });
 
-  test("jobs move and are removed", async () => {
-    const { api } = show();
-    await fireEvent.click(screen.getByRole("button", { name: "Move job 1 down" }));
-    expect(api.moveInQueue).toHaveBeenCalledWith(0, 1);
+  // #205: jobs are reordered by dragging their grip, or with ⌥↑ / ⌥↓ on it.
+  const three = () =>
+    queueView({
+      jobs: [
+        queuedJob(),
+        queuedJob({ source: raw("/Volumes/CARD_B/DCIM"), verify: false }),
+        queuedJob({ source: raw("/Volumes/CARD_C/DCIM") }),
+      ],
+    });
+
+  /** Rows 40 px tall, one under the other, as the window lays them out. */
+  function laidOut() {
+    document.querySelectorAll<HTMLElement>(".job").forEach((row, i) => {
+      row.getBoundingClientRect = () => ({ top: i * 40, bottom: i * 40 + 40, height: 40, left: 0, right: 600, width: 600, x: 0, y: i * 40, toJSON: () => ({}) });
+    });
+  }
+
+  test("a job is dragged by its grip to another place; no arrow buttons (#205)", async () => {
+    const { api } = show(three());
+    laidOut();
+    expect(screen.queryByRole("button", { name: /up$|down$/ })).toBeNull();
+    const grip = screen.getByRole("button", { name: "Move job 1" });
+    await fireEvent.pointerDown(grip, { button: 0, pointerId: 1, clientY: 20 });
+    await fireEvent.pointerMove(grip, { pointerId: 1, clientY: 60 });
+    await fireEvent.pointerMove(grip, { pointerId: 1, clientY: 105 });
+    await fireEvent.pointerUp(grip, { pointerId: 1, clientY: 105 });
+    expect(api.moveInQueue).toHaveBeenCalledWith(0, 2);
     await fireEvent.click(screen.getByRole("button", { name: "Remove job 2" }));
     expect(api.removeFromQueue).toHaveBeenCalledWith(1);
-    expect(screen.getByRole("button", { name: "Move job 1 up" })).toHaveProperty("disabled", true);
+  });
+
+  test("a press without a drag, or a drag let go of with Esc, moves nothing (#205)", async () => {
+    const { api } = show(three());
+    laidOut();
+    const grip = screen.getByRole("button", { name: "Move job 1" });
+    await fireEvent.pointerDown(grip, { button: 0, pointerId: 1, clientY: 20 });
+    await fireEvent.pointerUp(grip, { pointerId: 1, clientY: 21 });
+    await fireEvent.pointerDown(grip, { button: 0, pointerId: 1, clientY: 20 });
+    await fireEvent.pointerMove(grip, { pointerId: 1, clientY: 105 });
+    await fireEvent.keyDown(grip, { key: "Escape" });
+    await fireEvent.pointerUp(grip, { pointerId: 1, clientY: 105 });
+    expect(api.moveInQueue).not.toHaveBeenCalled();
+  });
+
+  test("⌥↓ and ⌥↑ on a grip move the job; the focus follows it, and it's said (#205)", async () => {
+    const { api } = show(three());
+    const grip = screen.getByRole("button", { name: "Move job 1" });
+    expect(helpOf(grip)).toBe("Drag it, or press ⌥↑ or ⌥↓.");
+    grip.focus();
+    await fireEvent.keyDown(grip, { key: "ArrowDown", altKey: true });
+    expect(api.moveInQueue).toHaveBeenCalledWith(0, 1);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Move job 2" })));
+    await screen.findByText("Job moved to position 2 of 3.");
+    await fireEvent.keyDown(screen.getByRole("button", { name: "Move job 1" }), { key: "ArrowUp", altKey: true });
+    expect(api.moveInQueue).toHaveBeenCalledTimes(1); // job 1 has no place above it
+    await fireEvent.keyDown(screen.getByRole("button", { name: "Move job 2" }), { key: "ArrowDown" });
+    expect(api.moveInQueue).toHaveBeenCalledTimes(1); // an arrow alone scrolls, it doesn't move
   });
 
   test("a queued mirror whose preset was deleted says so", () => {
@@ -64,24 +114,14 @@ describe("QueueScreen", () => {
     expect(screen.queryByText("A job for a newer Secopy")).toBeNull();
   });
 
-  test("a move that fails leaves the focus where it was", async () => {
+  test("a move that fails says why and leaves the focus where it was", async () => {
     const { api } = show();
     api.moveInQueue.mockRejectedValueOnce(new Error("The queue is running."));
-    const down = screen.getByRole("button", { name: "Move job 1 down" });
-    down.focus();
-    await fireEvent.click(down);
+    const grip = screen.getByRole("button", { name: "Move job 1" });
+    grip.focus();
+    await fireEvent.keyDown(grip, { key: "ArrowDown", altKey: true });
     await screen.findByText("The queue is running.");
-    expect(document.activeElement).toBe(down);
-  });
-
-  test("for VoiceOver: a list, and focus follows a moved job", async () => {
-    show();
-    expect(screen.getByRole("list")).toBeTruthy();
-    await fireEvent.click(screen.getByRole("button", { name: "Move job 1 down" }));
-    // Job 1 is now job 2, the last: its Move down is off, so Move up takes the focus.
-    await waitFor(() =>
-      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Move job 2 up" })),
-    );
+    expect(document.activeElement).toBe(grip);
   });
 
   test("Clear asks first", async () => {
