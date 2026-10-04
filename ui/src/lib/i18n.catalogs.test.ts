@@ -92,7 +92,8 @@ describe("Spanish", () => {
     expect(t("test.files", { count: 1 })).toBe("1 archivo");
     expect(t("test.files", { count: 12845 })).toBe("12.845 archivos");
     expect(t("format.days", { count: 1 })).toBe("1 día");
-    expect(formatBytes(212_400_000_000)).toBe("212,4 GB");
-    expect(formatPercent(698, 1000)).toBe("69,8 %");
+    // A non-breaking space keeps the figure with its unit.
+    expect(formatBytes(212_400_000_000)).toBe("212,4\u00a0GB");
+    expect(formatPercent(698, 1000)).toBe("69,8\u00a0%");
   });
 });
