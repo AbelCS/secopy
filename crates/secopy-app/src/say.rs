@@ -164,7 +164,6 @@ pub fn scan_why(kind: &ScanProblemKind) -> Message {
     match kind {
         ScanProblemKind::NotAFile => msg!("errors.scan.notAFile"),
         ScanProblemKind::Io(io) => io_failure(io),
-        ScanProblemKind::Loop => msg!("errors.scan.loop"),
     }
 }
 
@@ -191,12 +190,7 @@ pub fn check_why(kind: &ProblemKind) -> Message {
         ProblemKind::NotALine => msg!("errors.check.notALine"),
         ProblemKind::NotAChecksum { hex } => msg!("errors.check.notAChecksum", hex = hex),
         ProblemKind::PathUnreadable => msg!("errors.check.pathUnreadable"),
-        ProblemKind::Unreadable(Some(io), _) => {
-            msg!("errors.check.unreadable", why = io_failure(io))
-        }
-        ProblemKind::Unreadable(None, _) => {
-            msg!("errors.check.unreadable", why = msg!("errors.scan.loop"))
-        }
+        ProblemKind::Unreadable(io, _) => msg!("errors.check.unreadable", why = io_failure(io)),
         ProblemKind::Outside { path } => msg!("errors.check.outside", path = path),
     }
 }
@@ -537,7 +531,7 @@ mod tests {
         let first = ScanProblem {
             path: PathBuf::from("/o/x"),
             message: "x".into(),
-            kind: ScanProblemKind::Loop,
+            kind: ScanProblemKind::NotAFile,
         };
         let m = guard(&Guard::Unread { count: 3, first });
         assert_eq!(

@@ -1,7 +1,7 @@
 //! Verify an existing copy (FR-34, plan 8): re-read every file the checksum files in a
 //! directory list, and say which are intact, changed or missing, and which nothing lists.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -33,7 +33,7 @@ pub enum ProblemKind {
     },
     PathUnreadable,
     /// A checksum file or directory that couldn't be read; `None` for a directory loop.
-    Unreadable(Option<IoFailure>, String),
+    Unreadable(IoFailure, String),
     Outside {
         path: PathBuf,
     },
@@ -208,7 +208,7 @@ pub fn plan(dir: &Path, ignore: &Patterns) -> io::Result<CheckPlan> {
                     .and_then(|p| p.strip_prefix(dir).ok())
                     .map(Path::to_path_buf);
                 let why = e.to_string();
-                let io = e.into_io_error().map(IoFailure::from);
+                let io = crate::scan::walk_failure(e);
                 problems.push(Problem::new(
                     file.unwrap_or_default(),
                     None,
@@ -230,8 +230,7 @@ pub fn plan(dir: &Path, ignore: &Patterns) -> io::Result<CheckPlan> {
             sums.push((rel, entry.metadata().ok().and_then(|m| m.modified().ok())));
         } else if !is_own_file(entry.file_name())
             && !ignore.matches(entry.file_name())
-            && !(name.starts_with("secopy_")
-                && (name.ends_with("_report.txt") || name.ends_with("_report.json")))
+            && !is_report(&name)
             // An ASC MHL history (#154) is the copy's proof, not media.
             && !rel.components().any(|c| c.as_os_str() == crate::mhl::FOLDER)
         {
@@ -240,7 +239,8 @@ pub fn plan(dir: &Path, ignore: &Patterns) -> io::Result<CheckPlan> {
     }
     // Oldest first, so the newest checksum file's entry is the one kept.
     sums.sort_by_key(|(_, modified)| *modified);
-    let mut listed: HashMap<PathBuf, Listed> = HashMap::new();
+    // By name in one Unicode form: two checksum files may spell one file differently.
+    let mut listed: HashMap<String, Listed> = HashMap::new();
     for (sum, _) in &sums {
         let text = match fs::read_to_string(dir.join(sum)) {
             Ok(text) => text,
@@ -249,7 +249,7 @@ pub fn plan(dir: &Path, ignore: &Patterns) -> io::Result<CheckPlan> {
                 problems.push(Problem::new(
                     sum.clone(),
                     None,
-                    ProblemKind::Unreadable(Some(e.into()), why),
+                    ProblemKind::Unreadable(e.into(), why),
                 ));
                 continue;
             }
@@ -275,7 +275,7 @@ pub fn plan(dir: &Path, ignore: &Patterns) -> io::Result<CheckPlan> {
                 .filter(|m| m.is_file())
                 .map_or(0, |m| m.len());
             listed.insert(
-                rel.clone(),
+                key(&rel),
                 Listed {
                     rel,
                     expected,
@@ -285,10 +285,9 @@ pub fn plan(dir: &Path, ignore: &Patterns) -> io::Result<CheckPlan> {
             );
         }
     }
-    let keys: HashSet<String> = listed.keys().map(|p| key(p)).collect();
     let mut not_checked: Vec<PathBuf> = others
         .into_iter()
-        .filter(|p| !keys.contains(&key(p)))
+        .filter(|p| !listed.contains_key(&key(p)))
         .collect();
     not_checked.sort();
     let mut files: Vec<Listed> = listed.into_values().collect();
@@ -594,13 +593,42 @@ fn check_one(
             (status, Some(actual), file.size)
         }
         Err(FileError::Cancelled) => (FileStatus::Cancelled, None, 0),
-        Err(e) => (FileStatus::Failed(e), None, file.size),
+        Err(e) => {
+            let e = read_failure(e, resized(&path, size));
+            (FileStatus::Failed(e), None, file.size)
+        }
+    }
+}
+
+/// Why a read failed: a file that changed size meanwhile was written to, whatever the
+/// read itself said (a shrinking file ends it early).
+fn read_failure(e: FileError, resized: bool) -> FileError {
+    if resized {
+        FileError::ChangedWhileRead
+    } else {
+        e
     }
 }
 
 /// `path` no longer has the size it had when it was opened (or is gone).
 fn resized(path: &Path, size: u64) -> bool {
     fs::symlink_metadata(path).map_or(true, |m| m.len() != size)
+}
+
+/// A report Secopy wrote next to a checksum file: `secopy_…_report.txt` or `.json`, or
+/// `…_report (2).txt` and on for a second one in the same second (#116).
+fn is_report(name: &str) -> bool {
+    let Some(stem) = name
+        .strip_suffix(".txt")
+        .or_else(|| name.strip_suffix(".json"))
+    else {
+        return false;
+    };
+    let stem = match stem.strip_suffix(')').and_then(|s| s.rsplit_once(" (")) {
+        Some((base, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => base,
+        _ => stem,
+    };
+    name.starts_with("secopy_") && stem.ends_with("_report")
 }
 
 #[cfg(test)]
@@ -618,6 +646,15 @@ mod tests {
         assert!(resized(&path, 5));
         fs::remove_file(&path).unwrap();
         assert!(resized(&path, 5));
+    }
+
+    /// Code review (#192): a file that shrank while it was read ends the read early; that's
+    /// a change while reading, not a file that couldn't be read.
+    #[test]
+    fn a_read_cut_short_by_a_shrinking_file_is_a_change() {
+        let eof = || FileError::read_back(io::ErrorKind::UnexpectedEof.into());
+        assert_eq!(read_failure(eof(), true), FileError::ChangedWhileRead);
+        assert_eq!(read_failure(eof(), false), eof());
     }
 
     /// #69 V1: a check reads with the copy's lanes (RFD §7.2): many small files at once,

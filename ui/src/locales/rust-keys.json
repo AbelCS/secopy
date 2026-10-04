@@ -150,7 +150,6 @@
   "errors.save.queue",
   "errors.save.settings",
   "errors.scan.driveRoot",
-  "errors.scan.loop",
   "errors.scan.notAFile",
   "errors.scan.problem",
   "errors.settings.pattern",

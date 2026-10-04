@@ -550,6 +550,14 @@ fn the_report_has_the_removals_and_their_failures() {
     let ok = secopy_core::report::Report::new(&p.copy, &report, &meta)
         .with_mirror(mirror::report_part(&finished, false));
     assert_eq!(ok.result, "complete");
+    // Code review (#192): a mirror's report says it's a mirror.
+    let json: serde_json::Value = serde_json::from_str(&ok.to_json()).unwrap();
+    assert_eq!(json["mode"], "mirror");
+    assert!(
+        ok.to_text().contains("Mode:         Mirror"),
+        "{}",
+        ok.to_text()
+    );
     assert!(ok.to_json().contains("\"removed\""), "{}", ok.to_json());
     assert!(
         ok.to_text()
