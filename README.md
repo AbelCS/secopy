@@ -5,21 +5,22 @@ Secopy is built to never lose a file, and to never say "done" when something was
 
 ![The New copy screen: a source, its file types, a destination, and Start](docs/images/setup.png)
 
-> Secopy runs on Macs with Apple silicon. It is macOS only by design: there are no Windows or
-> Linux versions. It speaks English and Spanish.
+> Secopy runs on Macs with Apple silicon; it is built and tested on macOS 27. It is macOS only
+> by design: there are no Windows or Linux versions. It speaks English and Spanish.
 
 ## Why trust it
 
 - **Every file is checked, not assumed.** In Copy & Verify, each copy is read back from the
-  destination drive (bypassing the Mac's cache, so it really reads the drive) and compared
-  with the source by its XXH128 checksum. The source is read only once.
+  destination drive, bypassing the Mac's cache (the report says if a drive doesn't allow it),
+  and compared with the checksum taken while the source was read. A mismatch is copied again
+  once; a copy that still doesn't match fails.
 - **A file with its final name is always complete.** Files are written under a temporary name,
   flushed to the drive and only then renamed, so a copy cut short by a pulled cable never
   looks finished.
 - **Nothing is overwritten or skipped silently.** Files already at the destination are shown
   before you start, and you choose what happens to the ones that differ. Every file that
   failed is listed, with why.
-- **Proof you can check later.** Each copy writes a checksum file next to it, which
+- **Proof you can check later.** Each copy writes a checksum file listing what it copied, which
   [`xxhsum`](https://github.com/Cyan4973/xxHash) can check, and a report of everything
   that happened. Verify reads a copy again months later to find silent damage. For media
   workflows, a copy can also keep an [ASC MHL](https://github.com/ascmitc/mhl)
@@ -34,7 +35,7 @@ Secopy is built to never lose a file, and to never say "done" when something was
   what's in it, names to ignore), loaded in one step.
 - **Mirror:** keep a destination identical to an origin, one way. New and changed files are
   copied and verified; files deleted in the origin are archived for a number of days (or
-  deleted), only after a preview and a clean copy.
+  deleted), only after a clean copy (and, when run by hand, a preview).
 - **Verify:** point at a copy, a backup or a whole drive; every file its checksum files list
   is read again and compared.
 - **Queue:** set up several copies, mirrors and verifies, and let them run one after another.
@@ -55,11 +56,11 @@ curl -fsSL https://raw.githubusercontent.com/AbelCS/secopy/main/scripts/install.
 ```
 
 It downloads the latest release, checks it against its SHA-256 and installs Secopy into
-Applications. Run the same command to update (quit Secopy first).
+Applications (`INSTALL_DIR=~/Applications` installs it there instead). Run the same command to
+update (quit Secopy first).
 
-Why not just the `.dmg`: the app isn't notarized by Apple yet, and macOS says a downloaded
-app that isn't notarized "is damaged", with no way to open it. Files downloaded with `curl`
-aren't flagged. If you did download the `.dmg` from the
+The app isn't notarized yet, so macOS calls a `.dmg` downloaded with a browser "damaged";
+`curl` downloads aren't flagged. If you did download the `.dmg` from the
 [releases](https://github.com/AbelCS/secopy/releases), drag Secopy to Applications and run
 `xattr -dr com.apple.quarantine /Applications/Secopy.app` once.
 
@@ -80,12 +81,16 @@ The tabs: **⌘1** Copy, **⌘2** Mirror, **⌘3** Verify; **⌘4** opens the Qu
 
 ## Command line
 
-The same engine runs in Terminal, as `secopy-cli` (in each release, or build it as below):
+The same engine runs in Terminal, as `secopy-cli`: download
+`secopy-cli-<version>-macos-arm64.tar.gz` from a release (the install script installs only the
+app), or build it with `cargo build --release -p secopy-cli`. Unlike the app, it copies plainly
+and copies a directory with its name unless told otherwise: add `--verify --contents` for the
+app's defaults.
 
 ```sh
 secopy-cli /Volumes/CARD_A/DCIM --to /Volumes/Backup/Day01 --verify
 secopy-cli /Volumes/SSD/Footage --to /Volumes/NAS/Footage --mirror --dry-run
-secopy-cli --check /Volumes/Backup          # exit 1 if any file changed
+secopy-cli --check /Volumes/Backup          # exit 0 only if every listed file is intact
 secopy-cli --help
 ```
 

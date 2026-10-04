@@ -1,4 +1,4 @@
-//! Command-line front-end for the Secopy engine, used for development and benchmarks (RFD §10, M0).
+//! The Secopy engine in Terminal (`secopy-cli --help`), shipped with each release; tests use it too.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -24,7 +24,13 @@ use secopy_core::source::{DirMode, Source};
 #[command(
     name = "secopy-cli",
     version,
-    about = "Fast file copy with XXH128 verification"
+    about = "Fast file copy with XXH128 verification",
+    after_help = "Exit codes: 0 every file copied (and verified), or every listed file intact; \
+1 a file failed, was skipped as different, changed or is missing, or there was nothing to \
+verify; 2 wrong arguments, or a job \
+that couldn't start (nothing to copy, a destination problem).\n\n\
+Unlike the app, a directory is copied with its name unless --contents is given, and copies \
+aren't read back unless --verify is given."
 )]
 struct Args {
     /// One directory, or one or more files.
@@ -58,7 +64,7 @@ struct Args {
     #[arg(long)]
     include_system_files: bool,
     /// Never copy or mirror files and directories with this name: * is any characters, ? one
-    /// (case doesn't matter). Repeatable; added to the default list.
+    /// (case doesn't matter). Repeatable, up to 128; added to the default list.
     #[arg(long, value_name = "PATTERN")]
     ignore: Vec<String>,
     /// What to do with files that already exist at the destination but differ. Files with
@@ -68,11 +74,11 @@ struct Args {
     /// Also write the job report (text and JSON) into this directory.
     #[arg(long, value_name = "DIR")]
     report: Option<PathBuf>,
-    /// Mirror the one source directory to the destination: new and changed files copied
-    /// and verified, files deleted in the source archived (or deleted with --delete).
+    /// Mirror the one source directory (the origin) to the destination: new and changed files
+    /// copied and verified, files deleted in the origin archived (or deleted with --delete).
     #[arg(long)]
     mirror: bool,
-    /// With --mirror: delete the files deleted in the source, instead of archiving them.
+    /// With --mirror: delete the files deleted in the origin, instead of archiving them.
     #[arg(long, requires = "mirror")]
     delete: bool,
     /// With --mirror: days to keep archived files. Each run first removes archived files older
@@ -160,7 +166,7 @@ fn run(args: Args) -> Result<ExitCode, String> {
         .unwrap_or_default();
     let selection = scan.select(&filter);
     eprintln!(
-        "{} files, {} ({} system files skipped)",
+        "{} files, {} ({} ignored)",
         selection.files.len(),
         fmt_bytes(selection.total_bytes),
         scan.ignored

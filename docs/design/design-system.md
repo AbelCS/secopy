@@ -56,7 +56,7 @@ always in the same place:
 |---|---|
 | Colour | `bg`, `surface`, `surface-raised`, `border`, `text`, `text-muted`, `text-faint`, `accent`, `accent-soft` (chosen items), `accent-strong` (filled accent backgrounds: primary button, selected segment), `accent-strong-hover` (a filled button under the pointer), `on-accent`, `success`, `warning`, `danger` |
 | Spacing | `space-1` 4 · `space-2` 8 · `space-3` 12 · `space-4` 16 · `space-5` 24 px |
-| Type | `text-xs` 11 (section labels, caps) · `text-sm` 12 (help, meta) · `text-md` 14 (body) · `text-lg` 16 (screen titles) · `text-xl` 20 (result headlines); the macOS system font; tabular numbers; `mono` for paths and hashes |
+| Type | `text-xs` 11 (section labels, caps) · `text-sm` 12 (help, meta) · `text-md` 14 (body) · `text-lg` 16 (screen titles) · `text-xl` 20 (result headlines); the macOS system font; tabular numbers; `font-mono` for paths and hashes |
 | Shape | `radius-control` 6 · `radius` 8 (sections) · `radius-pill`; `control-height` 30 px |
 | Motion | `duration` 150 ms, `ease`; none with reduced motion |
 
@@ -85,7 +85,8 @@ Components use tokens only, never raw colours or sizes.
 | `EmptyState` | What an empty part is for and how to fill it |
 | `Icon` | A few Lucide icons, always next to words |
 | `Hint` | A term that isn't clear on its own, explained on hover and keyboard focus: dotted underline, or an ⓘ mark with no term. `FormRow` (`hint`) and `Stats` items take one |
-| `Dialog` | A question over the screen, only when a system dialog can't hold it (a checkbox): safe answer first and focused, the other on the right; Esc is the safe answer. Export's choice of what goes in the file (`ExportDialog`) is one |
+| `Dialog` | A question over the screen: safe answer first and focused, the other on the right; Esc is the safe answer. `api.confirm` shows one through `ConfirmHost`; Export's choice of what goes in the file (`ExportDialog`) is another |
+| `IgnoreList` | A list of name patterns with a field to add one and a remove button per row (Settings, the preset editors, New copy's Also ignore) |
 
 ## Rules
 
@@ -118,4 +119,4 @@ Components use tokens only, never raw colours or sizes.
   and verifies them (⌘↩).") and a shortcut only where it works there (⌘↩ on New copy, ⌘. and Space
   while a job runs). Not on buttons that say it all: Back, Done, Choose…, Show in Finder, Save
   report…, Preview….
-- Yes/no questions use the system dialog (`api.confirm`); `Dialog` only when the question needs more than two buttons.
+- Questions are asked in the window, never in a system alert (#113): `api.confirm` for a yes/no question, `Dialog` directly when it needs more (a checkbox, a choice).

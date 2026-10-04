@@ -1,6 +1,6 @@
 name: release-build
 
-# Tests, builds and packages the Apple Silicon app (.dmg) and CLI (RFD NFR-9). release-please.yml
+# Tests, builds and packages the Apple silicon app (.dmg) and CLI (RFD NFR-9). release-please.yml
 # calls it when a release is created and the files are attached to that release. Run it
 # by hand without a tag to check the build: the files are then kept as a run artifact.
 on:
@@ -47,7 +47,7 @@ jobs:
           SECOPY_DEVICE_TESTS: "1"
       - run: rustup target add "$TARGET"
       - run: cargo build --release --locked -p secopy-cli --target "$TARGET"
-      # Unsigned for now: first launch is right-click → Open (see README).
+      # Unsigned for now: installed by scripts/install.sh, or the .dmg plus xattr (see README).
       - run: npm run tauri -- build --target "$TARGET" --bundles dmg
         working-directory: ui
       - name: Package

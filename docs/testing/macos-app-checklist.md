@@ -1,9 +1,9 @@
 # macOS app: manual checklist
 
 Tauri's WebDriver doesn't support macOS, so the app gets this check by hand on a real Mac
-with a real SD card (or any USB stick) before each release. Install the release `.dmg` as the
-README's Install section says (that also checks the first-launch steps), or build it with
-`npm run tauri build` from `ui/`. Then:
+with a real SD card (or any USB stick) before each release. Install the release candidate the
+way the README says: the one-line script (it checks the download and its SHA-256), and once
+the `.dmg` with `xattr`; or build it with `npm run tauri build` from `ui/`. Then:
 
 ## Copy
 
@@ -14,9 +14,9 @@ README's Install section says (that also checks the first-launch steps), or buil
    verified" and lists every file as ✓ Verified with its 32-character checksum.
 2. **Checksum file.** Summary → Open checksum file opens `secopy_….xxh128`; in Terminal,
    `cd <destination> && xxhsum -c secopy_*.xxh128` prints `OK` for every file.
-3. **Run it again.** New copy, same card, same destination. Expect: the non-empty warning
-   and "N files with the same size and date will be skipped (not checked)"; the job finishes at
-   once and the summary says there was nothing to copy.
+3. **Run it again.** New copy, same card, same destination. Expect: the non-empty warning,
+   "N files with the same size and date will be skipped (not checked)", "Nothing to copy." in
+   the action bar, and Start off.
 4. **Different files with the same name.** Change one file on the card (or copy another
    file over it), run again with Keep both. Expect: "1 file differs from what's there", and the
    copy lands as `name (1).ext`. Run again with Overwrite: Start's status says it replaces 1
