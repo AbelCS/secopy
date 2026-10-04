@@ -6,7 +6,7 @@ How the app's screens are built, so they look and behave the same. The colours c
 To see every component and screen: `cd ui && npm run dev`, then open
 <http://localhost:5173/gallery.html> (add `#setup`, `#progress`, `#summary`, `#settings`,
 `#presets`, `#presets-empty`, `#queue`, `#queue-summary`, `#mirror`, `#mirror-preview`,
-`#mirror-summary`, `#mirroring`, `#verify`, `#verify-summary`, `#import`, `#export`, `#tabs` or `#cancel` for a screen; `?tips` shows every `Hint`
+`#mirror-summary`, `#mirroring`, `#verify`, `#verify-summary`, `#import`, `#export`, `#tabs`, `#cancel`, `#removing`, `#panel`, `#panel-done` or `#components` for a screen; `?tips` shows every `Hint`
 and every button's help, `?help` only the buttons' help, `?help=primary` only the primary button's, as in
 `gallery.html?help=primary#setup`). The
 gallery is dev only and not in the app.
@@ -100,18 +100,18 @@ Components use tokens only, never raw colours or sizes.
   (the tab or screen says which), **Update**, **Save as…**, **Clear…**, **Retry**. Keep the
   object when one word would be ambiguous (**Add to queue** next to the Queue button,
   **Save report…**) or when macOS has a standard phrase (**Show in Finder**). Dialog buttons
-  name the action ("Stop copying" / "Keep copying"), never Yes / No.
+  name the action ("Cancel job" / "Continue"), never Yes / No.
 - Colour never carries meaning alone: every status has an icon or a word.
 - Chosen items are filled (`accent-soft`), not only outlined.
 - White text sits on `accent-strong`, never on `accent` (3.2:1 fails WCAG AA); `accent` is for links, borders, focus rings and bars.
 - A new screen focuses its title (`ScreenHeader` does it), so VoiceOver says where you are.
 - Every field has a visible label; its error appears right under it and is linked to it.
 - The user-facing words are "directory" and "file".
-- Words live in `ui/src/locales/en.json`; components use `t()`, never written text (a test
-  checks). Rust sends codes (`Message { key, args }`, built with `msg!`); the UI shows them with
+- Words live in `ui/src/locales/en.json` (and their Spanish in `es.json`); components use
+  `t()`, never written text (a test checks). The terms to use are in [docs/i18n.md](../i18n.md). Rust sends codes (`Message { key, args }`, built with `msg!`); the UI shows them with
   `say()`. A form error's key is `errors.field.<field>.…`, so the editor puts it under its field.
 - No emoji as icons.
-- A `Hint` only where a word isn't clear on its own (Small files, Existing files, Identical, system files, Copy & Verify, archived, not started), in one or two plain sentences. Not for what a help line under an option already says.
+- A `Hint` only where a word isn't clear on its own (Small files, Existing files, Same size and date, ignored files, Copy & Verify, archived, not started), in one or two plain sentences. Not for what a help line under an option already says.
 - A button's `help` only where its short label hides the detail: Start (what it copies, where, the
   shortcut), Update, Save as…, Add to queue, Retry, Clear…, Pause / Resume, Cancel. One plain
   sentence, with the screen's real figures ("Copies 106 files (180.0 GB) to /Volumes/V001/Day01/CLIP

@@ -46,7 +46,9 @@
         : "";
   if (shownTips)
     document.head.insertAdjacentHTML("beforeend", `<style>${shownTips}{opacity:1!important;visibility:visible!important}</style>`);
-  const api = fakeApi(page === "presets-empty" ? { copyPresets: [] } : {});
+  const api = fakeApi(
+    page === "presets-empty" ? { copyPresets: [] } : page === "verify-summary" ? { check: true } : {},
+  );
   provideApi(api);
 
   const colours = ["bg", "surface", "surface-raised", "border", "text", "text-muted", "text-faint", "accent", "accent-soft", "success", "warning", "danger"];

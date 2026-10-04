@@ -1,20 +1,24 @@
 # Secopy
 
 macOS desktop app for fast, verified copies of directories (a camera card, a volume, any
-directory): Copy & Verify with xxHash64 and a checksum file, copy presets, a job queue, one-way
-mirrors, Verify of an existing copy, export/import of settings and presets, and a menu bar
-panel while the window is closed. Secopy is macOS only (Apple Silicon) by design, engine included; building for another
-OS is a compile error (RFD §14).
+directory): Copy & Verify with XXH128 and a checksum file (and optionally an ASC MHL history),
+ignore lists, copy presets, a job queue, one-way mirrors, Verify of an existing copy,
+export/import of settings and presets, a menu bar panel while the window is closed, in English
+and Spanish. Secopy is macOS only (Apple silicon) by design, engine included; building for
+another OS is a compile error (RFD §14).
 
 - **Where things stand:** the "Next" section of
   [the roadmap](docs/superpowers/plans/2026-09-26-v1-roadmap.md) lists what comes next, in
   order, with its issues. Start there when asked "what's next?".
-- **English only, translation-ready:** the app is developed in English, and its words live in
-  the message catalog `ui/src/locales/en.json`: the UI uses `t("key")`, never hard-coded text
-  (tests check that no component writes text itself and that every key is used). Rust never
-  sends English to the UI: it sends `Message { key, args }` built with `msg!` (a test checks
-  every key against the catalog), and no Rust code decides anything by English text. Reports
-  and the CLI stay English. How to add a language: [docs/i18n.md](docs/i18n.md).
+- **English and Spanish:** the app is written in English, and its words live in the message
+  catalogs `ui/src/locales/en.json` and `es.json` (Spain Spanish): every key added or changed
+  in English gets its Spanish in the same change, with the terms in
+  [docs/i18n.md](docs/i18n.md). The UI uses `t("key")`, never hard-coded text (tests check that
+  no component writes text itself, that every key is used, and that every catalog matches
+  English). Rust never sends English to the UI: it sends `Message { key, args }` built with
+  `msg!` (a test checks every key against the catalog), and no Rust code decides anything by
+  English text. Settings › General › Language chooses the language (Automatic by default).
+  Reports and the CLI stay English. How to add a language: [docs/i18n.md](docs/i18n.md).
 - **Reliability first:** users copy irreplaceable footage. Secopy must never lose, corrupt or
   silently skip data, and never report success when something wasn't copied, read, verified,
   saved or removed as planned. Every change to the engine or to how a result is reported is
@@ -86,7 +90,7 @@ Format:
 Examples:
 
 ```
-feat(core): compute source xxhash64 during copy
+feat(core): compute the source xxh128 during the copy
 fix(ui): keep eta stable when throughput drops to zero
 docs(rfd): record decision on symlink handling
 perf(core): overlap verify of file n with copy of file n+1
@@ -95,11 +99,12 @@ perf(core): overlap verify of file n with copy of file n+1
 ## Versioning: SemVer 2.0
 
 - Versions are `MAJOR.MINOR.PATCH`. Git tags are `vX.Y.Z` on `main`.
-- Development starts at **0.1.0**. While on `0.x`:
-  - a breaking change bumps **minor**
-  - `feat` bumps **minor**
-  - `fix` and `perf` bump **patch**
-- **1.0.0** is released when the RFD v1 scope ships.
+- Development started at **0.1.0**. While on `0.x`, a breaking change and `feat` bumped
+  **minor**, `fix` and `perf` **patch**.
+- **1.0.0** is released when the RFD v1 scope ships. From then on: a breaking change bumps
+  **major**, `feat` **minor**, `fix` and `perf` **patch**. A breaking change includes a file
+  Secopy writes (checksum file, settings, presets, queue, reports, ASC MHL) that a newer
+  version can no longer read, or reads differently.
 - Pre-releases use SemVer suffixes: `0.3.0-beta.1`.
 
 ## Releases: release-please
@@ -134,11 +139,12 @@ format exactly.
 ## Development
 
 - Layout: `crates/secopy-core` (engine library, no UI dependencies), `crates/secopy-cli`
-  (developer CLI and benchmark driver), `crates/secopy-app` (the Tauri 2 shell: session,
-  jobs, commands, `store` for the saved settings, copy presets, mirror presets and state,
-  `queue` for the saved queue, `mirrors` for turning a preset into a job, `picker` for the
-  source panel, `migrate` for the 0.2.0 → 0.3.0 data folder) and `ui/` (Svelte 5 +
-  TypeScript, Vite). Run the app with `npm run tauri dev` from `ui/`; build the `.dmg`
+  (the engine in Terminal, also used by tests), `crates/secopy-app` (the Tauri 2 shell:
+  `session` for New copy, `jobs`, `commands`, `store` for the saved settings, copy presets,
+  mirror presets and state, `queue` for the saved queue, `mirrors` for turning a preset into
+  a job, `transfer` for export/import, `menubar` for the menu bar icon and panel, `message`
+  and `say` for the words Rust sends, `picker` for the source panel, `migrate` for the
+  0.2.0 → 0.3.0 data folder) and `ui/` (Svelte 5 + TypeScript, Vite). Run the app with `npm run tauri dev` from `ui/`; build the `.dmg`
   with `npm run tauri build`.
 - Engine flow: `scan → select → preflight → Plan::resolve → run_job`, then `Report` for
   the job report. Design notes per plan are in `docs/superpowers/specs/`.
@@ -148,7 +154,7 @@ format exactly.
 - UI checks, from `ui/` (`npm ci` once): `npm run check` (svelte-check) and `npm test`
   (Vitest). Both must pass before every commit that touches `ui/` or `crates/secopy-app`.
 - UI copy: "directory", never "folder"; "source" and "destination", not "card" (a card is
-  only one kind of source).
+  only one kind of source); the other terms are in [docs/i18n.md](docs/i18n.md).
 - UI design: follow [docs/design/design-system.md](docs/design/design-system.md). Build
   screens from the components in `ui/src/lib/ui/` (AppShell, Section, Button…) and the
   tokens in `ui/src/app.css`; don't style one-off cards, buttons or fields. Check changes in
@@ -165,8 +171,9 @@ format exactly.
 - Fault tests on real volumes (disk full, unplugging, FAT32/exFAT, case-sensitive APFS) use
   macOS RAM disks and run only with `SECOPY_DEVICE_TESTS=1`; CI's macOS job sets it. Run
   them locally before changing `copy`, `os`, `preflight` or the job runner.
-- Plans live in `docs/superpowers/plans/`, designs in `docs/superpowers/specs/`, benchmark
-  results in `docs/benchmarks/`.
+- Plans live in `docs/superpowers/plans/`, designs in `docs/superpowers/specs/`, reviews in
+  `docs/qa/`. Plans and specs are records of how each feature was built: the RFD and the user
+  guide say how Secopy works now.
 
 ## GitHub Issue-Driven Workflow
 

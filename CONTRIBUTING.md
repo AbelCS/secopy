@@ -53,12 +53,14 @@ engine alone: `cargo run --release -p secopy-cli -- --help`.
 
 - **Tests first.** Write the test, watch it fail, then make it pass. A test that passes before
   the change proves nothing.
-- **Words live in the catalog.** Every text the app shows is in `ui/src/locales/en.json`. The
-  UI uses `t("key")`; Rust sends `msg!("key", …)` and never English. Tests fail on a word
-  written in a component, a key nobody uses, or a Rust key the catalog lacks.
-  See [docs/i18n.md](docs/i18n.md).
-- **Words and UI:** follow the [design system](docs/design/design-system.md): say
-  "directory", not "folder"; "source" and "destination"; short button labels.
+- **Words live in the catalogs.** Every text the app shows is in `ui/src/locales/en.json`, and
+  its Spanish in `es.json`: a key added or changed in one is added or changed in the other.
+  The UI uses `t("key")`; Rust sends `msg!("key", …)` and never English. Tests fail on a word
+  written in a component, a key nobody uses, a Rust key the catalog lacks, or a translation
+  out of step with English. See [docs/i18n.md](docs/i18n.md), which also has the terms to use.
+- **Words and UI:** follow the [design system](docs/design/design-system.md) and the terms in
+  [docs/i18n.md](docs/i18n.md): "directory", not "folder"; "source" and "destination"; short
+  button labels.
 - **Decisions** (product or technical) go in the RFD's decision log in the same change.
 - Code, comments and docs in English.
 
@@ -77,7 +79,8 @@ engine alone: `cargo run --release -p secopy-cli -- --help`.
 ## Releases
 
 Releases are automated by [release-please](https://github.com/googleapis/release-please).
-Every push to `main` updates an open release pull request with the next version (from the
-commit types; `feat` bumps the minor version while Secopy is 0.x) and the changelog. Merging
+Every push to `main` updates an open release pull request with the next version, from the
+commit types (`fix` and `perf` bump the patch version, `feat` the minor, and a breaking change,
+marked `!`, the major), and the changelog. Merging
 it tags the release, builds the app and the CLI on macOS and attaches them to the GitHub
 release. Versions, `CHANGELOG.md` and tags are never edited by hand.

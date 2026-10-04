@@ -5,14 +5,14 @@ Secopy is built to never lose a file, and to never say "done" when something was
 
 ![The New copy screen: a source, its file types, a destination, and Start](docs/images/setup.png)
 
-> **Status:** early development, for Apple Silicon Macs. Secopy is macOS only by design; there
-> are no Windows or Linux versions.
+> Secopy runs on Macs with Apple silicon. It is macOS only by design: there are no Windows or
+> Linux versions. It speaks English and Spanish.
 
 ## Why trust it
 
 - **Every file is checked, not assumed.** In Copy & Verify, each copy is read back from the
-  destination drive (not from memory) and compared with the source by its XXH128 checksum
-  before it gets its final name.
+  destination drive (bypassing the Mac's cache, so it really reads the drive) and compared
+  with the source by its XXH128 checksum. The source is read only once.
 - **A file with its final name is always complete.** Files are written under a temporary name,
   flushed to the drive and only then renamed, so a copy cut short by a pulled cable never
   looks finished.
@@ -21,20 +21,24 @@ Secopy is built to never lose a file, and to never say "done" when something was
   failed is listed, with why.
 - **Proof you can check later.** Each copy writes a checksum file next to it, which
   [`xxhsum`](https://github.com/Cyan4973/xxHash) can check, and a report of everything
-  that happened. Verify reads a copy again months later to find silent damage.
+  that happened. Verify reads a copy again months later to find silent damage. For media
+  workflows, a copy can also keep an [ASC MHL](https://github.com/ascmitc/mhl)
+  history, read by tools such as Silverstack and Hedge.
 
 ## What it does
 
 - **Copy & Verify** a directory or picked files, keeping the directory structure, dates and
-  hidden files (system clutter like `.DS_Store` is left out, and counted).
-- **Copy presets:** a saved source and its settings, loaded in one click.
-- **Mirror:** keep a backup identical to a directory. New and changed files are copied and
-  verified; files deleted in the origin are archived for a number of days (or deleted), only
-  after a clean copy and a preview.
-- **Verify:** point at a backup or a whole drive; every file its checksum files list is read
-  again and compared.
+  hidden files. Names you never want copied (like `.DS_Store`, or `*.LRF` proxies) are left
+  out by a list in Settings, and counted; each copy or preset can add its own.
+- **Copy presets:** a saved source and its options (file types, the directory itself or only
+  what's in it, names to ignore), loaded in one step.
+- **Mirror:** keep a destination identical to an origin, one way. New and changed files are
+  copied and verified; files deleted in the origin are archived for a number of days (or
+  deleted), only after a preview and a clean copy.
+- **Verify:** point at a copy, a backup or a whole drive; every file its checksum files list
+  is read again and compared.
 - **Queue:** set up several copies, mirrors and verifies, and let them run one after another.
-- **Cancel** can also remove the files already copied, leaving the destination as it was.
+- **Cancel** can also remove the files already copied.
 - **Menu bar:** close the window during a job and it keeps going, with its progress in the
   menu bar.
 - **Export and import** settings and presets in a `.secopy` file, for a new Mac or to share
@@ -71,7 +75,7 @@ aren't flagged. If you did download the `.dmg` from the
 ## Keyboard
 
 **⌘O** choose the source, **⌘D** choose the destination, **⌘↩** start, **⌘.** cancel.
-While copying, **Space** pauses and resumes. **⌘,** opens Settings; **Esc** goes back.
+While a job runs, **Space** pauses and resumes. **⌘,** opens Settings; **Esc** goes back.
 The tabs: **⌘1** Copy, **⌘2** Mirror, **⌘3** Verify; **⌘4** opens the Queue.
 
 ## Command line

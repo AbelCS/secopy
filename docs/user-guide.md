@@ -26,15 +26,15 @@ Drop a directory or files on **From**, or press **Choose…** (⌘O).
   Settings › Always ignore when copying are never copied: by default the ones computers leave
   behind, like `.DS_Store`, `._*` or `Thumbs.db`. Their count is shown, so nothing disappears
   without a word. **Also ignore**, under the file types, adds names for this copy only (and
-  its preset): for example `.gitkeep` for most copies but not for a Template backup. Links are
-  not followed.
+  its preset): for example `.gitkeep` for most copies but not for a Template backup. Symlinks
+  are not followed; they're counted as skipped, like special files (FIFOs, sockets, devices).
 - **File types** lists every extension with its count and size, largest first. Click one to
   leave it out; **All** and **None** select every type or none.
 
 ### Copy presets
 
-A preset is a saved source with its settings: whether the directory itself is copied, and
-which file types. Choose one in **Preset** and its source is loaded (or Secopy says its drive
+A preset is a saved source with its options: whether the directory itself is copied, which
+file types, and its own **Also ignore** list. Choose one in **Preset** and its source is loaded (or Secopy says its drive
 isn't connected). A change you make afterwards lasts for this copy only, unless you press
 **Update** (save it into the preset) or **Save as…** (a new preset). **Manage presets…**
 opens the list to create, edit, export or delete presets. When typing file types there, `*`
@@ -101,7 +101,7 @@ finished, with its checksum and status; **Failed only** filters it.
 
 ![Summary](images/summary.png)
 
-The headline says what happened, and never "All … copied" unless every file was. Below it:
+The headline says what happened, and never that everything was copied unless every file was. Below it:
 the figures, every file that failed and why, and every file with its checksum and status
 (Verified, Copied, Skipped, Failed, Cancelled).
 
@@ -118,10 +118,10 @@ standard format; in Terminal, `cd` to the destination and run `xxhsum -c secopy_
 check every file. A file that failed isn't listed.
 
 **ASC MHL** (Settings, off by default): the media industry's proof of copy, read by tools such
-as Silverstack and Hedge. Each copy writes an `ascmhl` folder in the folder the files go to,
-or adds to the one already there (or brought by the source), marking each file as matching
+as Silverstack and Hedge. Each copy writes an `ascmhl` directory in the directory the files go
+to, or adds to the one already there (or brought by the source), marking each file as matching
 its earlier checksum or not; a file that doesn't match makes the copy not complete. Files
-already in that folder that no history lists are read too, and before Start the plan says how
+already in that directory that no history lists are read too, and before Start the plan says how
 many. Start is refused when the history can't be kept right: two different histories, Overwrite
 on a file it lists, a damaged history, or a file-type filter that leaves out files it lists.
 Mirrors don't write it.
@@ -152,7 +152,7 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
   now past them (the editor says so); make them longer and what's still there is kept longer.
 - **Switching from Archive to Delete** asks what to do with what's already archived: **Delete
   them now**, or **Keep them** for the preset's days (runs keep removing them when due). If
-  the destination isn't connected, or a job is running, you can choose **Delete it at the next
+  the destination isn't connected, or a job is running, you can choose **Delete them at the next
   run** instead: the next run deletes the archive before copying anything; the Archive section
   says "Deleted at the next run", and switching back to Archive cancels it. Files that can't be
   deleted are listed, and go when they're due. Changing the destination at the same time leaves
@@ -160,8 +160,9 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
 - If a run looks wrong (the origin is empty, the origin or the destination can't be fully
   read, or more than half of the backup would be removed), Secopy asks first; in the queue,
   such a run doesn't start.
-- Links in the origin aren't followed, and what's under one is never removed from the backup:
-  a folder moved to another disk and left as a link keeps its backup while that disk is away.
+- Symlinks in the origin aren't followed, and what's under one is never removed from the
+  backup: a directory moved to another disk and left as a symlink keeps its backup while that
+  disk is away.
 - The destination keeps a checksum file of its own, `.secopy-checksums.xxh128`, so the backup
   can be verified. Every run records the files it verified, even one that didn't end cleanly.
 - **Archive** (under the editor): files, size and oldest run in the destination's
@@ -205,7 +206,7 @@ Click it for the details, **Pause**, and **Open Secopy**:
 
 ![The menu bar panel](images/panel.png)
 
-Turn this off in Settings to have closing the window ask to stop the job instead.
+Turn this off in Settings to have closing the window ask to cancel the job instead.
 
 ## Export and import
 
