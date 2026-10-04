@@ -90,6 +90,12 @@ pub fn export_text(
 /// Writes `text` to `path`: a temporary name next to it, synced, then renamed into place, so
 /// a failure never leaves half a file under the final name.
 pub fn write_file(path: &Path, text: &str) -> Result<(), Message> {
+    let tmp = stage(path, text)?;
+    publish(&tmp, path)
+}
+
+/// Writes `text` whole and synced under a temporary name next to `path`; `publish` names it.
+pub fn stage(path: &Path, text: &str) -> Result<std::path::PathBuf, Message> {
     let name = path
         .file_name()
         .ok_or_else(|| msg!("errors.export.notAFileName"))?
@@ -109,13 +115,26 @@ pub fn write_file(path: &Path, text: &str) -> Result<(), Message> {
             .create_new(true)
             .open(&tmp)?;
         file.write_all(text.as_bytes())?;
-        file.sync_all()?;
-        fs::rename(&tmp, path)
+        file.sync_all()
     })();
-    if written.is_err() {
-        let _ = fs::remove_file(&tmp);
+    match written {
+        Ok(()) => Ok(tmp),
+        Err(e) => {
+            let _ = fs::remove_file(&tmp);
+            Err(msg!(
+                "errors.export.notSaved",
+                why = crate::say::io_error(&e)
+            ))
+        }
     }
-    written.map_err(|e| msg!("errors.export.notSaved", why = crate::say::io_error(&e)))
+}
+
+/// Gives a staged file its name, over what's there; removed if it can't be.
+pub fn publish(tmp: &Path, path: &Path) -> Result<(), Message> {
+    fs::rename(tmp, path).map_err(|e| {
+        let _ = fs::remove_file(tmp);
+        msg!("errors.export.notSaved", why = crate::say::io_error(&e))
+    })
 }
 
 /// Reads the file at `path`: only a plain file, and never more than [`MAX_BYTES`] of it.

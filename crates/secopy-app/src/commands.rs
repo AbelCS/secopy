@@ -329,6 +329,7 @@ impl AppState {
 
     /// Saves, then applies (the next job uses it): settings that can't be saved aren't used
     /// either (#116).
+    #[cfg(test)]
     pub fn set_settings(&self, settings: Settings) -> Result<Settings, Message> {
         self.save_settings(settings).map(|(saved, _)| saved)
     }
@@ -524,7 +525,9 @@ impl AppState {
         change: impl FnOnce(&mut Queue) -> bool,
     ) -> Result<QueueView, Message> {
         // The run saves what's left after each job; a change now would be lost or duplicated.
-        if lock(&self.queue_run).running {
+        // Held throughout, so the queue can't be claimed in the middle (#192).
+        let run = lock(&self.queue_run);
+        if run.running {
             return Err(msg!("errors.queue.running"));
         }
         {
@@ -538,6 +541,7 @@ impl AppState {
                 .map_err(|e| msg!("errors.save.queue", why = e))?;
             *q = next;
         }
+        drop(run);
         Ok(self.queue_view())
     }
 
@@ -605,6 +609,7 @@ impl AppState {
     }
 
     /// Runs the saved queue, one job after another (FR-40..FR-43). Blocking.
+    #[cfg(test)]
     pub fn run_queue(&self, sink: impl QueueSink) -> Result<QueueSummaryView, Message> {
         self.claim_queue_run()?;
         Ok(self.run_claimed(sink))
@@ -1462,8 +1467,23 @@ impl AppState {
             Ok(())
         });
         if let Err(e) = saved {
-            eprintln!("Secopy: the archive wasn't deleted: couldn't save {MIRRORS}: {e:?}");
-            return None;
+            // Asked for, and not done: said in the run's summary, never a silent Complete.
+            return target.map(|path| {
+                let path = PathBuf::from(path);
+                let remaining = secopy_core::mirror::archive_summary(&path)
+                    .ok()
+                    .flatten()
+                    .map_or(0, |a| a.files);
+                let why = secopy_core::error::IoFailure {
+                    kind: std::io::ErrorKind::Other,
+                    message: e.in_language(crate::message::language_in_use()),
+                };
+                secopy_core::mirror::ArchiveDeleted {
+                    removed: 0,
+                    remaining,
+                    error: Some((path, why)),
+                }
+            });
         }
         target.map(|path| secopy_core::mirror::delete_archive(Path::new(&path)))
     }
@@ -1740,9 +1760,18 @@ pub fn run_queue(app: AppHandle, on_event: Channel<QueueEvent>) -> Result<(), Me
         to: on_event,
         app: app.clone(),
     };
-    let thread = std::thread::spawn(move || {
+    let spawned = std::thread::Builder::new().spawn(move || {
         runner.state::<AppState>().run_claimed_to_done(sink);
     });
+    // No thread, no run: a claim left behind would refuse every Start until a relaunch (#192).
+    let thread = match spawned {
+        Ok(thread) => thread,
+        Err(e) => {
+            lock(&state.queue_run).running = false;
+            eprintln!("Secopy: the queue's thread couldn't start: {e}");
+            return Err(crate::say::internal());
+        }
+    };
     // Only one run is claimed at a time, so this is the previous (finished) run's thread.
     let old = lock(&state.queue_run).thread.replace(thread);
     if let Some(old) = old {
@@ -2599,7 +2628,7 @@ mod tests {
         fs::write(
             dir.path().join(COPY_PRESETS),
             r#"{"version": 1, "profiles": [
-                {"id": "a", "name": " FX3 ", "source": " /Volumes/CARD/DCIM/ ", "includeFolder": true, "extensions": ["MP4", ".XML", "mp4"]},
+                {"id": "a", "name": " FX3 ", "source": " /Volumes/CARD/DCIM/", "includeFolder": true, "extensions": ["MP4", ".XML", "mp4"]},
                 {"id": "b", "name": "fx3", "source": "", "includeFolder": true, "extensions": null},
                 {"id": "a", "name": "A7", "source": "", "includeFolder": false, "extensions": null},
                 {"id": "c", "name": "  ", "source": "DCIM", "includeFolder": true, "extensions": null}
@@ -3211,6 +3240,35 @@ mod tests {
         assert_eq!(state.queue_view().jobs.len(), 1);
     }
 
+    /// Code review (#192): a change and Start never interleave: the queue can't be claimed
+    /// while a change is being made, so the run sees it (or the change sees the run).
+    #[test]
+    fn the_queue_cant_start_in_the_middle_of_a_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = Arc::new(queued(dir.path(), &[("A", 1), ("B", 1)]));
+        let claimed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut claimer = None;
+        state
+            .change_queue(|q| {
+                let (other, flag) = (state.clone(), claimed.clone());
+                claimer = Some(std::thread::spawn(move || {
+                    let ok = other.claim_queue_run().is_ok();
+                    flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                    ok
+                }));
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                assert!(
+                    !claimed.load(std::sync::atomic::Ordering::SeqCst),
+                    "Start waits for the change"
+                );
+                q.remove(0)
+            })
+            .unwrap();
+        assert!(claimer.unwrap().join().unwrap());
+        assert_eq!(lock(&state.queue).jobs.len(), 1);
+        lock(&state.queue_run).running = false;
+    }
+
     /// Review focus 2.
     #[test]
     fn stop_on_failure_leaves_the_rest_not_run() {
@@ -3504,6 +3562,10 @@ mod tests {
         fs::set_permissions(&data, fs::Permissions::from_mode(0o755)).unwrap();
         assert!(run.exists());
         assert_eq!(state.mirror_presets()[0].clear_archive, Some(show(&d)));
+        // Code review (#192): and the run says so: not Complete, with why.
+        let s = state.jobs.summary().unwrap();
+        assert_eq!(s.outcome, crate::dto::JobOutcome::Failures);
+        assert!(s.mirror.unwrap().archive_not_deleted.is_some());
     }
 
     /// Review of #101: an archive that can't be read fails the run too, saying why.

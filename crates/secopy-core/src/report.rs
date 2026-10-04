@@ -102,6 +102,19 @@ pub struct Report {
     pub check: Option<CheckPart>,
     /// ASC MHL, when the copy writes it (#154, #192).
     pub mhl: Option<MhlPart>,
+    /// What Cancel's "Also remove the files already copied" did (#54, #192).
+    pub undone: Option<UndonePart>,
+}
+
+/// What a cancelled job's removal did.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct UndonePart {
+    pub removed: u64,
+    /// Replaced files put back from the archive.
+    pub restored: u64,
+    /// Replaced files with no old version to put back.
+    pub not_restored: u64,
+    pub failed: Vec<Unread>,
 }
 
 /// What a copy's ASC MHL did.
@@ -238,6 +251,7 @@ impl Report {
             durability_error: job.durability_error.as_ref().map(ToString::to_string),
             mirror: None,
             check: None,
+            undone: None,
             mhl: (!job.mhl_off).then(|| MhlPart {
                 histories: job
                     .mhl_written
@@ -365,6 +379,7 @@ impl Report {
             mirror: None,
             dir_errors: Vec::new(),
             mhl: None,
+            undone: None,
             check: Some(CheckPart {
                 checksum_files: plan.checksum_files.iter().map(|p| shown(p)).collect(),
                 not_checked: r.not_checked.iter().map(|p| shown(p)).collect(),
@@ -381,6 +396,24 @@ impl Report {
                     .collect(),
             }),
         }
+    }
+
+    /// Adds what Cancel's removal did.
+    pub fn with_undone(mut self, u: &crate::job::Undone) -> Report {
+        self.undone = Some(UndonePart {
+            removed: u.removed,
+            restored: u.restored,
+            not_restored: u.not_restored,
+            failed: u
+                .failed
+                .iter()
+                .map(|(path, why)| Unread {
+                    path: slash_path(path),
+                    reason: why.clone(),
+                })
+                .collect(),
+        });
+        self
     }
 
     /// Adds a mirror's removals; one that failed means the result isn't "complete".
@@ -611,6 +644,16 @@ impl Report {
                 let _ = write!(t, " -> {to}");
             }
             let _ = writeln!(t);
+        }
+        if let Some(u) = &self.undone {
+            let _ = writeln!(
+                t,
+                "\nRemoved after cancelling: {} copied, {} put back from the archive, {} replaced files not put back",
+                u.removed, u.restored, u.not_restored
+            );
+            for f in &u.failed {
+                let _ = writeln!(t, "  {} — NOT REMOVED: {}", f.path, f.reason);
+            }
         }
         t
     }

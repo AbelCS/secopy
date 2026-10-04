@@ -178,7 +178,7 @@
       let choice: ArchiveChoice = "keep";
       // Asked only for the archive of the destination kept: a new destination leaves the old
       // one's archive alone, as it's no longer this mirror's.
-      const sameDestination = input.destination.trim().replace(/\/+$/, "") === preset.destination;
+      const sameDestination = input.destination.trimStart().replace(/\/+$/, "") === preset.destination;
       if (preset.deleted.mode === "archive" && input.deleted.mode === "delete" && sameDestination) {
         const archive = await api.mirrorArchive(preset.id);
         if (archive.files > 0 || !archive.connected) choice = await askAboutArchive(archive, input.deleted.days);

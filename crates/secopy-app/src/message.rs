@@ -43,6 +43,7 @@ impl Message {
     /// The message in English, from the catalog the UI reads: for tests, which pin
     /// today's words. Numbers and sizes read as the UI shows them in English; a key the
     /// catalog lacks shows as itself.
+    #[cfg(test)]
     pub fn english(&self) -> String {
         self.in_language("en")
     }
