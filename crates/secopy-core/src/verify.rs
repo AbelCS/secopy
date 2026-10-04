@@ -58,7 +58,8 @@ fn read_once(file: &mut impl Read, buf: &mut [u8]) -> io::Result<usize> {
     }
 }
 
-/// Page-aligned buffer whose length is a multiple of 4096, as unbuffered I/O requires.
+/// Page-aligned buffer whose length is a multiple of 4096, so reads that bypass the cache
+/// (`F_NOCACHE`) go straight to the device.
 struct AlignedBuf {
     ptr: NonNull<u8>,
     layout: Layout,

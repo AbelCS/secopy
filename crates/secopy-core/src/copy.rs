@@ -62,9 +62,6 @@ pub enum Commit<'a> {
 const KEEP_BOTH_TRIES: u32 = 100;
 
 impl PartialCopy {
-    /// Gives the file its final name and returns the path it got. The file system itself
-    /// decides whether a name is taken (case, Unicode normalization). On failure the
-    /// partial file is removed.
     /// Which file this copy is, from its open handle (#115).
     pub fn landed(&self) -> Option<crate::job::Landed> {
         self.file
@@ -73,6 +70,9 @@ impl PartialCopy {
             .map(|m| crate::job::Landed::of(&m))
     }
 
+    /// Gives the file its final name and returns the path it got. The file system itself
+    /// decides whether a name is taken (case, Unicode normalization). On failure the
+    /// partial file is removed.
     pub fn commit(self, final_path: &Path, how: Commit) -> Result<PathBuf, FileError> {
         self.release(|partial| {
             let result = match how {

@@ -23,8 +23,8 @@ same-file.workspace = true
 unicode-normalization.workspace = true
 twox-hash.workspace = true
 libc.workspace = true
-objc2 = "0.6.4"
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSError", "NSString", "NSURL", "NSValue"] }
+objc2.workspace = true
+objc2-foundation = { workspace = true, features = ["NSError", "NSString", "NSURL", "NSValue"] }
 
 [dev-dependencies]
 tempfile.workspace = true

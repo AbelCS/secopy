@@ -95,7 +95,6 @@ impl Patterns {
         }
     }
 
-    /// What a file says: bad patterns are dropped, the rest kept.
     /// What a file says: bad patterns are dropped, and past the most a list holds, the rest:
     /// the first ones always stay.
     pub fn lenient<I: IntoIterator<Item = String>>(list: I) -> Patterns {

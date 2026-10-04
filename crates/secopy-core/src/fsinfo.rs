@@ -158,16 +158,22 @@ mod sys {
         Ok(FsKind::from_name(&name.to_string_lossy()))
     }
 
-    /// Bytes free now, and the allocation unit.
+    /// Bytes free now, and the allocation unit. From `statfs`, whose block counts are 64-bit
+    /// (`statvfs`'s are 32-bit on macOS: wrong past 16 TiB free).
     pub fn free_bytes(dir: &Path) -> io::Result<(u64, u64)> {
         let c = c_path(dir)?;
-        // SAFETY: an all-zero `statvfs` is a valid value to be overwritten.
-        let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+        // SAFETY: an all-zero `statfs` is a valid value to be overwritten.
+        let mut st: libc::statfs = unsafe { std::mem::zeroed() };
         // SAFETY: `c` is NUL-terminated and `st` is a valid out-pointer.
-        if unsafe { libc::statvfs(c.as_ptr(), &mut st) } != 0 {
+        if unsafe { libc::statfs(c.as_ptr(), &mut st) } != 0 {
             return Err(io::Error::last_os_error());
         }
-        Ok((u64::from(st.f_bavail) * st.f_frsize, st.f_frsize.max(1)))
+        Ok(free_of(&st))
+    }
+
+    pub(super) fn free_of(st: &libc::statfs) -> (u64, u64) {
+        let block = u64::from(st.f_bsize).max(1);
+        (st.f_bavail.saturating_mul(block), block)
     }
 
     /// `NSURLVolumeAvailableCapacityForImportantUsageKey`: Apple's figure for data stored at
@@ -203,6 +209,17 @@ mod sys {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Code review (#192): a 24 TB RAID has more than 2^32 free 4 KiB blocks; `statvfs`'s
+    /// 32-bit count would wrap and show a fraction of it, blocking a copy that fits.
+    #[test]
+    fn free_space_past_16_tib_is_read_whole() {
+        // SAFETY: an all-zero `statfs` is a valid value.
+        let mut st: libc::statfs = unsafe { std::mem::zeroed() };
+        st.f_bavail = 5_000_000_000;
+        st.f_bsize = 4096;
+        assert_eq!(sys::free_of(&st), (5_000_000_000 * 4096, 4096));
+    }
 
     #[test]
     fn reads_the_temp_volume() {

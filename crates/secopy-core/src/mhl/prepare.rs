@@ -118,15 +118,11 @@ pub fn prepare(plan: &mut Plan, inputs: &MhlInputs) -> Result<MhlPlan, Vec<MhlBl
     let mut blockers = Vec::new();
     let mut scopes: BTreeMap<PathBuf, ScopePlan> = BTreeMap::new();
     let scope = |scopes: &mut BTreeMap<PathBuf, ScopePlan>, at: &Path| {
-        scopes
-            .entry(at.to_path_buf())
-            .or_insert_with(|| ScopePlan {
-                scope: at.to_path_buf(),
-                dest: None,
-                source: None,
-            })
-            .scope
-            .clone()
+        scopes.entry(at.to_path_buf()).or_insert_with(|| ScopePlan {
+            scope: at.to_path_buf(),
+            dest: None,
+            source: None,
+        });
     };
     scope(&mut scopes, root);
 

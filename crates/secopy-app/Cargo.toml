@@ -33,10 +33,10 @@ tauri-plugin-notification.workspace = true
 tauri-specta.workspace = true
 
 # FROM's Choose… panel, where a folder or files can be picked (the dialog plugin picks one kind).
-block2 = "0.6.2"
-objc2 = "0.6.4"
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "NSApplication", "NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSWindow"] }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSDictionary", "NSLocale", "NSString", "NSURL", "NSUserDefaults"] }
+block2.workspace = true
+objc2.workspace = true
+objc2-app-kit = { workspace = true, features = ["block2", "NSApplication", "NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSWindow"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSDictionary", "NSLocale", "NSString", "NSURL", "NSUserDefaults"] }
 
 [dev-dependencies]
 glob.workspace = true

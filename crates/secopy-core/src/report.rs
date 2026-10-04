@@ -50,7 +50,8 @@ pub struct ReportFile {
     /// Set when the copy got another name (Keep both).
     pub copied_to: Option<String>,
     pub size: u64,
-    /// `copied`, `verified`, `skipped`, `failed`, `cancelled` or `not started`.
+    /// `copied`, `verified`, `skipped`, `failed`, `cancelled` or `not started`; for a
+    /// Verify, `intact`, `changed`, `missing`, `failed`, `cancelled` or `not started`.
     pub status: &'static str,
     /// Why it was skipped or failed.
     pub reason: Option<String>,
@@ -61,9 +62,15 @@ pub struct ReportFile {
     pub listed_in: Option<String>,
 }
 
+/// The JSON report's format: raised only when a field changes meaning or goes away.
+pub const FORMAT: u32 = 1;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Report {
+    /// `FORMAT`, for tools that read the JSON.
+    pub format: u32,
     pub app_version: String,
+    /// `copy`, `copy+verify`, `mirror` or `check`.
     pub mode: &'static str,
     pub source: String,
     pub destination: String,
@@ -193,6 +200,7 @@ impl Report {
             })
             .collect();
         Report {
+            format: FORMAT,
             app_version: meta.app_version.clone(),
             mode: if meta.verify { "copy+verify" } else { "copy" },
             source: meta.source.clone(),
@@ -285,6 +293,7 @@ impl Report {
         }
         let shown = |p: &Path| slash_path(p);
         Report {
+            format: FORMAT,
             app_version: meta.app_version.clone(),
             mode: "check",
             source: plan.dir.display().to_string(),
@@ -355,6 +364,7 @@ impl Report {
         } else if self.result == "complete" && part.archive_problem.is_some() {
             self.result = "archived files not removed as asked".to_string();
         }
+        self.mode = "mirror";
         self.mirror = Some(part);
         self
     }
@@ -370,6 +380,7 @@ impl Report {
         let check = self.mode == "check";
         let mode = match self.mode {
             "copy" => "Copy",
+            "mirror" => "Mirror",
             "check" => "Verify",
             _ => "Copy & Verify",
         };
@@ -571,11 +582,10 @@ impl Report {
             if fs::symlink_metadata(&json).is_ok() {
                 continue;
             }
-            match write_new(&text, &self.to_text()) {
+            match write_pair(&text, &self.to_text(), &json, &self.to_json()) {
                 Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
                 other => other?,
             }
-            write_new(&json, &self.to_json())?;
             return Ok((text, json));
         }
         unreachable!("some name is free")
@@ -611,8 +621,38 @@ fn result_line(job: &JobReport, counts: &Counts) -> String {
     }
 }
 
+/// Both files, or neither: never a text without its JSON, nor a file cut short. A name
+/// that is taken (`AlreadyExists`) is left alone.
+fn write_pair(text: &Path, text_body: &str, json: &Path, json_body: &str) -> io::Result<()> {
+    write_new(text, text_body)?;
+    write_new(json, json_body).inspect_err(|_| {
+        let _ = fs::remove_file(text);
+    })
+}
+
 fn write_new(path: &Path, body: &str) -> io::Result<()> {
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
-    file.write_all(body.as_bytes())?;
-    crate::os::sync_durable(&file)
+    let written = file
+        .write_all(body.as_bytes())
+        .and_then(|()| crate::os::sync_durable(&file));
+    if written.is_err() {
+        let _ = fs::remove_file(path);
+    }
+    written
+}
+
+#[cfg(test)]
+mod pair_tests {
+    use super::*;
+
+    /// Code review (#192): the text and the JSON are saved as a pair or not at all; a JSON
+    /// that can't be written takes the text back with it.
+    #[test]
+    fn a_report_whose_json_fails_leaves_no_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = dir.path().join("r_report.txt");
+        let json = dir.path().join("gone/r_report.json");
+        assert!(write_pair(&text, "t", &json, "j").is_err());
+        assert!(!text.exists());
+    }
 }
