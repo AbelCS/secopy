@@ -1,7 +1,8 @@
 <script lang="ts">
   // Pick a page with the hash: #components (default), #setup, #progress, #summary,
   // #settings, #presets, #presets-empty, #queue, #queue-summary, #mirror, #mirror-preview,
-  // #mirror-summary, #mirroring, #cancel.
+  // #mirror-summary, #mirroring, #cancel, #verify, #verify-summary, #import, #export,
+  // #panel, #panel-done, #tabs.
   import { createRawSnippet } from "svelte";
   import App from "../App.svelte";
   import JobProgress from "../components/JobProgress.svelte";

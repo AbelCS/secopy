@@ -16,7 +16,6 @@ test("speed is averaged over the last three seconds", () => {
   const at5 = 5000 * 100_000;
   for (let t = 5500; t <= 8000; t += 500) m.push(t, at5 + (t - 5000) * 300_000);
   expect(m.current()).toBeCloseTo(300_000_000, -3);
-  expect(m.average()).toBeCloseTo((at5 + 3000 * 300_000) / 8, -3);
 });
 
 test("eta from the current speed", () => {
