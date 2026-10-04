@@ -1,6 +1,6 @@
 [package]
 name = "secopy-cli"
-description = "Command-line front-end for the Secopy engine (development and benchmarks)"
+description = "The Secopy engine in Terminal: copy, mirror and verify with XXH128"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -41,7 +41,15 @@ struct Args {
     to: Option<PathBuf>,
     /// Verify a directory against its checksum files: every listed file is read again and
     /// compared. Exit 0 when all are intact, 1 otherwise.
-    #[arg(long, value_name = "DIR", conflicts_with_all = ["sources", "to", "mirror"])]
+    /// With --report, its report is written there too.
+    #[arg(
+        long,
+        value_name = "DIR",
+        conflicts_with_all = [
+            "sources", "to", "mirror", "contents", "verify", "ext", "no_checksum", "mhl",
+            "on_conflict",
+        ]
+    )]
     check: Option<PathBuf>,
     /// Copy only what is inside the source directory, not the directory itself.
     #[arg(long)]
@@ -83,7 +91,13 @@ struct Args {
     delete: bool,
     /// With --mirror: days to keep archived files. Each run first removes archived files older
     /// than this, with --delete too.
-    #[arg(long, requires = "mirror", default_value_t = 30, value_name = "N")]
+    #[arg(
+        long,
+        requires = "mirror",
+        default_value_t = 30,
+        value_name = "N",
+        value_parser = clap::value_parser!(u32).range(1..=36_500)
+    )]
     archive_days: u32,
     /// With --mirror: also compare the checksums of files whose size and date match (slow:
     /// reads both sides).
@@ -130,7 +144,7 @@ impl Args {
 
 fn run(args: Args) -> Result<ExitCode, String> {
     if let Some(dir) = &args.check {
-        return check_run(dir, &patterns(&args)?);
+        return check_run(dir, &patterns(&args)?, args.report.as_deref());
     }
     if !args.to().is_dir() {
         return Err(format!(
@@ -199,7 +213,7 @@ fn run(args: Args) -> Result<ExitCode, String> {
     };
     let started_at = Local::now();
     let report = run_with_progress(&plan, &opts)?;
-    print_summary(&report, plan.bytes_to_write());
+    print_summary(&report);
     if let Some(dir) = &args.report {
         let meta = job_meta(&args, args.verify, started_at);
         write_report(
@@ -300,17 +314,28 @@ fn mhl_blocker(b: &MhlBlocker) -> String {
 
 /// Runs `plan`, showing progress and failures; Ctrl-C cancels.
 fn run_with_progress(plan: &Plan, opts: &JobOptions) -> Result<JobReport, String> {
+    with_progress(progress_line, |control, on_event| {
+        job::run_job(plan, opts, control, on_event)
+    })
+}
+
+/// Runs `job` with a control Ctrl-C cancels, a progress line every half second and failures
+/// as they happen.
+fn with_progress<T>(
+    line: fn(&Progress, Duration) -> String,
+    job: impl FnOnce(&JobControl, &(dyn Fn(Event) + Sync)) -> T,
+) -> Result<T, String> {
     let control = Arc::new(JobControl::new());
     let handler_control = control.clone();
     ctrlc::set_handler(move || handler_control.cancel()).map_err(|e| e.to_string())?;
     let started = Instant::now();
     let last_print = Mutex::new(Instant::now());
-    let report = job::run_job(plan, opts, &control, &|event| match event {
+    let result = job(&control, &|event| match event {
         Event::Progress(p) => {
             let mut last = last_print.lock().unwrap();
             if last.elapsed() >= Duration::from_millis(500) {
                 *last = Instant::now();
-                eprint!("\r{}", progress_line(&p, started.elapsed()));
+                eprint!("\r{}", line(&p, started.elapsed()));
             }
         }
         Event::FileFinished(o) => {
@@ -320,7 +345,7 @@ fn run_with_progress(plan: &Plan, opts: &JobOptions) -> Result<JobReport, String
         }
     });
     eprintln!();
-    Ok(report)
+    Ok(result)
 }
 
 /// `--mirror`: the destination becomes a copy of the one source directory (RFD §5.8).
@@ -400,7 +425,7 @@ fn mirror_run(args: &Args) -> Result<ExitCode, String> {
     };
     let started_at = now;
     let mut report = run_with_progress(&plan.copy, &opts)?;
-    print_summary(&report, plan.copy.bytes_to_write());
+    print_summary(&report);
     let finished = mirror::finish(&plan, &report, archive.as_deref());
     let mut checksums_failed = None;
     let removed_ok = match &finished {
@@ -474,7 +499,8 @@ fn job_meta(args: &Args, verify: bool, started: chrono::DateTime<Local>) -> JobM
     }
 }
 
-/// `--report`: the report in `dir`, named like the checksum file so the two pair up.
+/// `--report`: the report in `dir`, named like the copy's checksum file so the two pair up
+/// (by the time it started when there is none: a mirror, a check).
 fn write_report(
     full: &Report,
     dir: &Path,
@@ -550,6 +576,19 @@ fn print_preflight(pf: &Preflight, plan: &Plan) {
     }
 }
 
+fn check_progress_line(p: &Progress, elapsed: Duration) -> String {
+    let speed = p.verified_bytes as f64 / elapsed.as_secs_f64().max(0.001);
+    format!(
+        "read {} / {} ({:.1} %)  files {}/{}  {}/s   ",
+        fmt_bytes(p.verified_bytes),
+        fmt_bytes(p.total_bytes),
+        percent(p.verified_bytes, p.total_bytes),
+        p.files_done,
+        p.total_files,
+        fmt_bytes(speed as u64),
+    )
+}
+
 fn progress_line(p: &Progress, elapsed: Duration) -> String {
     let speed = p.copied_bytes as f64 / elapsed.as_secs_f64().max(0.001);
     format!(
@@ -564,7 +603,7 @@ fn progress_line(p: &Progress, elapsed: Duration) -> String {
     )
 }
 
-fn print_summary(report: &JobReport, total_bytes: u64) {
+fn print_summary(report: &JobReport) {
     let secs = report.elapsed.as_secs_f64().max(0.001);
     let failed = report.failed().count();
     let skipped = report.skipped().count();
@@ -582,11 +621,18 @@ fn print_summary(report: &JobReport, total_bytes: u64) {
         1 => println!("1 item couldn't be read (not copied)"),
         n => println!("{n} items couldn't be read (not copied)"),
     }
+    // What was written, not what was planned: a cancelled or failed job wrote less.
+    let written: u64 = report
+        .outcomes
+        .iter()
+        .filter(|o| matches!(o.status, FileStatus::Copied | FileStatus::Verified))
+        .map(|o| o.size)
+        .sum();
     println!(
-        "{} in {:.2} s ({}/s)",
-        fmt_bytes(total_bytes),
+        "{} written in {:.2} s ({}/s)",
+        fmt_bytes(written),
         secs,
-        fmt_bytes((total_bytes as f64 / secs) as u64)
+        fmt_bytes((written as f64 / secs) as u64)
     );
     if let Some(bypass) = report.cache_bypass {
         println!("verify cache bypass: {bypass:?}");
@@ -669,20 +715,19 @@ fn patterns(args: &Args) -> Result<Patterns, String> {
     Patterns::new(all).map_err(|_| format!("--ignore: up to {MAX_PATTERNS} patterns"))
 }
 
-/// `--check`: every file the directory's checksum files list, read again (FR-34).
-fn check_run(dir: &Path, ignore: &Patterns) -> Result<ExitCode, String> {
+/// `--check`: every file the directory's checksum files list, read again (FR-34); Ctrl-C
+/// cancels. With `--report`, its report goes there.
+fn check_run(dir: &Path, ignore: &Patterns, report: Option<&Path>) -> Result<ExitCode, String> {
     use secopy_core::{check, error::FileError, job::FileStatus};
     let plan = check::plan(dir, ignore).map_err(|e| format!("{}: {e}", dir.display()))?;
     if plan.files.is_empty() {
         println!("No checksum files here: there's nothing to verify.");
         return Ok(ExitCode::from(1));
     }
-    let r = check::run(
-        &plan,
-        &check::CheckOptions::default(),
-        &JobControl::new(),
-        &|_| {},
-    );
+    let started = Local::now();
+    let r = with_progress(check_progress_line, |control, on_event| {
+        check::run(&plan, &check::CheckOptions::default(), control, on_event)
+    })?;
     let c = r.counts();
     println!("intact: {}", c.intact);
     println!("changed: {}", c.changed);
@@ -703,6 +748,24 @@ fn check_run(dir: &Path, ignore: &Patterns) -> Result<ExitCode, String> {
             Some(n) => println!("PROBLEM {}:{n}: {}", p.file.display(), p.reason),
             None => println!("PROBLEM {}: {}", p.file.display(), p.reason),
         }
+    }
+    if r.job.cancelled {
+        println!("cancelled");
+    }
+    if let Some(reports) = report {
+        let meta = JobMeta {
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            source: dir.display().to_string(),
+            verify: true,
+            started,
+            finished: Local::now(),
+        };
+        write_report(
+            &Report::for_check(&plan, &r, &meta),
+            reports,
+            &r.job,
+            started,
+        )?;
     }
     Ok(if r.is_intact() {
         ExitCode::SUCCESS

@@ -284,6 +284,103 @@ fn check_says_intact_then_changed() {
     assert!(String::from_utf8_lossy(&out.stdout).contains("CHANGED CARD/A001.mov"));
 }
 
+/// Code review (#192): `--check --report DIR` writes the verification's report, as a copy
+/// or a mirror does; copy-only options with --check are a usage error, never ignored.
+#[test]
+fn check_writes_its_report_and_refuses_copy_options() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dest, reports) = (
+        dir.path().join("CARD"),
+        dir.path().join("dest"),
+        dir.path().join("reports"),
+    );
+    for d in [&src, &dest, &reports] {
+        fs::create_dir_all(d).unwrap();
+    }
+    fs::write(src.join("A001.mov"), b"movie").unwrap();
+    assert!(
+        cli()
+            .arg(&src)
+            .arg("--to")
+            .arg(&dest)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let out = cli()
+        .arg("--check")
+        .arg(&dest)
+        .arg("--report")
+        .arg(&reports)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let names: Vec<String> = fs::read_dir(&reports)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    let json = names
+        .iter()
+        .find(|n| n.ends_with("_report.json"))
+        .expect("a report");
+    let text = fs::read_to_string(reports.join(json)).unwrap();
+    assert!(text.contains("\"mode\": \"check\""), "{text}");
+    for flag in ["--verify", "--contents", "--no-checksum", "--mhl"] {
+        let out = cli().arg("--check").arg(&dest).arg(flag).output().unwrap();
+        assert_eq!(out.status.code(), Some(2), "{flag} is refused with --check");
+    }
+    let out = cli()
+        .args(["--check"])
+        .arg(&dest)
+        .args(["--ext", "mov"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2), "--ext is refused with --check");
+}
+
+/// Code review (#192): 0 days isn't "remove everything archived" (the engine reads it as no
+/// limit, and the app refuses it): refused here too.
+#[test]
+fn archive_days_must_be_at_least_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+    fs::create_dir_all(&o).unwrap();
+    fs::create_dir_all(&d).unwrap();
+    let out = cli()
+        .arg(&o)
+        .arg("--to")
+        .arg(&d)
+        .args(["--mirror", "--archive-days", "0"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+}
+
+/// Code review (#192): the summary's size is what was written, not what was planned.
+#[test]
+fn the_summary_counts_the_bytes_written() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dest) = (dir.path().join("CARD"), dir.path().join("dest"));
+    fs::create_dir_all(&src).unwrap();
+    fs::create_dir_all(&dest).unwrap();
+    fs::write(src.join("a.mov"), vec![1u8; 2000]).unwrap();
+    fs::write(src.join("b.mov"), vec![2u8; 3000]).unwrap();
+    fs::set_permissions(src.join("b.mov"), fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read(src.join("b.mov")).is_ok() {
+        return; // running as root: permissions are not enforced
+    }
+    let out = cli().arg(&src).arg("--to").arg(&dest).output().unwrap();
+    fs::set_permissions(src.join("b.mov"), fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("2.0 KB written in"), "{stdout}");
+}
+
 /// Final review: nothing to verify is not a success.
 #[test]
 fn check_with_nothing_to_verify_fails() {
