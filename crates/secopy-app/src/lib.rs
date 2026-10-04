@@ -294,7 +294,7 @@ pub fn rebuild_menu(app: &AppHandle<tauri::Wry>) -> tauri::Result<()> {
     let new = menu(app)?;
     app.set_menu(new.clone())?;
     if let Some(state) = app.try_state::<std::sync::Mutex<MenuState>>() {
-        let mut state = state.lock().unwrap_or_else(|e| e.into_inner());
+        let mut state = crate::lock(&state);
         state.file = FileMenu::find(&new);
         if let (Some(file), Some((setup, can_start, copying, busy))) = (&state.file, state.last) {
             file.update(setup, can_start, copying, busy);
@@ -574,7 +574,7 @@ mod tests {
         assert!(m.is_poisoned());
     }
 
-    use super::{Quit, quit_action};
+    use super::{MIN_HEIGHT, MIN_WIDTH, Quit, quit_action};
 
     /// ⌘Q asks between queue jobs too (a scan, or a job that couldn't start), like closing.
     #[test]
@@ -686,6 +686,17 @@ mod tests {
         let conf: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         assert_eq!(conf["bundle"]["macOS"]["signingIdentity"], "-");
+    }
+
+    /// Code review (#192): the minimum size the code keeps is the one the window has.
+    #[test]
+    fn the_minimum_size_is_the_windows() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+        let conf: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let window = &conf["app"]["windows"][0];
+        assert_eq!(window["minWidth"].as_f64(), Some(MIN_WIDTH));
+        assert_eq!(window["minHeight"].as_f64(), Some(MIN_HEIGHT));
     }
 
     /// The UI only opens checksum files, so that's all it may open.

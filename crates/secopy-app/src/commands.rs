@@ -832,11 +832,10 @@ impl AppState {
                     Ok(ready) => ready,
                     Err(reason) => return (QueueResult::Failed, Some(reason), None),
                 };
-                let settings = JobSettings::from(&*lock(&self.settings));
                 let work = Work::Copy {
                     ready: Box::new(ready),
                     verify: job.verify,
-                    settings,
+                    settings: JobSettings::from(&settings),
                 };
                 let ran = self.start_and_wait(work, started, sink, None);
                 if ran.2.is_some() {
@@ -897,7 +896,8 @@ impl AppState {
     /// Starts a queued job unless the queue was cancelled while it was being checked, waits
     /// for it, and says how it ended.
     /// `mirror`: the preset of a mirror job, whose pending archive deletion (#101) happens
-    /// here, after the cancel check and under its lock: a cancelled job deletes nothing.
+    /// here, after a first cancel check and outside the lock (#134): a queue cancelled
+    /// before it deletes nothing; one cancelled during it stops before the job starts.
     fn start_and_wait(
         &self,
         mut work: Work,
@@ -2218,6 +2218,9 @@ impl AppState {
         }
         let wants_settings = choices.settings && matches!(contents.settings, Some(Ok(_)));
         let mut done = (0usize, 0usize, false);
+        // Put in use once the lock is let go: a rescan of a large source takes a while, and
+        // the window's commands (⌘Q, closing) wait on that lock (#192).
+        let mut in_use = None;
         let failure = (|| -> Result<(), (Kind, Message)> {
             if !choices.copy_presets.is_empty() {
                 done.0 = self
@@ -2238,14 +2241,17 @@ impl AppState {
                     .map_err(|e| (Kind::Settings, e))?;
                 // Imported settings are in use at once, the language too (#181).
                 crate::message::set_language(self.chosen_language().as_deref());
-                session(self).set_mhl(theirs.write_mhl);
-                self.rescan(Change::Ignore(theirs.patterns()));
+                in_use = Some(theirs);
                 done.2 = true;
             }
             Ok(())
         })()
         .err();
         drop(run);
+        if let Some(theirs) = in_use {
+            session(self).set_mhl(theirs.write_mhl);
+            self.rescan(Change::Ignore(theirs.patterns()));
+        }
         let imported = what_line(done.0, done.1, done.2);
         let (message, failed) = match failure {
             None => (msg!("import.done", what = imported), false),
