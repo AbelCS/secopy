@@ -179,6 +179,26 @@ fn a_live_writers_partial_file_is_never_touched() {
     assert_eq!(fs::read(&dst).unwrap(), b"mine");
 }
 
+/// Code review (#192): a partial file nobody holds but made a moment ago may be another
+/// writer's, created and not locked yet: it's left alone, and this file fails.
+#[test]
+fn a_fresh_unlocked_partial_file_is_left_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dst) = (dir.path().join("a.bin"), dir.path().join("b.bin"));
+    fs::write(&src, b"mine").unwrap();
+    fs::write(partial_path(&dst), b"just created").unwrap();
+    let err = copy_to_partial(
+        &src,
+        &dst,
+        &CopyConfig::default(),
+        &|_| {},
+        &JobControl::new(),
+    )
+    .unwrap_err();
+    assert_eq!(err, FileError::PartialInUse);
+    assert_eq!(fs::read(partial_path(&dst)).unwrap(), b"just created");
+}
+
 #[test]
 fn a_stale_partial_file_is_replaced() {
     let dir = tempfile::tempdir().unwrap();

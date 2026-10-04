@@ -1166,7 +1166,6 @@
     },
     "scan": {
       "notAFile": "Not a regular file",
-      "loop": "It’s a symlink to a directory that holds it",
       "problem": "{path}: {why}",
       "driveRoot": "A drive root has no directory name; copy only its contents instead"
     },

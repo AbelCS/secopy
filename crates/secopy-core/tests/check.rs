@@ -130,6 +130,24 @@ fn the_newest_checksum_file_wins() {
     assert_eq!(p.files[0].from, PathBuf::from("later.xxh128"));
 }
 
+/// Code review (#192): one file, spelled in two Unicode forms by two checksum files (an
+/// HFS+ copy's NFD and a later NFC), is one file: read once, by the newest entry.
+#[test]
+fn one_name_in_two_unicode_forms_is_one_file() {
+    let nfd = "Cafe\u{301}.mov";
+    let (_dir, root) = copy_of(&[(nfd, b"old")]);
+    fs::write(root.join(nfd), b"new").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    fs::write(
+        root.join("later.xxh128"),
+        format!("{}  Caf\u{e9}.mov\n", secopy_core::hash::Hash::of(b"new")),
+    )
+    .unwrap();
+    let p = check::plan(&root, &Patterns::defaults()).unwrap();
+    assert_eq!(p.files.len(), 1, "{:?}", p.files);
+    assert_eq!(p.files[0].from, PathBuf::from("later.xxh128"));
+}
+
 #[test]
 fn checksum_files_in_subdirectories_are_found() {
     let dir = tempfile::tempdir().unwrap();
@@ -405,6 +423,9 @@ fn only_secopys_reports_are_left_out() {
     let (_dir, root) = copy_of(&[("a.mov", b"a")]);
     fs::write(root.join("sales_report.txt"), b"s").unwrap();
     fs::write(root.join("secopy_2026-09-28_120000_report.txt"), b"r").unwrap();
+    // The second report of the same second (#116), and its JSON (code review, #192).
+    fs::write(root.join("secopy_2026-09-28_120000_report (2).txt"), b"r").unwrap();
+    fs::write(root.join("secopy_2026-09-28_120000_report (2).json"), b"r").unwrap();
     let p = check::plan(&root, &Patterns::defaults()).unwrap();
     assert_eq!(p.not_checked, [PathBuf::from("sales_report.txt")]);
 }

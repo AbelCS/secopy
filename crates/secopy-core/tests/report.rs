@@ -81,6 +81,9 @@ fn counts_and_statuses_are_complete() {
     let (_dir, r) = job();
     assert_eq!(r.result, "1 file failed");
     assert_eq!(r.mode, "copy+verify");
+    // Code review (#192): the JSON says which format it is, for tools that read it.
+    let json: serde_json::Value = serde_json::from_str(&r.to_json()).unwrap();
+    assert_eq!(json["format"], 1);
     assert_eq!(r.counts.files, 3);
     assert_eq!(r.counts.verified, 1);
     assert_eq!(r.counts.skipped_identical, 1);

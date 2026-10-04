@@ -1214,7 +1214,6 @@
     },
     "scan": {
       "notAFile": "No es un archivo normal",
-      "loop": "Es un enlace simbólico a un directorio que lo contiene",
       "problem": "{path}: {why}",
       "driveRoot": "La raíz de una unidad no tiene nombre de directorio; copia solo su contenido"
     },

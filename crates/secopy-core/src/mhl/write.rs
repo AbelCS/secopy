@@ -145,6 +145,25 @@ pub fn append(
     g: &Generation,
     started: DateTime<Utc>,
 ) -> io::Result<Written> {
+    append_then_sync(
+        scope,
+        chain_before,
+        entries_before,
+        g,
+        started,
+        crate::os::full_barrier,
+    )
+}
+
+/// `append`, with how the folder is synced after the chain is replaced.
+fn append_then_sync(
+    scope: &Path,
+    chain_before: Option<&[u8]>,
+    entries_before: &[ChainEntry],
+    g: &Generation,
+    started: DateTime<Utc>,
+    sync_dir: impl FnOnce(&Path) -> io::Result<()>,
+) -> io::Result<Written> {
     let folder = scope.join(FOLDER);
     let chain = folder.join(CHAIN);
     if read_chain(&chain)?.as_deref() != chain_before {
@@ -210,7 +229,12 @@ pub fn append(
         }
         return Err(e);
     }
-    match replace(&chain, chain_text.as_bytes()).and_then(|()| sync_dir(&folder)) {
+    // As in a copy job, only a device error fails the sync, not a file system that can't.
+    let synced = |()| match sync_dir(&folder) {
+        Err(e) if crate::os::is_device_error(&e) => Err(e),
+        _ => Ok(()),
+    };
+    match replace(&chain, chain_text.as_bytes()).and_then(synced) {
         Ok(()) => Ok(written),
         Err(e) => {
             let _ = revert(&written);
@@ -259,11 +283,6 @@ fn replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
         let _ = fs::remove_file(&tmp);
     }
     result
-}
-
-/// fsync of a folder, so a new name in it is on disk.
-fn sync_dir(dir: &Path) -> io::Result<()> {
-    fs::File::open(dir)?.sync_all()
 }
 
 /// Takes back what `append` wrote: the chain as it was, the manifest gone, and the folder if
@@ -440,6 +459,28 @@ mod tests {
         assert_eq!(std::fs::read(&first.chain).unwrap(), chain);
         assert!(!second.manifest.exists());
         revert(&first).unwrap();
+        assert!(!scope.path().join("ascmhl").exists());
+    }
+
+    /// Code review (#192): as for the checksum file, a file system that can't sync a
+    /// directory (SMB: `ENOTSUP`) isn't a failure; a device error is, and takes it back.
+    #[test]
+    fn only_a_device_error_syncing_the_folder_fails_the_history() {
+        let at = chrono::Utc.with_ymd_and_hms(2026, 10, 1, 8, 15, 0).unwrap();
+        let err = |code| move |_: &Path| Err(io::Error::from_raw_os_error(code));
+        let scope = tempfile::tempdir().unwrap();
+        let written = append_then_sync(
+            scope.path(),
+            None,
+            &[],
+            &generation(),
+            at,
+            err(libc::ENOTSUP),
+        );
+        assert!(written.unwrap().manifest.exists());
+        let scope = tempfile::tempdir().unwrap();
+        let failed = append_then_sync(scope.path(), None, &[], &generation(), at, err(libc::EIO));
+        assert_eq!(failed.unwrap_err().raw_os_error(), Some(libc::EIO));
         assert!(!scope.path().join("ascmhl").exists());
     }
 

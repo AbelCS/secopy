@@ -62,8 +62,6 @@ pub enum ScanProblemKind {
     /// Picked, but not a regular file (a directory among picked files, a device…).
     NotAFile,
     Io(IoFailure),
-    /// A directory that links back to one of its parents.
-    Loop,
 }
 
 /// `scan`'s error for "copy the folder itself" of a drive root, which has no name: inside the
@@ -274,10 +272,7 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
                     .map(Path::to_path_buf)
                     .unwrap_or_else(|| root.clone());
                 let message = e.to_string();
-                let kind = match e.into_io_error() {
-                    Some(io) => ScanProblemKind::Io(io.into()),
-                    None => ScanProblemKind::Loop,
-                };
+                let kind = ScanProblemKind::Io(walk_failure(e));
                 scan.problem(&path, message, kind);
                 continue;
             }
@@ -306,10 +301,7 @@ fn scan_dir(root: &Path, mode: DirMode, opts: &ScanOptions) -> io::Result<Scan> 
                 }
                 Err(e) => {
                     let message = e.to_string();
-                    let kind = match e.into_io_error() {
-                        Some(io) => ScanProblemKind::Io(io.into()),
-                        None => ScanProblemKind::Loop,
-                    };
+                    let kind = ScanProblemKind::Io(walk_failure(e));
                     scan.problem(entry.path(), message, kind);
                 }
             }
@@ -341,4 +333,13 @@ fn folder_name(root: &Path) -> io::Result<std::ffi::OsString> {
         .file_name()
         .map(ToOwned::to_owned)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, DriveRoot))
+}
+
+/// A walk's error as an I/O failure. Walks never follow links, so walkdir's only error
+/// without one (a directory loop) can't happen; were it to, its message is kept.
+pub(crate) fn walk_failure(e: walkdir::Error) -> IoFailure {
+    let message = e.to_string();
+    e.into_io_error()
+        .unwrap_or_else(|| io::Error::other(message))
+        .into()
 }
