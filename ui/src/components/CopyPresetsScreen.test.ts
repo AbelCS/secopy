@@ -139,6 +139,9 @@ describe("CopyPresetsScreen", () => {
     await fireEvent.click(save());
     const sourceError = await screen.findByText("The source must be a full path, like /Volumes/Untitled/DCIM.");
     expect(screen.getByRole("textbox", { name: "Source" }).getAttribute("aria-describedby")).toBe(sourceError.id);
+    // #202: a field's problem goes as soon as the field changes.
+    await fireEvent.input(screen.getByRole("textbox", { name: "Source" }), { target: { value: "/Volumes/CARD/DCIM" } });
+    expect(screen.queryByText("The source must be a full path, like /Volumes/Untitled/DCIM.")).toBeNull();
   });
 
   test("an error that isn't about a field is shown for the form, whatever its words", async () => {

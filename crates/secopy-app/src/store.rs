@@ -694,13 +694,22 @@ impl MirrorPreset {
 
 /// A preset's origin or destination: a full path without a trailing `/`; `None` if it isn't one.
 fn full_path(text: &str) -> Option<String> {
-    // Only spaces before it: a name may end in a space (#192).
-    let text = text.trim_start();
+    // Only spaces before it: a name may end in a space (#192). Invisible formatting a paste
+    // can bring goes at either end (#202).
+    let text = text
+        .trim_start_matches(|c: char| c.is_whitespace() || invisible(c))
+        .trim_end_matches(invisible);
     if !text.starts_with('/') {
         return None;
     }
     let trimmed = text.trim_end_matches('/');
     Some(if trimmed.is_empty() { "/" } else { trimmed }.to_string())
+}
+
+/// A character that shows nothing: direction marks and embeddings, zero-width spaces and
+/// joiners, a byte order mark.
+fn invisible(c: char) -> bool {
+    matches!(c, '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{2069}' | '\u{feff}')
 }
 
 /// A copy preset's source, normalized: a full path without a trailing `/`, or empty.
@@ -952,6 +961,16 @@ mod tests {
             Some("/Volumes/CARD")
         );
         assert_eq!(source("  ").unwrap(), "");
+        // #202: invisible formatting characters a paste can bring (a direction mark, a
+        // zero-width space, a BOM) aren't part of the path, at either end.
+        assert_eq!(
+            full_path("\u{202a}/Volumes/NAS/Footage\u{202c}").as_deref(),
+            Some("/Volumes/NAS/Footage")
+        );
+        assert_eq!(
+            full_path("\u{feff}\u{200b} /Volumes/A ").as_deref(),
+            Some("/Volumes/A ")
+        );
     }
 
     #[test]

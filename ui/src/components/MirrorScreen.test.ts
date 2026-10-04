@@ -360,6 +360,23 @@ describe("MirrorScreen", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
     const error = await screen.findByText("The origin must be a full path, like /Volumes/SSD/Footage.");
     expect(screen.getByRole("textbox", { name: "Origin" }).getAttribute("aria-describedby")).toBe(error.id);
+    // #202: fixed, it goes at once, not at the next Save.
+    await fireEvent.input(screen.getByRole("textbox", { name: "Origin" }), { target: { value: "/Volumes/SSD/Footage" } });
+    expect(screen.queryByText("The origin must be a full path, like /Volumes/SSD/Footage.")).toBeNull();
+  });
+
+  test("a destination chosen after its problem clears the problem (#202)", async () => {
+    const { api } = show();
+    api.editMirrorPreset.mockRejectedValueOnce(new AppError({ key: "errors.field.destination.notFull", args: {} }));
+    await fireEvent.input(screen.getByRole("textbox", { name: "Destination" }), { target: { value: "Backup" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("The destination must be a full path, like /Volumes/NAS/Footage.");
+    api.pickDirectory.mockResolvedValueOnce("/Volumes/NAS/Backup");
+    const [, destination] = screen.getAllByRole("button", { name: "Choose…" });
+    await fireEvent.click(destination);
+    await waitFor(() =>
+      expect(screen.queryByText("The destination must be a full path, like /Volumes/NAS/Footage.")).toBeNull(),
+    );
   });
 
   test("Preview… previews the saved preset; edits must be saved first", async () => {

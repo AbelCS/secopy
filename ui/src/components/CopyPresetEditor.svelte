@@ -56,6 +56,15 @@
   let nameProblem: string | null = $state(null);
   let sourceProblem: string | null = $state(null);
   let otherProblem: string | null = $state(null);
+  // A field's problem goes as soon as the field changes, not at the next Save (#202).
+  $effect(() => {
+    void name;
+    nameProblem = null;
+  });
+  $effect(() => {
+    void source;
+    sourceProblem = null;
+  });
 
   const folderName = $derived(baseName(source));
   const isChanged = $derived(
