@@ -53,6 +53,17 @@ describe("MirrorScreen", () => {
     );
   });
 
+  test("a mirror's error isn't shown on the next mirror (#199)", async () => {
+    const presets = [mirrorPreset(), mirrorPreset({ id: "m2", name: "V001", destination: "/Volumes/Media/Mirror/V001" })];
+    const { api } = show(presets);
+    api.previewMirror.mockRejectedValueOnce(new Error("Origin “/Volumes/P001” not found."));
+    await fireEvent.click(screen.getByRole("button", { name: "Preview…" }));
+    await screen.findByText("Origin “/Volumes/P001” not found.");
+    await fireEvent.click(screen.getByRole("button", { name: "V001" }));
+    await screen.findByRole("heading", { name: "V001" });
+    expect(screen.queryByText("Origin “/Volumes/P001” not found.")).toBeNull();
+  });
+
   test("a mirror has its own Also ignore list (#164)", async () => {
     const { api } = show();
     await fireEvent.input(screen.getByLabelText("Name pattern"), { target: { value: "*.LRF" } });
@@ -124,7 +135,7 @@ describe("MirrorScreen", () => {
     );
     await fireEvent.click(screen.getByRole("button", { name: "Photos → Backup" }));
     archive = within(await screen.findByRole("region", { name: "Archive" }));
-    await archive.findByText("Destination not connected");
+    await archive.findByText("Destination not found");
     expect(archive.getByRole("button", { name: "Show in Finder" })).toHaveProperty("disabled", true);
   });
 
@@ -134,7 +145,7 @@ describe("MirrorScreen", () => {
   test("the archive is looked at again after Choose… for the destination, even the same one (#195)", async () => {
     const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(gone()));
     const archive = within(await screen.findByRole("region", { name: "Archive" }));
-    await archive.findByText("Destination not connected");
+    await archive.findByText("Destination not found");
     api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null }));
     api.pickDirectory.mockResolvedValueOnce("/Volumes/Media/Footage");
     const [, destination] = screen.getAllByRole("button", { name: "Choose…" });
@@ -145,7 +156,7 @@ describe("MirrorScreen", () => {
   test("the archive is looked at again when the window comes to the front (#195)", async () => {
     const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(gone()));
     const archive = within(await screen.findByRole("region", { name: "Archive" }));
-    await archive.findByText("Destination not connected");
+    await archive.findByText("Destination not found");
     api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null }));
     window.dispatchEvent(new Event("focus"));
     await archive.findByText("Empty");
@@ -154,7 +165,7 @@ describe("MirrorScreen", () => {
   test("the archive is looked at again after Save, with the same destination (#195)", async () => {
     const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(gone()));
     const archive = within(await screen.findByRole("region", { name: "Archive" }));
-    await archive.findByText("Destination not connected");
+    await archive.findByText("Destination not found");
     api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null }));
     await fireEvent.click(screen.getByRole("radio", { name: "Paranoid" }));
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -313,12 +324,12 @@ describe("MirrorScreen", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  test("a destination that isn't connected can have its archive deleted at the next run", async () => {
+  test("a destination that isn't found can have its archive deleted at the next run", async () => {
     const { api } = show();
     api.mirrorArchive.mockResolvedValue({ destination: "/Volumes/Media/Footage", files: 0, bytes: 0, oldest: null, connected: false, busy: false });
     await switchToDelete();
     const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
-    within(dialog).getByText("The destination isn’t connected, so its archive can’t be checked.");
+    within(dialog).getByText("Destination not found: its archive can’t be checked.");
     expect(within(dialog).queryByRole("button", { name: "Delete them now" })).toBeNull();
     await fireEvent.click(within(dialog).getByRole("button", { name: "Delete them at the next run" }));
     await waitFor(() => expect(api.clearMirrorArchiveNextRun).toHaveBeenCalledWith("m1"));

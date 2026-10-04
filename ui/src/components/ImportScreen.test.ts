@@ -76,7 +76,7 @@ describe("ImportScreen", () => {
     screen.getByRole("heading", { name: "Import" });
     screen.getByText("Team presets.secopy");
     screen.getByText("Write the checksum file: on → off");
-    screen.getByText("/Volumes/DJI/DCIM isn’t connected now.");
+    screen.getByText("“/Volumes/DJI/DCIM” not found.");
     screen.getByText("Its details can’t be read (…).");
     expect(screen.getByRole("checkbox", { name: "Bad" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("radio", { name: "Keep both, as “Sony FX3 (2)”" })).toHaveProperty("checked", true);

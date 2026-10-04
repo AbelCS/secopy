@@ -26,9 +26,6 @@ use crate::msg;
 use crate::say;
 use crate::store::CopyPreset;
 
-/// Where macOS mounts drives.
-const VOLUMES: &str = "/Volumes";
-
 /// Per-file problems sent to the UI; the rest are only counted.
 const PROBLEMS_SHOWN: usize = 100;
 /// Scan problems sent to the UI.
@@ -305,7 +302,7 @@ impl Session {
         if let [one] = paths
             && !one.exists()
         {
-            return Err(gone(one));
+            return Err(crate::say::not_found(crate::say::Role::Source, one));
         }
         Self::source_for(paths, !self.include_folder)
     }
@@ -816,20 +813,6 @@ pub(crate) fn shown(source: &Source) -> Message {
     }
 }
 
-/// Why `path` can't be used: its drive isn't connected, or it is gone.
-pub(crate) fn gone(path: &Path) -> Message {
-    if let Ok(rest) = path.strip_prefix(VOLUMES)
-        && let Some(drive) = rest.components().next()
-        && !Path::new(VOLUMES).join(drive).exists()
-    {
-        return msg!(
-            "errors.source.notConnected",
-            drive = drive.as_os_str().to_string_lossy().into_owned(),
-        );
-    }
-    msg!("errors.source.gone", path = path)
-}
-
 /// Whether `a` and `b` are the same directory on disk: on a case-insensitive drive `DCIM`
 /// and `dcim` are one (#69). Compared as text when either can't be looked at.
 fn same_dir(a: &Path, b: &Path) -> bool {
@@ -985,13 +968,13 @@ mod tests {
         assert!(view.source.is_none());
         assert_eq!(
             view.pick_problem.en(),
-            Some(format!("{} isn’t there any more.", show(&gone)))
+            Some(format!("Source “{}” not found.", show(&gone)))
         );
         let card = Path::new("/Volumes/SECOPY_NO_SUCH_CARD/DCIM");
         let view = apply(&mut s, Change::CopyPreset(Some(preset(card, None))));
         assert_eq!(
             view.pick_problem.en().as_deref(),
-            Some("SECOPY_NO_SUCH_CARD isn’t connected.")
+            Some("Source “/Volumes/SECOPY_NO_SUCH_CARD/DCIM” not found.")
         );
         s.set_destination(Some(f.dest.clone()));
         assert!(s.ready().is_none());
@@ -1443,7 +1426,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             missing.blocker.en().as_deref(),
-            Some("The destination isn’t an existing directory")
+            Some("Destination not found.")
         );
     }
 

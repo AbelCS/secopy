@@ -69,7 +69,7 @@
             <Checkbox label={p.section ? whole : p.name || unnamed} checked={state[i].on} disabled={!!p.problem} onChange={(on) => (state[i].on = on)} />
             {#each p.paths as path (path)}<p class="note mono">{path}</p>{/each}
             {#if p.problem}<p class="note problem">{say(p.problem)}</p>{/if}
-            {#each p.missing as path (path)}<p class="note">{t("import.notConnected", { path })}</p>{/each}
+            {#each p.missing as path (path)}<p class="note">{t("import.notFound", { path })}</p>{/each}
             {#if !p.clash && !p.problem && p.newName !== p.name}
               <p class="note">{t("import.renamed", { name: p.newName })}</p>
             {/if}

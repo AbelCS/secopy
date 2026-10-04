@@ -91,7 +91,9 @@
       if (!discard) return;
     }
     changed = false;
+    // What was said about the mirror left (an error too) isn't about this one (#199).
     said = null;
+    error = null;
     selectedId = id;
   }
 
@@ -133,7 +135,7 @@
   const DATE = { day: "numeric", month: "short", year: "numeric" } as const;
   const archiveText = $derived.by(() => {
     if (!archive) return "";
-    if (!archive.connected) return t("mirror.archive.notConnected");
+    if (!archive.connected) return t("mirror.archive.notFound");
     if (archive.files === 0) return t("mirror.archive.empty");
     return [
       t("mirror.archive.files", { count: archive.files }),
