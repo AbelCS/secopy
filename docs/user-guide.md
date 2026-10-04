@@ -216,8 +216,8 @@ Copies made by Secopy before 0.24 have `.xxh64` checksum files, which Verify doe
 
 **Add to queue** on Copy, Mirror or Verify adds the job. A copy keeps its source, destination
 and options as set up; a mirror runs its preset as it is at its turn; Settings (the ignore
-list, ASC MHL) are read when each job starts. On the Queue screen, reorder jobs with the
-arrows, remove them, **Clear…** them all (after asking), and choose what happens **if a job
+list, ASC MHL) are read when each job starts. On the Queue screen, reorder jobs by dragging
+them by their grip (⠿; or focus it and press ⌥↑ or ⌥↓), remove them, **Clear…** them all (after asking), and choose what happens **if a job
 fails**: continue with the next job or stop the queue. **Start** runs them one after another;
 each is checked when its turn comes, and one that can't start fails with its reason. A copy
 set to Overwrite replaces only the files it listed when it was queued; if others differ at its

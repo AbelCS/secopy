@@ -787,8 +787,9 @@
       "mirror": "Un espejo que se borró",
       "newer": "Una tarea para una versión más reciente de Secopy"
     },
-    "moveUp": "Subir la tarea {number}",
-    "moveDown": "Bajar la tarea {number}",
+    "grip": "Mover la tarea {number}",
+    "gripHelp": "Arrástrala, o pulsa ⌥↑ o ⌥↓.",
+    "moved": "Tarea movida a la posición {position} de {count}.",
     "remove": "Eliminar la tarea {number}",
     "onFailure": {
       "title": "Si una tarea falla",
