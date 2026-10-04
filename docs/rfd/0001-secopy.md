@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **State** | Discussion |
+| **State** | Implemented: v1, Secopy 1.0 |
 | **Created** | 2026-09-26 |
-| **Updated** | 2026-09-27 (decisions in §14) |
+| **Updated** | 2026-10-04 (decisions in §14) |
 | **Author** | Abel Castro |
 | **Stack** | Tauri 2 · Rust engine · Svelte UI |
 
@@ -28,7 +28,7 @@ anyone copying files that matter.
 
 ## 2. Motivation
 
-Copying a folder with Finder, Explorer or Nautilus has three problems:
+Copying a directory with Finder, Explorer or Nautilus has three problems:
 
 1. **No proof of integrity.** A copy can be silently corrupted (bad cable, failing card
    reader, flaky USB hub, bit rot) and you only find out when it is too late.
@@ -49,14 +49,20 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - Two modes: **Copy** and **Copy & Verify** (XXH128, source vs. copy read back from disk).
 - Write an **XXH128 checksum file** to the destination for every job.
 - **Filter by extension** when the source is a directory.
-- Choose between copying **the folder itself** (`SOURCE/…`) or **only its contents** (`…`),
-  with one checkbox: "Include the “SOURCE” folder", off by default (#152).
-- Copy hidden files too (a camera can mark its own files hidden); skip only the files
-  computers leave on a card, such as `.DS_Store` and `Thumbs.db`.
+- Choose between copying **the directory itself** (`SOURCE/…`) or **only its contents** (`…`),
+  with one checkbox: "Include the “SOURCE” directory", off by default (#152).
+- Copy hidden files too (a camera can mark its own files hidden); skip only the names on the
+  ignore list, by default the files computers leave on a card, such as `.DS_Store` and
+  `Thumbs.db` (FR-12).
 - Get close to the throughput of the slower of the two devices.
 - **Queue** jobs and run them one after another, unattended (§5.7, 0.7.0).
 - **Mirror** a directory one way to a backup with saved presets: new and changed files
   copied, deleted ones archived or removed (§5.8, 0.8.0).
+- **Verify** an existing copy against its checksum files (FR-34), and optionally keep an
+  **ASC MHL** history with each copy (FR-57).
+- **Export and import** settings and presets (§6.11), and keep jobs running from the **menu
+  bar** when the window is closed (§6.12).
+- English and Spanish, chosen in Settings (NFR-11).
 - Run natively on Apple Silicon Macs. Secopy is macOS only by design, and Intel Macs are
   not supported (§14, 2026-09-27 and 2026-09-28).
 
@@ -64,7 +70,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 
 - Two-way sync. (One-way mirroring is a goal, §5.8.)
 - Multiple destinations in one job: two copy jobs in the queue do it (§14, 2026-09-28).
-- Network protocols (SFTP, S3…). Mounted network shares work as ordinary folders.
+- Network protocols (SFTP, S3…). Mounted network shares work as ordinary directories.
 - Scheduling, watch folders, background daemons (the queue runs while the app is open).
 - Resuming a job after the app is closed or crashes (planned, §11).
 - Copying extended attributes, ACLs, resource forks.
@@ -76,13 +82,17 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 
 | Term | Meaning |
 |---|---|
-| **Job** | One run of the app: one source selection → one destination, one mode. |
-| **Source** | Either one directory, or a set of individual files. |
+| **Job** | One copy, mirror run or verify: what it reads (a source, an origin, or a directory to verify) and where it writes, run by hand or from the queue. |
+| **Source** | What a copy reads: either one directory, or a set of individual files. |
+| **Origin** | What a mirror keeps its destination identical to. |
+| **Preset** | A saved setup: a copy preset (a source and its options) or a mirror preset. |
+| **Ignore list** | Name patterns never copied or mirrored: Settings' list, plus a job's own Also ignore (FR-12). |
 | **Destination** | One existing directory. The **copy root** is where the files actually land (see FR-4). |
 | **XXH128** | 128-bit non-cryptographic hash (XXH3), seed 0, shown in canonical lowercase hex (32 chars), as `xxhsum -H2` prints. |
 | **Checksum file** | Text file listing `hash  relative/path` for every file copied in the job. |
 | **Verify** | Re-read the written file from the destination device and compare its hash with the source hash. |
 | **Partial file** | A file that is still being written, under a temporary name. |
+| **ASC MHL** | The ASC Media Hash List, a history of verified copies read by media tools (FR-57). |
 
 ## 5. User experience
 
@@ -105,37 +115,32 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 ### 5.2 Main window (sketch)
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ Secopy                                           [Settings]  │
-├──────────────────────────────────────────────────────────────┤
-│ FROM                                                          │
-│ ┌──────────────────────────────────────────────────────────┐ │
-│ │ /Volumes/CARD_A/DCIM                        [ Choose… ]   │ │
-│ │ 1,284 files · 212.4 GB · 37 system files skipped          │ │
-│ └──────────────────────────────────────────────────────────┘ │
-│   [ ] Include the "DCIM" folder                               │
-│                                                               │
-│   File types   [✓ .mov 1,020 · 208 GB] [✓ .wav 240 · 4.1 GB]  │
-│                [  .xml 24 · 2 MB]  [✓ (no extension) 0]  All ▾│
-│                                                               │
-│ TO                                                            │
-│ ┌──────────────────────────────────────────────────────────┐ │
-│ │ /Volumes/RAID/Project/Day01                  [ Change ]   │ │
-│ │ 1.8 TB free                                               │ │
-│ └──────────────────────────────────────────────────────────┘ │
-│   Files will go to: /Volumes/RAID/Project/Day01/DCIM/         │
-│                                                               │
-│ MODE   [ Copy ]  [● Copy & Verify ]                           │
-│                                                               │
-│                                         [     Start      ]    │
-└──────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│ Copy   Mirror   Verify                   [☰ Queue 3] [⚙ Settings]  │
+├────────────────────────────────────────────────────────────────────┤
+│ New copy                                                           │
+│ FROM                                                               │
+│  Source       /Volumes/CARD_A/PRIVATE/M4ROOT/CLIP      [Choose…]   │
+│               212 files · 180.4 GB · 4 ignored                     │
+│  Preset       [Sony FX3 ▾]  Changed for this run      [Update]     │
+│  Options      [ ] Include the “CLIP” directory                     │
+│  File types   [✓ .mp4 106 · 180.0 GB] [ .xml 106 · 400 KB]         │
+│  Also ignore  .gitkeep                                   Edit…     │
+│ TO                                                                 │
+│  Destination  /Volumes/V001/Day01            [Recent…] [Choose…]   │
+│               1.8 TB available · APFS                              │
+│  Files go to  /Volumes/V001/Day01/CLIP                             │
+│  Existing     (●) Keep both  ( ) Overwrite  ( ) Skip               │
+├────────────────────────────────────────────────────────────────────┤
+│ [Copy|Copy & Verify]  106 files · 180.0 GB  [Add to queue] [Start] │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-Drag and drop works on both FROM and TO areas. FROM has one Choose… that opens a panel
-where a folder or files can be picked, the same things a drop accepts. When the source is a
-set of files, the "Include the folder" checkbox and the file-type filter are hidden. They do
-not apply.
-The "system files skipped" count only appears when it is enabled in Settings (on by default).
+Drag and drop works on both FROM and TO. FROM has one Choose… that opens a panel where a
+directory or files can be picked, the same things a drop accepts. When the source is a set of
+files, the "Include the directory" checkbox and the file-type filter are hidden: they don't
+apply. The ignored count only appears when it is turned on in Settings (on by default). The
+real screens are in the [user guide](../user-guide.md).
 
 ### 5.3 Progress view
 
@@ -153,8 +158,8 @@ The view has three zones, from top to bottom.
 
 ```
  Copying & verifying                                        00:04:12 elapsed
- Copied    ██████████████████░░░░░░  148.2 / 212.4 GB  69.8 %  1.21 GB/s  ETA 0:53
- Verified  █████████████████░░░░░░░  141.0 / 212.4 GB  66.4 %  1.18 GB/s  ETA 1:00
+ Copied    ██████████████████░░░░░░  148.2 / 212.4 GB  69.8%  1.21 GB/s  ETA 0:53
+ Verified  █████████████████░░░░░░░  141.0 / 212.4 GB  66.4%  1.18 GB/s  ETA 1:00
            902 / 1,284 files
 
  ACTIVE
@@ -163,7 +168,7 @@ The view has three zones, from top to bottom.
  + 12 small files           41 MB    18 MB    43.9 %
 
  FINISHED                                                         [ Failed only ]
- A001C012.mov   8.1 GB   6.9 s   1.17 GB/s   9f3a07c1d4e2c21e   ✓ Verified
+ A001C012.mov   8.1 GB   6.9 s   1.17 GB/s   06b05ab6733a618578af5f94892f3950   ✓ Verified
 ```
 
 Rules that keep the view readable:
@@ -177,16 +182,16 @@ Rules that keep the view readable:
 - The view updates twice per second, however many files are in flight. Bars animate for
   0.5 s between updates, so they still move smoothly.
 
-Actions: **Pause / Resume**, **Cancel** (asks for confirmation and explains what happens
-to files already copied). The OS is kept awake while the job runs.
+Actions: **Pause / Resume**, **Cancel…** (asks for confirmation, explains what happens to
+files already copied, and can remove them). The OS is kept awake while the job runs.
 
 ### 5.4 Summary view
 
-- Big, unambiguous status: **All 1,284 files copied and verified** / **3 files failed**.
+- Big, unambiguous status: **1,284 files copied and verified** / **3 files failed**.
 - Stats: file count, total size, duration, average speed. Files skipped because they were
   already at the destination are counted separately and marked as not checked (FR-17).
 - Failure list with the reason for each file (permission denied, hash mismatch, disk full…).
-- Actions, what you'd do next first: **Retry**, **Show in Finder/Explorer/Files**,
+- Actions, what you'd do next first: **Retry**, **Show in Finder**,
   **Open checksum file**, **Save report…**, and **New copy** on the right. Ejecting is left
   to the OS (Finder, the desktop, the menu bar).
 - System notification when the job ends while the window is in the background (a setting,
@@ -199,14 +204,18 @@ apply when saved (Save); Cancel or Esc drops them.
 
 | Setting | Default | Notes |
 |---|---|---|
-| Write checksum file to destination | On | FR-29. |
-| Show count of skipped system files | On | FR-13. |
-| Save the report next to the checksum file | Off | FR-35. |
+| **General** | | |
+| Language | Automatic | #181: the Mac's language when Secopy has it, English otherwise; or a chosen one. |
 | Notify when a job finishes | On | Only when the window isn't in front. |
 | Keep jobs running in the menu bar when the window is closed | On | FR-56. |
-| Language | Automatic | #181: the Mac's language when Secopy has it, English otherwise; or a chosen one. |
-| Advanced: files in flight, buffer size | Auto | §7.2. Folded under "Advanced". Plan 4 (performance). |
-| Include system files | — | Reserved (FR-14). Not shown in v1. |
+| **Copies** | | |
+| Write the checksum file to the destination | On | FR-29. |
+| Write ASC MHL | Off | FR-57. |
+| Show the count of ignored files | On | FR-13. |
+| Save the report next to the checksum file | Off | FR-35. |
+| **Always ignore when copying** | The files computers leave behind | FR-12: name patterns, up to 128; Restore defaults. |
+
+Advanced settings (files in flight, buffer size, §7.2) are future work (§11).
 
 Settings are stored per user in the OS's standard app-config location. A section below them
 exports and imports settings and presets (§6.11).
@@ -246,7 +255,7 @@ Rules:
 - Typography: the system UI font, with tabular numerals for all figures. Hashes are set
   in monospace.
 
-These values are a starting point and will be refined during M2.
+These were the starting values; the ones in use are the tokens in `ui/src/app.css`, described in the [design system](../design/design-system.md).
 
 ### 5.7 Sections and the job queue
 
@@ -282,9 +291,9 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-1 | The user can pick **one directory** as source via the native picker or drag and drop. | M |
-| FR-2 | The user can pick **one or more files** as source via the same native picker (multi-select) or drag and drop. Files dropped from different folders are allowed. | M |
+| FR-2 | The user can pick **one or more files** as source via the same native picker (multi-select) or drag and drop. Files dropped from different directories are allowed. | M |
 | FR-3 | After a source is picked, the app scans it in the background. It shows file count and total size, and updates them live as filters change. The UI stays responsive during the scan, and the scan can be cancelled by picking another source. | M |
-| FR-4 | For a directory source, the user chooses between: **(a) Copy the folder itself.** Copy root = `DEST/<SOURCE_NAME>/`. **(b) Copy only its contents.** Copy root = `DEST/`. One checkbox, "Include the “<SOURCE_NAME>” folder": on is (a), off is (b). The resulting path is previewed. Default: (b) (#152; a preset keeps its own choice). | M |
+| FR-4 | For a directory source, the user chooses between: **(a) Copy the directory itself.** Copy root = `DEST/<SOURCE_NAME>/`. **(b) Copy only its contents.** Copy root = `DEST/`. One checkbox, "Include the “<SOURCE_NAME>” directory": on is (a), off is (b). The resulting path is previewed. Default: (b) (#152; a preset keeps its own choice). | M |
 | FR-5 | For a file-set source, the files are copied flat into `DEST/`. Directory structure is not recreated. | M |
 | FR-6 | Directory sources are copied **recursively**, keeping the relative directory structure. Empty directories are recreated. | M |
 
@@ -310,8 +319,8 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-15 | The user picks one existing destination directory via native picker or drag and drop. A "New folder" action is available in the picker. | M |
-| FR-16 | Pre-flight checks run before Start is enabled, and each problem shows a clear, actionable message. **Job-level problems block Start:** the destination is missing or not writable; not enough space for the files that will be written, plus a margin of max(1 %, 64 MiB), counting the purgeable space macOS frees on demand (a copy that needs it gets a warning, not a block); the destination is the source or inside it. **Per-file problems are listed, and the user may start anyway;** those files fail with the listed reason: the name is not valid on the destination file system (e.g. `: * ? " < > |`, reserved names like `CON`, a trailing dot or space on NTFS/exFAT/FAT32), the file is larger than the file system allows (FAT32 4 GiB limit), the name is too long, or a file or folder is in the way. Names are never changed automatically. **Non-empty copy root:** if the folder the files will go to already exists and isn't empty, a warning says so (with its file count) without blocking. | M |
+| FR-15 | The user picks one existing destination directory via native picker or drag and drop. macOS's panel offers New Folder. | M |
+| FR-16 | Pre-flight checks run before Start is enabled, and each problem shows a clear, actionable message. **Job-level problems block Start:** the destination is missing or not writable; not enough space for the files that will be written, plus a margin of max(1 %, 64 MiB), counting the purgeable space macOS frees on demand (a copy that needs it gets a warning, not a block); the destination is the source or inside it. **Per-file problems are listed, and the user may start anyway;** those files fail with the listed reason: the name is not valid on the destination file system (e.g. `: * ? " < > |`, reserved names like `CON`, a trailing dot or space on NTFS/exFAT/FAT32), the file is larger than the file system allows (FAT32 4 GiB limit), the name is too long, or a file or directory is in the way. Names are never changed automatically. **Non-empty copy root:** if the directory the files will go to already exists and isn't empty, a warning says so (with its file count) without blocking. | M |
 | FR-17 | **Conflicts:** if files already exist at the target paths, pre-flight lists them in two groups. **Identical** files (same size, mtimes less than 2 s apart) are always skipped. They are not re-read, so they are not in this job's checksum file, and the summary and report count them as "already at the destination, not checked". For files that **differ**, the user chooses once: **Keep both** (default; the copy is named `name (1).ext`) / **Overwrite** / **Skip**. Overwrite replaces the old file only once the new copy is complete, and verified in Copy & Verify. | M |
 | FR-17a | Files whose destination paths are equal (e.g. `x/a.txt` and `y/A.TXT` picked as loose files, on a case-insensitive destination) are never copied over each other: the first one is copied, the others fail with "another file in this copy has the same name". Names are compared ignoring case only when the destination file system is case-insensitive. | M |
 
@@ -325,7 +334,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-21 | Per-file errors (unreadable file, permission denied, name too long, the source file changed while it was copied…) are recorded and the job continues. Fatal errors stop the job with a clear message: destination disconnected, disk full, source volume gone. | M |
 | FR-22 | Pause stops I/O at the next buffer boundary. Resume continues from where it stopped. | S |
 | FR-23 | Cancel stops within ~1 s. The in-flight partial file is deleted. Completed files stay and are listed in the checksum file and report. | M |
-| FR-24 | Symlinks are **not followed** and are **skipped**, and each one is reported. This avoids loops and surprises. (Open question Q4.) | M |
+| FR-24 | Symlinks are **not followed** and are **skipped**, and each one is reported. This avoids loops and surprises (Q4, §12). | M |
 
 ### 6.6 Verify
 
@@ -345,17 +354,17 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-31 | The file is UTF-8 without BOM, with LF line endings. It is sorted by path for stable diffs. Paths containing `\` or newline use the coreutils escaping convention (line prefixed with `\`). Files whose names are not valid UTF-8 are copied but not listed; pre-flight warns about them and the report says why. | M |
 | FR-32 | The checksum file contains only hash lines, no comments, so strict parsers accept it. Job metadata (mode, date, app version, counts, failures) lives in the report (FR-35). | M |
 | FR-33 | The checksum file is written in **both** modes. In plain Copy it uses the source hashes from FR-20, so no extra read is needed. | M |
-| FR-57 | **ASC MHL** (#154): with Settings › Write ASC MHL (off by default; CLI `--mhl`), a copy also writes an ASC MHL v2.0 history (`ascmhl/`, xxh128, process `transfer`) in the folder its files go to, or continues the one the source or the destination already has: each file `verified` or `failed` against its earlier hash, and a failed one makes the job not complete. Files already there that no history records are read and recorded, said before Start. Nested histories get their own generations, referenced by the top one. Start is blocked by two different histories for one folder, overwriting a recorded file, a damaged history, or a copy that leaves out files the source's history lists. A failed write leaves the history as it was; undo takes a generation back. Copies only, not mirrors; Verify doesn't read MHL. | S |
+| FR-57 | **ASC MHL** (#154): with Settings › Write ASC MHL (off by default; CLI `--mhl`), a copy also writes an ASC MHL v2.0 history (`ascmhl/`, xxh128, process `transfer`) in the directory its files go to, or continues the one the source or the destination already has: each file `verified` or `failed` against its earlier hash, and a failed one makes the job not complete. Files already there that no history records are read and recorded, said before Start. Nested histories get their own generations, referenced by the top one. Start is blocked by two different histories for one directory, overwriting a recorded file, a damaged history, or a copy that leaves out files the source's history lists. A failed write leaves the history as it was; undo takes a generation back. Copies only, not mirrors; Verify doesn't read MHL. | S |
 | FR-34 | **Verify existing copy:** point Secopy at a directory (a copy, or a whole drive); every `.xxh128` checksum file inside it is read, and every file they list is read again from the drive and compared: intact, changed, missing or unreadable, per file. Files no checksum file lists are reported as not checked. Nothing is written to the directory; nothing is repaired. When several checksum files list a file, the newest wins; a path that leaves the directory is a problem, never read. Queueable; `secopy-cli --check`. | S |
 
 ### 6.8 Reporting and settings
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-35 | Each job produces a report as plain text and as JSON: settings, start/end, counts, per-file result (including skipped files), failures with reasons, whether cache bypass was active, leftover partial files removed, and files left out of the checksum file. It is kept in the app's data folder, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
+| FR-35 | Each job produces a report as plain text and as JSON: settings, start/end, counts, per-file result (including skipped files), failures with reasons, whether cache bypass was active, leftover partial files removed, and files left out of the checksum file. It is kept in the app's data directory, "Save report…" exports it, and there is an option to also write it next to the checksum file. | S |
 | FR-36 | The app remembers the mode, the window size and the last selected copy preset, which is loaded again at launch when its source is there. The destination is chosen for every job and never filled in automatically; within one session, "New copy" keeps it. | S |
-| FR-37 | Keyboard, in a File menu: `⌘/Ctrl+O` source, `⌘/Ctrl+D` destination, `⌘/Ctrl+Enter` start, `⌘/Ctrl+.` cancel the copy (asks first); items greyed out when they don't apply. `Space` pauses and resumes a copy; `Esc` goes back from Settings and Copy presets and cancels dialogs. | S |
-| FR-38 | **Copy presets**, chosen by hand: a saved copy setup for FROM. A name, the source (a full path, e.g. `/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP`), folder-itself or contents-only, and an extension filter. Selecting one loads its source and settings (or says its card isn't connected); changes last for one run unless saved with "Update" or "Save as…" (which asks only for a name). The destination is never part of a preset. No automatic card detection, and nothing is written to cards. | S |
+| FR-37 | Keyboard, in a File menu: `⌘O` source, `⌘D` destination, `⌘↩` start, `⌘.` cancel the job (asks first); items greyed out when they don't apply. `⌘1`–`⌘3` the tabs and `⌘4` the Queue (View menu); `⌘,` Settings. `Space` pauses and resumes a job; `Esc` goes back from Settings, Copy presets and Import and cancels dialogs. | S |
+| FR-38 | **Copy presets**, chosen by hand: a saved copy setup for FROM. A name, the source (a full path, e.g. `/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP`), directory-itself or contents-only, an extension filter, and its own Also ignore list (FR-12). Selecting one loads its source and options (or says its drive isn't connected); changes last for one run unless saved with "Update" or "Save as…" (which asks only for a name). The destination is never part of a preset. No automatic card detection, and nothing is written to cards. | S |
 
 ### 6.9 Job queue
 
@@ -371,14 +380,14 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-44 | **Mirror presets:** a name, an origin and a destination (full paths that don't overlap), what to do with files deleted in the origin (archive for N days, default 30, or delete), and the comparison: **Standard** (size and date) or **Paranoid** (byte-for-byte, the deep check). | S |
+| FR-44 | **Mirror presets:** a name, an origin and a destination (full paths that don't overlap), what to do with files deleted in the origin (archive for N days, default 30, or delete), and the comparison: **Standard** (size and date) or **Paranoid** (the deep check: the XXH128 of both copies). | S |
 | FR-45 | One way only: the origin is never written to. | M |
 | FR-46 | A file is new when it isn't in the destination, changed when its size or modification date differs (dates within 2 s count as equal), and, with Paranoid (the deep check), when its contents differ (XXH128 of both sides). | S |
 | FR-47 | **Preview** before a manual run: counts, sizes and the list of new, changed and deleted files; "Already in sync" when there's nothing to do. A run executes the previewed plan. | S |
 | FR-48 | Everything Mirror writes is verified. A changed file is replaced atomically, and its old version archived (archive mode) only after the new copy is verified. | M |
 | FR-49 | Files deleted in the origin are archived to `<destination>/.secopy-archive/<date time>/…` or deleted, only after every copy succeeded; a failed or cancelled run removes nothing. At the start of every run, archived files older than the preset's N days are removed, counted from when they were archived, in Delete mode too (what was archived before a switch still goes when due). Switching a mirror from Archive to Delete asks what to do with its archive: **delete it now**, **keep it N days**, or, when the destination isn't connected or a job runs, **delete it at the next run** (kept with that destination; dropped if the destination changes; done when that run is started, once, and only after the preset is saved without it). A new destination in the same save leaves the old one's archive alone. Files that can't be deleted are listed and go when due. Only a real `.secopy-archive` directory is touched, never through a link. | M |
 | FR-50 | **Guard:** a missing or empty origin, or a run removing more than half of the destination's files, needs confirmation by hand and fails in the queue. | M |
-| FR-51 | System files, symlinks and the archive are ignored on both sides; names are compared after Unicode normalization, and a case-only rename on a case-insensitive destination is an update, not a delete and a copy. | S |
+| FR-51 | Ignored names (FR-12), Secopy's own files, symlinks and the archive are ignored on both sides; names are compared after Unicode normalization, and a case-only rename on a case-insensitive destination is an update, not a delete and a copy. | S |
 | FR-52 | A mirror summary: what was copied, updated, archived or deleted, failures with reasons, and a report like a copy's. After a clean run a mirror keeps `.secopy-checksums.xxh128` in its destination (new and changed files' verified hashes added, removed files dropped), written whole or not at all, so its backup can be verified (FR-34). | S |
 
 ### 6.11 Export and import
@@ -407,7 +416,7 @@ derives speeds, ETAs and smoothing from them (§5.3).
 
 ### 7.1 Scan
 
-- Parallel directory walk. Filtering (system files, extensions, symlinks) happens during the walk.
+- One directory walk, not followed through symlinks. Filtering (ignored names, extensions, symlinks, special files) happens during the walk.
 - Stores entries compactly so 1M files fit in well under 200 MB of RAM.
 - Produces the plan: the ordered list of (source, relative path, size, mtime), totals per
   extension, skipped items.
@@ -445,8 +454,8 @@ derives speeds, ETAs and smoothing from them (§5.3).
   written file from the destination device. If they match, the destination holds exactly
   the bytes that were read. Reading the source a second time would add a full pass over
   what is often the slowest device (a card reader). It would only catch one rare failure:
-  a flaky reader or cable that returns different bytes on each read. This is listed in §11
-  as an optional "paranoid verify".
+  a flaky reader or cable that returns different bytes on each read. A second, independent
+  read of the source is listed in §11 as future work.
 
 ### 7.4 Durability
 
@@ -520,37 +529,41 @@ before its read-back, which closes the cache gap in either mode.
 | NFR-6 | **Correctness over speed:** no optimization may weaken FR-18/25/26. |
 | NFR-7 | **Paths:** full Unicode (names are preserved byte-for-byte as the OS reports them; no NFC/NFD rewriting). Files > 4 GiB are supported. |
 | NFR-8 | **No elevated privileges** needed. No network access, no telemetry. |
-| NFR-9 | **Distribution:** Apple Silicon (`arm64`) build, signed and notarized (`.dmg`). An optional auto-updater, off by default, is the only network access. |
+| NFR-9 | **Distribution:** an Apple silicon (`arm64`) `.dmg` and a one-line install script that checks it against its SHA-256. Signing and notarization (M4) need the Apple Developer Program and are planned; an optional auto-updater, off by default, would be the only network access. |
 | NFR-10 | **Accessibility:** full keyboard operation, screen-reader labels on every control, WCAG AA contrast on the dark palette, respects "reduce motion". |
-| NFR-11 | **i18n-ready:** all strings externalized. English first. |
+| NFR-11 | **i18n:** all strings externalized; English and Spanish, Automatic (the Mac's language) or chosen in Settings (§14, 2026-10-03 and 2026-10-04). |
 | NFR-12 | **Look and feel:** dark theme only in v1 (§5.6), built on design tokens so a light theme can be added later. Native file pickers, notifications and menus. |
 
 ## 9. Testing strategy
 
-- **Engine unit tests:** filters, path mapping (folder vs. contents), conflict resolution,
+- **Engine unit tests:** filters, path mapping (directory itself vs. contents), conflict resolution,
   checksum-file formatting (checked against the real `xxhsum -c` in CI), escaping.
 - **Integration tests** on generated trees: deep nesting, Unicode names, empty dirs, 0-byte
   files, > 4 GiB sparse files, 100k small files.
 - **Fault injection:** source file removed mid-copy, permission denied, disk full,
   destination unplugged (simulated with a loopback/RAM disk), a corrupted write (hook
   that flips a byte) to prove verification catches it.
-- **Benchmarks** against `cp` and `rsync` on reference trees (M3). Regressions fail the
-  release build.
+- **Benchmarks** against `cp` and `rsync` on reference trees: planned with M3, not built
+  yet. Hash speed is checked by hand (an ignored test, §14 2026-10-03).
+- **By hand** before each release, on a real Mac with a real card:
+  [the checklist](../testing/macos-app-checklist.md).
 - **Where tests run:** locally before every commit (fmt, clippy, tests), in one macOS
   (arm64) CI job after each merge to `main`, and again in the release workflow before it
   builds. PRs don't wait for CI, and docs-only changes skip it.
 
 ## 10. Milestones
 
-1. **M0 — Engine spike (CLI only):** copy + hash + verify + checksum file, and the
-   benchmark scripts.
+1. **M0 — Engine spike (CLI only):** copy + hash + verify + checksum file. Done (0.1.0).
 2. **M1 — Engine complete:** filters, conflicts, atomic writes, metadata, pause/cancel,
-   error model, report, full test suite including fault injection.
-3. **M2 — UI:** main window, progress, summary, drag and drop, pre-flight messages.
+   error model, report, full test suite including fault injection. Done (0.1.0).
+3. **M2 — UI:** the app, then the queue, mirror, Verify, export/import, the menu bar,
+   translations, ASC MHL and ignore lists. Done (0.2.0–0.25).
 4. **M3 — Performance:** benchmarks vs. native tools on real Macs (SSD→SSD, card
-   reader→SSD, SSD→USB HDD), then tuning until NFR-1..NFR-4 pass.
-5. **M4 — Packaging:** macOS signing, notarization, `.dmg`, CI release pipeline.
-6. **M5 — Beta** with real users and real media. Fix what they find.
+   reader→SSD, SSD→USB HDD), then tuning until NFR-1..NFR-4 pass. Deferred: speed is already
+   good in real use.
+5. **M4 — Packaging:** the CI release pipeline, the `.dmg` and the install script are done;
+   signing and notarization are not (NFR-9).
+6. **M5 — Beta** with real users and real media, then **1.0.0**.
 
 ## 11. Future work
 
@@ -559,31 +572,32 @@ before its read-back, which closes the cache gap in either mode.
 - ~~**ASC MHL** output~~: done (FR-57, #154).
 
 **Later:** "copy everything, then verify" for HDD/RAID destinations, and a drive-cache flush
-before each read-back (§7.5) · include system files (setting) · light theme · paranoid verify (a second,
-independent read of the source) · XXH3-64/XXH128 options · resume interrupted jobs ·
-CLI front-end on the same engine · extended
-attributes / Finder tags / ACLs · mirror: scheduling (intervals, when a drive connects),
-detecting moved and renamed files, several destinations, exclusions, restoring from the
-archive inside the app · the queue: skipping one job without stopping the queue.
+before each read-back (§7.5) · the performance work (M3) and advanced settings (files in
+flight, buffer size, §7.2) · signing and notarization (M4) · light theme · a second,
+independent read of the source · other checksum formats if asked (e.g. an MD5 checksum file
+next to the XXH128 one) · resume interrupted jobs · extended attributes / Finder tags / ACLs
+· mirror: scheduling (intervals, when a drive connects), detecting moved and renamed files,
+several destinations, restoring from the archive inside the app · the queue: skipping one job
+without stopping the queue · the user guide in Spanish.
 
 ## 12. Open questions
 
-Q1, Q3, Q5, Q7 and Q8 are resolved (§14). Numbers are kept for traceability.
+None open. Q1, Q3, Q5, Q7 and Q8 are resolved in §14; numbers are kept for traceability.
 
-| # | Question | Proposal |
+| # | Question | Answer |
 |---|---|---|
-| Q2 | Checksum file per job, or one file per destination that is updated? | Per job (FR-29). It never rewrites history and is simpler to reason about. |
-| Q4 | Symlinks: skip, copy the link, or copy the target? | Skip and report in v1. |
-| Q6 | Allow mixing folders and files, or several folders, in one source? | Not in v1. It keeps FR-4 unambiguous. |
+| Q2 | Checksum file per job, or one file per destination that is updated? | Per job (FR-29): it never rewrites history. |
+| Q4 | Symlinks: skip, copy the link, or copy the target? | Skip and report (FR-24). |
+| Q6 | Allow mixing directories and files, or several directories, in one source? | No: one directory, or files (FR-4 stays unambiguous). |
 
 ## 13. Implementation stack
 
 **Decided: Tauri 2 + a Rust engine + a Svelte UI (TypeScript).**
 
 - **Engine:** a Rust library crate (`secopy-core`) with no UI dependencies. The Tauri app,
-  the tests, the benchmarks and a future CLI all use it.
-- **App shell:** Tauri 2, for windowing, native dialogs, notifications, packaging, signing
-  and the updater.
+  the CLI (`secopy-cli`) and the tests use it.
+- **App shell:** Tauri 2, for windowing, native dialogs, menus, the menu bar icon,
+  notifications and packaging.
 - **UI:** Svelte + TypeScript, built with Vite and styled with the tokens in §5.6.
 
 The stack meets these constraints:
@@ -593,7 +607,7 @@ The stack meets these constraints:
 2. Run the engine off the UI thread with true parallelism and zero-copy buffers.
 3. Produce a small, signed, native macOS app.
 4. Allow a polished, themeable UI with native file dialogs, drag and drop and notifications.
-5. Keep the engine as a separate library, usable headless (tests, benchmarks, future CLI).
+5. Keep the engine as a separate library, usable headless (tests, the CLI).
 
 ## 14. Decision log
 

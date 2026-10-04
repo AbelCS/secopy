@@ -1,7 +1,7 @@
 // Fake data and a fake Api for the gallery: every screen without Tauri. Dev only.
 import type { Api } from "../lib/api";
 import { raw } from "../test/fake-api";
-import type { CopyPreset, FinishedRow, ImportView, MirrorPreset, MirrorPreviewView, PreviewRow, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
+import type { CopyPreset, FinishedRow, ImportView, Message, MirrorPreset, MirrorPreviewView, PreviewRow, ProgressView, QueueSummaryView, QueueView, SessionView, Settings, SummaryView } from "../lib/bindings";
 
 export const copyPresets: CopyPreset[] = [
   { id: "fx3", name: "Sony FX3", source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", includeFolder: true, extensions: ["mp4"] },
@@ -95,6 +95,24 @@ function row(i: number, status: FinishedRow["status"] = "verified"): FinishedRow
         ? { key: "errors.file.readSource", args: { why: { key: "errors.os.permissionDenied", args: {} } } }
         : null,
   };
+}
+
+/** A Verify's rows: one changed, one missing, the rest intact (as a check shows them). */
+function checkRow(i: number): FinishedRow {
+  const status: FinishedRow["status"] = i === 3 ? "changed" : i === 7 ? "missing" : "intact";
+  const reason: Message | null =
+    status === "changed"
+      ? {
+          key: "errors.check.listedIn",
+          args: {
+            why: { key: "errors.file.changed", args: { expected: "5b8f2a7c9e1d4f60d78a9dd8afc96493", actual: "e41c09b7a2d35f86c0e9d4a1b7f32c58" } },
+            file: "secopy_2026-09-27_140302.xxh128",
+          },
+        }
+      : status === "missing"
+        ? { key: "errors.check.listedInOnly", args: { file: "secopy_2026-09-27_140302.xxh128" } }
+        : null;
+  return { ...row(i), hash: status === "missing" ? null : row(i).hash, status, reason };
 }
 
 export const summary: SummaryView = {
@@ -213,7 +231,7 @@ const ok =
  *  connected, and a preset that can't come in. */
 export const importView: ImportView = {
   fileName: "Team presets.secopy",
-  madeBy: { key: "import.madeBy", args: { theirs: "0.19.0", ours: "0.17.6" } },
+  madeBy: { key: "import.madeBy", args: { theirs: "1.1.0", ours: "1.0.0" } },
   settings: { changes: [
       { key: "import.change", args: { setting: { key: "import.setting.checksumFile", args: {} }, from: { key: "import.on", args: {} }, to: { key: "import.off", args: {} } } },
       { key: "import.change", args: { setting: { key: "import.setting.notify", args: {} }, from: { key: "import.on", args: {} }, to: { key: "import.off", args: {} } } },
@@ -221,14 +239,14 @@ export const importView: ImportView = {
   copyPresets: [
     { name: "Sony FX3", paths: ["/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"], clash: "Sony FX3", newName: "Sony FX3 (2)", missing: [], problem: null, replaceNotes: [], section: false },
     { name: "DJI Mini 4", paths: ["/Volumes/DJI/DCIM"], clash: null, newName: "DJI Mini 4", missing: ["/Volumes/DJI/DCIM"], problem: null, replaceNotes: [], section: false },
-    { name: "Old camera", paths: [], clash: null, newName: "Old camera", missing: [], problem: raw("Its details can't be read (invalid type: number, expected a string)."), replaceNotes: [], section: false },
+    { name: "Old camera", paths: [], clash: null, newName: "Old camera", missing: [], problem: raw("Its details can’t be read (invalid type: number, expected a string)."), replaceNotes: [], section: false },
   ],
   mirrorPresets: [
     { name: "Footage", paths: ["/Volumes/SSD/Footage", "/Volumes/NAS/Footage"], clash: null, newName: "Footage", missing: ["/Volumes/NAS/Footage"], problem: null, replaceNotes: [], section: false },
   ],
 };
 
-export function fakeApi(start: Partial<{ copyPresets: CopyPreset[] }> = {}): Api {
+export function fakeApi(start: Partial<{ copyPresets: CopyPreset[]; check: boolean }> = {}): Api {
   const table: Record<string, unknown> = {
     appStart: ok({
       session,
@@ -240,7 +258,11 @@ export function fakeApi(start: Partial<{ copyPresets: CopyPreset[] }> = {}): Api
       lastPreset: null,
     }),
     finishedPage: (offset: number, limit: number) =>
-      Promise.resolve(Array.from({ length: Math.max(0, Math.min(limit, 40 - offset)) }, (_, i) => row(offset + i + 1))),
+      Promise.resolve(
+        Array.from({ length: Math.max(0, Math.min(limit, 40 - offset)) }, (_, i) =>
+          start.check ? checkRow(offset + i + 1) : row(offset + i + 1),
+        ),
+      ),
     onDrop: ok(() => {}),
     onCloseRequested: ok(() => {}),
     onOpenSettings: ok(() => {}),

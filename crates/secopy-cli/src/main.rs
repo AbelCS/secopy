@@ -33,14 +33,14 @@ struct Args {
     /// Destination directory (must exist).
     #[arg(long, short = 't', required_unless_present = "check")]
     to: Option<PathBuf>,
-    /// Check a directory against its checksum files: every listed file is read again and
-    /// compared (plan 8). Exit 0 when all are intact, 1 otherwise.
+    /// Verify a directory against its checksum files: every listed file is read again and
+    /// compared. Exit 0 when all are intact, 1 otherwise.
     #[arg(long, value_name = "DIR", conflicts_with_all = ["sources", "to", "mirror"])]
     check: Option<PathBuf>,
     /// Copy only what is inside the source directory, not the directory itself.
     #[arg(long)]
     contents: bool,
-    /// Re-read every copy from the destination and compare hashes.
+    /// Read every copy back from the destination and compare it with the source's checksum.
     #[arg(long)]
     verify: bool,
     /// Only copy these extensions, e.g. "mov,wav". "(none)" means files without extension.
@@ -49,7 +49,7 @@ struct Args {
     /// Do not write the .xxh128 checksum file.
     #[arg(long)]
     no_checksum: bool,
-    /// Also write an ASC MHL history (the media industry's proof of copy) in the folder the
+    /// Also write an ASC MHL history (the media industry's proof of copy) in the directory the
     /// files go to, or continue the one there or in the source.
     #[arg(long, conflicts_with = "mirror")]
     mhl: bool,
@@ -61,25 +61,26 @@ struct Args {
     /// (case doesn't matter). Repeatable; added to the default list.
     #[arg(long, value_name = "PATTERN")]
     ignore: Vec<String>,
-    /// What to do with files that already exist at the destination but differ.
-    /// Identical files (same size and date) are always skipped.
+    /// What to do with files that already exist at the destination but differ. Files with
+    /// the same size and date are always skipped (not read).
     #[arg(long, value_enum, default_value_t = OnConflict::KeepBoth)]
     on_conflict: OnConflict,
-    /// Also write the job report (text and JSON) into this folder.
+    /// Also write the job report (text and JSON) into this directory.
     #[arg(long, value_name = "DIR")]
     report: Option<PathBuf>,
     /// Mirror the one source directory to the destination: new and changed files copied
-    /// and verified, files gone from the source archived (or deleted with --delete).
+    /// and verified, files deleted in the source archived (or deleted with --delete).
     #[arg(long)]
     mirror: bool,
-    /// With --mirror: delete files gone from the source instead of archiving them.
+    /// With --mirror: delete the files deleted in the source, instead of archiving them.
     #[arg(long, requires = "mirror")]
     delete: bool,
     /// With --mirror: days to keep archived files. Each run first removes archived files older
     /// than this, with --delete too.
     #[arg(long, requires = "mirror", default_value_t = 30, value_name = "N")]
     archive_days: u32,
-    /// With --mirror: also compare the contents of files whose size and date match.
+    /// With --mirror: also compare the checksums of files whose size and date match (slow:
+    /// reads both sides).
     #[arg(long, requires = "mirror")]
     deep: bool,
     /// With --mirror: only show what would change.
@@ -662,7 +663,7 @@ fn patterns(args: &Args) -> Result<Patterns, String> {
     Patterns::new(all).map_err(|_| format!("--ignore: up to {MAX_PATTERNS} patterns"))
 }
 
-/// `--check`: every file the directory's checksum files list, read again (plan 8).
+/// `--check`: every file the directory's checksum files list, read again (FR-34).
 fn check_run(dir: &Path, ignore: &Patterns) -> Result<ExitCode, String> {
     use secopy_core::{check, error::FileError, job::FileStatus};
     let plan = check::plan(dir, ignore).map_err(|e| format!("{}: {e}", dir.display()))?;
