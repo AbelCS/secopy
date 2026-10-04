@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/AbelCS/secopy/compare/v1.0.3...v1.1.0) (2026-10-04)
+
+
+### Features
+
+* **queue:** reorder jobs by dragging ([7605417](https://github.com/AbelCS/secopy/commit/7605417d9bb5edb43afd39d5a629d5617a4d2fa6)), closes [#205](https://github.com/AbelCS/secopy/issues/205)
+
 ## [1.0.3](https://github.com/AbelCS/secopy/compare/v1.0.2...v1.0.3) (2026-10-04)
 
 
