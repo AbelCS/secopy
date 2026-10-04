@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
@@ -630,15 +630,18 @@ fn write_pair(text: &Path, text_body: &str, json: &Path, json_body: &str) -> io:
     })
 }
 
+/// Written whole under a temporary name, then given `path` unless it's taken: never a
+/// report cut short under its name.
 fn write_new(path: &Path, body: &str) -> io::Result<()> {
-    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
-    let written = file
-        .write_all(body.as_bytes())
-        .and_then(|()| crate::os::sync_durable(&file));
-    if written.is_err() {
-        let _ = fs::remove_file(path);
+    let dir = path.parent().filter(|d| !d.as_os_str().is_empty());
+    let tmp = crate::os::write_temp(dir.unwrap_or(Path::new(".")), |f| {
+        f.write_all(body.as_bytes())
+    })?;
+    let published = crate::os::publish_noreplace(&tmp, path);
+    if published.is_err() {
+        let _ = fs::remove_file(&tmp);
     }
-    written
+    published
 }
 
 #[cfg(test)]

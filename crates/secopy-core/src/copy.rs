@@ -212,29 +212,12 @@ fn commit_keep_both(
     Err(FileError::AlreadyExists)
 }
 
-/// Uses the OS's no-replace rename. File systems without one (FAT and exFAT) fall back to
-/// a hard link, and then to check-then-rename.
+/// Never over a file that's there (`os::publish_noreplace`).
 fn commit_noreplace(partial: &Path, final_path: &Path) -> Result<(), FileError> {
-    match os::rename_noreplace(partial, final_path) {
-        Ok(()) => return Ok(()),
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => return Err(FileError::AlreadyExists),
-        Err(e) if e.kind() != io::ErrorKind::Unsupported => return Err(FileError::write_dest(e)),
-        Err(_) => {}
-    }
-    match fs::hard_link(partial, final_path) {
-        Ok(()) => {
-            // The copy is complete under its final name; a leftover partial is only clutter.
-            let _ = fs::remove_file(partial);
-            Ok(())
-        }
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Err(FileError::AlreadyExists),
-        Err(_) => {
-            if fs::symlink_metadata(final_path).is_ok() {
-                return Err(FileError::AlreadyExists);
-            }
-            fs::rename(partial, final_path).map_err(FileError::write_dest)
-        }
-    }
+    os::publish_noreplace(partial, final_path).map_err(|e| match e.kind() {
+        io::ErrorKind::AlreadyExists => FileError::AlreadyExists,
+        _ => FileError::write_dest(e),
+    })
 }
 
 fn copy_inner(
