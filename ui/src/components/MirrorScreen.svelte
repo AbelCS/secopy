@@ -2,6 +2,7 @@
   // Mirror presets (RFD §5.8, FR-44): the list on the left, the selected one on the right.
   // A saved preset is previewed (then run) or added to the queue; an edited one is saved first.
   import { locale, t } from "../lib/i18n";
+  import { ARCHIVE_DIR } from "../lib/engine";
   import { AppError, say } from "../lib/message";
   import type { Snippet } from "svelte";
   import { useApi } from "../lib/api";
@@ -325,7 +326,7 @@
           <span class="archive-actions">
             <Button
               disabled={!archive?.connected || archive.files === 0}
-              onclick={() => api.reveal(`${p.destination}/.secopy-archive`)}>{t("mirror.archive.show")}</Button
+              onclick={() => api.reveal(`${p.destination}/${ARCHIVE_DIR}`)}>{t("mirror.archive.show")}</Button
             >
             <Button
               variant="danger"

@@ -229,7 +229,8 @@ queue; the others stay, with the reason they failed. The queue is kept when Seco
 
 Close the window while a job or the queue runs and it keeps going: Secopy leaves the Dock
 and its icon in the menu bar shows the progress (`42%`, `2/3 · 42%`, `Paused`, then ✓ or ✗).
-Click it for the details, **Pause**, and **Open Secopy**:
+Click it for the details, **Pause**, **Open Secopy** and **Quit Secopy…** (it asks first
+while a job runs):
 
 ![The menu bar panel](images/panel.png)
 
