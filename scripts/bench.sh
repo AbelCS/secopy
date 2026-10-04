@@ -54,10 +54,7 @@ fi
 
 drop_caches=true
 if $purge; then
-  case $(uname) in
-    Darwin) drop_caches="sync && sudo purge" ;;
-    Linux) drop_caches="sync && echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null" ;;
-  esac
+  drop_caches="sync && sudo purge"
   sudo -v
 fi
 
