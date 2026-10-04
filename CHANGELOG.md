@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/AbelCS/secopy/compare/v1.0.0...v1.0.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* **mirror:** the Archive row follows a destination that comes back ([1384ffd](https://github.com/AbelCS/secopy/commit/1384ffd54b36eadda18432e3d422a6235e803302)), closes [#195](https://github.com/AbelCS/secopy/issues/195)
+
 ## [1.0.0](https://github.com/AbelCS/secopy/compare/v0.25.2...v1.0.0) (2026-10-04)
 
 
