@@ -58,6 +58,8 @@ pub struct AppState {
     planning: Mutex<Vec<Arc<JobControl>>>,
     /// The directory last chosen on Verify, planned: Verify's Start runs exactly this, once.
     checking: Mutex<Option<(PathBuf, Arc<CheckPlan>)>>,
+    /// Verify's choices so far: a plan made for an older one, ready later, isn't kept (#192).
+    checks_asked: std::sync::atomic::AtomicU64,
     pub(crate) queue_run: Mutex<QueueRun>,
     /// The file on the Import screen, as read when it opened: Import applies exactly this.
     importing: Mutex<Option<Pending>>,
@@ -138,6 +140,7 @@ impl AppState {
             preview: Mutex::new(None),
             planning: Mutex::new(Vec::new()),
             checking: Mutex::new(None),
+            checks_asked: std::sync::atomic::AtomicU64::new(0),
             queue: Mutex::new(queue),
             queue_run: Mutex::new(QueueRun::default()),
             importing: Mutex::new(None),
@@ -1634,6 +1637,8 @@ impl AppState {
 
     /// Verify's Choose…: plans a check of `path` and keeps it for Verify's Start.
     pub fn check_directory(&self, path: &Path) -> Result<CheckView, Message> {
+        use std::sync::atomic::Ordering;
+        let mine = self.checks_asked.fetch_add(1, Ordering::SeqCst) + 1;
         let plan = plan_check(path, &lock(&self.settings).patterns())?;
         let view = CheckView {
             directory: show(path),
@@ -1643,7 +1648,10 @@ impl AppState {
             not_checked: count(plan.not_checked.len()),
             problems: plan.problems.iter().map(say::check_problem).collect(),
         };
-        *lock(&self.checking) = Some((path.to_path_buf(), Arc::new(plan)));
+        let mut checking = lock(&self.checking);
+        if self.checks_asked.load(Ordering::SeqCst) == mine {
+            *checking = Some((path.to_path_buf(), Arc::new(plan)));
+        }
         Ok(view)
     }
 

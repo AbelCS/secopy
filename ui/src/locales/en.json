@@ -926,6 +926,7 @@
         "removed": "Deleted"
       },
       "more": "and {count} more",
+      "showMore": "Show more",
       "start": "Start",
       "reason": {
         "new": "New in the origin",
@@ -1019,6 +1020,8 @@
         "one": "Deleted {count} archived file.",
         "other": "Deleted {count} archived files."
       },
+      "savedNotDeleted": "Saved. The archived files weren’t deleted: {why}",
+      "savedNotPending": "Saved. The archived files aren’t set to be deleted at the next run: {why}",
       "title": "Archive",
       "files": {
         "one": "{count} file",

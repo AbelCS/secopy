@@ -28,6 +28,28 @@ describe("VerifyScreen", () => {
     expect(calls.start).toEqual(["/Volumes/Backup/Day01"]);
   });
 
+  test("an older answer never replaces the directory chosen after it (code review, #192)", async () => {
+    const { api, state } = fakeApi();
+    const calls = { start: [] as string[] };
+    render(VerifyScreen, {
+      props: { onStart: (p: string) => calls.start.push(p), onQueue: () => {} },
+      context: apiContext(api),
+    });
+    let answerA: (v: ReturnType<typeof checkView>) => void = () => {};
+    api.checkDirectory
+      .mockImplementationOnce(() => new Promise((answer) => (answerA = answer)))
+      .mockImplementationOnce((path: string) => Promise.resolve(checkView({ directory: path })));
+    await waitFor(() => expect(state.drop).toBeTruthy());
+    const target = document.querySelector('[data-drop="verify"]');
+    state.drop!(["/Volumes/A"], target);
+    state.drop!(["/Volumes/B"], target);
+    await screen.findByText("/Volumes/B");
+    answerA(checkView({ directory: "/Volumes/A" }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText("/Volumes/A")).toBeNull();
+    screen.getByText("/Volumes/B");
+  });
+
   test("no checksum files: says so, and Start stays off", async () => {
     const { api } = show();
     api.checkDirectory.mockResolvedValueOnce(checkView({ checksumFiles: 0, files: 0, notChecked: 5 }));

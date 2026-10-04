@@ -140,7 +140,9 @@ fn on_conflict_skip_and_overwrite() {
     fs::write(dir.path().join("dest/a.wav"), b"old one").unwrap();
 
     let out = copy_one_file(dir.path(), &["--on-conflict", "skip"]);
-    assert!(out.status.success());
+    // Code review (#192): a file not copied because it differs is exit 1, as the help says:
+    // the destination doesn't hold what the source does.
+    assert_eq!(out.status.code(), Some(1));
     assert_eq!(fs::read(dir.path().join("dest/a.wav")).unwrap(), b"old one");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("0 files ok, 1 skipped"), "{stdout}");
@@ -340,6 +342,50 @@ fn check_writes_its_report_and_refuses_copy_options() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(2), "--ext is refused with --check");
+}
+
+/// Code review (#192): copy options with --mirror are a usage error, never ignored (a mirror
+/// replaces changed files whatever --on-conflict says).
+#[test]
+fn mirror_refuses_copy_options() {
+    let dir = tempfile::tempdir().unwrap();
+    let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+    fs::create_dir_all(&o).unwrap();
+    fs::create_dir_all(&d).unwrap();
+    for extra in [
+        &["--on-conflict", "skip"][..],
+        &["--ext", "mov"],
+        &["--contents"],
+        &["--no-checksum"],
+    ] {
+        let out = cli()
+            .arg(&o)
+            .arg("--to")
+            .arg(&d)
+            .arg("--mirror")
+            .args(extra)
+            .output()
+            .unwrap();
+        assert_eq!(
+            out.status.code(),
+            Some(2),
+            "{extra:?} is refused with --mirror"
+        );
+    }
+}
+
+/// Code review (#192): checksum files that list nothing readable aren't "no checksum files":
+/// their problems are said.
+#[test]
+fn check_says_what_is_wrong_with_a_checksum_file() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.mov"), b"a").unwrap();
+    fs::write(dir.path().join("sums.xxh128"), b"not a checksum line\n").unwrap();
+    let out = cli().arg("--check").arg(dir.path()).output().unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("PROBLEM sums.xxh128:1"), "{stdout}");
+    assert!(!stdout.contains("No checksum files here"), "{stdout}");
 }
 
 /// Code review (#192): 0 days isn't "remove everything archived" (the engine reads it as no

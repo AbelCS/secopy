@@ -187,11 +187,18 @@
       // Saved first: an edit that can't be saved deletes nothing (#113). The destination is
       // the same, so its archive is still the one asked about.
       onPresets(await api.editMirrorPreset(preset.id, input));
-      const deleted = choice === "now" ? await api.deleteMirrorArchive(preset.id, preset.destination) : null;
-      if (choice === "nextRun") onPresets(await api.clearMirrorArchiveNextRun(preset.id));
-      if (deleted) {
-        said = t("mirror.archive.deleted", { count: deleted.removed });
-        error = deleted.notDeleted ? say(deleted.notDeleted) : null;
+      // Saved: the editor is made again from the saved preset, so what goes wrong from here is
+      // said on this screen, with the save done (#192).
+      try {
+        const deleted = choice === "now" ? await api.deleteMirrorArchive(preset.id, preset.destination) : null;
+        if (choice === "nextRun") onPresets(await api.clearMirrorArchiveNextRun(preset.id));
+        if (deleted) {
+          said = t("mirror.archive.deleted", { count: deleted.removed });
+          error = deleted.notDeleted ? say(deleted.notDeleted) : null;
+        }
+      } catch (e) {
+        const key = choice === "now" ? "mirror.archive.savedNotDeleted" : "mirror.archive.savedNotPending";
+        error = t(key, { why: messageOf(e) });
       }
     }
   }

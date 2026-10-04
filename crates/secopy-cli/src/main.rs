@@ -84,7 +84,7 @@ struct Args {
     report: Option<PathBuf>,
     /// Mirror the one source directory (the origin) to the destination: new and changed files
     /// copied and verified, files deleted in the origin archived (or deleted with --delete).
-    #[arg(long)]
+    #[arg(long, conflicts_with_all = ["contents", "ext", "no_checksum", "on_conflict"])]
     mirror: bool,
     /// With --mirror: delete the files deleted in the origin, instead of archiving them.
     #[arg(long, requires = "mirror")]
@@ -223,7 +223,11 @@ fn run(args: Args) -> Result<ExitCode, String> {
             started_at,
         )?;
     }
-    Ok(if report.is_success() {
+    // A differing file left as it was: the destination doesn't hold what the source does.
+    let skipped_differing = report
+        .skipped()
+        .any(|o| o.status == FileStatus::Skipped(job::SkipReason::Differs));
+    Ok(if report.is_success() && !skipped_differing {
         ExitCode::SUCCESS
     } else {
         ExitCode::from(1)
@@ -725,7 +729,17 @@ fn check_run(dir: &Path, ignore: &Patterns, report: Option<&Path>) -> Result<Exi
     use secopy_core::{check, error::FileError, job::FileStatus};
     let plan = check::plan(dir, ignore).map_err(|e| format!("{}: {e}", dir.display()))?;
     if plan.files.is_empty() {
-        println!("No checksum files here: there's nothing to verify.");
+        if plan.checksum_files.is_empty() {
+            println!("No checksum files here: there's nothing to verify.");
+        } else {
+            println!("The checksum files here list no file that can be checked.");
+            for p in &plan.problems {
+                match p.line {
+                    Some(n) => println!("PROBLEM {}:{n}: {}", p.file.display(), p.reason),
+                    None => println!("PROBLEM {}: {}", p.file.display(), p.reason),
+                }
+            }
+        }
         return Ok(ExitCode::from(1));
     }
     let started = Local::now();
