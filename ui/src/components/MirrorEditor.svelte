@@ -58,6 +58,19 @@
   let nameProblem: string | null = $state(null);
   let originProblem: string | null = $state(null);
   let destinationProblem: string | null = $state(null);
+  // A field's problem goes as soon as the field changes, not at the next Save (#202).
+  $effect(() => {
+    void name;
+    nameProblem = null;
+  });
+  $effect(() => {
+    void origin;
+    originProblem = null;
+  });
+  $effect(() => {
+    void destination;
+    destinationProblem = null;
+  });
   let otherProblem: string | null = $state(null);
 
   const isChanged = $derived(
