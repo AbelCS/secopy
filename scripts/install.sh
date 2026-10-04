@@ -46,10 +46,15 @@ curl -fsSL -o "$work/$dmg.sha256" "$url.sha256"
 hdiutil attach -quiet -nobrowse -readonly -mountpoint "$mount" "$work/$dmg"
 [[ -d "$mount/Secopy.app" ]] || fail "the disk image has no Secopy.app."
 mkdir -p "$INSTALL_DIR"
-rm -rf "$APP"
-ditto "$mount/Secopy.app" "$APP"
+# Copied in full next to it first: a copy that fails (a full disk) leaves the installed app
+# as it was.
+new="$INSTALL_DIR/.Secopy.app.installing"
+rm -rf "$new"
+ditto "$mount/Secopy.app" "$new" || { rm -rf "$new"; fail "couldn't copy the app; the installed one is as it was."; }
 # Nothing above sets it, but an older copy may have kept it.
-xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
+xattr -dr com.apple.quarantine "$new" 2>/dev/null || true
+rm -rf "$APP"
+mv "$new" "$APP"
 
 version="$(defaults read "$APP/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "")"
 echo "Secopy ${version:+$version }is installed in $INSTALL_DIR."

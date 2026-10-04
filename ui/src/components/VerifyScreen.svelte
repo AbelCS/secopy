@@ -33,18 +33,25 @@
   let checking = $state(false);
   const ready = $derived(!!view && view.files > 0 && !checking);
 
+  /** The last directory chosen: an older answer, arriving later (two drops), is dropped. */
+  let asked = 0;
+
   async function choose(path: string | null) {
     if (path === null) return;
+    const mine = ++asked;
     checking = true;
     try {
-      view = await api.checkDirectory(path);
+      const answer = await api.checkDirectory(path);
+      if (mine !== asked) return;
+      view = answer;
       queuedFor = null; // chosen again: it can be queued again
       error = null;
     } catch (e) {
+      if (mine !== asked) return;
       view = null;
       error = messageOf(e);
     } finally {
-      checking = false;
+      if (mine === asked) checking = false;
     }
   }
 
@@ -56,9 +63,10 @@
   async function queue() {
     if (!view || queueing || queuedFor === view.directory) return;
     queueing = true;
+    const directory = view.directory;
     try {
-      onQueue(await api.addCheckToQueue(view.directory));
-      queuedFor = view.directory;
+      onQueue(await api.addCheckToQueue(directory));
+      queuedFor = directory;
       error = null;
     } catch (e) {
       error = messageOf(e);
