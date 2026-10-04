@@ -25,6 +25,7 @@ pub struct MirrorJob {
 /// Plans `preset` now; a missing origin or destination says so, like New copy does. The deep
 /// check reports to `on_compared` (files compared, of how many) and stops when `control` is
 /// cancelled.
+#[cfg(test)]
 pub fn prepare(
     preset: &MirrorPreset,
     control: &JobControl,

@@ -32,6 +32,8 @@ pub const RECENT: usize = 5;
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub write_checksum_file: bool,
+    /// "Show the count of ignored files"; named from before the ignore list (#158), kept
+    /// as it is in `settings.json`.
     pub show_system_count: bool,
     pub report_next_to_checksum: bool,
     /// A notification when a copy ends while the window isn't in front (3b-2).
@@ -744,8 +746,15 @@ pub struct Store {
     dir: PathBuf,
     /// One save at a time: saves share the temp-file name.
     saving: Mutex<()>,
-    /// Files a newer Secopy wrote: left as they are, never saved over (#137).
-    newer: Mutex<std::collections::HashSet<String>>,
+    /// Files left as they are and never saved over this session: a newer Secopy wrote them
+    /// (#137), or they couldn't be read (#192).
+    kept: Mutex<std::collections::HashMap<String, Kept>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Kept {
+    Newer,
+    Unread,
 }
 
 impl Store {
@@ -753,20 +762,23 @@ impl Store {
         Self {
             dir,
             saving: Mutex::new(()),
-            newer: Mutex::new(std::collections::HashSet::new()),
+            kept: Mutex::new(std::collections::HashMap::new()),
         }
     }
 
-    /// Reads `name`: a missing file gives the defaults; a file that can't be read is set
-    /// aside and the defaults are used, with a message saying so.
+    /// Reads `name`: a missing file gives the defaults; a damaged one is set aside and the
+    /// defaults are used, with a message saying so. One that can't be read just now
+    /// (permissions, a disk error) is left as it is, and never saved over this session.
     pub fn load<T: Default + DeserializeOwned>(&self, name: &str) -> (T, Option<Message>) {
         let text = match fs::read_to_string(self.dir.join(name)) {
             Ok(text) => text,
             Err(e) if e.kind() == io::ErrorKind::NotFound => return (T::default(), None),
             Err(e) => {
+                crate::lock(&self.kept).insert(name.to_string(), Kept::Unread);
+                let why = crate::say::io_error(&e);
                 return (
                     T::default(),
-                    Some(self.set_aside(name, crate::say::io_error(&e))),
+                    Some(msg!("app.warning.unreadKept", file = name, why = why)),
                 );
             }
         };
@@ -774,7 +786,7 @@ impl Store {
             // An older Secopy opened after a newer one: its file stays as it is, so the newer
             // one finds it again, and nothing is saved over it this session (#137).
             Ok(v) if v.version > VERSION => {
-                crate::lock(&self.newer).insert(name.to_string());
+                crate::lock(&self.kept).insert(name.to_string(), Kept::Newer);
                 return (
                     T::default(),
                     Some(msg!(
@@ -818,8 +830,10 @@ impl Store {
     /// Writes `name` through a temp file and a rename, so a failed save never leaves half a
     /// file.
     pub fn save<T: Serialize>(&self, name: &str, data: &T) -> Result<(), Message> {
-        if crate::lock(&self.newer).contains(name) {
-            return Err(msg!("errors.save.newer", file = name));
+        match crate::lock(&self.kept).get(name) {
+            Some(Kept::Newer) => return Err(msg!("errors.save.newer", file = name)),
+            Some(Kept::Unread) => return Err(msg!("errors.save.unread", file = name)),
+            None => {}
         }
         let _one_at_a_time = crate::lock(&self.saving);
         let path = self.dir.join(name);
@@ -961,6 +975,32 @@ mod tests {
         assert_eq!(warning.unwrap().key, "app.warning.newerKept");
         assert!(store.save(SETTINGS, &Settings::default()).is_err());
         assert_eq!(fs::read(dir.path().join(SETTINGS)).unwrap(), newer);
+        assert_eq!(
+            fs::read_dir(dir.path()).unwrap().count(),
+            1,
+            "nothing set aside"
+        );
+    }
+
+    /// Code review (#192): a file that can't be read just now (permissions, a disk error) is
+    /// no damaged file: it stays as it is, not set aside, and nothing is saved over it, so the
+    /// presets and the queue are there once it reads again.
+    #[test]
+    fn a_file_that_cant_be_read_is_left_as_it_is() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SETTINGS);
+        let mine = br#"{"version": 1, "writeChecksumFile": false}"#;
+        fs::write(&path, mine).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let (settings, warning) = store.load::<Settings>(SETTINGS);
+        assert_eq!(settings, Settings::default());
+        assert_eq!(warning.unwrap().key, "app.warning.unreadKept");
+        let refused = store.save(SETTINGS, &Settings::default()).unwrap_err();
+        assert_eq!(refused.key, "errors.save.unread");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), mine);
         assert_eq!(
             fs::read_dir(dir.path()).unwrap().count(),
             1,

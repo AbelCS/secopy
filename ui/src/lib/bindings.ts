@@ -857,6 +857,10 @@ export type SessionView = {
 /**  The Settings screen (RFD §5.5). */
 export type Settings = {
 	writeChecksumFile: boolean,
+	/**
+	 *  "Show the count of ignored files"; named from before the ignore list (#158), kept
+	 *  as it is in `settings.json`.
+	 */
 	showSystemCount: boolean,
 	reportNextToChecksum: boolean,
 	/**  A notification when a copy ends while the window isn't in front (3b-2). */
@@ -907,8 +911,8 @@ export type SourceView = {
 	/**  `None` = every extension; otherwise the selected keys (FR-8). */
 	selectedExtensions: (string | null)[] | null,
 	/**
-	 *  System files skipped (`.DS_Store`, `Thumbs.db`…); hidden files are copied (FR-12).
-	 *  Files and directories the ignore list (or Secopy, its own) left out (#158).
+	 *  Files and directories the ignore list (or Secopy, its own) left out (#158); hidden
+	 *  files are copied (FR-12).
 	 */
 	ignored: number,
 	skippedSymlinks: number,

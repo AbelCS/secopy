@@ -89,6 +89,7 @@ impl JobSettings {
     }
 }
 
+#[cfg(test)]
 impl Default for JobSettings {
     fn default() -> Self {
         (&Settings::default()).into()
@@ -167,6 +168,20 @@ struct Done {
     check: Option<CheckReport>,
     /// The job's thread panicked: it stopped part way, with no report (#69).
     panicked: bool,
+}
+
+/// How a job ended: Complete only when the engine says every file made it
+/// (`JobReport::is_success`) and nothing else went wrong.
+fn outcome(report: &JobReport, panicked: bool, more_problems: bool) -> JobOutcome {
+    if report.fatal.is_some() || panicked {
+        JobOutcome::Stopped
+    } else if report.cancelled {
+        JobOutcome::Cancelled
+    } else if !report.is_success() || more_problems {
+        JobOutcome::Failures
+    } else {
+        JobOutcome::Complete
+    }
 }
 
 impl Jobs {
@@ -354,6 +369,10 @@ impl Jobs {
     /// The failed files of the last job, for "Retry" (RFD §5.4).
     pub fn retry(&self) -> Option<(Source, Selection)> {
         let job = self.job()?;
+        // A mirror runs again from its preset, never as a copy of its failed files.
+        if job.mirror().is_some() {
+            return None;
+        }
         let ids: Vec<usize> = lock(&job.outcomes)
             .iter()
             .filter(|o| matches!(o.status, FileStatus::Failed(_)))
@@ -496,28 +515,14 @@ impl Job {
         let removal_failed = mirror
             .as_ref()
             .is_some_and(|m| !m.removal_failures.is_empty());
+        // What only the app knows: a mirror's removals and archive, a check's problems.
+        let more_problems = removal_failed
+            || mirror.as_ref().is_some_and(|m| {
+                m.archive_not_deleted.is_some() || m.archive_not_cleaned.is_some()
+            })
+            || check.as_ref().is_some_and(|c| !c.problems.is_empty());
         Some(SummaryView {
-            outcome: if done.report.fatal.is_some() || done.panicked {
-                JobOutcome::Stopped
-            } else if done.report.cancelled {
-                JobOutcome::Cancelled
-            } else if c.failed > 0
-                || removal_failed
-                || mirror.as_ref().is_some_and(|m| {
-                    m.archive_not_deleted.is_some() || m.archive_not_cleaned.is_some()
-                })
-                || !done.report.unread.is_empty()
-                || done.report.checksum_error.is_some()
-                || done.report.durability_error.is_some()
-                || !done.report.dir_errors.is_empty()
-                || done.report.mhl_error.is_some()
-                || !done.report.mhl_failed.is_empty()
-                || check.as_ref().is_some_and(|c| !c.problems.is_empty())
-            {
-                JobOutcome::Failures
-            } else {
-                JobOutcome::Complete
-            },
+            outcome: outcome(&done.report, done.panicked, more_problems),
             stopped_because: match &done.report.fatal {
                 _ if done.panicked => Some(say::internal()),
                 fatal => fatal.as_ref().map(say::fatal),
@@ -1174,6 +1179,40 @@ pub(crate) fn source_path(s: &Source) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Code review (#192): Complete comes from the engine's own rule, so files never
+    /// started (or anything it adds later) are never Complete.
+    #[test]
+    fn files_never_started_are_not_complete() {
+        let report = JobReport {
+            outcomes: Vec::new(),
+            not_started: 1,
+            checksum_file: None,
+            checksum_error: None,
+            checksum_off: false,
+            cache_bypass: None,
+            removed_partials: 0,
+            fatal: None,
+            cancelled: false,
+            elapsed: std::time::Duration::ZERO,
+            created_dirs: Vec::new(),
+            unread: Vec::new(),
+            durability_error: None,
+            dir_errors: Vec::new(),
+            mhl_written: Vec::new(),
+            mhl_error: None,
+            mhl_failed: Vec::new(),
+            mhl_off: true,
+        };
+        assert_eq!(outcome(&report, false, false), JobOutcome::Failures);
+        let all_done = JobReport {
+            not_started: 0,
+            ..report
+        };
+        assert_eq!(outcome(&all_done, false, false), JobOutcome::Complete);
+        assert_eq!(outcome(&all_done, false, true), JobOutcome::Failures);
+        assert_eq!(outcome(&all_done, true, false), JobOutcome::Stopped);
+    }
     use crate::message::En;
     use crate::session::{Change, Session, scan_source};
 
@@ -1893,6 +1932,40 @@ mod tests {
         .unwrap();
         jobs.wait();
         jobs.summary().unwrap()
+    }
+
+    /// Code review (#192): Retry is for copies; a mirror's failed files never become a copy
+    /// on New copy (a mirror runs again from its preset).
+    #[test]
+    fn a_mirrors_failures_are_not_offered_for_retry() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let (o, d) = (dir.path().join("o"), dir.path().join("d"));
+        fs::create_dir_all(&o).unwrap();
+        fs::create_dir_all(&d).unwrap();
+        fs::write(o.join("a.mov"), b"a").unwrap();
+        let job = crate::mirrors::prepare(
+            &preset(&o, &d, crate::store::DeletedMode::Archive),
+            &JobControl::new(),
+            &|_, _| {},
+        )
+        .unwrap();
+        fs::set_permissions(o.join("a.mov"), fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::read(o.join("a.mov")).is_ok() {
+            return; // running as root: permissions are not enforced
+        }
+        let jobs = Jobs::new(dir.path().join("reports"));
+        jobs.start(
+            job.ready(),
+            true,
+            JobSettings::for_mirror(&job, Local::now()),
+            Collect::default(),
+        )
+        .unwrap();
+        jobs.wait();
+        fs::set_permissions(o.join("a.mov"), fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(jobs.summary().unwrap().failed, 1);
+        assert!(jobs.retry().is_none());
     }
 
     /// QA review (#134): the Mac stays awake for the whole job, a mirror's removals too, not
