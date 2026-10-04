@@ -162,6 +162,40 @@ fn loose_files_report_each_parent_folder_once() {
     assert_eq!(roots, vec![dir.path().join("x"), dir.path().join("y")]);
 }
 
+/// Code review (#192): a directory in the destination that is a symlink (here, into the
+/// source) is never written through: Overwrite would replace a source file.
+#[test]
+fn a_symlinked_directory_in_the_destination_is_never_written_through() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("CARD");
+    write_files(
+        &src,
+        &[("A/clip.mov", b"take one"), ("B/clip.mov", b"take two")],
+    );
+    let dest = dir.path().join("dest");
+    fs::create_dir_all(&dest).unwrap();
+    std::os::unix::fs::symlink(src.join("B"), dest.join("A")).unwrap();
+    let source = Source::Directory {
+        path: src.clone(),
+        mode: DirMode::ContentsOnly,
+    };
+    let sel = scan(&source, &ScanOptions::default())
+        .unwrap()
+        .select(&ExtensionFilter::All);
+    let pf = preflight(&source, &sel, &dest).unwrap();
+    let id = id_of(&sel, "A/clip.mov");
+    assert!(
+        pf.file_problems.iter().any(|p| p.id == id
+            && p.kind
+                == ProblemKind::ThroughLink {
+                    path: PathBuf::from("A")
+                }),
+        "{:?}",
+        pf.file_problems
+    );
+    assert!(pf.conflicts.iter().all(|c| c.id != id));
+}
+
 #[test]
 fn a_source_file_is_never_a_target() {
     // Contents of SSD/X into SSD: X/a.mov would land on the source's own a.mov (#112).

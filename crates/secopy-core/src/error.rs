@@ -55,6 +55,8 @@ pub enum FileError {
     InTheWay { path: PathBuf },
     #[error("it would land on a source file")]
     InSource,
+    #[error("{} is a symlink: Secopy doesn't write through symlinks", path.display())]
+    ThroughLink { path: PathBuf },
     /// A replace failed and the old version, moved to the mirror's archive, couldn't be put
     /// back: it's there, not where it was (#115).
     #[error("{error}; the previous version is in the archive: {}", archived.display())]
