@@ -100,7 +100,7 @@ fn a_mirror_that_cant_be_planned_says_why() {
     assert_eq!(e, PlanError::OriginMissing(gone.clone()));
     assert_eq!(
         e.to_string(),
-        format!("The origin isn't there: {}", gone.display())
+        format!("Origin “{}” not found.", gone.display())
     );
     let e = mirror::plan(dir.path(), dir.path(), &opts()).unwrap_err();
     assert_eq!(e, PlanError::Same);

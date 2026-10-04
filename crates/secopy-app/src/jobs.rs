@@ -2226,7 +2226,19 @@ mod tests {
             crate::mirrors::prepare(&p, &JobControl::new(), &|_, _| {})
                 .err()
                 .unwrap(),
-            "SECOPY_NO_SUCH isn’t connected."
+            "Origin “/Volumes/SECOPY_NO_SUCH/Footage” not found."
+        );
+        // #199: and a missing destination says it's the destination.
+        let p = preset(
+            dir.path(),
+            Path::new("/Volumes/SECOPY_NO_SUCH/Backup"),
+            crate::store::DeletedMode::Archive,
+        );
+        assert_eq!(
+            crate::mirrors::prepare(&p, &JobControl::new(), &|_, _| {})
+                .err()
+                .unwrap(),
+            "Destination “/Volumes/SECOPY_NO_SUCH/Backup” not found."
         );
     }
 

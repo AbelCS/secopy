@@ -602,7 +602,7 @@
   },
   "import": {
     "title": "Import",
-    "notConnected": "{path} isn’t connected now.",
+    "notFound": "“{path}” not found.",
     "renamed": "Imported as “{name}”: the file has this name twice.",
     "clash": "You already have “{name}”",
     "keepBoth": "Keep both, as “{name}”",
@@ -1002,7 +1002,7 @@
         "one": "The archive holds {count} file ({size}) from earlier runs.",
         "other": "The archive holds {count} files ({size}) from earlier runs."
       },
-      "unavailable": "The destination isn’t connected, so its archive can’t be checked.",
+      "unavailable": "Destination not found: its archive can’t be checked.",
       "busy": "A job is running, so the archive can’t be deleted now.",
       "deleteNow": "Delete them now",
       "deleteNextRun": "Delete them at the next run",
@@ -1029,7 +1029,7 @@
       },
       "oldest": "oldest {date}",
       "empty": "Empty",
-      "notConnected": "Destination not connected",
+      "notFound": "Destination not found",
       "pending": "Deleted at the next run",
       "show": "Show in Finder",
       "busy": "Wait until the job finishes.",
@@ -1118,6 +1118,12 @@
       "unknown": "{text}",
       "quota": "The drive’s quota is used up"
     },
+    "notFound": {
+      "source": "Source “{path}” not found.",
+      "origin": "Origin “{path}” not found.",
+      "destination": "Destination “{path}” not found.",
+      "directory": "Directory “{path}” not found."
+    },
     "file": {
       "readSource": "Can’t read the source: {why}",
       "writeDest": "Can’t write to the destination: {why}",
@@ -1149,12 +1155,12 @@
     },
     "fatal": {
       "diskFull": "The destination drive is full",
-      "destinationGone": "The destination is no longer available; was it disconnected?",
-      "sourceGone": "The source is no longer available; was it disconnected?"
+      "destinationGone": "Destination not found.",
+      "sourceGone": "Source not found."
     },
     "internal": "Secopy hit an internal error",
     "blocker": {
-      "destMissing": "The destination isn’t an existing directory",
+      "destMissing": "Destination not found.",
       "destNotWritable": "Can’t write to the destination: {why}",
       "destInsideSource": "The destination is the source directory or inside it",
       "notEnoughSpace": "Not enough space: {needed} needed, {available} available"
@@ -1195,7 +1201,7 @@
       "listedInOnly": "Listed in {file}."
     },
     "mirror": {
-      "originMissing": "The origin isn’t there: {path}",
+      "originMissing": "Origin “{path}” not found.",
       "same": "The origin and the destination are the same directory.",
       "destinationInOrigin": "The destination can’t be inside the origin.",
       "originInDestination": "The origin can’t be inside the destination.",
@@ -1259,7 +1265,7 @@
       "cantStart": "Nothing to copy, or something blocks the copy.",
       "changed": "The destination changed. Check and press “Start” again.",
       "noneFailed": "No files failed.",
-      "retrySourceGone": "The source isn’t there any more ({path}). Connect the source again to retry."
+      "retrySourceGone": "Source “{path}” not found."
     },
     "legacy": "{text}",
     "preset": {
@@ -1293,8 +1299,8 @@
       "unread": "{file} couldn’t be read when Secopy opened: not saved over"
     },
     "source": {
-      "gone": "{path} isn’t there any more.",
-      "notConnected": "{drive} isn’t connected."
+      "gone": "“{path}” not found.",
+      "notConnected": "“{drive}” not found."
     },
     "verify": {
       "cantRead": "{path}: {why}",

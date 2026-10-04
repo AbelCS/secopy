@@ -7,7 +7,8 @@ use std::sync::Arc;
 use secopy_core::control::JobControl;
 use secopy_core::mirror::{self, MirrorOptions, MirrorPlan};
 
-use crate::session::{Ready, gone};
+use crate::say::{Role, not_found};
+use crate::session::Ready;
 use crate::store::MirrorPreset;
 
 /// A mirror worked out and ready to run.
@@ -41,10 +42,13 @@ pub fn prepare_with(
     control: &JobControl,
     on_compared: &(dyn Fn(u64, u64) + Sync),
 ) -> Result<MirrorJob, crate::message::Message> {
-    for p in [&preset.origin, &preset.destination] {
+    for (role, p) in [
+        (Role::Origin, &preset.origin),
+        (Role::Destination, &preset.destination),
+    ] {
         let path = Path::new(p);
         if !path.is_dir() {
-            return Err(gone(path));
+            return Err(not_found(role, path));
         }
     }
     let options = MirrorOptions {

@@ -626,7 +626,7 @@
   },
   "import": {
     "title": "Importar",
-    "notConnected": "{path} no está conectado ahora.",
+    "notFound": "“{path}” no encontrado.",
     "renamed": "Importada como “{name}”: el archivo tiene este nombre dos veces.",
     "clash": "Ya tienes “{name}”",
     "keepBoth": "Conservar ambas, como “{name}”",
@@ -1050,7 +1050,7 @@
         "one": "Archivados: {count} archivo ({size}) de ejecuciones anteriores.",
         "other": "Archivados: {count} archivos ({size}) de ejecuciones anteriores."
       },
-      "unavailable": "El destino no está conectado, así que no se pueden comprobar sus archivados.",
+      "unavailable": "Destino no encontrado: no se pueden comprobar sus archivados.",
       "busy": "Hay una tarea en curso, así que ahora no se pueden borrar los archivados.",
       "deleteNow": "Borrarlos ahora",
       "deleteNextRun": "Borrar en la próxima ejecución",
@@ -1077,7 +1077,7 @@
       },
       "oldest": "el más antiguo, {date}",
       "empty": "Sin archivos",
-      "notConnected": "Destino no conectado",
+      "notFound": "Destino no encontrado",
       "pending": "Se borran en la próxima ejecución",
       "show": "Mostrar en el Finder",
       "busy": "Espera a que termine la tarea.",
@@ -1166,6 +1166,12 @@
       "unknown": "{text}",
       "quota": "Se ha agotado la cuota de la unidad"
     },
+    "notFound": {
+      "source": "Origen “{path}” no encontrado.",
+      "origin": "Origen “{path}” no encontrado.",
+      "destination": "Destino “{path}” no encontrado.",
+      "directory": "Directorio “{path}” no encontrado."
+    },
     "file": {
       "readSource": "No se puede leer el origen: {why}",
       "writeDest": "No se puede escribir en el destino: {why}",
@@ -1197,12 +1203,12 @@
     },
     "fatal": {
       "diskFull": "La unidad de destino está llena",
-      "destinationGone": "El destino ya no está disponible; ¿se desconectó?",
-      "sourceGone": "El origen ya no está disponible; ¿se desconectó?"
+      "destinationGone": "Destino no encontrado.",
+      "sourceGone": "Origen no encontrado."
     },
     "internal": "Secopy sufrió un error interno",
     "blocker": {
-      "destMissing": "El destino no es un directorio existente",
+      "destMissing": "Destino no encontrado.",
       "destNotWritable": "No se puede escribir en el destino: {why}",
       "destInsideSource": "El destino es el directorio de origen o está dentro de él",
       "notEnoughSpace": "No hay espacio suficiente. Espacio necesario: {needed}; disponible: {available}"
@@ -1243,7 +1249,7 @@
       "listedInOnly": "Figura en {file}."
     },
     "mirror": {
-      "originMissing": "No se encuentra el origen: {path}",
+      "originMissing": "Origen “{path}” no encontrado.",
       "same": "El origen y el destino son el mismo directorio.",
       "destinationInOrigin": "El destino no puede estar dentro del origen.",
       "originInDestination": "El origen no puede estar dentro del destino.",
@@ -1307,7 +1313,7 @@
       "cantStart": "Nada que copiar, o algo impide la copia.",
       "changed": "El destino cambió. Revísalo y vuelve a pulsar “Empezar”.",
       "noneFailed": "No falló ningún archivo.",
-      "retrySourceGone": "Ya no se encuentra el origen ({path}). Vuelve a conectarlo para reintentar la copia."
+      "retrySourceGone": "Origen “{path}” no encontrado."
     },
     "legacy": "{text}",
     "preset": {
@@ -1341,8 +1347,8 @@
       "unread": "No se pudo leer {file} al abrir Secopy: no se sobrescribe"
     },
     "source": {
-      "gone": "Ya no se encuentra {path}.",
-      "notConnected": "{drive} no está conectado."
+      "gone": "“{path}” no encontrado.",
+      "notConnected": "“{drive}” no encontrado."
     },
     "verify": {
       "cantRead": "{path}: {why}",

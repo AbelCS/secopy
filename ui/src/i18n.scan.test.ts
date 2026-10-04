@@ -93,10 +93,14 @@ function sources(dir = ROOT): string[] {
   });
 }
 
+/** Keys no longer sent, kept for what older versions saved: a queued job's last reason in
+ *  queue.json is a key, and keys don't change after 1.0 (docs/i18n.md, #199). */
+const KEPT = ["errors.source.gone", "errors.source.notConnected"];
+
 test("every word in the catalog is used", () => {
   const code = sources().join("\n");
   // Keys Rust sends (listed by its registry test) are used too.
-  const sent = new Set<string>(rustKeys);
+  const sent = new Set<string>([...rustKeys, ...KEPT]);
   const unused = leaves(en).filter((key) => !key.startsWith("test.") && !sent.has(key) && !code.includes(`"${key}"`));
   expect(unused).toEqual([]);
 });

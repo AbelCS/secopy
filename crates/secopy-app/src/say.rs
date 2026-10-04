@@ -15,6 +15,29 @@ use secopy_core::scan::{DriveRoot, ScanProblem, ScanProblemKind};
 use crate::message::{Message, Size};
 use crate::msg;
 
+/// Which directory isn't there: each is named by its role (#199).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    /// A copy's source.
+    Source,
+    /// A mirror's origin.
+    Origin,
+    Destination,
+    /// The directory Verify checks.
+    Directory,
+}
+
+/// "Origin “/Volumes/P001” not found.": one form for every directory that isn't there,
+/// whether its drive is unplugged or the directory was deleted (#199).
+pub fn not_found(role: Role, path: &std::path::Path) -> Message {
+    match role {
+        Role::Source => msg!("errors.notFound.source", path = path),
+        Role::Origin => msg!("errors.notFound.origin", path = path),
+        Role::Destination => msg!("errors.notFound.destination", path = path),
+        Role::Directory => msg!("errors.notFound.directory", path = path),
+    }
+}
+
 /// An OS error by its kind; one Secopy has no words for shows the OS's own.
 pub fn io_failure(e: &IoFailure) -> Message {
     use io::ErrorKind as K;

@@ -225,8 +225,8 @@ describe("JobProgress", () => {
   });
 
   test("a fatal error shows a banner", () => {
-    show(progressView({ phase: "done", fatal: raw("The source is no longer available; was it disconnected?") }));
-    expect(screen.getByRole("alert").textContent).toContain("Stopped: The source is no longer available");
+    show(progressView({ phase: "done", fatal: raw("Source not found.") }));
+    expect(screen.getByRole("alert").textContent).toContain("Stopped: Source not found.");
   });
 
   test("the finished list only renders the visible rows and fetches their page", async () => {

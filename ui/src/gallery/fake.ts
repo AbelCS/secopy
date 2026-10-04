@@ -204,7 +204,7 @@ export const queue: QueueView = {
   onFailure: "continue",
   jobs: [
     { kind: "copy", verify: true, source: raw("/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP"), destination: "/Volumes/V001/Day01", lastError: null, supported: true, name: null },
-    { kind: "copy", verify: true, source: raw("/Volumes/CARD_B/PRIVATE/M4ROOT/CLIP"), destination: "/Volumes/V001/Day01", lastError: { key: "errors.source.notConnected", args: { drive: "CARD_B" } }, supported: true, name: null },
+    { kind: "copy", verify: true, source: raw("/Volumes/CARD_B/PRIVATE/M4ROOT/CLIP"), destination: "/Volumes/V001/Day01", lastError: { key: "errors.notFound.source", args: { path: "/Volumes/CARD_B/PRIVATE/M4ROOT/CLIP" } }, supported: true, name: null },
     { kind: "copy", verify: false, source: raw("/Users/me/Desktop/Stills"), destination: "/Volumes/Media/Stills", lastError: null, supported: true, name: null },
   ],
 };
@@ -216,7 +216,7 @@ export const queueSummary: QueueSummaryView = {
   saveError: null,
   results: [
     { job: queue.jobs[0], result: "complete", reason: null, summary: { ...summary, outcome: "complete", failed: 0, failures: [] } },
-    { job: queue.jobs[1], result: "failed", reason: { key: "errors.source.notConnected", args: { drive: "CARD_B" } }, summary: null },
+    { job: queue.jobs[1], result: "failed", reason: { key: "errors.notFound.source", args: { path: "/Volumes/CARD_B/PRIVATE/M4ROOT/CLIP" } }, summary: null },
     { job: queue.jobs[2], result: "notRun", reason: { key: "queue.reason.notRun", args: {} }, summary: null },
   ],
 };

@@ -177,7 +177,7 @@ fn the_guard_trips_on_an_empty_origin_or_half_the_destination() {
         mirror::plan(&o.join("nope"), &d, &opts())
             .unwrap_err()
             .to_string()
-            .contains("isn't there")
+            .contains("not found")
     );
 }
 

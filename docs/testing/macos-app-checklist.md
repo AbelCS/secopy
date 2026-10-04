@@ -36,11 +36,11 @@ the `.dmg` with `xattr`; or build it with `npm run tauri build` from `ui/`. Then
    Cancel job: the destination is as before (the old file stays, no checksum file, no new
    directories) and the summary says "Cancelled: the destination is back as it was".
 9. **Pull the card.** Start a large copy and eject or pull the card mid-way. Expect: a red
-   "Stopped: The source is no longer available; was it disconnected?" and a summary that lists
+   "Stopped: Source not found." and a summary that lists
    what finished.
 10. **Retry.** Make a file unreadable (`chmod 000` on a copy of a card directory), copy, then
-    Retry. Expect: only that file is offered again. Eject the card and press Retry: it says the
-    source isn't there any more; nothing starts.
+    Retry. Expect: only that file is offered again. Eject the card and press Retry: "Source
+    “…” not found."; nothing starts.
 11. **Save report.** Summary → Save report… writes a `.txt` and a `.json` next to it.
 12. **ASC MHL.** Turn on Settings › Write ASC MHL. Copy a card: before Start, "ASC MHL: new
     history"; after, an `ascmhl` directory next to the files and "ASC MHL written." Copy the
@@ -53,7 +53,7 @@ the `.dmg` with `xattr`; or build it with `npm run tauri build` from `ui/`. Then
 13. **A copy preset on a real card.** Choose the card's clip directory (e.g.
     `PRIVATE/M4ROOT/CLIP`), keep only the video types, and Save as… (only a name is asked).
     Choose None, then the preset again: the source and types come back. Eject the card and
-    choose the preset: "<card> isn't connected", nothing copies. Quit with the card in and open
+    choose the preset: "Source “…” not found.", nothing copies. Quit with the card in and open
     again: the preset and its source are loaded. In Manage presets…, Choose… another directory
     as the source and Save.
 14. **Changed for this run.** With a preset applied, turn a type off: "Changed for this run"
@@ -90,7 +90,7 @@ the `.dmg` with `xattr`; or build it with `npm run tauri build` from `ui/`. Then
     Start the queue with the window in the background: one notification at the end; the queue
     summary opens each job's summary; the queue is empty.
 24. **Queue failures.** Queue a card, take it out, start the queue with "Continue with the next
-    job": that job fails ("<card> isn't connected."), the others run, it stays in the queue.
+    job": that job fails ("Source “…” not found."), the others run, it stays in the queue.
     With "Stop the queue": nothing after it runs.
 25. **Queue interrupted.** Cancel during job 2: the queue stops, jobs 2 and 3 stay queued.
     Run again and quit during a job: on reopening, the queue still has the jobs not finished.
@@ -123,7 +123,7 @@ the `.dmg` with `xattr`; or build it with `npm run tauri build` from `ui/`. Then
     the settings come in; the queue and recent destinations don't. Import it again: each
     preset offers Keep both ("Name (2)") or Replace yours; replace a mirror that is queued,
     then run the queue: the queued job runs the replaced mirror. A preset whose card isn't in
-    says it isn't connected, and still imports.
+    says "“…” not found.", and still imports.
 32. **Import from Finder.** Double-click a `.secopy` with Secopy closed, then with it open: the
     Import screen shows it. Start a copy and double-click one: "Import it when the current job
     has finished.", nothing changes; File › Import… is greyed out while it runs, also during a

@@ -41,7 +41,7 @@ tags, ACLs and resource forks are not copied.
 
 A preset is a saved source with its options: whether the directory itself is copied, which
 file types, and its own **Also ignore** list. Choose one in **Preset** and its source is
-loaded (or Secopy says its drive isn't connected). A change you make afterwards lasts for this
+loaded (or Secopy says the source isn't found). A change you make afterwards lasts for this
 copy only, unless you press **Update** (save it into the preset) or **Save as…** (a new
 preset). **Manage presets…** opens the list to create, edit, export or delete presets. When
 typing file types there, `*` means every type. A preset never holds a destination: you choose
@@ -173,7 +173,7 @@ A mirror keeps a backup identical to a directory, one way: the origin is never w
   editor says so); longer, and what's still there is kept longer.
 - **Switching from Archive to Delete** asks what to do with what's already archived: **Delete
   them now**, or **Keep them** for the preset's days (runs keep removing them when due). If the
-  destination isn't connected, or a job is running, **Delete them at the next run**: that run
+  destination isn't found, or a job is running, **Delete them at the next run**: that run
   deletes the archive before copying anything; the Archive section says "Deleted at the next
   run", and switching back to Archive cancels it. Files that can't be deleted are listed, and
   go when they're due. Changing the destination at the same time leaves the old destination's

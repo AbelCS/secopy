@@ -105,9 +105,9 @@ impl FileError {
 pub enum FatalError {
     #[error("the destination drive is full")]
     DiskFull,
-    #[error("the destination is no longer available; was it disconnected?")]
+    #[error("destination not found")]
     DestinationGone,
-    #[error("the source is no longer available; was it disconnected?")]
+    #[error("source not found")]
     SourceGone,
 }
 

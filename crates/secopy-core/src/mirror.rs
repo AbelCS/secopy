@@ -117,7 +117,7 @@ impl std::fmt::Display for PlanError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PlanError::OriginMissing(origin) => {
-                write!(f, "The origin isn't there: {}", origin.display())
+                write!(f, "Origin “{}” not found.", origin.display())
             }
             PlanError::Same => {
                 f.write_str("The origin and the destination are the same directory.")

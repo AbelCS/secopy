@@ -1072,7 +1072,7 @@ fn checked_patterns(list: &[String]) -> Result<Patterns, Message> {
 /// Plans a check of `dir`: a directory that is there.
 fn plan_check(dir: &Path, ignore: &Patterns) -> Result<CheckPlan, Message> {
     if !dir.exists() {
-        return Err(crate::session::gone(dir));
+        return Err(crate::say::not_found(crate::say::Role::Directory, dir));
     }
     if !dir.is_dir() {
         return Err(msg!("errors.verify.notADirectory"));
@@ -1428,7 +1428,10 @@ impl AppState {
                 return Err(msg!("errors.mirror.archiveBusy"));
             }
             if !destination.is_dir() {
-                return Err(crate::session::gone(destination));
+                return Err(crate::say::not_found(
+                    crate::say::Role::Destination,
+                    destination,
+                ));
             }
             run.preparing = true;
         }
@@ -2433,10 +2436,7 @@ mod tests {
     fn a_stopped_jobs_reason_ends_once() {
         use secopy_core::error::FatalError;
         let gone = stopped_reason(Some(say::fatal(&FatalError::DestinationGone)));
-        assert_eq!(
-            gone,
-            "The destination is no longer available; was it disconnected?"
-        );
+        assert_eq!(gone, "Destination not found.");
         assert_eq!(
             stopped_reason(Some(say::fatal(&FatalError::DiskFull))),
             "The destination drive is full."
@@ -2921,10 +2921,7 @@ mod tests {
         fs::set_permissions(card.join("b.mov"), fs::Permissions::from_mode(0o644)).unwrap();
         fs::remove_dir_all(&card).unwrap(); // the card was ejected
         let error = state.retry_failed().unwrap_err();
-        assert!(
-            error.starts_with("The source isn’t there any more"),
-            "{error}"
-        );
+        assert!(error.starts_with("Source “"), "{error}");
         assert!(!state.jobs.is_running(), "nothing started");
     }
 
@@ -3013,7 +3010,7 @@ mod tests {
                 .en()
                 .as_deref()
                 .unwrap()
-                .ends_with("isn’t there any more.")
+                .ends_with("” not found.")
         );
         assert_eq!(summary.results[1].result, QueueResult::Complete);
         let left = state.queue_view().jobs;
