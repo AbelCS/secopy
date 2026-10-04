@@ -7,13 +7,10 @@ type Sample = { t: number; bytes: number };
 
 export class RateMeter {
   private samples: Sample[] = [];
-  private first: Sample | null = null;
 
   /** Records `bytes` done at time `t` (milliseconds since the job started). */
   push(t: number, bytes: number): void {
-    const sample = { t, bytes };
-    this.first ??= sample;
-    this.samples.push(sample);
+    this.samples.push({ t, bytes });
     while (this.samples.length > 2 && t - this.samples[0].t > WINDOW_MS) {
       this.samples.shift();
     }
@@ -24,13 +21,6 @@ export class RateMeter {
     const [a, b] = [this.samples[0], this.samples[this.samples.length - 1]];
     if (!a || !b || b.t <= a.t) return null;
     return ((b.bytes - a.bytes) * 1000) / (b.t - a.t);
-  }
-
-  /** Bytes per second since the start; `null` until time has passed. */
-  average(): number | null {
-    const last = this.samples[this.samples.length - 1];
-    if (!this.first || !last || last.t <= this.first.t) return null;
-    return ((last.bytes - this.first.bytes) * 1000) / (last.t - this.first.t);
   }
 
   /** Milliseconds left for `remaining` bytes at the current speed; `null` when unknown. */

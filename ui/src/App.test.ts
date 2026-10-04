@@ -604,6 +604,25 @@ describe("App", () => {
     await screen.findByRole("heading", { level: 1, name: "Mirror" });
   });
 
+  test("a copy that can't start keeps the mirror's summary (code review, #192)", async () => {
+    const { api, state } = app();
+    const mirror = { new: 2, updated: 1, removed: 1, archived: true, removalFailures: [], nothingRemoved: null };
+    api.jobSummary.mockResolvedValueOnce(summaryView({ mirror }));
+    await startButton();
+    await waitFor(() => expect(state.menu).not.toBeNull());
+    state.menu!("show-mirror");
+    await fireEvent.click(await screen.findByRole("button", { name: "Preview…" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    state.progress!(progressView({ phase: "done" }));
+    await screen.findByText("Mirrored: 2 new, 1 updated, 1 archived");
+    state.menu!("show-copy");
+    api.startJob.mockRejectedValueOnce(new Error("The destination changed. Check and press Start again."));
+    await fireEvent.click(await startButton());
+    await screen.findByText("The destination changed. Check and press Start again.");
+    state.menu!("show-mirror");
+    await screen.findByText("Mirrored: 2 new, 1 updated, 1 archived");
+  });
+
   test("a copy after a mirror: Mirror no longer shows the mirror's summary", async () => {
     const { api, state } = app();
     const mirror = { new: 2, updated: 1, removed: 1, archived: true, removalFailures: [], nothingRemoved: null };
@@ -636,6 +655,24 @@ describe("App", () => {
     );
     expect(api.pickExportPath.mock.calls[0][0]).toMatch(/^Secopy settings \d{4}-\d{2}-\d{2}\.secopy$/);
     await screen.findByText("Exported 1 copy preset and the settings.");
+  });
+
+  test("the export's name has today's local date, not UTC's (code review, #192)", async () => {
+    const tz = process.env.TZ;
+    process.env.TZ = "Europe/Madrid";
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T22:30:00Z")); // 00:30 on the 5th in Madrid
+    try {
+      const { api, state } = app();
+      await startButton();
+      state.menu!("export-file");
+      await fireEvent.click(await screen.findByRole("button", { name: "Export…" }));
+      await waitFor(() => expect(api.pickExportPath).toHaveBeenCalled());
+      expect(api.pickExportPath.mock.calls[0][0]).toBe("Secopy settings 2026-10-05.secopy");
+    } finally {
+      vi.useRealTimers();
+      process.env.TZ = tz;
+    }
   });
 
   test("File › Import… opens the file's Import screen; Import says what went in", async () => {

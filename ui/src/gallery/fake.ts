@@ -226,7 +226,6 @@ const ok =
   () =>
     Promise.resolve(value);
 
-/** Answers every call with the fake data above. */
 /** A team's .secopy file on the Import screen: settings that change, a clash, a path not
  *  connected, and a preset that can't come in. */
 export const importView: ImportView = {
@@ -246,6 +245,7 @@ export const importView: ImportView = {
   ],
 };
 
+/** Answers every call with the fake data above. */
 export function fakeApi(start: Partial<{ copyPresets: CopyPreset[]; check: boolean }> = {}): Api {
   const table: Record<string, unknown> = {
     appStart: ok({

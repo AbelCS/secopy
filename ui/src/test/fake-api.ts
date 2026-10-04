@@ -254,7 +254,6 @@ export function queueView(over: Partial<QueueView> = {}): QueueView {
   return { jobs: [], onFailure: "continue", ...over };
 }
 
-/** Every method is a spy; `session` is what the session commands answer. */
 /** A .secopy file's Import screen: a clash, a path not connected, a preset that can't come in. */
 export function importView(over: Partial<ImportView> = {}): ImportView {
   return {
@@ -271,6 +270,7 @@ export function importView(over: Partial<ImportView> = {}): ImportView {
   };
 }
 
+/** Every method is a spy; `session` is what the session commands answer. */
 export function fakeApi(session: SessionView = sessionView()) {
   const state = {
     session,

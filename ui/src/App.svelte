@@ -164,7 +164,7 @@
   });
   let verify = $state(true);
   let copyPresets: CopyPreset[] = $state([]);
-  let settings: Settings = $state({ writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false, ignore: [".DS_Store", "._*", "Thumbs.db"], language: null });
+  let settings: Settings = $state({ writeChecksumFile: true, showSystemCount: true, reportNextToChecksum: false, notifyWhenDone: true, keepInMenuBar: true, writeMhl: false, ignore: [], language: null });
   let recent: string[] = $state([]);
   let progress: ProgressView | null = $state(null);
   let summary: SummaryView | null = $state(null);
@@ -245,7 +245,9 @@
   /** Export's dialog answered: where to save, then save. */
   async function exportChosen(what: ExportWhat) {
     exporting = false;
-    const today = new Date().toISOString().slice(0, 10);
+    // Today here, not in UTC: after midnight in Spain, UTC is still yesterday.
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const path = await api.pickExportPath(t("app.exportName", { date: today }));
     if (!path) return;
     const said = await run(() => api.exportAll(path, what));
@@ -306,7 +308,8 @@
     }
   }
 
-  /** A new job replaces the backend's last one: no old mirror summary acts on it. */
+  /** A job that started replaces the backend's last one: no old mirror summary acts on it.
+   *  Only once it started: a refused Start leaves the last job, and its summary, in place. */
   function forgetMirrorSummary() {
     mirrorSummary = null;
     mirrorScreen = "mirror";
@@ -315,7 +318,6 @@
   }
 
   async function start() {
-    forgetMirrorSummary();
     progress = waiting();
     screen = "progress";
     const started = await run(() =>
@@ -328,7 +330,10 @@
       screen = "setup";
       // Start checks the destination again: show it as it is now, with the reason (#112).
       view = newest(view, await api.sessionView().catch(() => view));
-    } else recent = (await run(() => api.recentDestinations())) ?? recent;
+      return;
+    }
+    forgetMirrorSummary();
+    recent = (await run(() => api.recentDestinations())) ?? recent;
   }
 
   /** Settings or Copy presets, over a section's screen; never during a copy. */
@@ -371,10 +376,6 @@
 
   /** Verify (plan 8): the Verifying screen, then the check's summary on the Verify tab. */
   async function runCheck(path: string) {
-    // The check replaces the backend's last job: no old Summary acts on it.
-    summary = null;
-    copyScreen = "setup";
-    forgetMirrorSummary();
     progress = { ...waiting(), verify: true, totalFiles: 0, totalBytes: 0 };
     checkRunning = true;
     screen = "progress";
@@ -384,16 +385,19 @@
         if (p.phase === "done") void finish();
       }),
     );
-    if (started === undefined) screen = "verify";
+    if (started === undefined) {
+      screen = "verify";
+      return;
+    }
+    // The check replaced the backend's last job: no old Summary acts on it.
+    summary = null;
+    copyScreen = "setup";
+    mirrorSummary = null;
+    mirrorScreen = "mirror";
   }
 
   /** Runs the previewed mirror (FR-47): the Mirroring screen, then its summary. */
   async function runMirror(preview: MirrorPreviewView) {
-    // The mirror replaces the backend's last copy: no old Summary acts on it.
-    summary = null;
-    copyScreen = "setup";
-    verifySummary = null;
-    verifyScreen = "verify";
     progress = {
       ...waiting(),
       verify: true,
@@ -408,7 +412,15 @@
         if (p.phase === "done") void finish();
       }),
     );
-    if (started === undefined) screen = "mirror-preview";
+    if (started === undefined) {
+      screen = "mirror-preview";
+      return;
+    }
+    // The mirror replaced the backend's last job: no old Summary acts on it.
+    summary = null;
+    copyScreen = "setup";
+    verifySummary = null;
+    verifyScreen = "verify";
   }
 
   /** Runs the queue: one Copying screen per job, then the queue summary (FR-40..FR-43). */
