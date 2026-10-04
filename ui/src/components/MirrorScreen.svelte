@@ -4,7 +4,7 @@
   import { locale, t } from "../lib/i18n";
   import { ARCHIVE_DIR } from "../lib/engine";
   import { AppError, say } from "../lib/message";
-  import type { Snippet } from "svelte";
+  import { onMount, type Snippet } from "svelte";
   import { useApi } from "../lib/api";
   import type { ArchiveView, MirrorPreset, MirrorPresetInput, MirrorPreviewView, QueueView } from "../lib/bindings";
   import ActionBar from "../lib/ui/ActionBar.svelte";
@@ -116,6 +116,17 @@
     if (savedId && savedDestination) void lookAtArchive(savedId);
   });
 
+  /** Looked at again whenever the destination may have come back (#195): Choose… (the same
+   *  directory too), Save, the window back in front (a disk plugged in, a directory made). */
+  function lookAgain() {
+    if (savedId && savedDestination) void lookAtArchive(savedId);
+  }
+
+  onMount(() => {
+    window.addEventListener("focus", lookAgain);
+    return () => window.removeEventListener("focus", lookAgain);
+  });
+
   /** "Delete it at the next run" is pending for the destination shown (#101). */
   const pendingDeletion = $derived(!!selected && selected.clearArchive === savedDestination);
 
@@ -196,6 +207,7 @@
           said = t("mirror.archive.deleted", { count: deleted.removed });
           error = deleted.notDeleted ? say(deleted.notDeleted) : null;
         }
+        lookAgain();
       } catch (e) {
         const key = choice === "now" ? "mirror.archive.savedNotDeleted" : "mirror.archive.savedNotPending";
         error = t(key, { why: messageOf(e) });
@@ -310,6 +322,7 @@
             formId={FORM}
             preset={selectedId === NEW ? null : selected}
             onSave={save}
+            onDestinationChosen={lookAgain}
           />
         {/key}
       {:else}
