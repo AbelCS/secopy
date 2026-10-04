@@ -17,6 +17,7 @@
     preset,
     formId,
     onSave,
+    onDestinationChosen,
     changed = $bindable(false),
     canSave = $bindable(false),
   }: {
@@ -26,6 +27,8 @@
     formId: string;
     /** Throws the app's message when the preset can't be saved. */
     onSave: (input: MirrorPresetInput) => Promise<void>;
+    /** Choose… picked a destination (the same one too: it may be back, #195). */
+    onDestinationChosen?: () => void;
     /** There are unsaved changes. */
     changed?: boolean;
     canSave?: boolean;
@@ -95,7 +98,10 @@
     const path = await api.pickDirectory(t(which === "origin" ? "mirror.editor.origin" : "mirror.editor.destination"));
     if (path === null) return;
     if (which === "origin") origin = path;
-    else destination = path;
+    else {
+      destination = path;
+      onDestinationChosen?.();
+    }
   }
 
   async function save(event: SubmitEvent) {

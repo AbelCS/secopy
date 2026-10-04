@@ -128,6 +128,39 @@ describe("MirrorScreen", () => {
     expect(archive.getByRole("button", { name: "Show in Finder" })).toHaveProperty("disabled", true);
   });
 
+  // #195: a destination that comes back (created again, plugged in) shows its archive again.
+  const gone = () => held({ files: 0, bytes: 0, oldest: null, connected: false });
+
+  test("the archive is looked at again after Choose… for the destination, even the same one (#195)", async () => {
+    const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(gone()));
+    const archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText("Destination not connected");
+    api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null }));
+    api.pickDirectory.mockResolvedValueOnce("/Volumes/Media/Footage");
+    const [, destination] = screen.getAllByRole("button", { name: "Choose…" });
+    await fireEvent.click(destination);
+    await archive.findByText("Empty");
+  });
+
+  test("the archive is looked at again when the window comes to the front (#195)", async () => {
+    const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(gone()));
+    const archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText("Destination not connected");
+    api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null }));
+    window.dispatchEvent(new Event("focus"));
+    await archive.findByText("Empty");
+  });
+
+  test("the archive is looked at again after Save, with the same destination (#195)", async () => {
+    const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(gone()));
+    const archive = within(await screen.findByRole("region", { name: "Archive" }));
+    await archive.findByText("Destination not connected");
+    api.mirrorArchive.mockResolvedValue(held({ files: 0, bytes: 0, oldest: null }));
+    await fireEvent.click(screen.getByRole("radio", { name: "Paranoid" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await archive.findByText("Empty");
+  });
+
   test("Delete… asks, deletes the archive and shows what's left", async () => {
     const { api } = show(undefined, (api) => api.mirrorArchive.mockResolvedValue(held()));
     api.deleteMirrorArchive.mockResolvedValue({ removed: 124, notDeleted: null });
