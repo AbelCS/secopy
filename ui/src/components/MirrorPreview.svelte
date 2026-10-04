@@ -58,6 +58,17 @@
       .catch((e) => (error = messageOf(e)));
   });
 
+  /** The next page of the list shown: every change can be seen before Start (#192). */
+  async function more() {
+    const kind = shown === "all" ? null : shown;
+    try {
+      const next = await api.mirrorPreviewPage(kind, rows.length, PAGE);
+      if ((shown === "all" ? null : shown) === kind) rows = [...rows, ...next];
+    } catch (e) {
+      error = messageOf(e);
+    }
+  }
+
   /** Start's help: what it copies, then what it does with files deleted in the origin (FR-48, FR-49). */
   const startHelp = $derived.by(() => {
     const { newFiles, changedFiles, removedFiles } = preview;
@@ -163,8 +174,11 @@
           {/each}
         </tbody>
       </table>
-      {#if total > rows.length && rows.length === PAGE}
-        <p class="muted">{t("mirror.preview.more", { count: total - rows.length })}</p>
+      {#if total > rows.length && rows.length > 0 && rows.length % PAGE === 0}
+        <p class="muted">
+          {t("mirror.preview.more", { count: total - rows.length })}
+          <Button onclick={more}>{t("mirror.preview.showMore")}</Button>
+        </p>
       {/if}
     </Section>
   {/if}

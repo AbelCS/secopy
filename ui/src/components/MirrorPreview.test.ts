@@ -52,6 +52,24 @@ describe("MirrorPreview", () => {
     screen.getByText("Deleted in the origin");
   });
 
+  test("every change can be seen before Start, past the first page (code review, #192)", async () => {
+    const { api } = fakeApi();
+    const rows = (from: number, n: number) =>
+      Array.from({ length: n }, (_, i) => ({ path: `gone/${from + i}.mov`, size: 1, kind: "removed" as const, reason: raw("Deleted in the origin") }));
+    api.mirrorPreviewPage.mockImplementation((_k, offset: number, limit: number) =>
+      Promise.resolve(rows(offset, Math.max(0, Math.min(limit, 600 - offset)))),
+    );
+    render(MirrorPreview, {
+      props: { preview: mirrorPreview({ newFiles: 0, changedFiles: 0, removedFiles: 600 }), onRun: () => {}, onQueue: () => {}, onCancel: () => {} },
+      context: apiContext(api),
+    });
+    await screen.findByText("gone/499.mov");
+    expect(screen.queryByText("gone/500.mov")).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await screen.findByText("gone/599.mov");
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
   test("where archived files go is explained", () => {
     show(mirrorPreview({ removedFiles: 5, archiveDays: 30 }));
     expect(hintOf(screen.getByText("5 deleted in the origin → archived, kept 30 days"))).toMatch(/\.secopy-archive/);

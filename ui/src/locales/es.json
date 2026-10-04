@@ -968,6 +968,7 @@
         "removed": "Borrados"
       },
       "more": "y {count} más",
+      "showMore": "Mostrar más",
       "start": "Empezar",
       "reason": {
         "new": "Nuevo en el origen",
@@ -1067,6 +1068,8 @@
         "one": "Se borró {count} archivado.",
         "other": "Se borraron {count} archivados."
       },
+      "savedNotDeleted": "Guardado. Los archivados no se borraron: {why}",
+      "savedNotPending": "Guardado. Los archivados no quedan para borrarse en la próxima ejecución: {why}",
       "title": "Archivados",
       "files": {
         "one": "{count} archivo",

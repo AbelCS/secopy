@@ -215,6 +215,28 @@ describe("MirrorScreen", () => {
     await screen.findByText("Deleted 124 archived files.");
   });
 
+  test("an archive that can't be deleted after the save says so, though the editor is new (code review, #192)", async () => {
+    const { api } = fakeApi();
+    api.mirrorArchive.mockResolvedValue(held({ oldest: null }));
+    const edited = { ...mirrorPreset(), deleted: { mode: "delete" as const, days: 30 } };
+    api.editMirrorPreset.mockResolvedValue([edited]);
+    api.deleteMirrorArchive.mockRejectedValueOnce(new Error("The destination isn’t connected."));
+    // The app passes the saved list back, so the editor is made again (as in App.svelte).
+    const result = render(MirrorScreen, {
+      props: {
+        presets: [mirrorPreset()],
+        onPresets: (p: MirrorPreset[]) => void result.rerender({ presets: p }),
+        onPreview: () => {},
+        onQueue: () => {},
+      },
+      context: apiContext(api),
+    });
+    await switchToDelete();
+    const dialog = await screen.findByRole("dialog", { name: "Files already archived" });
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Delete them now" }));
+    await screen.findByText("Saved. The archived files weren’t deleted: The destination isn’t connected.");
+  });
+
   test("Delete them now deletes nothing when the edit can't be saved", async () => {
     const { api } = show();
     api.mirrorArchive.mockResolvedValue(held({ oldest: null }));

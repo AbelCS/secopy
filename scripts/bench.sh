@@ -71,17 +71,21 @@ report="$out_dir/$(date +%Y-%m-%d)-$(hostname -s).md"
   echo "- Secopy: $("$secopy" --version)"
 } >"$report"
 
+# A directory of this run's own in the destination: nothing that was there is removed.
+run=$(mktemp -d "$dest/secopy-bench.XXXXXX")
+case "$(cd "$src" && pwd -P)/" in "$(cd "$run" && pwd -P)/"*) echo "the source is inside the destination's run directory" >&2; exit 2 ;; esac
+trap 'rm -rf "$run"' EXIT
+q() { printf %q "$1"; }
 for set in large small; do
   [[ -d "$src/$set" ]] || continue
-  run="$dest/secopy-bench-run"
-  prepare="rm -rf '$run' && mkdir -p '$run' && $drop_caches"
+  prepare="rm -rf $(q "$run")/* && $drop_caches"
   tmp=$(mktemp)
   hyperfine --runs 3 --prepare "$prepare" --export-markdown "$tmp" \
-    -n "cp -R" "cp -R '$src/$set' '$run/'" \
-    -n "rsync -a" "rsync -a '$src/$set' '$run/'" \
-    -n "secopy copy" "'$secopy' '$src/$set' --to '$run'" \
-    -n "secopy copy+verify" "'$secopy' '$src/$set' --to '$run' --verify"
+    -n "cp -R" "cp -R $(q "$src/$set") $(q "$run/")" \
+    -n "rsync -a" "rsync -a $(q "$src/$set") $(q "$run/")" \
+    -n "secopy copy" "$(q "$secopy") $(q "$src/$set") --to $(q "$run")" \
+    -n "secopy copy+verify" "$(q "$secopy") $(q "$src/$set") --to $(q "$run") --verify"
   { echo; echo "## $set/ ($(du -sh "$src/$set" | cut -f1))"; echo; cat "$tmp"; } >>"$report"
-  rm -rf "$tmp" "$run"
+  rm -rf "$tmp"
 done
 echo "Results: $report"
