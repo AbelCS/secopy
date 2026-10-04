@@ -17,25 +17,31 @@ By contributing, you agree that your contribution is licensed under the project'
 | CLI | `crates/secopy-cli` | The engine in Terminal (`secopy-cli --help`). |
 | UI | `ui/` | Svelte 5 + TypeScript. |
 | Design | `docs/rfd/0001-secopy.md` | Requirements (FR-x, NFR-x) and the decision log. |
+| Records | `docs/superpowers/`, `docs/qa/` | How each feature was designed and built, and the reviews: history, not the current state. |
 
-Secopy is **macOS only (Apple Silicon)** by design: building for another OS is a compile
+Secopy is **macOS only (Apple silicon)** by design: building for another OS is a compile
 error. Read the [RFD](docs/rfd/0001-secopy.md) before changing behaviour; requirement IDs go
 in comments, tests and commits where they apply.
 
 ## Build and test
 
-Requirements: Rust via [rustup](https://rustup.rs) (the toolchain is pinned in
-`rust-toolchain.toml`), Node 24 (`nvm use` reads `.nvmrc`), and `xxhsum` for the checksum
-compatibility test (`brew install xxhash`).
+Requirements: the Xcode Command Line Tools (`xcode-select --install`), Rust via
+[rustup](https://rustup.rs) (`rust-toolchain.toml` selects stable with rustfmt and Clippy),
+Node 24 (`nvm use` reads `.nvmrc`), and `xxhsum` for the checksum compatibility test
+(`brew install xxhash`).
 
 Everything CI checks, locally:
 
 ```sh
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo clippy --workspace --all-targets --locked -- -D warnings
+SECOPY_REQUIRE_XXHSUM=1 SECOPY_DEVICE_TESTS=1 cargo test --workspace --locked
 cd ui && npm ci && npm run check && npm test
 ```
+
+The two variables make the `xxhsum` test fail instead of skipping, and run the fault tests on
+macOS RAM disks (disk full, unplugging, FAT32/exFAT, case-sensitive APFS). Run them before
+changing `copy`, `os`, `preflight` or the job runner.
 
 Run the app with `cd ui && npm run tauri dev`; build it with `npm run tauri build`. The
 engine alone: `cargo run --release -p secopy-cli -- --help`.
@@ -45,7 +51,8 @@ engine alone: `cargo run --release -p secopy-cli -- --help`.
   secopy-app` and commit the result; a test fails when they're out of date.
 - **The gallery** shows every screen with fake data: `cd ui && npm run dev`, then open
   `/gallery.html#setup` (or `#progress`, `#summary`, `#mirror-preview`, …). Use it to look at
-  a change without a real copy.
+  a change without a real copy. `scripts/screenshots.sh` remakes the user guide's screenshots
+  from it.
 - **Before a release**, the app is checked by hand with a real card:
   [the checklist](docs/testing/macos-app-checklist.md).
 
@@ -68,7 +75,8 @@ engine alone: `cargo run --release -p secopy-cli -- --help`.
 
 - **Every change has an issue**: a feature, a fix, docs, a refactor. Reference it in commits
   (`Refs #12`) and close it from the pull request (`Closes #12`).
-- **Branches:** `<type>/<issue>-<slug>` from `main`, e.g. `fix/12-long-paths`.
+- **Branches:** reuse the branch you're on if it isn't `main`; otherwise
+  `<type>/<issue>-<slug>` from `main`, e.g. `fix/12-long-paths`.
 - **Commits** follow [Conventional Commits](https://www.conventionalcommits.org):
   `feat(core): …`, `fix(ui): …`, `docs: …`. Types: `feat`, `fix`, `perf`, `refactor`,
   `docs`, `test`, `build`, `ci`, `chore`, `style`. Scopes: `core`, `app`, `ui`, `cli`, `rfd`,
@@ -83,4 +91,6 @@ Every push to `main` updates an open release pull request with the next version,
 commit types (`fix` and `perf` bump the patch version, `feat` the minor, and a breaking change,
 marked `!`, the major), and the changelog. Merging
 it tags the release, builds the app and the CLI on macOS and attaches them to the GitHub
-release. Versions, `CHANGELOG.md` and tags are never edited by hand.
+release. Anything merged before an open release pull request ships in it, so merge that one
+first when it should go out alone. A commit with the footer `Release-As: 1.2.0` forces a
+version. Versions, `CHANGELOG.md` and tags are never edited by hand.

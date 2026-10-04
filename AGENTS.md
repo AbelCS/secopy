@@ -113,12 +113,13 @@ Releases are automated by [release-please](https://github.com/googleapis/release
 (`.github/workflows/release-please.yml`). That's why commit messages must follow the
 format exactly.
 
-- Each push to `main` updates an open **release PR**. That PR bumps the version,
-  updates `CHANGELOG.md` and `version.txt`, and updates every file listed in `extra-files`.
+- Each push to `main` updates an open **release PR**. That PR bumps the version in every file
+  listed in `extra-files` (the root `Cargo.toml`) and updates `CHANGELOG.md`; a workflow step
+  then syncs `Cargo.lock` on the PR so `--locked` builds keep working.
 - **Merging the release PR is the release:** it creates the `vX.Y.Z` tag and the GitHub release.
   It's the user's call. It also runs `.github/workflows/release-build.yml`, which runs the full
-  test suite on macOS, builds for Apple Silicon and attaches the archive and its SHA-256 to the
-  release. Check a build without releasing with `gh workflow run release-build`.
+  test suite on macOS, builds for Apple silicon and attaches the `.dmg`, the CLI archive and
+  their SHA-256 files to the release. Check a build without releasing with `gh workflow run release-build`.
 - **Merge PRs with a rebase merge** (`gh pr merge --rebase`), never squash: a squash turns
   all of a PR's commits into one message, and release-please loses the individual
   `feat`/`fix` entries. Before merging feature work, check `gh pr list` for an open
@@ -126,8 +127,7 @@ format exactly.
   merged before it ships in that release.
 - **Never bump versions, edit `CHANGELOG.md`, or create release tags by hand.**
 - Config: `release-please-config.json` (release-type `simple`, `bump-minor-pre-major`) and
-  `.release-please-manifest.json` (last released version; `0.0.0` means nothing has been
-  released yet, so the first `feat` releases `0.1.0`).
+  `.release-please-manifest.json` (the last released version).
 - Every manifest that carries a version must be listed under `extra-files` in
   `release-please-config.json` when the manifest is created, so all versions stay identical.
   That is only the root `Cargo.toml`. `ui/package.json` is private and has no version, and
@@ -144,7 +144,7 @@ format exactly.
   mirror presets and state, `queue` for the saved queue, `mirrors` for turning a preset into
   a job, `transfer` for export/import, `menubar` for the menu bar icon and panel, `message`
   and `say` for the words Rust sends, `picker` for the source panel, `migrate` for the
-  0.2.0 → 0.3.0 data folder) and `ui/` (Svelte 5 + TypeScript, Vite). Run the app with `npm run tauri dev` from `ui/`; build the `.dmg`
+  0.2.0 → 0.3.0 data directory) and `ui/` (Svelte 5 + TypeScript, Vite). Run the app with `npm run tauri dev` from `ui/`; build the `.dmg`
   with `npm run tauri build`.
 - Engine flow: `scan → select → preflight → Plan::resolve → run_job`, then `Report` for
   the job report. Design notes per plan are in `docs/superpowers/specs/`.

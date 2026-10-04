@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **State** | Implemented: v1, Secopy 1.0 |
+| **State** | Implemented (v1) |
 | **Created** | 2026-09-26 |
 | **Updated** | 2026-10-04 (decisions in §14) |
 | **Author** | Abel Castro |
@@ -28,7 +28,7 @@ anyone copying files that matter.
 
 ## 2. Motivation
 
-Copying a directory with Finder, Explorer or Nautilus has three problems:
+Copying a directory with Finder has three problems:
 
 1. **No proof of integrity.** A copy can be silently corrupted (bad cable, failing card
    reader, flaky USB hub, bit rot) and you only find out when it is too late.
@@ -37,8 +37,8 @@ Copying a directory with Finder, Explorer or Nautilus has three problems:
 3. **It is slow and fragile with large jobs.** One error can stop the whole copy, the
    progress bar is unreliable, and there is no summary of what actually happened.
 
-Professional tools that fix this (media offload tools, `rsync -c`, `robocopy` +
-scripts) are either expensive, command-line only, or aimed at specialists. Secopy aims
+Professional tools that fix this (media offload tools, `rsync -c`, scripts around
+`cp`) are either expensive, command-line only, or aimed at specialists. Secopy aims
 for the middle: reliable enough for professionals, simple enough for anyone.
 
 ## 3. Goals and non-goals
@@ -63,7 +63,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - **Export and import** settings and presets (§6.11), and keep jobs running from the **menu
   bar** when the window is closed (§6.12).
 - English and Spanish, chosen in Settings (NFR-11).
-- Run natively on Apple Silicon Macs. Secopy is macOS only by design, and Intel Macs are
+- Run natively on Apple silicon Macs. Secopy is macOS only by design, and Intel Macs are
   not supported (§14, 2026-09-27 and 2026-09-28).
 
 ### Non-goals (v1)
@@ -105,7 +105,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 - **Safe defaults.** Copy & Verify is the default mode. The app never overwrites without asking.
   It never leaves a half-written file that looks complete.
 - **Honest progress.** Byte-accurate progress, real throughput, a stable ETA, and a clear
-  phase label (Scanning → Copying → Verifying → Done).
+  phase label (Copying & verifying → Done).
 - **Errors are data, not dead ends.** One bad file never aborts the job. Everything is
   listed in the final summary with a "Retry" action.
 - **Dark, calm, legible.** A dark-only interface (§5.6): deep grey surfaces, light-grey text
@@ -123,7 +123,7 @@ for the middle: reliable enough for professionals, simple enough for anyone.
 │  Source       /Volumes/CARD_A/PRIVATE/M4ROOT/CLIP      [Choose…]   │
 │               212 files · 180.4 GB · 4 ignored                     │
 │  Preset       [Sony FX3 ▾]  Changed for this run      [Update]     │
-│  Options      [ ] Include the “CLIP” directory                     │
+│  Options      [✓] Include the “CLIP” directory                     │
 │  File types   [✓ .mp4 106 · 180.0 GB] [ .xml 106 · 400 KB]         │
 │  Also ignore  .gitkeep                                   Edit…     │
 │ TO                                                                 │
@@ -146,12 +146,12 @@ real screens are in the [user guide](../user-guide.md).
 
 The view has three zones, from top to bottom.
 
-1. **Job overview.** A phase label and elapsed time, then one bar per phase: **Copied**
-   and, in Copy & Verify, **Verified**. Each bar shows bytes done / total, percent,
-   current speed, average speed and ETA. Files done / total is shown below the bars.
-2. **Active files.** One row per file currently in progress: name (full relative path on
-   hover), phase (*Copying* / *Verifying*), total size, bytes done, percent, speed, ETA,
-   and a slim bar. A file stays in the same row as it moves Copying → Verifying → Done.
+1. **Job overview.** A phase label and elapsed time; the job's percent and time left once;
+   then one bar per phase, **Copied** and, in Copy & Verify, **Verified**, each with bytes
+   done / total. Files done / total is in the action bar.
+2. **Active files.** One row per file in progress: name (full relative path on hover),
+   phase (*Copying* / *Verifying*), bytes done of its size, and a slim bar. A file stays in
+   the same row as it moves Copying → Verifying.
 3. **Finished files.** A scrollable list of completed files: name, size, duration, average
    speed, XXH128, and status (✓ Copied / ✓ Verified / ✗ Failed + reason). It can be
    filtered to show failures only, and it stays smooth with 1M rows (virtualized).
@@ -174,8 +174,9 @@ The view has three zones, from top to bottom.
 Rules that keep the view readable:
 
 - Small files finish in milliseconds, and giving each one a row would make the list
-  flicker. A file only gets its own Active row if it runs longer than ~250 ms. Shorter
-  files are grouped into one "+ N small files" row with combined numbers.
+  flicker. Files up to 8 MiB are grouped into one **Small files** row with combined numbers;
+  larger files get their own row. (The engine's small-file lanes, §7.2, use another
+  threshold, 4 MiB: they decide concurrency, not display.)
 - Speeds and ETAs are smoothed over the last ~3 s (moving average) so they don't jump
   around. ETA shows "—" until there is enough data to estimate.
 - All figures use tabular (fixed-width) digits so columns stay still while numbers change.
@@ -295,7 +296,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-3 | After a source is picked, the app scans it in the background. It shows file count and total size, and updates them live as filters change. The UI stays responsive during the scan, and the scan can be cancelled by picking another source. | M |
 | FR-4 | For a directory source, the user chooses between: **(a) Copy the directory itself.** Copy root = `DEST/<SOURCE_NAME>/`. **(b) Copy only its contents.** Copy root = `DEST/`. One checkbox, "Include the “<SOURCE_NAME>” directory": on is (a), off is (b). The resulting path is previewed. Default: (b) (#152; a preset keeps its own choice). | M |
 | FR-5 | For a file-set source, the files are copied flat into `DEST/`. Directory structure is not recreated. | M |
-| FR-6 | Directory sources are copied **recursively**, keeping the relative directory structure. Empty directories are recreated. | M |
+| FR-6 | Directory sources are copied **recursively**, keeping the relative directory structure. Empty directories are recreated (with no file-type filter). The app needs at least one file to write before a copy starts. | M |
 
 ### 6.2 Extension filter
 
@@ -329,7 +330,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-18 | Every file is written to a temporary name in the same directory (`.<name>.secopy-partial`, or `.secopy-<hash>.partial` when that would be too long), flushed to disk (`fsync`), then renamed atomically to its final name. A file with its final name is always complete. Partial files left by an interrupted job are deleted by the next job that copies the same files, unless another running job is still writing them; that file then fails with "another copy is writing this file". | M |
-| FR-19 | Modification time is preserved on files. Creation time and POSIX permission bits are preserved. Directory mtimes are restored after their contents are written. | M |
+| FR-19 | Modification time is preserved on files, and creation time where the destination supports it. Ordinary permission bits are kept, with owner-read always on (special bits are dropped). Directories Secopy creates get their modification times back after their contents are written. | M |
 | FR-20 | When a hash is needed (checksum file on, or Copy & Verify), the source XXH128 is computed **during** the copy from the same bytes being written. The source is read only once. | M |
 | FR-21 | Per-file errors (unreadable file, permission denied, name too long, the source file changed while it was copied…) are recorded and the job continues. Fatal errors stop the job with a clear message: destination disconnected, disk full, source volume gone. | M |
 | FR-22 | Pause stops I/O at the next buffer boundary. Resume continues from where it stopped. | S |
@@ -342,7 +343,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 |---|---|---|
 | FR-25 | In **Copy & Verify**, after a file is written and fsynced, it is re-read **from the destination device** and hashed. That hash is compared with the source hash from FR-20. Two independent hashes are compared, and the source is not re-read (rationale in §7.3). | M |
 | FR-26 | The verify read must bypass or evict the OS page cache so it tests the bytes on the device, not the bytes in RAM: `F_NOCACHE`. Where bypass is impossible (some network shares), the report says so. | M |
-| FR-27 | On mismatch, the bad copy is deleted and the file is re-copied **once** automatically. If it mismatches again, it is marked **FAILED (hash mismatch)** and no file is left under the final name. | S |
+| FR-27 | On mismatch, the bad copy is deleted and the file is re-copied **once** automatically. If it mismatches again, it is marked **FAILED (checksum mismatch)** and nothing is committed under the final name (a file already there stays as it was). | S |
 | FR-28 | A file that failed verification is **not** listed in the checksum file. | M |
 
 ### 6.7 Checksum file
@@ -350,7 +351,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | ID | Req | Pri |
 |---|---|---|
 | FR-29 | When **Write checksum file** is on (the default; Settings §5.5), every job writes a checksum file to the **destination directory** (not the copy root), named `secopy_YYYY-MM-DD_HHMMSS.xxh128`. A new file per job, so nothing is ever overwritten. | M |
-| FR-30 | Format: `xxhsum`/GNU-coreutils compatible, one line per file: `<32 lowercase hex chars><two spaces><relative path>`. Paths are relative to the destination directory and use `/` as separator on every OS. `cd DEST && xxhsum -c secopy_….xxh128` must pass. | M |
+| FR-30 | Format: `xxhsum`/GNU-coreutils compatible, one line per file: `<32 lowercase hex chars><two spaces><relative path>`. Paths are relative to the destination directory and use `/` as separator. `cd DEST && xxhsum -c secopy_….xxh128` must pass. | M |
 | FR-31 | The file is UTF-8 without BOM, with LF line endings. It is sorted by path for stable diffs. Paths containing `\` or newline use the coreutils escaping convention (line prefixed with `\`). Files whose names are not valid UTF-8 are copied but not listed; pre-flight warns about them and the report says why. | M |
 | FR-32 | The checksum file contains only hash lines, no comments, so strict parsers accept it. Job metadata (mode, date, app version, counts, failures) lives in the report (FR-35). | M |
 | FR-33 | The checksum file is written in **both** modes. In plain Copy it uses the source hashes from FR-20, so no extra read is needed. | M |
@@ -370,7 +371,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 
 | ID | Req | Pri |
 |---|---|---|
-| FR-39 | Any job that can be run by hand (Copy, Copy & Verify, a mirror run) can be added to a queue, as set up at that moment. Queued jobs can be reordered and removed, not edited. | S |
+| FR-39 | Any job that can be run by hand (Copy, Copy & Verify, a mirror run, a verify) can be added to a queue: a copy as set up at that moment, a mirror as its preset is at its turn; Settings are read when each job starts. Queued jobs can be reordered and removed, not edited. | S |
 | FR-40 | **Start** on the Queue screen runs the jobs one after another. Each job is scanned and checked when its turn comes; one that can't start fails with its reason. | S |
 | FR-41 | If a job fails (can't start, or ends with failed files), the queue continues with the next job or stops, as chosen for the queue. Cancel stops the current job and the queue. | S |
 | FR-42 | The queue is saved across launches. After a run, finished jobs leave it; failed and not-run jobs stay with their reason. | S |
@@ -386,29 +387,30 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould (v1). Anything else is fut
 | FR-47 | **Preview** before a manual run: counts, sizes and the list of new, changed and deleted files; "Already in sync" when there's nothing to do. A run executes the previewed plan. | S |
 | FR-48 | Everything Mirror writes is verified. A changed file is replaced atomically, and its old version archived (archive mode) only after the new copy is verified. | M |
 | FR-49 | Files deleted in the origin are archived to `<destination>/.secopy-archive/<date time>/…` or deleted, only after every copy succeeded; a failed or cancelled run removes nothing. At the start of every run, archived files older than the preset's N days are removed, counted from when they were archived, in Delete mode too (what was archived before a switch still goes when due). Switching a mirror from Archive to Delete asks what to do with its archive: **delete it now**, **keep it N days**, or, when the destination isn't connected or a job runs, **delete it at the next run** (kept with that destination; dropped if the destination changes; done when that run is started, once, and only after the preset is saved without it). A new destination in the same save leaves the old one's archive alone. Files that can't be deleted are listed and go when due. Only a real `.secopy-archive` directory is touched, never through a link. | M |
-| FR-50 | **Guard:** a missing or empty origin, or a run removing more than half of the destination's files, needs confirmation by hand and fails in the queue. | M |
+| FR-50 | **Guard:** an empty origin, a part of either side that can't be read, or a run removing more than half of the destination's files, needs confirmation by hand and fails in the queue. A missing origin stops the run. | M |
 | FR-51 | Ignored names (FR-12), Secopy's own files, symlinks and the archive are ignored on both sides; names are compared after Unicode normalization, and a case-only rename on a case-insensitive destination is an update, not a delete and a copy. | S |
-| FR-52 | A mirror summary: what was copied, updated, archived or deleted, failures with reasons, and a report like a copy's. After a clean run a mirror keeps `.secopy-checksums.xxh128` in its destination (new and changed files' verified hashes added, removed files dropped), written whole or not at all, so its backup can be verified (FR-34). | S |
+| FR-52 | A mirror summary: what was copied, updated, archived or deleted, failures with reasons, and a report like a copy's. A mirror keeps `.secopy-checksums.xxh128` in its destination: every run but an undone one adds the files it verified, and a clean run also drops removed files and records renames; written whole or not at all, so its backup can be verified (FR-34). | S |
 
 ### 6.11 Export and import
 
 | ID | Requirement | Priority |
 |---|---|---|
 | FR-53 | **Export** (File › Export…, Settings): a `.secopy` file (versioned JSON) with any of the settings, the copy presets and the mirror presets, as chosen; one preset from its own screen. Never the queue, recent destinations, the remembered window or reports. Written to a temporary name and renamed, never half-written. | S |
-| FR-54 | **Import** (File › Import…, Settings) shows what the file holds before anything changes: settings that differ, each preset with its paths, name clashes (**Keep both**, the default, as "Name (2)", or **Replace**, which keeps the preset's place in the queue), paths not on this Mac (a note), and presets that can't be imported (with why). Imported presets get the same checks as hand-made ones. A newer or foreign file, or one over 10 MB, is refused with nothing changed. A file from another Secopy version says which; settings it has that this Secopy doesn't know are left out, and ones it lacks take their defaults, both listed; a preset with a setting this Secopy doesn't know can't be imported. Nothing is imported while a job or the queue runs. A save that fails partway says exactly what went in. | S |
+| FR-54 | **Import** (File › Import…, Settings) shows what the file holds before anything changes: settings that differ, each preset with its paths, name clashes (**Keep both**, the default, as "Name (2)", or **Replace**, which keeps the preset's place in the queue), paths not on this Mac (a note), and presets that can't be imported (with why). Imported presets get the same checks as hand-made ones. A file that isn't a Secopy file, has a newer format version, is over 10 MiB or holds more than 1,000 presets of a kind is refused with nothing changed (a newer app version alone isn't). A file from another Secopy version says which; settings it has that this Secopy doesn't know are left out, and ones it lacks take their defaults, both listed; a preset with a setting this Secopy doesn't know can't be imported. Nothing is imported while a job or the queue runs. A save that fails partway says exactly what went in. | S |
 | FR-55 | Opening a `.secopy` file from Finder opens the Import screen. | C |
 
 ### 6.12 Menu bar
 
 | ID | Requirement | Priority |
 |---|---|---|
-| FR-56 | Closing the window while a job or the queue runs hides it (setting on, and only once the menu bar icon exists; otherwise closing asks to stop, as before). The icon shows the progress next to it (`42%`, `2/3 · 42%`, `Paused`, `Removing`, then ✓ only for a complete job, ✗ otherwise); clicking it opens a small panel under it: the job, from and to, a progress bar, files, speed and time left, Pause/Resume, Open Secopy, Quit Secopy…; clicking elsewhere closes it. Secopy leaves the Dock while hidden; Open Secopy or opening Secopy again shows the window; ⌘Q shows it and asks, as before. The icon exists only while hidden during a job, or until a job that ended while hidden is seen. | S |
+| FR-56 | Closing the window while a job or the queue runs hides it (setting on, and only once the menu bar icon exists; otherwise closing asks to cancel, as before). The icon shows the progress next to it (`42%`, `2/3 · 42%`, `Paused`, `Removing`, then ✓ only for a complete job, ✗ otherwise); clicking it opens a small panel under it: the job, from and to, a progress bar, files, speed and time left, Pause/Resume, Open Secopy, Quit Secopy…; clicking elsewhere closes it. Secopy leaves the Dock while hidden; Open Secopy or opening Secopy again shows the window; ⌘Q shows it and asks, as before. The icon exists only while hidden during a job, or until a job that ended while hidden is seen. | S |
 
 ## 7. Engine design (performance)
 
-The engine is a UI-independent library with a small API:
-`scan(source, options) → Plan`, `run(plan, options) → stream<Event>`, `pause/resume/cancel`.
-This keeps the UI thin, makes the engine testable headless, and makes a CLI cheap to add later.
+The engine is a UI-independent library. The app and the CLI share one flow:
+`scan → select → preflight → Plan::resolve → run_job`, with progress through a callback and
+`JobControl` for pause, resume and cancel. This keeps the UI thin and the engine testable
+headless.
 
 The progress events carry raw counters: per file `{file_id, phase, bytes_done, bytes_total}`
 plus job totals per phase. They are merged and emitted at most 20 times per second. The UI
@@ -436,11 +438,10 @@ derives speeds, ETAs and smoothing from them (§5.3).
   (`F_RDAHEAD`), pre-allocating the destination file to its final size (`F_PREALLOCATE`:
   less fragmentation, "disk full" caught early), and lane defaults chosen per device class
   (SSD or HDD, which macOS reports), with an advanced setting to override them.
-- **OS fast paths** (`copy_file_range`, `clonefile`, `CopyFileEx`) skip the copy through
-  the app's own memory, but they never hand us the bytes, so nothing can be hashed. They
-  are only used when no hash is needed: **plain Copy with the checksum file turned off**.
-  In that case Secopy can also use instant APFS clones and server-side copies on SMB.
-  Every other job uses the streaming pipeline above.
+- **OS fast paths** (`clonefile`, `fcopyfile`: instant APFS clones, server-side copies on
+  SMB) never hand us the bytes, so nothing can be hashed. Not built: they could serve plain
+  Copy with the checksum file off (the performance work, §11). Today every job uses the
+  streaming pipeline above and computes XXH128.
 
 ### 7.3 Verify pipeline
 
@@ -521,9 +522,9 @@ before its read-back, which closes the cache gap in either mode.
 
 | ID | Requirement |
 |---|---|
-| NFR-1 | **Throughput, large files (≥ 1 GiB), Copy mode:** ≥ 95 % of `cp` / `robocopy` / Finder on the same hardware. |
+| NFR-1 | **Throughput, large files (≥ 1 GiB), Copy mode:** ≥ 95 % of `cp` / Finder on the same hardware. |
 | NFR-2 | **Throughput, Copy & Verify:** total time ≤ 1.3 × Copy mode when source and destination are different devices, ≤ 2.1 × on the same device. |
-| NFR-3 | **Many small files** (100k × 16 KiB): within 10 % of `rsync`/`robocopy /MT`, faster than Finder/Explorer. |
+| NFR-3 | **Many small files** (100k × 16 KiB): within 10 % of `rsync`, faster than Finder. |
 | NFR-4 | **Memory:** bounded, independent of file size. < 250 MB at 1M files. |
 | NFR-5 | **Responsiveness:** cold start < 1 s. UI never blocks, and progress updates twice per second regardless of file count. |
 | NFR-6 | **Correctness over speed:** no optimization may weaken FR-18/25/26. |
@@ -563,7 +564,8 @@ before its read-back, which closes the cache gap in either mode.
    good in real use.
 5. **M4 — Packaging:** the CI release pipeline, the `.dmg` and the install script are done;
    signing and notarization are not (NFR-9).
-6. **M5 — Beta** with real users and real media, then **1.0.0**.
+6. **M5 — Release:** the 0.x series was the beta, used on real shoots; the hand test of the
+   release candidate ([checklist](../testing/macos-app-checklist.md)), then **1.0.0**.
 
 ## 11. Future work
 
@@ -685,6 +687,8 @@ The stack meets these constraints:
 | 2026-10-01 | **Always ignore when copying** (#158, FR-12–14): the fixed system-file list becomes a Settings list of name patterns (`*`, `?`, case ignored; no paths), defaulting to it, with Restore defaults. Copies and mirrors follow it, and a mirror never removes, archives or compares an ignored file in its destination; Verify and ASC MHL follow it too. Secopy's own working files stay skipped outside the list. A queued job uses the list at its turn. |
 | 2026-10-02 | **Each copy and preset's own ignore list** (#164, FR-12): copy presets, mirror presets, New copy runs and queued jobs get Also ignore, added to Settings' list (never switching one of its patterns off). New copy's comes from the preset and marks it changed; a queued job keeps its own and takes Settings' list at its turn. Each list holds up to 128 patterns (Settings' went down from 200). An empty list isn't written, so files are as older versions wrote them; a preset with a list is refused by an older Secopy (#149). |
 | 2026-10-03 | **Copy and verify in parallel** (#170, §7.5): verify stays parallel with the copy by default (fastest on SSD destinations; the source is read once either way). A "copy everything, then verify" mode for HDD/RAID destinations and a drive-cache flush before each read-back are recorded for the performance work, to be decided with measurements. §7.2 now says which I/O hints and per-device defaults are planned rather than built. |
+| 2026-10-03 | **One word per thing** (#172): every text reviewed; "directory", never "folder"; "source", "destination" and "origin"; "cancel" a job (a job that can't go on "stopped"), "stop" a queue; "checksum", not "hash"; "same size and date", not "identical". The terms table in docs/i18n.md is the reference, and translations keep the same pairs. |
 | 2026-10-03 | **Spanish** (#84 follow-up): `es.json` (Spain Spanish, "tú", the terms table in docs/i18n.md), chosen by the Mac's language like English; Rust's own words (menus, the menu bar icon) use its number format; the bundle lists `en`/`es` so macOS shows its panels and the .secopy file type in Spanish. A test keeps every catalog's keys, placeholders, plural forms and edge spaces in step with English. The user guide stays English for now. |
 | 2026-10-03 | **XXH128 for every hash** (#178): XXH128 (XXH3 128-bit, seed 0, as `xxhsum -H2`) replaces xxHash64 in the copy, the read-back, Verify, the mirror's Paranoid comparison, the checksum files (`.xxh128`, 32 hex digits, `xxhsum -c` checks them), ASC MHL (`<xxh128>`) and reports. Beta: old `.xxh64` files aren't read; an old mirror checksum file is an ordinary file (archived like any file the origin lacks), and a mirror's new checksum file starts empty; an ASC MHL file recorded only as xxh64 gets its XXH128 as `original`. Library: `twox-hash` 2.1.4, measured on an M2 Max at 39.9 GB/s streaming (xxh64 was 15.6; `xxhash-rust`'s XXH128 26.8; the official C crate 17.1). Checked end to end: `xxhsum -c`, and the ASC reference tool verifies Secopy's history and Secopy continues the tool's. |
 | 2026-10-04 | **Language setting** (#181): Settings › General › Language, Automatic by default (the Mac's first language with a catalog, English otherwise, read from the system's own setting so Secopy's choice never hides it) or a chosen one, whatever the Mac's is. Saving (or importing) switches Secopy's words at once (what's on screen is drawn again in place, the menus are rebuilt on the main thread with the File items' state kept); macOS's own windows follow from the next launch through the app's `AppleLanguages`, which Automatic removes. An unknown language reads as Automatic; it travels with exported settings. |
+| 2026-10-04 | **Documentation review for 1.0** (#190, with Fable 5.1 and GPT-6 Astra): the sections above describe Secopy as built. Clarifications to earlier entries: the per-file speed and ETA of 2026-09-26 became bytes and a bar per active file, files up to 8 MiB grouped by size (§5.3); Paranoid compares the XXH128 of both sides, not bytes (#178); OS fast paths and benchmarks were never built (§7.2, §9); the 0.x series was the beta. |
