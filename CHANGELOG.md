@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/AbelCS/secopy/compare/v1.1.0...v1.2.0) (2026-10-05)
+
+
+### Features
+
+* **progress:** the screen says which job runs ([3a15818](https://github.com/AbelCS/secopy/commit/3a1581882689fa7e88f37fba80a20290e1830a0f)), closes [#208](https://github.com/AbelCS/secopy/issues/208)
+
 ## [1.1.0](https://github.com/AbelCS/secopy/compare/v1.0.3...v1.1.0) (2026-10-04)
 
 
