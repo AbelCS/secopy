@@ -53,6 +53,15 @@ describe("App", () => {
     await screen.findByRole("heading", { level: 1, name: "New copy" });
   });
 
+  test("a copy names its source and where its files go (#208)", async () => {
+    app();
+    await fireEvent.click(await startButton());
+    await screen.findByRole("heading", { name: "Copying & verifying" });
+    expect(screen.getByRole("group", { name: "Job" }).textContent?.replace(/\s+/g, " ").trim()).toBe(
+      "/Volumes/CARD/DCIM → /Volumes/RAID/Day01/DCIM",
+    );
+  });
+
   test("a job that can't start goes back to setup with the reason", async () => {
     const { api } = app();
     api.startJob.mockRejectedValueOnce(new Error("Nothing to copy, or something blocks the copy."));
@@ -455,9 +464,15 @@ describe("App", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await waitFor(() => expect(state.queueEvent).not.toBeNull());
     state.queueEvent!({ type: "jobChecking", index: 0, count: 2 });
-    state.queueEvent!({ type: "jobStarted", index: 0, count: 2, job: queuedJob() });
+    const studio = queuedJob({ kind: "mirror", name: "Studio", source: raw("/Users/beli/Studio"), destination: "/Volumes/Media/Mirror/Studio" });
+    state.queueEvent!({ type: "jobStarted", index: 0, count: 2, job: studio });
     state.queueEvent!({ type: "progress", view: progressView() });
-    await screen.findByText(/^Job 1 of 2 · /);
+    // #208: which job runs, with its place.
+    await waitFor(() =>
+      expect(screen.getByRole("group", { name: "Job" }).textContent?.replace(/\s+/g, " ").trim()).toBe(
+        "Job 1 of 2 · Studio · /Users/beli/Studio → /Volumes/Media/Mirror/Studio",
+      ),
+    );
     state.queueEvent!({ type: "done", summary: { complete: 2, count: 2, millis: 1000, results: [
       { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
       { job: queuedJob(), result: "complete", reason: null, summary: summaryView() },
@@ -483,7 +498,7 @@ describe("App", () => {
     await waitFor(() => expect(api.finishedPage).toHaveBeenCalledTimes(1));
     state.queueEvent!({ type: "jobChecking", index: 1, count: 2 });
     state.queueEvent!({ type: "jobStarted", index: 1, count: 2, job: queuedJob() });
-    await screen.findByText(/^Job 2 of 2 · /);
+    await waitFor(() => expect(screen.getByRole("group", { name: "Job" }).textContent).toMatch(/^\s*Job 2 of 2/));
     state.queueEvent!({ type: "progress", view: progressView({ filesDone: 1 }) });
     await waitFor(() => expect(api.finishedPage).toHaveBeenCalledTimes(2), { timeout: 500 });
   });

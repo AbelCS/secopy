@@ -234,6 +234,7 @@
     "elapsed": "{time} elapsed",
     "stopped": "Stopped: {why}",
     "title": "Progress",
+    "job": "Job",
     "comparing": "Comparing contents: {done} of {files}",
     "lookingAtSource": "Checking the source and the destination…",
     "estimating": "Estimating…",

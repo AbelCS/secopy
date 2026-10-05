@@ -60,13 +60,16 @@
   $effect(() => {
     if (page === "cancel") progressScreen?.cancel();
   });
+  // Which job runs (#208), as App passes it.
+  const copyJob = { name: null, source: "/Volumes/CARD_A/PRIVATE/M4ROOT/CLIP", destination: "/Volumes/V001/Day01/CLIP" };
+  const mirrorJob = { name: "Footage → NAS", source: "/Volumes/SSD/Footage", destination: "/Volumes/NAS/Footage" };
   const help = createRawSnippet(() => ({ render: () => "<span>A line of help under the option.</span>" }));
 </script>
 
 {#if page === "setup"}
   <App {api} />
 {:else if page === "progress"}
-  <JobProgress {progress} />
+  <JobProgress {progress} job={copyJob} />
 {:else if page === "summary"}
   <Summary {summary} onRetry={() => {}} onNewCopy={() => {}} />
 {:else if page === "settings"}
@@ -112,13 +115,19 @@
 {:else if page === "verify-summary"}
   <Summary summary={verifySummary} onDone={() => {}} />
 {:else if page === "cancel"}
-  <JobProgress bind:this={progressScreen} {progress} />
+  <JobProgress bind:this={progressScreen} {progress} job={copyJob} />
 {:else if page === "mirror-preview"}
   <MirrorPreview preview={mirrorPreview} onRun={() => {}} onQueue={() => {}} onCancel={() => {}} />
 {:else if page === "mirror-summary"}
   <Summary summary={mirrorSummary} onDone={() => {}} />
 {:else if page === "mirroring"}
-  <JobProgress progress={{ ...progress, phase: "removing", removing: 5, archiving: true }} mirror checksumFile={false} />
+  <JobProgress
+    progress={{ ...progress, phase: "removing", removing: 5, archiving: true }}
+    mirror
+    checksumFile={false}
+    job={mirrorJob}
+    queue={{ index: 0, count: 2 }}
+  />
 {:else if page === "queue-summary"}
   <QueueSummary summary={queueSummary} onOpen={() => {}} onDone={() => {}} />
 {:else if page === "queue"}

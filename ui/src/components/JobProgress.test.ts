@@ -379,10 +379,30 @@ describe("JobProgress", () => {
     }
   });
 
+  // #208: the screen says which job runs, under its title.
+  const studio = { name: "Studio", source: "/Users/beli/Studio", destination: "/Volumes/Media/Mirror/Studio" };
+
+  test("the job is named under the title: a mirror's name, origin and destination (#208)", () => {
+    const { api } = fakeApi();
+    render(JobProgress, { props: { progress: progressView(), mirror: true, job: studio }, context: apiContext(api) });
+    const job = screen.getByRole("group", { name: "Job" });
+    expect(job.textContent?.replace(/\s+/g, " ").trim()).toBe("Studio · /Users/beli/Studio → /Volumes/Media/Mirror/Studio");
+    expect(within(job).getByText("/Users/beli/Studio").closest("[title]")?.getAttribute("title")).toBe("/Users/beli/Studio");
+  });
+
+  test("a verify names its directory, with no arrow (#208)", () => {
+    const { api } = fakeApi();
+    const job = { name: null, source: "/Volumes/Backup/Day01", destination: null };
+    render(JobProgress, { props: { progress: progressView(), check: true, job }, context: apiContext(api) });
+    expect(screen.getByRole("group", { name: "Job" }).textContent?.trim()).toBe("/Volumes/Backup/Day01");
+  });
+
   test("in a queue: Job n of m, and Cancel stops the queue", async () => {
     const { api } = fakeApi();
-    render(JobProgress, { props: { progress: progressView(), queue: { index: 1, count: 3 } }, context: apiContext(api) });
-    within(screen.getByRole("group", { name: "Actions" })).getByText(/^Job 2 of 3 · /);
+    render(JobProgress, { props: { progress: progressView(), queue: { index: 1, count: 3 }, job: studio }, context: apiContext(api) });
+    // #208: the job's place starts the line that names it, not the action bar.
+    expect(screen.getByRole("group", { name: "Job" }).textContent?.replace(/\s+/g, " ").trim()).toMatch(/^Job 2 of 3 · Studio · /);
+    expect(within(screen.getByRole("group", { name: "Actions" })).queryByText(/Job 2 of 3/)).toBeNull();
     await fireEvent.click(screen.getByRole("button", { name: "Cancel…" }));
     screen.getByRole("dialog", { name: "Cancel this job and stop the queue?" });
     expect(api.confirm).not.toHaveBeenCalled();
