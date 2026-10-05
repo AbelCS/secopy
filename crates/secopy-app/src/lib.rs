@@ -12,6 +12,7 @@ pub mod queue;
 pub mod say;
 pub mod session;
 pub mod store;
+mod terminate;
 pub mod transfer;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -167,6 +168,8 @@ pub fn run() {
         })
         .setup(move |app| {
             builder.mount_events(app);
+            // The Dock's Quit, logout and shutdown ask first during a job, as ⌘Q (#211).
+            terminate::install(app.handle());
             let data = app.path().app_data_dir()?;
             // Reports saved by 0.2.0 under its old identifier (RFD §14): moved once.
             if let Some(parent) = data.parent() {
@@ -224,7 +227,8 @@ pub fn run() {
                 let _ = app.emit(OPEN_FILE, ());
             }
             // The app is going away: stop the copy first, so no partial file is left behind.
-            // `Exit` also covers quitting from the Dock or at logout, which can't be refused.
+            // A quit from outside (the Dock, logout) during a job is asked about first
+            // (`terminate`); `Exit` still covers the ones macOS doesn't ask about.
             if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
                 // Nothing follows the job for the icon any more (#80).
                 menubar::forget(app);
