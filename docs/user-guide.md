@@ -98,7 +98,9 @@ shows it as it is now.
 
 ![Copying](images/progress.png)
 
-The bars show what's been copied and verified, with the speed and the time left. **Active**
+The line under the title names the job: its source and where its files go (a mirror's name,
+origin and destination; the directory Verify reads), led in a queue by its place ("Job 1 of
+2"). The bars show what's been copied and verified, with the speed and the time left. **Active**
 shows the files in progress (small files together), and the list below every file that's
 finished, with its checksum and status; **Failed only** filters it.
 

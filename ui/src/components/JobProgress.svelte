@@ -30,6 +30,7 @@
     checking = false,
     compared,
     check = false,
+    job,
   }: {
     progress: ProgressView;
     /** The job is a mirror: its title and its stop question say so. */
@@ -44,6 +45,9 @@
     checksumFile?: boolean;
     /** In a queue run: this job's place (0-based) and the number of jobs. */
     queue?: { index: number; count: number };
+    /** Which job runs (#208): a mirror's name, the source (or origin, or the directory
+     *  Verify reads) and where its files go (`null` for Verify). */
+    job?: { name: string | null; source: string; destination: string | null };
     /** App-wide messages, shown first. */
     banner?: Snippet;
   } = $props();
@@ -91,8 +95,8 @@
               : t("progress.phase.copying"),
   );
   const files = $derived.by(() => {
-    const parts = queue ? [t("progress.status.job", { index: queue.index + 1, count: queue.count })] : [];
-    if (checking) return parts.join(t("format.dot"));
+    const parts: string[] = [];
+    if (checking) return "";
     parts.push(
       t("progress.status.files", {
         done: progress.filesDone,
@@ -179,6 +183,24 @@
     </ScreenHeader>
   {/snippet}
 
+  {#if queue || job}
+    <!-- Which job runs (#208); a long path keeps its end visible, <bdi> its slashes. -->
+    <div class="job" role="group" aria-label={t("progress.job")}>
+      {#if queue}<span class="place">{t("progress.status.job", { index: queue.index + 1, count: queue.count })}</span>{/if}
+      {#if queue && job}<span class="sep">{t("format.dot").trim()}</span>{/if}
+      {#if job}
+        {#if job.name}
+          <span class="name">{job.name}</span>
+          <span class="sep">{t("format.dot").trim()}</span>
+        {/if}
+        <span class="path mono" title={job.source}><bdi>{job.source}</bdi></span>
+        {#if job.destination}
+          <span class="arrow" aria-hidden="true">→</span>
+          <span class="path mono" title={job.destination}><bdi>{job.destination}</bdi></span>
+        {/if}
+      {/if}
+    </div>
+  {/if}
   {@render banner?.()}
   <p class="visually-hidden" aria-live="polite">{phase}</p>
   {#if progress.fatal}<Notice tone="danger">{t("progress.stopped", { why: say(progress.fatal) })}</Notice>{/if}
@@ -324,6 +346,30 @@
 {/if}
 
 <style>
+  .job {
+    display: flex;
+    align-items: baseline;
+    gap: 0 var(--space-1);
+    min-width: 0;
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  .job .place,
+  .job .name {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .job .path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+  }
+
   .muted {
     color: var(--text-muted);
     margin: 0;

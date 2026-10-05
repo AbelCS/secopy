@@ -88,7 +88,8 @@ the `.dmg` with `xattr`; or build it with `npm run tauri build` from `ui/`. Then
 ## Queue
 
 23. **Queue.** Set up three copies (two cards, one directory) with Add to queue; drag one by its grip to another place (the others make room), and move one with ⌥↑ / ⌥↓;
-    Start the queue with the window in the background: one notification at the end; the queue
+    Start the queue: under the title, "Job 1 of 3" and that job's source → destination (a
+    mirror's name too), changing with each job. With the window in the background: one notification at the end; the queue
     summary opens each job's summary; the queue is empty.
 24. **Queue failures.** Queue a card, take it out, start the queue with "Continue with the next
     job": that job fails ("Source “…” not found."), the others run, it stays in the queue.

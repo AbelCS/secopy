@@ -17,6 +17,7 @@
     ProgressView,
     MirrorPreset,
     MirrorPreviewView,
+    QueuedJobView,
     QueueSummaryView,
     QueueView,
     SessionView,
@@ -111,6 +112,13 @@
     compared?: { done: number; total: number };
   } | null = $state(null);
   let queueSummary: QueueSummaryView | null = $state(null);
+  /** Which job runs, named on its screen (#208). */
+  let runningJob: { name: string | null; source: string; destination: string | null } | null = $state(null);
+  const queuedJobOf = (job: QueuedJobView) => ({
+    name: job.kind === "mirror" ? job.name : null,
+    source: say(job.source),
+    destination: job.kind === "check" ? null : job.destination,
+  });
   /** The job running is a mirror. */
   let mirrorRunning = $state(false);
   /** The job running is a check (Verify). */
@@ -318,6 +326,10 @@
   }
 
   async function start() {
+    runningJob =
+      view.source && view.destination
+        ? { name: null, source: say(view.source.label), destination: view.destination.copyRoot }
+        : null;
     progress = waiting();
     screen = "progress";
     const started = await run(() =>
@@ -376,6 +388,7 @@
 
   /** Verify (plan 8): the Verifying screen, then the check's summary on the Verify tab. */
   async function runCheck(path: string) {
+    runningJob = { name: null, source: path, destination: null };
     progress = { ...waiting(), verify: true, totalFiles: 0, totalBytes: 0 };
     checkRunning = true;
     screen = "progress";
@@ -398,6 +411,7 @@
 
   /** Runs the previewed mirror (FR-47): the Mirroring screen, then its summary. */
   async function runMirror(preview: MirrorPreviewView) {
+    runningJob = { name: preview.name, source: preview.origin, destination: preview.destination };
     progress = {
       ...waiting(),
       verify: true,
@@ -431,17 +445,20 @@
     copyScreen = "setup";
     forgetMirrorSummary();
     queueRun = { index: 0, count: queue.jobs.length, checking: true, kind: null };
+    runningJob = queue.jobs[0] ? queuedJobOf(queue.jobs[0]) : null;
     progress = queueWaiting(false);
     screen = "progress";
     const started = await run(() =>
       api.runQueue((e) => {
         if (e.type === "jobChecking") {
           queueRun = { index: e.index, count: e.count, checking: true, kind: null };
+          runningJob = queue.jobs[e.index] ? queuedJobOf(queue.jobs[e.index]) : null;
           progress = queueWaiting(false);
         } else if (e.type === "compared") {
           if (queueRun) queueRun = { ...queueRun, compared: { done: e.done, total: e.total } };
         } else if (e.type === "jobStarted") {
           queueRun = { index: e.index, count: e.count, checking: false, kind: e.job.kind };
+          runningJob = queuedJobOf(e.job);
           progress = queueWaiting(e.job.kind === "mirror" || e.job.verify);
         } else if (e.type === "progress") {
           progress = e.view;
@@ -607,6 +624,7 @@
           {banner}
           queue={queueRun ?? undefined}
           checking={queueRun?.checking ?? false}
+          job={runningJob ?? undefined}
           compared={queueRun?.compared}
           mirror={runningKind === "mirror"}
           check={runningKind === "check"}

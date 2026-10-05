@@ -258,6 +258,7 @@
     "elapsed": "{time} transcurrido",
     "stopped": "Tarea detenida: {why}",
     "title": "Progreso",
+    "job": "Tarea",
     "comparing": "Comparando contenido: {done} de {files}",
     "lookingAtSource": "Comprobando el origen y el destino…",
     "estimating": "Calculando…",
