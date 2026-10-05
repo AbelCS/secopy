@@ -83,7 +83,9 @@ the `.dmg` with `xattr`; or build it with `npm run tauri build` from `ui/`. Then
 22. **Closing and quitting.** With no job running, the red button closes the window and the
     app quits; open it again and ⌘Q quits at once. With "Keep jobs running in the menu bar…"
     off, start a copy and close the window: it asks first; Continue keeps it open, Cancel job
-    and quit quits and leaves no partial file. ⌘Q during a copy asks the same.
+    and quit quits and leaves no partial file. ⌘Q during a copy asks the same, and so does
+    the Dock icon's Quit (right-click), also with the window hidden in the menu bar; with
+    nothing running, the Dock's Quit quits at once.
 
 ## Queue
 
