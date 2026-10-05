@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/AbelCS/secopy/compare/v1.2.0...v1.2.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **app:** quitting from the Dock (or logout) during a job asks first ([ed5996f](https://github.com/AbelCS/secopy/commit/ed5996f00257b2430a6958e57d7b99f72025c81b)), closes [#211](https://github.com/AbelCS/secopy/issues/211)
+
 ## [1.2.0](https://github.com/AbelCS/secopy/compare/v1.1.0...v1.2.0) (2026-10-05)
 
 
